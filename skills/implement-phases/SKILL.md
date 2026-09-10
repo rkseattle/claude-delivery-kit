@@ -134,8 +134,9 @@ Record `started_at` for this phase before the first edit — `date -u '+%Y-%m-%d
 While the phase runs, keep a note of anything that cost real time and was avoidable: a gate
 that failed for a reason a rule could have prevented, an adversarial round spent on
 something already written down, a convention discovered by being corrected rather than by
-reading it. That is what the report's Friction line covers, and noticing it afterward does
-not work — by then the cost is invisible.
+reading it. Record it to `friction[]` the moment you notice it, per
+`${CLAUDE_PLUGIN_ROOT}/gates/status-report.md` — noticing afterward does not work, because
+by then the cost is invisible.
 
 Industry-standard patterns only, per `deliver`'s invariant. Put the reason for any departure
 from in-repo precedent in the commit message — that is where a reviewer looks, and it does
@@ -209,8 +210,9 @@ that behavior, per `{{failure_policy_gate}}`.
 ### 2e. Phase status report
 
 Report before starting the next phase, then move directly to the next one without pausing
-for a reply. The format — heading, phase table, files, acceptance criteria, gates, friction —
-is `${CLAUDE_PLUGIN_ROOT}/gates/status-report.md`. Read it once per session.
+for a reply. The format — heading, phase table, files, acceptance criteria, gates — is
+`${CLAUDE_PLUGIN_ROOT}/gates/status-report.md`. Read it once per session. Friction is
+recorded to `friction[]` there, never printed in a phase report.
 
 ## Step 3 — Report
 
@@ -227,15 +229,11 @@ When all phases are committed, report:
    artifact: `/ship-pr` builds the PR body from it, and any AC still unmet must be stated as
    such before the branch review rather than discovered in it. All ACs met is a claim about
    the ticket being deliverable — make it explicitly, or say which are not and why.
-5. **Process feedback** — every Friction item from every phase, deduplicated, each with the
-   file it belongs in and the exact proposed wording. Then **stop and ask** before applying
-   any of them. Do not edit `CLAUDE.md`, a gate, a skill, or a memory file on your own
-   initiative; a config file that grows on every run stops being read. An item Rob declines
-   is dropped, not re-proposed next run.
-
-   Report `none` when no phase found friction. A run that genuinely went clean is a real
-   outcome, and manufacturing an item to fill the section is how a config file accumulates
-   rules nobody needed.
+5. **Friction recorded** — the count in `friction[]`, one line, and nothing more. Do not
+   list the items, do not propose wording, do not stop to ask. The whole list reports once
+   at the end of delivery, from `/ci-green`, where it can dedupe across every stage. Halting
+   implementation for a config conversation before the branch has even been reviewed is what
+   that change removed.
 
 Do not push. Do not open a PR. `/ship-pr` covers that, after `/branch-review`.
 

@@ -192,11 +192,15 @@ moved. A boundary crossed without a status report is the single most common way 
 becomes unreviewable: the information exists only while the phase is fresh, and
 reconstructing it afterward from `git log` loses the timing and the friction entirely.
 
-**Process feedback is proposed, never applied on your own initiative.** Friction collected
-during a run is reported at the end with the file and the exact wording it would need — then
-you stop and ask. The reasoning is the same as for work items: a config file that grows
-unprompted stops being read, and these files only work because everything in them earned its
-place. `none` is a valid and common finding.
+**Process feedback is recorded as it happens and reported once, at the end.** Every stage
+appends friction to `friction[]` in `.claude/state/current-plan.json` and prints nothing;
+`ci-green` reports the whole list before it deletes that file. One list at the end dedupes
+across every stage, which four separate per-stage reports could never do, and it stops a
+config conversation interrupting a run mid-flight.
+
+**It is proposed, never applied on your own initiative.** The reasoning is the same as for
+work items: a config file that grows unprompted stops being read, and these files only work
+because everything in them earned its place. `none` is a valid and common finding.
 
 **These files have a line budget.** Every run is asked for friction and no run is asked what
 to remove, so the corpus ratchets in one direction unless something holds it. Each file has

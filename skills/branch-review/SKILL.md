@@ -93,8 +93,8 @@ the "Before `git add`" checks. Nothing about being in review mode relaxes the co
 ## Report at the end of the stage
 
 Same shape as a phase report: which findings were fixed and which were argued down, the
-files each fix touched, how long the stage took, whether any finding moved an acceptance
-criterion, and the friction worth writing into a config file.
+files each fix touched, how long the stage took, and whether any finding moved an
+acceptance criterion. Friction is recorded to `friction[]`, not reported here.
 
 A review finding that a written rule would have prevented is worth reporting — it was caught
 late, by an agent, on work already committed. But check which of the two it is before

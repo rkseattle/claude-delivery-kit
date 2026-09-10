@@ -139,8 +139,25 @@ When the loop exits, report the full status: final check status, every commit ad
 all iterations, all files changed, total wall-clock, the acceptance criteria table with
 evidence — CI passing is evidence for an AC that a test covers, and now is when it becomes
 available — and, still listed as outstanding, any AC awaiting out-of-band verification. **CI
-going green does not close those.** Then the friction from this stage, proposed and not
-applied.
+going green does not close those.**
+
+Then, and only here, **the process-improvement list for the whole delivery.** Read
+`friction[]` from `.claude/state/current-plan.json` and report every item recorded by every
+stage — deduplicated, each with the file it belongs in, the exact proposed wording, what it
+displaces, and the cap check from `deliver`'s line-budget table. Keep each item's origins
+rather than collapsing them: "seen in Phase 2, Phase 5, branch-review" is a different signal
+from one sighting, and it is what tells Rob which rules actually cost time.
+
+Then **stop and ask** before applying any of them. Do not edit `CLAUDE.md`, a gate, a skill,
+or a memory file on your own initiative; a config file that grows on every run stops being
+read. An item Rob declines is dropped, not re-proposed next run.
+
+Report `none` when the run genuinely recorded no friction. A clean run is a real outcome,
+and manufacturing an item to fill the section is how a config file accumulates rules nobody
+needed.
+
+**Report this before Step 6 deletes the state file.** The list lives in the file being
+removed, and a report written after the delete has nothing to read.
 
 ## Step 6 — Clean up the run's scratch files
 

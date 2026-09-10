@@ -105,6 +105,8 @@ The stage skills carry the procedure; the commands, paths and thresholds come fr
   "build_manifest": "<file the build enumerates sources in, or none>",
   "push_command": "git push -u --force-with-lease origin <branch>",
   "release_build_command": "<production-config build, or none>",
+  "unit_test_scope": "<the whole target, or the changed workspaces — and why>",
+  "post_fix_verification_scope": "<what a fix commit must re-run before the gate passes>",
   "results_file": "<path the local gate writes its verdict to>",
   "results_read_command": "<command that reads counts out of it>",
   "ci_results_artifact": "<name of the uploaded CI result artifact>",
@@ -125,6 +127,34 @@ line rather than inventing a substitute. `verification_step_file` is the one tha
 most: it is where `ship-pr` learns whether this project's diff needs a push-run suite, a
 session on real hardware, or nothing beyond the checklist — the single biggest divergence
 between the two projects this was extracted from.
+
+Two keys exist because the projects hold genuinely different policy on the same question,
+and each states its reasoning rather than just its answer. `unit_test_scope` is the
+whole-target-versus-changed-workspaces trade: matching CI exactly, against a suite slow
+enough that the cost is real. `post_fix_verification_scope` is whether a fix commit
+restarts the push gate — a project whose selector resolves a diff to affected tests can
+re-run that set and have a real verdict; one without a selector has no such answer and its
+only honest re-verification is everything.
+
+## Friction
+
+Stages record process friction to `friction[]` in `.claude/state/current-plan.json` as they
+notice it, and print nothing. `ci-green` reports the deduplicated list once, at the end of
+delivery, before Step 6 deletes that file.
+
+```json
+{ "stage": "implement-phases", "phase": 3, "phase_name": "E2E specs",
+  "at": "2026-09-10T16:52:35Z", "item": "...", "target_file": "gates/definition-of-done.md",
+  "proposed_wording": "...", "displaces": "..." }
+```
+
+`phase`/`phase_name` are `null` outside `implement-phases`; `ci-green` records `iteration`
+instead. The dedup keeps every origin, because an item hit in three phases is a different
+signal from one hit once.
+
+Per-stage reporting split the list across up to four places that could not see each other,
+so the same item got proposed repeatedly and each report stopped a run mid-flight for a
+config conversation.
 
 ## Line budget
 

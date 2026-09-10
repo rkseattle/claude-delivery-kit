@@ -147,7 +147,7 @@ phase used:
 - **Acceptance criteria** — the full table with evidence, with any row awaiting out-of-band
   verification called out separately as outstanding. Every AC met, or an explicit statement
   of which are not and why the PR opens anyway.
-- **Friction** — what cost time in this stage and the config file that would prevent it.
-  Propose; do not apply.
+Friction from this stage is recorded to `friction[]`, not reported here — `/ci-green`
+reports the whole delivery's list once.
 
 Then run `/ci-green` to watch the run through to completion.
