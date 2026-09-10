@@ -30,6 +30,10 @@ gates/                 status-report.md, definition-of-done.md, pre-push.md
 hooks/                 hooks.json + the two hooks and their self-tests
 ```
 
+The skills reference `${CLAUDE_PLUGIN_ROOT}/gates/*.md`. Those three files land in the
+gates commit; until then the references resolve to nothing and a run would say so rather
+than proceed on a gate it could not read.
+
 ## Installing in a project
 
 Add to the project's `.claude/settings.json`:
@@ -85,11 +89,55 @@ A missing file is not an error. Every agent says so in one line and reviews agai
 `CLAUDE.md` alone, because an agent that invents project rules to fill the gap produces
 findings the author cannot distinguish from real ones.
 
+## project.json
+
+The stage skills carry the procedure; the commands, paths and thresholds come from
+`.claude/project.json` in each project. A `{{key}}` in a skill resolves from this file.
+
+```json
+{
+  "ticket_prefix": "ABC",
+  "jira_project": "ABC",
+  "repo_slug": "owner/repo",
+  "parent_branch_default": "main",
+  "source_roots": "src tests docs",
+  "build_command": "<what proves a phase compiles on its own>",
+  "build_manifest": "<file the build enumerates sources in, or none>",
+  "push_command": "git push -u --force-with-lease origin <branch>",
+  "release_build_command": "<production-config build, or none>",
+  "results_file": "<path the local gate writes its verdict to>",
+  "results_read_command": "<command that reads counts out of it>",
+  "ci_results_artifact": "<name of the uploaded CI result artifact>",
+  "verification_tiers": "<the tiers an AC can be verified by>",
+  "verification_step_file": ".claude/gates/<what ship-pr must resolve>.md",
+  "failure_policy_gate": ".claude/gates/<gate holding the failure policy>.md",
+  "mechanics_gate_dod": ".claude/gates/dod-mechanics.md",
+  "mechanics_gate_pre_push": ".claude/gates/pre-push-mechanics.md",
+  "registry_file": ".claude/registries.md",
+  "plan_rules_file": ".claude/plan-rules.md",
+  "user_docs_targets": "README.md docs/user-guide.md",
+  "extra_gates": [".claude/gates/<project-only gate>.md"]
+}
+```
+
+A key naming a file the project does not have gets `none`, and the skill says so in one
+line rather than inventing a substitute. `verification_step_file` is the one that matters
+most: it is where `ship-pr` learns whether this project's diff needs a push-run suite, a
+session on real hardware, or nothing beyond the checklist — the single biggest divergence
+between the two projects this was extracted from.
+
 ## Line budget
 
 `deliver` caps each file so the corpus cannot ratchet upward: 130 lines for an agent
-definition, 300 for a skill. A change that would breach a cap names what comes out. These
-generic files are held to the same caps as the project copies they replace.
+definition, 320 for a skill, 300 for a gate. A change that would breach a cap names what
+comes out. These generic files are held to the same caps as the project copies they
+replace.
+
+The skill cap was 300 in both projects and is 320 here, raised deliberately rather than
+met by compression. `deliver` merges two projects' invariants and adds one rule neither
+had — **Shared before project**, which sends a generally-applicable rule to this plugin
+instead of a project file. That rule is what stops the drift this repo exists to end, so
+it earned the twenty lines rather than being cut to fit.
 
 `greptile-reviewer.md` sits at the cap. It absorbed two projects' review dimensions, so
 it is the file most likely to want to grow; the pressure is the cap working as intended,
