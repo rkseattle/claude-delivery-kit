@@ -57,8 +57,43 @@ plugin's copy sits unused behind `/delivery-kit:deliver`.
 - `.claude/project.json` — ticket prefix, build/test/lint commands, results paths,
   locale count, and the scope slots the generic gates defer to
 - `.claude/gates/*-mechanics.md` — the project's own commands and thresholds
+- `.claude/agent-rules/<agent-name>.md` — the project rules each adversary applies
 - `.claude/state/` — runtime, gitignored, never part of this repo
 - Any project-specific skill (`e2e-authoring`, `swift-testing`)
+
+## agent-rules
+
+The four adversaries share a skeleton — cold-read framing, the never-move-HEAD rule, the
+procedure, root-cause discipline, the output block. What differs between projects is one
+section each: the rules to attack. Merging two projects' rule lists into one file would
+produce a list where most entries are inapplicable noise, so each agent reads its own
+rules from the project instead:
+
+```
+.claude/agent-rules/commit-adversary.md
+.claude/agent-rules/design-adversary.md
+.claude/agent-rules/greptile-reviewer.md
+.claude/agent-rules/ci-failure-adversary.md
+```
+
+Each holds what the project's copy of that agent used to carry inline — architecture
+rules, the grep target most often missed, the behavior the automated suite cannot reach
+and the gate covering it, and any environmental exception `ci-failure-adversary` may
+accept.
+
+A missing file is not an error. Every agent says so in one line and reviews against
+`CLAUDE.md` alone, because an agent that invents project rules to fill the gap produces
+findings the author cannot distinguish from real ones.
+
+## Line budget
+
+`deliver` caps each file so the corpus cannot ratchet upward: 130 lines for an agent
+definition, 300 for a skill. A change that would breach a cap names what comes out. These
+generic files are held to the same caps as the project copies they replace.
+
+`greptile-reviewer.md` sits at the cap. It absorbed two projects' review dimensions, so
+it is the file most likely to want to grow; the pressure is the cap working as intended,
+and the place for per-dimension detail is `agent-rules/`, not here.
 
 ## Hooks
 
