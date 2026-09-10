@@ -1,0 +1,8 @@
+{
+  "name": "delivery-kit",
+  "version": "1.0.0",
+  "description": "Phased delivery workflow — plan, adversarial review, implement, review, ship, CI to green. Skills, adversary agents, gates and hooks shared across projects.",
+  "author": {
+    "name": "Rob"
+  }
+}

@@ -1,0 +1,14 @@
+{
+  "name": "rob-kit",
+  "owner": {
+    "name": "Rob"
+  },
+  "plugins": [
+    {
+      "name": "delivery-kit",
+      "description": "Phased delivery workflow shared across projects.",
+      "source": "./",
+      "version": "1.0.0"
+    }
+  ]
+}
