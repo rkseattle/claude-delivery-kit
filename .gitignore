@@ -1,1 +1,5 @@
 .DS_Store
+
+# Per-checkout list of consuming project names, for the leak guard.
+# Never committed: naming them here would be the leak the guard prevents.
+.github/consumers.txt

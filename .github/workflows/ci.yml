@@ -139,11 +139,24 @@ jobs:
 
       # The kit must not acquire a rule that only makes sense in one project. This is the
       # "Shared before project" invariant, checked rather than trusted.
+      #
+      # The patterns live in a file rather than inline. A guard that names the projects it
+      # protects is itself the leak it exists to prevent — this workflow is public, and an
+      # inline list would publish the very identifiers the check exists to keep out.
+      # consumers.txt is gitignored and supplied per-checkout; absent it, the shape rules
+      # below still run.
       - name: No project-specific tokens leaked into shared files
         run: |
           set -euo pipefail
-          if grep -rniE 'MINCRM|minicrm|LandmarkAR|xcodebuild|swiftlint|\.lproj|\.pbxproj|pool\.query|rkseattle/(minicrm|LandmarkAR)' \
+          # Shape rules: build-tool invocations, language-specific manifests, and
+          # ticket-prefix patterns have no place in a project-agnostic file, whatever
+          # project they came from.
+          if grep -rniE '\.(lproj|pbxproj|xctestplan)\b|xcodebuild|swiftlint|swiftformat|\bpool\.query\b|npm run [a-z_:]+|\b[A-Z]{3,10}-[0-9]+\b' \
                skills gates agents; then
             echo "a project-specific token reached a shared file"; exit 1
+          fi
+          if [ -f .github/consumers.txt ] \
+             && grep -rniEf .github/consumers.txt skills gates agents; then
+            echo "a consuming project was named in a shared file"; exit 1
           fi
           echo "clean"
