@@ -1,0 +1,149 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  # Both hooks' only failure mode is silence: a guard that stops guarding looks exactly
+  # like a clean run. Nothing else exercises them, so this job is the whole safety net.
+  #
+  # ubuntu deliberately, not macos. The Stop hook reverses the transcript with
+  # `tail -r 2>/dev/null || tac`, and Darwin has `tail -r` while Linux has only `tac` —
+  # so the `tac` branch is unreachable on a developer's Mac and CI is the only place it
+  # ever runs.
+  hooks:
+    name: Hook self-tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Stop-hook self-test
+        run: bash hooks/block-false-stop.sh --self-test
+
+      - name: Branch-guard self-test
+        run: bash hooks/protect-plan-branch.sh --self-test
+
+      # A self-test passes whether or not anything still points at the hook, so assert
+      # the wiring itself. This is what catches a hooks.json entry renamed, retyped, or
+      # pointed at a path that no longer exists — the failure the self-tests cannot see.
+      - name: Hooks are wired, and every command exists and is executable
+        run: |
+          set -euo pipefail
+          jq -e '.hooks.Stop[0].hooks[0].command' hooks/hooks.json > /dev/null
+          jq -e '.hooks.PostToolUse[] | select(.matcher == "Bash")' hooks/hooks.json > /dev/null
+
+          jq -r '.hooks | to_entries[] | .value[] | .hooks[] | .command' hooks/hooks.json \
+          | while read -r cmd; do
+              path="${cmd/\$\{CLAUDE_PLUGIN_ROOT\}/$GITHUB_WORKSPACE}"
+              test -x "$path" || { echo "hook command is not executable: $path"; exit 1; }
+              echo "ok: $path"
+            done
+
+      # The self-tests take the hook under test as $1, so they run it wherever it sits.
+      # That is what lets the hooks live in a plugin rather than at a fixed project path,
+      # and it is worth asserting: a self-test that hardcoded its target would pass here
+      # and fail the moment the plugin is installed somewhere else.
+      - name: Self-tests accept the hook path as an argument
+        run: |
+          set -euo pipefail
+          cp -r hooks "$RUNNER_TEMP/relocated"
+          bash "$RUNNER_TEMP/relocated/block-false-stop.sh" --self-test
+          bash "$RUNNER_TEMP/relocated/protect-plan-branch.sh" --self-test
+
+  manifest:
+    name: Plugin manifest
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Every JSON file parses
+        run: |
+          set -euo pipefail
+          for f in .claude-plugin/plugin.json .claude-plugin/marketplace.json hooks/hooks.json; do
+            python3 -c "import json,sys; json.load(open('$f'))" && echo "ok: $f"
+          done
+
+      # A skill or agent whose frontmatter name does not match its location is invisible
+      # under the name everything else refers to it by.
+      - name: Frontmatter names match their paths
+        run: |
+          set -euo pipefail
+          fail=0
+          for f in skills/*/SKILL.md; do
+            want=$(basename "$(dirname "$f")")
+            got=$(awk '/^---$/{c++;next} c==1 && /^name:/{print $2; exit}' "$f")
+            if [ "$want" != "$got" ]; then
+              echo "MISMATCH $f: dir=$want name=$got"
+              fail=1
+            fi
+          done
+          for f in agents/*.md; do
+            want=$(basename "$f" .md)
+            got=$(awk '/^---$/{c++;next} c==1 && /^name:/{print $2; exit}' "$f")
+            if [ "$want" != "$got" ]; then
+              echo "MISMATCH $f: file=$want name=$got"
+              fail=1
+            fi
+          done
+          exit "$fail"
+
+      # deliver's line budget, enforced. Every run is asked for friction and no run is
+      # asked what to remove, so without this the corpus only ever grows.
+      - name: Line budget
+        run: |
+          set -euo pipefail
+          fail=0
+          check() {
+            n=$(wc -l < "$1")
+            if [ "$n" -gt "$2" ]; then
+              echo "OVER CAP $1: $n > $2"
+              fail=1
+            fi
+          }
+          for f in skills/*/SKILL.md; do check "$f" 320; done
+          for f in agents/*.md; do check "$f" 130; done
+          for f in gates/*.md; do
+            if [ "$(basename "$f")" = "status-report.md" ]; then
+              check "$f" 130
+            else
+              check "$f" 300
+            fi
+          done
+          exit "$fail"
+
+      # Every ${CLAUDE_PLUGIN_ROOT} reference must name a file that exists. These resolve
+      # at runtime inside a project, so a typo here surfaces as a stage silently reading
+      # nothing rather than as an error.
+      - name: Bundled-file references resolve
+        run: |
+          set -euo pipefail
+          fail=0
+          # Process substitution, not `grep | while read`: a pipe runs the loop in a
+          # subshell, so neither the flag nor an `exit` inside it reaches this step and
+          # the check always passes — a guard whose only failure mode is silence.
+          while read -r ref; do
+            p=".${ref#\$\{CLAUDE_PLUGIN_ROOT\}}"
+            if [ -e "$p" ]; then
+              echo "ok: $ref"
+            else
+              echo "BROKEN: $ref"
+              fail=1
+            fi
+          done < <(grep -rhoE '\$\{CLAUDE_PLUGIN_ROOT\}/[a-zA-Z0-9/_.-]+' skills gates agents | sort -u)
+          exit "$fail"
+
+      # The kit must not acquire a rule that only makes sense in one project. This is the
+      # "Shared before project" invariant, checked rather than trusted.
+      - name: No project-specific tokens leaked into shared files
+        run: |
+          set -euo pipefail
+          if grep -rniE 'MINCRM|minicrm|LandmarkAR|xcodebuild|swiftlint|\.lproj|\.pbxproj|pool\.query|rkseattle/(minicrm|LandmarkAR)' \
+               skills gates agents; then
+            echo "a project-specific token reached a shared file"; exit 1
+          fi
+          echo "clean"
