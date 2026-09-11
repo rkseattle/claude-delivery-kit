@@ -174,30 +174,33 @@ introduces does not build, and the claim is then false.
 The architecture rules the plan must respect are in `CLAUDE.md` and
 `{{plan_rules_file}}`. Read them rather than working from memory.
 
-### Size: 6 phases, 40 lines each, and phases are bullets
+### Size: at most 6 phases, 500 lines outside the AC table
 
-**At most 6 phases.** This is the scope measure — document line count is not. A plan gets
-long from three causes and only one is a scope problem: too much surface (real), prose
-where bullets belong (a formatting problem the phase cap catches), and a large AC coverage
-table (pure bookkeeping that scales with ticket count and costs a reviewer nothing). A
-document cap punishes all three alike, and the cheapest way to satisfy one is to delete the
-wiring and dependency detail a reviewer most needs — which makes the plan shorter and worse.
+**The phase count is the real limit.** A branch needs at most six phases; more than that is
+a branch too large to review in one sitting, and the fix is splitting the work across PRs,
+not writing tighter. Propose the split to Rob and let him choose — his answer may well be
+one PR anyway, and then the justification goes in `Rejected alternatives`. Do not silently
+compress seven phases into six. Unlike a line count this cannot be satisfied by compressing
+prose, which is why it comes first.
 
-A seventh phase means the branch is too large to review in one pass. **Propose a split to
-Rob and let him choose**; his answer may well be one PR anyway, and then the justification
-goes in `Rejected alternatives`. Do not silently compress seven phases into six.
+**500 lines for the document, counting everything except the acceptance-criteria table.**
+That table is one row per AC clause by design, and a plan covering several tickets can carry
+thirty rows before a single phase is written — counting it would penalize the splitting rule
+above it. Everything else counts.
 
-**40 lines per phase**, counted on the finished file. A phase over it is doing too much —
-split it or cut its scope; do not compress the prose to fit.
+**5 lines for `Change summary`.** This is the field that actually overflows, so it is the
+field with the limit. What changes, and why, in five lines or fewer. If a claim needs three
+paragraphs of defense, the approach is wrong or unverified — that is a signal to re-examine
+it, not to write more words. Argument belongs in `Approach` and `Rejected alternatives`,
+which are prose by design and uncapped.
 
-**A phase is bullets, never paragraphs.** The four bullets are the phase, `Files touched` is
-a list of paths, and a phase containing a prose paragraph is a phase doing too much. If a
-claim needs three paragraphs of defense, the approach is wrong or unverified — not
-underwritten. Argument belongs in `Approach` and `Rejected alternatives`, which are prose by
-design and uncapped.
+`Files touched` has no line limit. A registry edit must enumerate its consumers, and that
+list is sometimes long; truncating it to hit a number would defeat the rule requiring it.
 
-The **Acceptance criteria coverage** table is exempt from every length rule. One row per AC
-clause is required, so its size is set by the tickets, not by the plan's discipline.
+**A phase is bullets, never paragraphs.** A phase running past ~40 lines with a five-line
+`Change summary` and a legitimately long `Files touched` is fine. One running past 40
+because its prose sprawls is a phase doing too much — **split it or cut its scope; do not
+compress the prose to fit.**
 
 ### Describe the end state, never the revision history
 
