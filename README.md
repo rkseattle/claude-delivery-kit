@@ -184,6 +184,13 @@ project's own rather than replacing them.
 it asks git where HEAD is rather than parsing the command, which is what retired the
 predecessor and its Python tokenizer.
 
+The branch guard restores only a branch it has seen HEAD sitting on, recorded in
+`.claude/state/branch-adopted`. A snapshot cannot otherwise tell drift from a session that
+was never on the branch, and a plan file nothing ever deletes made the second case common:
+a new session opening on `main` was dragged onto the stale plan's branch, then dragged back
+every time it was asked to leave. Both hooks honor `"paused": true`, which is how a
+deliberate switch away from the branch is declared.
+
 Each hook self-tests, taking the path of the hook under test:
 
 ```bash

@@ -299,6 +299,14 @@ backstop for a control that has to be behavioral: nothing catches a false pause 
 a plan except not taking it. A sentence naming the next action is never the last thing in a
 turn — either its tool call goes in the same message, or the sentence is not written.
 
+**When Rob asks to leave the branch, pause first — do not report a wall.** An explicit
+instruction to switch branches, check out main, or step away from the work outranks the
+guard: set `"paused": true` in `.claude/state/current-plan.json`, then switch, then say the
+plan was paused and how to resume it. Clear the field as the first action of the turn that
+comes back. The guard exists to catch a stray checkout nobody asked for; answering a direct
+request with "a hook prevents this" makes it look like the tooling is in charge, and the
+escape hatch it names in that message is this one.
+
 ## If a stage file is missing or unreadable
 
 Stop and say which one. Do not reconstruct the procedure from memory — the gates and review

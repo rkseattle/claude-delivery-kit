@@ -40,6 +40,15 @@ make_repo() {
   fi
 }
 
+# Marks the plan branch as one the hook has seen HEAD sitting on, which is what licenses a
+# restore. Cases that assert a restore must call this: without it the hook reads the
+# mismatch as a session that was never on the branch and correctly leaves HEAD alone.
+adopt() {
+  local dir="$1" branch="${2-feature}"
+  mkdir -p "$dir/.claude/state"
+  printf '%s\n' "$branch" > "$dir/.claude/state/branch-adopted"
+}
+
 # Runs the hook against a repo and echoes the verdict it logged. The log is the
 # assertion surface because it records what the hook DID; stdout only describes it.
 #
@@ -96,7 +105,7 @@ expect ok feature "on the plan branch, nothing to do"
 expect_stdout empty "" "a no-op emits no output"
 
 echo "== HEAD moved to another branch: restore it =="
-rm -rf "$tmp/repo"; make_repo "$tmp/repo"
+rm -rf "$tmp/repo"; make_repo "$tmp/repo"; adopt "$tmp/repo"
 git -C "$tmp/repo" checkout -q main
 expect restored feature "checkout main is undone"
 expect_stdout valid-json "" "restore output is valid JSON"
@@ -108,7 +117,7 @@ expect_stdout contains "restored to 'feature'" "the message names the branch res
 echo "== a detached HEAD is off the branch too =="
 # The predecessor needed a DETACH_FLAGS list to catch `--detach`/`-d` because a detach
 # names no ref. Here it needs nothing: show-current prints empty and empty != feature.
-rm -rf "$tmp/repo"; make_repo "$tmp/repo"
+rm -rf "$tmp/repo"; make_repo "$tmp/repo"; adopt "$tmp/repo"
 git -C "$tmp/repo" checkout -q --detach HEAD
 expect restored feature "detached HEAD is reattached"
 expect_stdout contains "detached HEAD" "the message says HEAD was detached"
@@ -116,7 +125,7 @@ expect_stdout contains "detached HEAD" "the message says HEAD was detached"
 echo "== a restore blocked by uncommitted work is reported, never claimed =="
 # git refuses to overwrite tracked changes, so the restore fails. Reporting that as
 # success is the one outcome worse than not restoring at all.
-rm -rf "$tmp/repo"; make_repo "$tmp/repo"
+rm -rf "$tmp/repo"; make_repo "$tmp/repo"; adopt "$tmp/repo"
 git -C "$tmp/repo" checkout -q main
 printf 'conflicting\n' > "$tmp/repo/tracked.txt"
 expect restore-failed main "a blocked restore leaves HEAD where it is"
@@ -125,7 +134,7 @@ expect_stdout contains "Do not commit" "the failure warns against committing"
 expect_stdout valid-json "" "failure output is valid JSON"
 
 echo "== untracked files do not block a restore =="
-rm -rf "$tmp/repo"; make_repo "$tmp/repo"
+rm -rf "$tmp/repo"; make_repo "$tmp/repo"; adopt "$tmp/repo"
 git -C "$tmp/repo" checkout -q main
 printf 'scratch\n' > "$tmp/repo/untracked.txt"
 expect restored feature "an untracked file still allows the restore"
@@ -197,10 +206,47 @@ git -C "$tmp/repo" checkout -q main
 expect "" main "a plan with no branch field leaves HEAD alone"
 
 # An abandoned plan names a branch nobody is on. Restoring TO it would drag the session
-# onto branch work it is not doing — the opposite of the bug this guards.
+# onto branch work it is not doing — the opposite of the bug this guards. Asserting `skip`
+# rather than a failed restore is the point: the hook must decline because the branch was
+# never adopted, NOT merely because the checkout happened to fail.
 rm -rf "$tmp/repo"; make_repo "$tmp/repo" "some-other-branch"
 git -C "$tmp/repo" checkout -q main
-expect restore-failed main "a plan naming a nonexistent branch cannot restore"
+expect skip main "a plan naming a nonexistent branch is declined, not attempted"
+
+echo "== a stale plan for an EXISTING branch never adopted: never act =="
+# The reported bug. A new session opens on main; a plan file nobody deleted names feature,
+# which exists and is checkable-out. The old guard read that mismatch as drift and dragged
+# the session onto feature. Nothing here was ever adopted, so nothing is restored.
+rm -rf "$tmp/repo"; make_repo "$tmp/repo"
+git -C "$tmp/repo" checkout -q main
+expect skip main "a stale plan does not hijack a session that opened on main"
+expect_stdout empty "" "a never-adopted plan emits no output"
+
+# And it must not fight the user. Asking to switch back to main, repeatedly, has to work:
+# each run is a fresh mismatch and each must be declined the same way.
+expect skip main "asking for main a second time still leaves HEAD on main"
+expect skip main "asking for main a third time still leaves HEAD on main"
+
+echo "== adoption is observed, and a new plan branch invalidates the old latch =="
+# Landing on the branch is what licenses future restores; the hook writes the latch itself.
+rm -rf "$tmp/repo"; make_repo "$tmp/repo"
+expect ok feature "sitting on the plan branch records the adoption"
+total=$((total + 1))
+if [ "$(cat "$tmp/repo/.claude/state/branch-adopted" 2>/dev/null)" = "feature" ]; then
+  echo "  ok: the latch names the adopted branch"
+else
+  echo "  FAIL: the latch was not written on adoption"; failures=$((failures + 1))
+fi
+# Having adopted it, drift off it is now a real restore.
+git -C "$tmp/repo" checkout -q main
+expect restored feature "drift after adoption is restored"
+
+# A latch left by a previous plan must not authorize the next one's branch.
+rm -rf "$tmp/repo"; make_repo "$tmp/repo" "third-branch"
+git -C "$tmp/repo" branch third-branch
+adopt "$tmp/repo" "feature"
+git -C "$tmp/repo" checkout -q main
+expect skip main "a latch from a previous plan does not license a new branch"
 
 echo "== a paused plan is a deliberate step away =="
 rm -rf "$tmp/repo"; make_repo "$tmp/repo"

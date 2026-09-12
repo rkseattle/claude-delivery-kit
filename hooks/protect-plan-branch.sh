@@ -18,6 +18,22 @@
 # Decides from typed state only — the branch named in current-plan.json and the branch
 # git reports — never from the prose of the command. Every error exits quietly: a hook
 # that derails a turn on its own bug is worse than no hook.
+#
+# A mismatch between HEAD and the plan branch has two causes that look identical in a
+# single snapshot: DRIFT (the session was on the branch and a command moved it off) and
+# NEVER-ADOPTED (the session never went there — a new session on main with a stale plan
+# file nothing ever deleted). Restoring the second hijacks the session onto abandoned
+# work, and re-hijacks it every time the user asks to switch back, which reads as the
+# guard refusing a direct instruction.
+#
+# So the restore is latched on adoption: .claude/state/branch-adopted records the branch
+# this hook has actually SEEN HEAD sitting on. Only a mismatch against a matching latch
+# is drift. The latch stores the branch name rather than existing bare, so a plan that
+# names a new branch invalidates the old latch by itself — no cleanup step to forget.
+#
+# The latch fails open: lose the state directory mid-plan and the guard stays quiet until
+# HEAD next lands on the branch. That is the deliberate trade — an unprotected window is
+# recoverable, a session dragged onto the wrong branch is the bug being fixed.
 set -uo pipefail
 
 HOOK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -92,8 +108,25 @@ if [ -n "$git_dir" ]; then
   done
 fi
 
+latch="$root/.claude/state/branch-adopted"
+
+# HEAD is where the plan wants it. This is the ONLY thing that ever writes the latch:
+# adoption is observed, never assumed, so a plan file alone can never authorize a restore.
 if [ "$actual" = "$want_branch" ]; then
+  if [ -d "$(dirname "$latch")" ]; then
+    printf '%s\n' "$want_branch" > "$latch" 2>/dev/null || true
+  fi
   log_invocation "$root" "verdict=ok on=$want_branch"
+  quiet
+fi
+
+# HEAD is elsewhere. Whether that is drift or a session that was never on the branch is
+# decided by the latch, and a latch naming a DIFFERENT branch is not adoption of this one:
+# it belongs to a previous plan, so it reads as never-adopted rather than as drift.
+adopted=""
+[ -f "$latch" ] && IFS= read -r adopted < "$latch" 2>/dev/null
+if [ "$adopted" != "$want_branch" ]; then
+  log_invocation "$root" "verdict=skip not-adopted want=$want_branch on=${actual:-DETACHED}"
   quiet
 fi
 
