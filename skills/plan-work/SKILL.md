@@ -262,6 +262,11 @@ item below, either fix it or satisfy yourself it holds:
    later phase introduces does not build on its own; either move it or reorder.
 5. **Every "independently committable" claim** — pick the phase you are least sure of and
    ask what `{{build_command}}` does on it alone.
+6. **Every component the Step 3 survey found no in-repo precedent for** — search for the
+   established external approach before designing one. An empty prior-art grep means no
+   _local_ precedent, not that none exists; it is the case where inventing is both most
+   likely and least visible. Name the standard in `Approach`, or say in one line why it
+   does not apply here.
 
 Findings from this pass are edited in place, silently. They never appear in the plan as
 revision history.

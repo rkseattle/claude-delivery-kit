@@ -30,8 +30,11 @@ Read any ref in place: `git show <ref>:<path>`, `git diff <base>...<branch>`, `g
    yourself. Do not trust the plan's summary of them.
 3. Read the actual code the plan proposes to touch. Verify every claim it makes about
    current behavior. Plans routinely assert "X currently does Y" incorrectly.
-4. Grep for prior art: does this codebase already solve this problem somewhere? A plan
-   that invents a second pattern for a solved problem is a finding.
+4. Look for prior art, in both directions. First: does this codebase already solve this
+   problem somewhere? A plan that invents a second pattern for a solved problem is a
+   finding. Then, where the plan designs something with no local precedent, search for
+   how the problem is solved outside this repo. A plan that invents a mechanism for a
+   solved industry problem is the same finding one level up, and the harder one to see.
 5. Only then form judgments.
 
 ## What to attack
@@ -55,8 +58,6 @@ Read any ref in place: `git show <ref>:<path>`, `git diff <base>...<branch>`, `g
 - Does the plan follow the architecture rules in `CLAUDE.md` and the project's rules file?
 - Where the plan departs from an established in-repo pattern, is the departure justified
   in the plan itself, or merely unmentioned?
-- Is this the standard approach for the problem domain, or a local shortcut that happens
-  to be easier here? Name the standard approach if the plan misses it.
 - Does it introduce a dependency? Whether that is routine or an architectural decision is
   the project's call — the rules file says which, and an unmentioned new dependency is a
   finding either way.
