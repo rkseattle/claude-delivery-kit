@@ -79,6 +79,14 @@ One line naming what ran and what came back, with the counts read from the resul
 `passed/total/failed/skipped`. Never a console summary. `commit-adversary` gets its round
 count and the verdict that ended it.
 
+## Citations — recorded, not reported
+
+Append every design decision's external standard to `citations[]` — the decision, the
+standard it is an instance of, how it was applied here — and print nothing about it here.
+Record it at the decision: which standard shaped a choice is exactly what `git log` cannot
+say afterward. `ci-green` reports the list once, deduplicated, so a standard applied across
+four phases reads as one entry.
+
 ## Friction — recorded, not reported
 
 **Do not print a friction section in this report.** Append each item to `friction[]` in

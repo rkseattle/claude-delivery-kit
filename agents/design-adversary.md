@@ -58,6 +58,10 @@ Read any ref in place: `git show <ref>:<path>`, `git diff <base>...<branch>`, `g
 - Does the plan follow the architecture rules in `CLAUDE.md` and the project's rules file?
 - Where the plan departs from an established in-repo pattern, is the departure justified
   in the plan itself, or merely unmentioned?
+- **Does the plan name what its approach is an instance of outside this repo** — a
+  standard, a framework convention, a known implementation — or only that the repo does it
+  this way? Conformance to an in-repo pattern that departs from the established external
+  answer is a finding against the plan, not a defense of it. Say which standard applies.
 - Does it introduce a dependency? Whether that is routine or an architectural decision is
   the project's call — the rules file says which, and an unmentioned new dependency is a
   finding either way.

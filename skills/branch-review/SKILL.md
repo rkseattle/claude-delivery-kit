@@ -35,8 +35,15 @@ For each BLOCKER and MAJOR, in order:
 3. **Decide the scope of the fix.** Every live instance of the root cause gets fixed in this
    pass; excluding one requires `deliver`'s benign-in-context bar. State the exclusion in
    those terms or fix it.
-4. **Fix using the industry-standard pattern**, matching in-repo precedent where one exists.
-   Not the minimal edit that clears the finding.
+4. **Fix using the industry-standard pattern, and name it before writing the fix** — the
+   documented standard, framework convention, or known implementation it is an instance of.
+   Not the minimal edit that clears the finding. Matching in-repo precedent is sufficient
+   only where you can also say what that precedent is an instance of; one you cannot name
+   externally is local invention, and a fix that matches it entrenches the thing the next
+   round will find. Where the finding is itself against an in-repo pattern, the standard is
+   what the fix conforms to — not the pattern. Record the name in the commit message and
+   append it to `citations[]` in `.claude/state/current-plan.json`, per
+   `${CLAUDE_PLUGIN_ROOT}/gates/status-report.md`.
 
 MINOR findings: fix them. Defer only when the fix needs a decision you cannot make — a
 product choice, a migration, a superseding ADR. Branch size is not such a decision: if the

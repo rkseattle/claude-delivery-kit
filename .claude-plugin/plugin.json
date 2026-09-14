@@ -4,5 +4,14 @@
   "description": "Phased delivery workflow — plan, adversarial review, implement, review, ship, CI to green. Skills, adversary agents, gates and hooks shared across projects.",
   "author": {
     "name": "Rob"
-  }
+  },
+  "homepage": "https://github.com/rkseattle/claude-delivery-kit",
+  "repository": "https://github.com/rkseattle/claude-delivery-kit",
+  "keywords": [
+    "workflow",
+    "code-review",
+    "delivery",
+    "jira",
+    "ci"
+  ]
 }

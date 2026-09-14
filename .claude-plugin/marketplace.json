@@ -1,5 +1,6 @@
 {
   "name": "rob-kit",
+  "description": "Rob's shared delivery tooling: the phased-delivery workflow used across projects.",
   "owner": {
     "name": "Rob"
   },

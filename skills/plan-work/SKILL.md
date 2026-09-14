@@ -148,8 +148,15 @@ raise the gap with Rob, per `CLAUDE.md`'s rule that every ticket carries them.
 ## Approach
 
 The chosen approach, and why it is the standard one for this problem — name the pattern.
-Where an in-repo precedent exists, cite it as `file:line`. Where this departs from
-precedent, say so and justify it.
+**Cite the exemplar it comes from outside this repo**: the documented standard, framework
+convention, or well-known implementation it is an instance of. Where an in-repo precedent
+exists, cite it as `file:line` as well — but a precedent you cannot also name externally is
+local invention, and saying so is the finding. Where no external exemplar applies, say that
+in one line and why. Where this departs from precedent, say so and justify it.
+
+`implement-phases` copies this citation into `citations[]` in the state file at Step 1, and
+`/ci-green` reports it at the end of delivery alongside every later one — so the standard
+named here is the one the whole run is measured against.
 
 ## Rejected alternatives
 
@@ -262,11 +269,12 @@ item below, either fix it or satisfy yourself it holds:
    later phase introduces does not build on its own; either move it or reorder.
 5. **Every "independently committable" claim** — pick the phase you are least sure of and
    ask what `{{build_command}}` does on it alone.
-6. **Every component the Step 3 survey found no in-repo precedent for** — search for the
-   established external approach before designing one. An empty prior-art grep means no
-   _local_ precedent, not that none exists; it is the case where inventing is both most
-   likely and least visible. Name the standard in `Approach`, or say in one line why it
-   does not apply here.
+6. **Every component whose `Approach` cites no external exemplar** — search for the
+   established approach before designing one. An empty prior-art grep means no _local_
+   precedent, not that none exists, and a component with local precedent is the harder
+   case, not the safer one: following a pattern nobody can source is how a non-standard
+   design spreads unremarked. Name the standard in `Approach`, or say in one line why none
+   applies here.
 
 Findings from this pass are edited in place, silently. They never appear in the plan as
 revision history.

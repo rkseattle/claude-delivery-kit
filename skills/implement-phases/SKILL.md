@@ -81,6 +81,24 @@ not paraphrase the text: an AC reworded into something easier to satisfy is how 
 reports green against criteria nobody agreed to. If the plan has no coverage table either,
 say so and ask rather than writing the criteria yourself.
 
+`citations[]` records the external standard behind each design decision, appended as the
+decision is made and read back by `/ci-green`'s end-of-run report. A commit message alone
+cannot serve: it loses which finding the citation answered, and a citation made at plan time
+never reaches one.
+
+```json
+"citations": [
+  { "stage": "plan-work", "phase": null, "decision": "<what was decided>",
+    "standard": "<the documented standard, convention, or known implementation>",
+    "applied_as": "<what it looks like in this codebase>", "waived": false }
+]
+```
+
+`waived: true` with the reason in `standard` is the honest entry where nothing external
+applies — a category the run must be able to state rather than pad. Carry the plan's
+`Approach` citation across at Step 1 so the report is not missing the decision that shaped
+every phase under it.
+
 Each phase gains four more fields as it runs — `started_at`, `finished_at`, `commit`, and
 `files`. They exist so duration and file lists are read back rather than recalled: a phase
 spanning a compaction boundary is otherwise unreportable, and an estimated duration is
@@ -172,11 +190,18 @@ commit, or `--cached` for staged work), the covering ticket IDs, and nothing els
 describe what you changed. Do not explain why. Do not tell it what to look for or where you
 think the risk is. It reads the diff cold and derives its own context.
 
-Fix every BLOCKER and MAJOR. Address PATTERN SPREAD findings in this same commit unless they
-are genuinely out of scope, in which case say so explicitly and note them for the branch
-review. Re-run the review on the fixed diff. Repeat to a maximum of three rounds; if BLOCKERs
-persist after the third, stop and bring it to Rob, declaring the stop per `deliver`'s
-invariants.
+Fix every BLOCKER and MAJOR. **Before writing each fix, name the pattern it follows and
+where that pattern comes from** — the documented standard, framework convention, or known
+implementation it is an instance of. In-repo precedent counts only when you can name it that
+way too; a precedent you cannot, is local invention, and matching it is how a wrong shape
+spreads. One line per fix, in the commit message, and appended to `citations[]` with this
+phase's number. A fix you cannot source externally needs the search before the edit, not
+after the next round finds it.
+
+Address PATTERN SPREAD findings in this same commit unless they are genuinely out of scope,
+in which case say so explicitly and note them for the branch review. Re-run the review on the
+fixed diff. Repeat to a maximum of three rounds; if BLOCKERs persist after the third, stop
+and bring it to Rob, declaring the stop per `deliver`'s invariants.
 
 Before round 3, apply `deliver`'s revert rule: if round 2's findings were mostly against what
 round 1's fix introduced rather than against the phase's own code, revert that fix and take a

@@ -136,11 +136,19 @@ restarts the push gate — a project whose selector resolves a diff to affected 
 re-run that set and have a real verdict; one without a selector has no such answer and its
 only honest re-verification is everything.
 
-## Friction
+## Friction and citations
 
-Stages record process friction to `friction[]` in `.claude/state/current-plan.json` as they
-notice it, and print nothing. `ci-green` reports the deduplicated list once, at the end of
-delivery, before Step 6 deletes that file.
+Stages record two lists to `.claude/state/current-plan.json` as they go, printing nothing:
+process friction to `friction[]`, and the external standard behind each design decision to
+`citations[]`. `ci-green` reports both once, at the end of delivery, before Step 6 deletes
+that file.
+
+A citation names the documented standard, framework convention, or known implementation a
+decision is an instance of, and how it was applied here. It is recorded at the decision
+because that is the only moment it is knowable — `git log` cannot say afterward which
+standard shaped a choice, and a review round's citation never reaches a commit message at
+all. `waived` entries name what had no external answer, which is where invention becomes
+visible.
 
 ```json
 { "stage": "implement-phases", "phase": 3, "phase_name": "E2E specs",

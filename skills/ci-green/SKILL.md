@@ -73,7 +73,12 @@ For every failing job:
    a test that fails in CI but passes locally is first an environment question: check whether
    it depends on a machine detail the two sides resolve differently.
 
-3. **Write the fix** using the industry-standard pattern for the failure mode.
+3. **Write the fix** using the industry-standard pattern for the failure mode, naming that
+   pattern before you write it — the documented standard, framework convention, or known
+   implementation it is an instance of, in one line in the commit message and appended to
+   `citations[]` with this iteration's number. In-repo precedent counts only where you can
+   name it that way as well. A fix sourced from nothing but the surrounding code is the shape
+   that comes back as the next red build.
 4. **Verify it in an isolated subagent before committing.** Launch `ci-failure-adversary`
    with only the failure evidence and the git ref of the fix — no explanation of your
    reasoning, no argument for why the fix is correct. It decides whether the fix addresses
@@ -141,6 +146,25 @@ evidence — CI passing is evidence for an AC that a test covers, and now is whe
 available — and, still listed as outstanding, any AC awaiting out-of-band verification. **CI
 going green does not close those.**
 
+Then **the standards the delivery was built on.** Read `citations[]` from
+`.claude/state/current-plan.json` and report every entry, deduplicated by standard, with the
+decisions it governed and how it was applied here:
+
+```
+| Standard | Decided at | Applied as |
+|---|---|---|
+| <name of the standard, convention, or implementation> | plan · phase 3 · branch-review | <what it looks like in this codebase> |
+```
+
+A standard cited in four phases is one row naming all four, not four rows — the repetition
+is the signal that it shaped the branch rather than one edit. List `waived` entries in their
+own short list, each with the reason nothing external applied: that list is where an invented
+pattern becomes visible, so an empty one is a claim, not a formality.
+
+Report `none` only when the delivery genuinely made no design decision — rare enough to be
+worth saying plainly. A manufactured citation is worse than an absent one, because it reads
+as diligence the run did not do.
+
 Then, and only here, **the process-improvement list for the whole delivery.** Read
 `friction[]` from `.claude/state/current-plan.json` and report every item recorded by every
 stage — deduplicated, each with the file it belongs in, the exact proposed wording, what it
@@ -156,7 +180,7 @@ Report `none` when the run genuinely recorded no friction. A clean run is a real
 and manufacturing an item to fill the section is how a config file accumulates rules nobody
 needed.
 
-**Report this before Step 6 deletes the state file.** The list lives in the file being
+**Report both lists before Step 6 deletes the state file.** They live in the file being
 removed, and a report written after the delete has nothing to read.
 
 ## Step 6 — Clean up the run's scratch files

@@ -54,7 +54,10 @@ Work through all of these. Report per dimension so gaps in your own coverage are
    suspension and resumption; permission changes mid-session.
 5. **Architecture** — layering, business logic in the wrong layer, testable logic
    extracted into pure functions rather than embedded in a view or controller, no new
-   dependency introduced without it being an explicit decision.
+   dependency introduced without it being an explicit decision. **An in-repo pattern is not
+   a justification by itself**: where the stack or domain has an established answer and the
+   branch solves it another way, name that standard — even where the branch follows the
+   repo faithfully. No other dimension can catch that.
 6. **Duplication and reuse** — logic that should be a shared helper; a second
    implementation of something the repo already has.
 7. **Tests** — do the tests actually constrain the behavior? Would they fail if the
@@ -71,14 +74,13 @@ Work through all of these. Report per dimension so gaps in your own coverage are
     else the project's rules file requires for user-visible behavior.
 11. **Dead code** — unused imports, properties, localization keys, orphaned helpers.
 
-Read `${CLAUDE_PROJECT_DIR}/.claude/agent-rules/greptile-reviewer.md` before you start
-and apply it alongside these dimensions. It carries the per-dimension specifics and names
-the behavior this project's automated suite cannot reach, together with the gate that
-covers it. When the branch touches that behavior, **the passing tests are not evidence
-for those acceptance criteria** — say so in the AC table rather than letting a green
-suite stand in for a claim it does not support, and check whether the branch states the
-outcome of that out-of-band verification at all. If the rules file does not exist, say so
-in one line and review against `CLAUDE.md` alone rather than inventing rules.
+Read `${CLAUDE_PROJECT_DIR}/.claude/agent-rules/greptile-reviewer.md` before you start and
+apply it alongside these dimensions. It carries the per-dimension specifics and names the
+behavior this project's automated suite cannot reach, with the gate covering it. When the
+branch touches that behavior, **the passing tests are not evidence for those acceptance
+criteria** — say so in the AC table, and check whether the branch states that
+verification's outcome at all. If the rules file does not exist, say so in one line and
+review against `CLAUDE.md` alone rather than inventing rules.
 
 ## Root cause discipline
 
@@ -90,11 +92,10 @@ too. Report the full set.
 
 **Treat a deferral as a finding.** If the diff, its comments, its docs, or its commit
 messages hand off an instance of a root cause the branch fixes elsewhere — a follow-up
-ticket, a "known unfixed" note, a "tracked separately" line — evaluate that deferral on
-its merits and report it if it does not hold. The bar is **benign in context**: the
-deferred instance cannot produce a wrong result for any user or any test. Belonging to
-another feature, view, service, or workspace is not benign, the branch already being
-large is not benign, and neither is "the automated suite cannot reach it". A filed ticket
+ticket, a "known unfixed" note, a "tracked separately" line — evaluate it on its merits.
+The bar is **benign in context**: the deferred instance cannot produce a wrong result for
+any user or any test. Belonging to another feature, view, service or workspace is not
+benign; nor is a large branch, nor "the automated suite cannot reach it". A filed ticket
 is not evidence the deferral was correct — it is the thing to check. Say plainly whether
 the instance should have been fixed in this branch.
 

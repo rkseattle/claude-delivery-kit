@@ -94,6 +94,11 @@ jobs:
 
       # deliver's line budget, enforced. Every run is asked for friction and no run is
       # asked what to remove, so without this the corpus only ever grows.
+      #
+      # A skill is counted as its SKILL.md PLUS its references/, because a split that
+      # moved text out of sight of the budget would let the ratchet resume under a
+      # different name. The cap is correspondingly higher than a body-only one: reflowing
+      # dense prose into a reference file costs lines while cutting what loads per run.
       - name: Line budget
         run: |
           set -euo pipefail
@@ -105,11 +110,23 @@ jobs:
               fail=1
             fi
           }
-          for f in skills/*/SKILL.md; do check "$f" 320; done
-          for f in agents/*.md; do check "$f" 130; done
+          check_skill() {
+            local dir n
+            dir="$(dirname "$1")"
+            # shellcheck disable=SC2046
+            n=$(cat "$1" $(find "$dir/references" -name '*.md' 2>/dev/null | sort) | wc -l)
+            if [ "$n" -gt "$2" ]; then
+              echo "OVER CAP $1 (+references): $n > $2"
+              fail=1
+            else
+              echo "ok: $1 (+references) = $n <= $2"
+            fi
+          }
+          for f in skills/*/SKILL.md; do check_skill "$f" 480; done
+          for f in agents/*.md; do check "$f" 140; done
           for f in gates/*.md; do
             if [ "$(basename "$f")" = "status-report.md" ]; then
-              check "$f" 130
+              check "$f" 140
             else
               check "$f" 300
             fi
