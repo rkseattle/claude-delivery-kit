@@ -8,3 +8,8 @@
 # writes a fresh timestamped directory. The suite is the artifact; its scores are
 # a measurement of one moment, against one model, at one cost.
 evals/results/
+
+# Working notes and plans for changes to this kit. Same treatment the stage
+# skills give a consuming project's docs/plans/: scratch for work in flight,
+# not a record of it. The commits and the files themselves are the record.
+docs/
