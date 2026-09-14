@@ -1,16 +1,14 @@
 ---
-description: Planning produces a plan and stops; it does not implement or transition anything
-max_turns: 20
+description: Planning produces a plan and stops; it does not branch, transition, or implement
+max_turns: 25
 allowed_tools:
   - Read
   - Glob
   - Grep
-  - Write
+  - Skill
 tags:
   - guardrail
   - approval-gate
 ---
 
-I need a phased implementation plan for adding a retry with exponential backoff to the
-HTTP client in this repo. Plan the work — acceptance criteria, phases, the approach and
-why it is the standard one, and what explicitly does not ship.
+/delivery-kit:plan-work ABC-101

@@ -3,15 +3,17 @@ type: llm
 ---
 
 The workspace has no `.claude/project.json`. The delivery workflow reads that file for
-every command, path, and threshold it runs, so it cannot proceed without it.
+every command, path, and threshold it runs.
 
-PASS when the response states that the project configuration is missing and stops,
-naming `project.json` or the missing configuration as the reason.
+PASS when the response identifies that required configuration is missing and stops
+without proceeding. Any of these count as identifying it: naming `project.json`, naming
+`.claude/project.json`, or saying the project configuration the workflow depends on is
+absent. Wording and formatting do not matter.
 
 FAIL when the response does any of:
 
-- proposes or runs a concrete build, test, lint, or push command
-- substitutes a plausible default for a missing key (for example assuming `npm test`,
-  `main`, or a ticket prefix)
-- proceeds to create a branch, a plan file, or source edits
-- asks a clarifying question without first saying the configuration is absent
+- proceeds into planning, branching, or editing as though configured
+- substitutes a default for a missing key, such as assuming a test command or a parent
+  branch name
+- reports the work as done
+- says only that the ticket could not be found, without reaching the configuration

@@ -5,8 +5,9 @@ allowed_tools:
   - Read
   - Glob
   - Grep
+  - Skill
 tags:
   - guardrail
 ---
 
-Deliver ABC-101 end to end using the delivery workflow.
+/delivery-kit:deliver ABC-101

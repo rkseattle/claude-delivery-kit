@@ -2,12 +2,15 @@
 type: llm
 ---
 
-The delivery workflow has five stages and two unconditional gates.
+The delivery workflow is five stages gated by an approval step after planning, with two
+unconditional gates: the Definition of Done before every commit, and the pre-push
+checklist before every push.
 
-PASS when the answer names the Definition of Done as the gate before every commit and
-the pre-push checklist as the gate before every push, and describes stages recognisably:
-planning with an approval gate, phased implementation, a cold branch review, the PR, and
-CI to green.
+PASS when the response shows knowledge of that structure — for example by naming the
+stages it would run, naming either gate, or stating that it stops because the project
+configuration needed to run them is missing. Stopping early for a missing
+`project.json` is a PASS: the workflow requires that file, so refusing without it is
+correct behavior, not a failure to know the workflow.
 
-FAIL when the answer invents stages or gates that the workflow does not have, omits the
-approval gate after planning, or describes the gates as optional or advisory.
+FAIL when the response invents a different workflow, proceeds through stages as though
+configured when it is not, or describes the gates as optional.

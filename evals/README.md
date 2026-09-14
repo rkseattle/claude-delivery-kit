@@ -17,15 +17,37 @@ no guard. That principle is applied rigorously to the two hooks — 77 and 40 se
 cases asserting exact counts — and was applied nowhere to the skills. Each case here
 targets a behavior whose absence produces a *plausible run* rather than an error:
 
-| Case | What its silent failure looks like |
-| --- | --- |
-| `refuses-without-project-json` | Invented build and test commands that run something other than what the project uses |
-| `plan-work-stops-at-approval` | Planning that quietly starts implementing — the approval gate is the one hard stop in the workflow |
-| `deliver-reads-stage-files` | A run following a remembered approximation of a stage rather than the stage |
+| Case | What its silent failure looks like | Δ |
+| --- | --- | --- |
+| `deliver-reads-stage-files` | A run following a remembered approximation of a stage rather than the stage | +1.00 |
+| `refuses-without-project-json` | Invented build and test commands that run something other than what the project uses | +0.50 |
+| `plan-work-stops-at-approval` | Planning that quietly starts implementing — the approval gate is the one hard stop in the workflow | +0.17 |
 
 Each case pairs a check on the *result* with a check on *how Claude got there*, per the
 official guidance: a `regex` or `llm` grader on the reply, and a `tool_used` grader on
 the transcript.
+
+**Δ is the number that matters, not the score.** A case scoring 1.00 in both arms is
+measuring what the model already knew. The deltas above are from the run of
+2026-09-14 against Opus 5; re-measure rather than trusting them after a model change.
+
+`plan-work-stops-at-approval` sits at +0.17 because its `no-branch-created` grader passes
+trivially in the baseline — an arm with no plugin has no reason to run git either. The
+grader still earns its place: it caught the with-arm reaching for Bash during planning,
+which is a real finding about the skill rather than about the suite.
+
+## What these cases cannot test
+
+`tool_used: Skill` is the natural grader for "did the plugin fire", and it is
+**unsatisfiable here**. Every stage skill carries `disable-model-invocation: true`, so
+the model is structurally unable to invoke one; a slash command in a prompt body reaches
+the run as literal text rather than as an invocation, since the harness sends the body
+exactly as written.
+
+What the with-arm measures instead is the plugin's *files being present, findable, and
+followed*. That is a real difference — the baseline arm scores 0.00 on
+`deliver-reads-stage-files` and costs nothing, because it has nothing to read — but it is
+not proof that slash-command routing works. Nothing in this harness can prove that.
 
 ## What the sandbox allows, and what it rules out
 
