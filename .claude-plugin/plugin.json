@@ -7,6 +7,7 @@
   },
   "homepage": "https://github.com/rkseattle/claude-delivery-kit",
   "repository": "https://github.com/rkseattle/claude-delivery-kit",
+  "license": "MIT",
   "keywords": [
     "workflow",
     "code-review",
