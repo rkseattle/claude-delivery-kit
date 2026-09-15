@@ -180,13 +180,12 @@ Report `none` when the run genuinely recorded no friction. A clean run is a real
 and manufacturing an item to fill the section is how a config file accumulates rules nobody
 needed.
 
-**Report both lists before Step 6 deletes the state file.** They live in the file being
-removed, and a report written after the delete has nothing to read.
-
 ## Step 6 — Clean up the run's scratch files
 
-**Only once the run is genuinely finished** — every check green, no unaddressed comment, the
-final report written. Report the deletions as part of that report.
+**Only once the run is genuinely finished** — every check green, no unaddressed comment, and
+Step 5's report written, both lists included. That ordering is not arbitrary: those lists
+live in the file this step deletes, so cleanup runs after the report or they are gone.
+Report the deletions as part of that report.
 
 ```bash
 rm -f .claude/state/current-plan.json .claude/state/blocked-*

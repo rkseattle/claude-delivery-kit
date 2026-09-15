@@ -91,12 +91,8 @@ four phases reads as one entry.
 
 **Do not print a friction section in this report.** Append each item to `friction[]` in
 `.claude/state/current-plan.json` and say nothing further about it here. The whole list
-reports once, at the end of delivery, from `ci-green`.
-
-Per-stage reporting split one list across up to four places — after implementation, after
-review, after the PR, after CI — none of which could see the others, so the same item got
-proposed repeatedly and each report interrupted a run mid-flight for a conversation about
-config. One list at the end dedupes across every stage and interrupts nothing.
+reports once, at the end of delivery, from `ci-green` — per `deliver`'s invariant on process
+feedback, which says why one end-of-run list beats four per-stage ones.
 
 Record an item the moment you notice it. Noticing afterward does not work: by then the cost
 is invisible.

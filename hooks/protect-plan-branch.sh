@@ -8,12 +8,11 @@
 # branch and says so, in the same turn, before the next commit can land.
 #
 # This runs AFTER the command. The predecessor ran before it and had to answer "would
-# this move HEAD?" from the command text — which meant reimplementing the shell's
-# reading of sudo, env -S, xargs, find -exec, git submodule foreach, quoting and line
-# continuations. Four review rounds found thirteen bypasses in that parser and each
-# round found more; because the guard failed open, every gap was silent. This asks git
-# where HEAD actually is instead, so no command spelling can hide from it and there is
-# nothing left to bypass. The cost is that the checkout runs before it is undone.
+# this move HEAD?" from the command text, which meant reimplementing the shell's reading
+# of sudo, env -S, xargs, find -exec, quoting and line continuations — a parser whose
+# every gap failed open and silent (the cost is recorded in deliver's
+# enforcement-machinery invariant). This asks git where HEAD actually is instead, so no
+# command spelling can hide from it. The cost is that the checkout runs before it is undone.
 #
 # Decides from typed state only — the branch named in current-plan.json and the branch
 # git reports — never from the prose of the command. Every error exits quietly: a hook

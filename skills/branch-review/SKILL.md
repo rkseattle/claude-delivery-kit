@@ -78,9 +78,8 @@ Rob rather than iterating further, declaring the stop per `deliver`'s invariants
 **Check what each round is about before starting the next**, per `deliver`'s revert rule.
 Findings against code a previous round wrote — rather than against the branch's own work —
 mean that fix was the wrong shape. Revert it and take a different approach; a third round
-will not converge on a design that should not exist. This is the failure mode that has cost
-the most: a branch whose feature landed in one commit and then spent seven more rewriting a
-guard, each round closing a bypass the last one opened.
+will not converge on a design that should not exist. `deliver`'s enforcement-machinery
+invariant records what this failure mode has cost.
 
 ## Step 5 — Verify the acceptance criteria table
 
