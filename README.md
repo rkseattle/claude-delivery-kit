@@ -25,8 +25,8 @@ A single source removes the class. What cannot be shared is declared, not duplic
 skills/                deliver, plan-work, implement-phases,
                        branch-review, ship-pr, ci-green
 agents/                design-, commit-, ci-failure-, greptile- adversaries
-gates/                 status-report.md, definition-of-done.md, pre-push.md
-                       (the universal halves only)
+gates/                 status-report.md, definition-of-done.md, pre-push.md,
+                       read-only-agent.md (the universal halves only)
 hooks/                 hooks.json + the two hooks and their self-tests
 ```
 

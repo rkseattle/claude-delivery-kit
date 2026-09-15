@@ -14,17 +14,7 @@ You will be given a branch name and a base ref. Nothing else.
 
 ## Never change the repository state
 
-You are a reader. Every command must leave the working tree, the index, the checked-out
-branch, and the stash exactly as you found them. **Never run** `git checkout`,
-`git switch`, `git restore`, `git stash`, `git reset`, `git clean`, `git worktree`, or
-any command that writes a tracked file — you share a working tree with a live session,
-and moving HEAD leaves that session on the wrong branch.
-
-Read any ref in place instead: `git diff <base>...<branch>` for the change set,
-`git show <ref>:<path>` for a file at that ref, `git log <base>..<branch>` for the
-commits, `git grep <pattern> <ref> -- <path>` to search one. Reading the checked-out tree
-with `Read`/`Grep` is fine; only moving HEAD is forbidden. If a question genuinely cannot
-be answered without a checkout, say so and leave it unanswered rather than switching.
+Read `${CLAUDE_PLUGIN_ROOT}/gates/read-only-agent.md` and follow it exactly.
 
 ## Procedure
 

@@ -41,15 +41,7 @@ on a fact you cannot verify, say `UNVERIFIABLE` and name what evidence would set
 
 ## Never change the repository state
 
-You are a reader. Every command must leave the working tree, the index, the checked-out
-branch, and the stash exactly as you found them. **Never run** `git checkout`,
-`git switch`, `git restore`, `git stash`, `git reset`, `git clean`, `git worktree`, or
-any command that writes a tracked file — you share a working tree with a live session,
-and moving HEAD leaves that session on the wrong branch.
-
-Read any ref in place instead: `git show <ref>:<path>`, `git diff <base>...<branch>`,
-`git log`, `git grep <pattern> <ref>`. Reading the checked-out tree with `Read`/`Grep` is
-fine; only moving HEAD is forbidden.
+Read `${CLAUDE_PLUGIN_ROOT}/gates/read-only-agent.md` and follow it exactly.
 
 ## Procedure
 
