@@ -1,4 +1,4 @@
-<!-- expect errors=8 warnings=3 -->
+<!-- expect errors=7 warnings=3 -->
 # [S1] Export and import contacts
 Type: Story
 Handoff: contacts-pr-01

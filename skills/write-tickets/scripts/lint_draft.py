@@ -13,9 +13,25 @@ import shutil
 import sys
 import tempfile
 
-# plan-work Step 1: "The working limit for a single handoff is 3". Change both together.
-HANDOFF_LIMIT = 3
 SUMMARY_MAX = 100
+
+# plan-work Step 1 states the handoff limit in prose. Read it from there rather than
+# copying the number: the rubric refuses to restate plan-work's limits, and so does this.
+PLAN_WORK_SKILL = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                               os.pardir, os.pardir, "plan-work", "SKILL.md")
+HANDOFF_LIMIT_SENTENCE = re.compile(r"working limit for a single\s+handoff is (\d+)")
+
+
+def handoff_limit(skill_path=PLAN_WORK_SKILL):
+    """The handoff limit as plan-work states it. Raises if the sentence moved."""
+    with open(skill_path, encoding="utf8") as f:
+        # The sentence wraps across lines in the skill, so match against the joined text.
+        found = HANDOFF_LIMIT_SENTENCE.search(" ".join(f.read().split()))
+    if not found:
+        raise SystemExit(
+            f"UNPARSEABLE: no handoff limit found in {os.path.normpath(skill_path)} — "
+            "plan-work Step 1 must say 'The working limit for a single handoff is <n>'")
+    return int(found.group(1))
 
 REQUIRED = {
     "Epic": ["Goal", "Success measures", "In scope", "Out of scope", "Children"],
@@ -170,9 +186,10 @@ def lint(items, repo):
             if clauses > 1:
                 warn(i, "R7", f"AC{num} is {clauses} plan-work rows (split on , and ;) — each needs its own verification")
             if "/" in evidence:
-                path = os.path.join(repo, evidence)
-                if not os.path.exists(path) and not os.path.isdir(os.path.dirname(path)):
-                    err(i, "R7", f"AC{num} evidence {evidence}: neither the file nor its directory exists")
+                # R7 wants the named path itself to exist: a file whose directory exists but
+                # whose name is a typo is exactly the unfillable `Verified by` cell this catches.
+                if not os.path.exists(os.path.join(repo, evidence)):
+                    err(i, "R7", f"AC{num} evidence {evidence} does not exist in the repo")
         if t == "Bug" and not any(re.search(r"\bRegression:", l) for l in acs):
             err(i, "B2", "no AC marked 'Regression:'")
 
@@ -190,10 +207,11 @@ def lint(items, repo):
             if kind == "new" and os.path.exists(full):
                 err(i, "R3", f"{path} is marked (new) but exists")
 
+    limit = handoff_limit()
     for h, members in handoffs.items():
-        if len(members) > HANDOFF_LIMIT:
+        if len(members) > limit:
             errors.append(f"ERROR {members[0]} [R2] handoff '{h}' has {len(members)} tickets, "
-                          f"plan-work's limit is {HANDOFF_LIMIT}: {', '.join(members)}")
+                          f"plan-work's limit is {limit}: {', '.join(members)}")
 
     graph = {i["id"]: [r for r in ids(i["meta"].get("Blocked by")) if r in by_id] for i in items}
     state = {}
@@ -218,9 +236,16 @@ def self_test():
     here = os.path.join(os.path.dirname(os.path.abspath(__file__)), "fixtures")
     repo = tempfile.mkdtemp()
     try:
-        for d in ("src/auth", "tests/auth"):
-            os.makedirs(os.path.join(repo, d))
-        for f in ("src/auth/routes.ts", "src/auth/config.ts", "src/auth/tokens.ts"):
+        # Every path the fixtures cite and expect to exist. A fixture citing anything else
+        # is asserting that the path is absent — `tests/missing/dir/hash.test.ts` in
+        # clauses.md is deliberately not here, and clean.md must cite only these.
+        for f in ("src/auth/routes.ts", "src/auth/config.ts", "src/auth/tokens.ts",
+                  "tests/auth/button.test.ts", "tests/auth/empty.test.ts",
+                  "tests/auth/export.test.ts", "tests/auth/limit.test.ts",
+                  "tests/auth/login.test.ts", "tests/auth/refresh.test.ts",
+                  "tests/auth/signin.test.ts", "tests/auth/tokens-table.test.ts",
+                  "tests/contacts/import.test.ts"):
+            os.makedirs(os.path.join(repo, os.path.dirname(f)), exist_ok=True)
             open(os.path.join(repo, f), "w").close()
         failed = 0
         for name in sorted(os.listdir(here)):
