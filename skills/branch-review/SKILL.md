@@ -110,6 +110,6 @@ the existing rule to where the run was reading, or deleting a competing copy tha
 something subtly different. Both of those shrink the corpus.
 
 Propose new text only for the first kind, naming what it displaces per `deliver`'s
-line-budget invariant. Do not propose a guard, hook, or check script here at all — that is
-its own ticket under `deliver`'s enforcement-machinery invariant, never a branch-review
-output.
+line-budget invariant. A guard, hook, or check script is never a review fix: propose it as a
+phase under `deliver`'s enforcement-machinery invariant, with the invariant it would enforce
+stated, and let it be written and reviewed on its own diff.

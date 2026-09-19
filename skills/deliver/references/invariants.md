@@ -10,7 +10,7 @@ one, not on every run.
 - Revert, not iterate
 - Industry-standard patterns only, and the standard is named
 - Root cause, then pattern spread
-- Enforcement machinery is never built inside a feature branch
+- Enforcement machinery is planned before it is written
 - Fixing is the default; deferring needs permission
 - Never create a Jira work item without asking
 - Report full status at every boundary
@@ -65,28 +65,39 @@ Every fix — plan finding, review finding, test failure, CI failure, PR comment
 root-caused, and the codebase gets grepped for other instances of that same cause. Fix
 all live instances in the same pass.
 
-## Enforcement machinery is never built inside a feature branch
+## Enforcement machinery is planned before it is written
 
-Fixing an instance is this branch's job; building the guard that would catch the next one
-is not. If a finding argues for new machinery — a hook, a check script, a CI job or
-filter, a lint rule, a self-test harness — fix the instance and every live instance of its
-root cause, then propose the guard to Rob as its own ticket. Do not build it here.
+New machinery — a hook, a check script, a CI job or filter, a lint rule, a self-test
+harness — is written from a phase that planned it. It may live on a feature branch; what it
+may not do is appear inside the review round that asked for it.
 
-The reason is measured, not theoretical. A guard written under review pressure is written
-without a plan and without a design review, and then the review rounds turn on the guard:
-one branch shipped its feature in a single commit and spent seven more rewriting a branch
-guard four times, each round closing a bypass the previous round opened. A Stop hook
-reached 503 lines across nine rounds the same way. Both were built mid-branch to prevent
-something cheaper than what they cost.
+The reason is measured, not theoretical. A guard improvised under review pressure has no
+design, so the rounds turn on the guard rather than the feature: one branch shipped its
+feature in a single commit and spent seven more rewriting a branch guard four times, each
+round closing a bypass the previous round opened. A Stop hook reached 503 lines across nine
+rounds the same way — both invented and reviewed in the same rounds, with nothing written
+down to judge them against.
 
-This binds regardless of how small the guard looks or how confident the finding is. "It's
-twenty lines" is how both of those started. A guard is a program with its own failure
-modes, and its only failure mode is silence — which is exactly what a rushed one produces.
+So when a finding argues for a guard that should ship with this work: stop the review loop,
+add a phase, and write it there — its own commit, reviewed on its own diff. Being in the plan
+is the evidence of forethought; the phase does not reopen the approval gate. **Its AC is the
+invariant the guard enforces, stated, plus a self-test case per known bypass** — never "the
+guard works." A guard patched per observed bypass has no completion criterion, so it
+terminates when someone stops looking rather than when it is correct.
 
-**And a guard usually drags CI config with it.** A workflow edit can widen test selection
-to everything, and single-purpose filter outputs accumulate. When a guard does earn its
-own ticket, the plan must reach an existing filter rather than adding one — the ordered
-list is in the project's Definition of Done mechanics.
+**One rewrite per invariant bypass.** A later round finding a new bypass of the same stated
+invariant is the whack-a-mole signature: revert the guard and bring the design to Rob rather
+than opening a third round. A finding that the stated invariant is itself wrong is not a
+rewrite but a re-plan of the phase, and does not count against this cap.
+
+This binds however small the guard looks or however confident the finding is. "It's twenty
+lines" is how both of those started. A guard is a program whose only failure mode is
+silence — exactly what a rushed one produces.
+
+**And a guard usually drags CI config with it.** A workflow edit can widen test selection to
+everything, and single-purpose filter outputs accumulate. The guard's phase must reach an
+existing filter rather than adding one — the ordered list is in the project's Definition of
+Done mechanics.
 
 ## Fixing is the default; deferring needs permission
 

@@ -119,10 +119,12 @@ is the finding to bring to Rob. Every stage appends what it cited to `citations[
 failure, CI failure, PR comment — gets root-caused, and the codebase gets grepped for
 other instances of that same cause. Fix all live instances in the same pass.
 
-**Enforcement machinery is never built inside a feature branch.** If a finding argues for
-new machinery — a hook, a check script, a CI job or filter, a lint rule, a self-test
-harness — fix the instance and every live instance of its root cause, then propose the
-guard to Rob as its own ticket. This binds regardless of how small the guard looks.
+**Enforcement machinery is planned before it is written.** A hook, check script, CI filter,
+lint rule, or self-test harness may ship on a feature branch, but never from inside the
+review round that asked for it: stop the loop, add a phase, write it there as its own commit.
+Its AC is the invariant it enforces plus a self-test per known bypass, and a second bypass of
+that invariant means revert and escalate, not a third round. This binds however small it
+looks.
 
 **Fixing is the default; deferring is the exception that needs permission.** An instance is
 excluded only when it is **benign in its context** — it cannot produce a wrong result for

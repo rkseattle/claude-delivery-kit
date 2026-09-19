@@ -210,8 +210,9 @@ and bring it to Rob, declaring the stop per `deliver`'s invariants.
 
 Before round 3, apply `deliver`'s revert rule: if round 2's findings were mostly against what
 round 1's fix introduced rather than against the phase's own code, revert that fix and take a
-different approach instead of running a third round. Do not build a guard to satisfy a
-finding here — `deliver`'s enforcement-machinery invariant makes that a separate ticket.
+different approach instead of running a third round. Do not write a guard inside a round to
+satisfy a finding — under `deliver`'s enforcement-machinery invariant it gets a phase of its
+own, whose AC is the invariant it enforces plus a self-test per known bypass.
 
 ### 2d. Definition of Done, then commit
 
