@@ -22,9 +22,9 @@ A single source removes the class. What cannot be shared is declared, not duplic
 .claude-plugin/
   plugin.json          the manifest
   marketplace.json     this repo is also its own marketplace
-skills/                deliver, plan-work, implement-phases,
+skills/                write-tickets, deliver, plan-work, implement-phases,
                        branch-review, ship-pr, ci-green
-agents/                design-, commit-, ci-failure-, greptile- adversaries
+agents/                ticket-, design-, commit-, ci-failure-, greptile- adversaries
 gates/                 status-report.md, definition-of-done.md, pre-push.md,
                        read-only-agent.md (the universal halves only)
 hooks/                 hooks.json + the two hooks and their self-tests
@@ -67,7 +67,7 @@ plugin's copy sits unused behind `/delivery-kit:deliver`.
 
 ## agent-rules
 
-The four adversaries share a skeleton — cold-read framing, the never-move-HEAD rule, the
+The five adversaries share a skeleton — cold-read framing, the never-move-HEAD rule, the
 procedure, root-cause discipline, the output block. What differs between projects is one
 section each: the rules to attack. Merging two projects' rule lists into one file would
 produce a list where most entries are inapplicable noise, so each agent reads its own
@@ -78,6 +78,7 @@ rules from the project instead:
 .claude/agent-rules/design-adversary.md
 .claude/agent-rules/greptile-reviewer.md
 .claude/agent-rules/ci-failure-adversary.md
+.claude/agent-rules/ticket-adversary.md
 ```
 
 Each holds what the project's copy of that agent used to carry inline — architecture

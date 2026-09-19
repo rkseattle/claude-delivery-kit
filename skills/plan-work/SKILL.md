@@ -176,7 +176,14 @@ Each phase must be independently committable and leave the branch coherent — w
 introduces does not build, and the claim is then false.
 
 ## Risks and open questions
+
+## Ticket gaps
 ```
+
+`Ticket gaps` lists each place a covering ticket, as written, made this plan propose a
+split, add a `Deviation` row, or hold an AC clause with no fillable phase — one line each,
+naming the ticket, the gap, and the `write-tickets` rubric criterion it falls under. Omit
+the section when there are none. `implement-phases` copies it into `friction[]`.
 
 The architecture rules the plan must respect are in `CLAUDE.md` and
 `{{plan_rules_file}}`. Read them rather than working from memory.
@@ -248,6 +255,8 @@ This is the right moment to split work: if covering every instance would make on
 large to review, propose sequenced tickets in the plan and let Rob choose. Do not create
 those tickets yet — deciding mid-implementation to file a follow-up instead of fixing is the
 failure this exists to prevent.
+When Rob chooses a split, `/write-tickets` with the covering keys rewrites them as the
+sequence he chose.
 
 ## Step 5 — Self-check, then adversarial design review
 

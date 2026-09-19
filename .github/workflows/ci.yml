@@ -55,6 +55,17 @@ jobs:
           bash "$RUNNER_TEMP/relocated/block-false-stop.sh" --self-test
           bash "$RUNNER_TEMP/relocated/protect-plan-branch.sh" --self-test
 
+  ticket-lint:
+    name: Ticket linter self-test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # Each fixture declares its exact error and warning counts, so a check that stops
+      # firing fails here instead of passing every draft it was meant to stop.
+      - name: Linter fixtures produce their declared counts
+        run: python3 skills/write-tickets/scripts/lint_draft.py --self-test
+
   manifest:
     name: Plugin manifest
     runs-on: ubuntu-latest

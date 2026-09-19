@@ -99,6 +99,11 @@ applies — a category the run must be able to state rather than pad. Carry the 
 `Approach` citation across at Step 1 so the report is not missing the decision that shaped
 every phase under it.
 
+Carry the plan's `Ticket gaps` across at Step 1 too, one `friction[]` entry per line with
+`stage: "plan-work"` and `target_file` set to
+`skills/write-tickets/references/rubric.md` — each is a ticket `write-tickets` or
+`ticket-adversary` should have caught.
+
 Each phase gains four more fields as it runs — `started_at`, `finished_at`, `commit`, and
 `files`. They exist so duration and file lists are read back rather than recalled: a phase
 spanning a compaction boundary is otherwise unreportable, and an estimated duration is

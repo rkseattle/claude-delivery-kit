@@ -22,6 +22,7 @@ targets a behavior whose absence produces a *plausible run* rather than an error
 | `deliver-reads-stage-files` | A run following a remembered approximation of a stage rather than the stage | +1.00 |
 | `refuses-without-project-json` | Invented build and test commands that run something other than what the project uses | +0.50 |
 | `plan-work-stops-at-approval` | Planning that quietly starts implementing — the approval gate is the one hard stop in the workflow | +0.17 |
+| `write-tickets-stops-without-config` | Tickets drafted against verification tiers and source roots the project never declared | not yet measured |
 
 Each case pairs a check on the *result* with a check on *how Claude got there*, per the
 official guidance: a `regex` or `llm` grader on the reply, and a `tool_used` grader on

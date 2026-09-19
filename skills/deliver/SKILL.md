@@ -99,10 +99,10 @@ and its bounds are in `${CLAUDE_PLUGIN_ROOT}/skills/deliver/references/invariant
 read that file when a stage must actually adjudicate one, not on every run.
 
 **Adversarial reviews stay blind.** Every delegation to `design-adversary`,
-`commit-adversary`, `greptile-reviewer`, or `ci-failure-adversary` carries only refs — a
-file path, a git range, a branch name, ticket IDs, failure evidence. Never your reasoning,
-never a summary, never a hint about where the risk is. Cap every review loop at three
-rounds, then escalate to Rob.
+`commit-adversary`, `greptile-reviewer`, `ci-failure-adversary`, or `ticket-adversary`
+carries only refs — a file path, a git range, a branch name, ticket IDs, failure evidence.
+Never your reasoning, never a summary, never a hint about where the risk is. Cap every
+review loop at three rounds, then escalate to Rob.
 
 **A round that finds defects in the previous round's fix means revert, not iterate.** Ask
 what each round's findings were against: the branch's own code, or the previous round's

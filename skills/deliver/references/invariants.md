@@ -23,10 +23,10 @@ one, not on every run.
 
 ## Adversarial reviews stay blind
 
-Every delegation to `design-adversary`, `commit-adversary`, `greptile-reviewer`, or
-`ci-failure-adversary` carries only refs — a file path, a git range, a branch name,
-ticket IDs, failure evidence. Never your reasoning, never a summary of what you changed,
-never a hint about where the risk is.
+Every delegation to `design-adversary`, `commit-adversary`, `greptile-reviewer`,
+`ci-failure-adversary`, or `ticket-adversary` carries only refs — a file path, a git
+range, a branch name, ticket IDs, failure evidence. Never your reasoning, never a summary
+of what you changed, never a hint about where the risk is.
 
 Their entire value is having no implementation context; anything you add spends it. Cap
 every review loop at three rounds, then escalate the disagreement to Rob.
