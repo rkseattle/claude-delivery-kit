@@ -9,6 +9,11 @@
 # a measurement of one moment, against one model, at one cost.
 evals/results/
 
+# Bytecode from running the ticket linter, or from importing it to test one of its
+# checks in isolation. The script is stdlib-only and run directly, so nothing here
+# is ever an input.
+__pycache__/
+
 # Working notes and plans for changes to this kit. Same treatment the stage
 # skills give a consuming project's docs/plans/: scratch for work in flight,
 # not a record of it. The commits and the files themselves are the record.
