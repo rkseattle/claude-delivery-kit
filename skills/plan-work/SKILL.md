@@ -240,16 +240,22 @@ count you will get wrong, a guard is one the repo reports. Where a claim genuine
 checked before implementation, mark it unverified in one clause and move on. Do not
 compensate with length.
 
-Never the simplest, quickest, or easiest solution. If you catch yourself writing "wait",
+Do not default to the simplest, quickest, or easiest solution: choose the standard one, and
+where a simpler option loses, reject it in `Rejected alternatives` with the reason. Simple
+and standard are frequently the same answer, and when they are, that is the answer — this
+rule exists to stop expedience, not to buy elaboration. If you catch yourself writing "wait",
 "actually", or "let me look at this differently" more than once, stop and think it through
 rather than iterating in the open.
 
 **Scope exclusions are decided here, with Rob, not later on your own.** If exploration finds
 instances of a root cause the plan otherwise fixes, "What explicitly does not ship" must list
-each one and justify it as **benign in context** — it cannot produce a wrong result for any
-user or any test. A different feature, view, service, or workspace is not a justification,
-and neither is "the automated suite cannot reach it". `design-adversary` will evaluate each
-exclusion on that bar.
+each one with a one-line reason. List them all: the value is that Rob sees the full spread
+before approving, and an instance you found and did not mention is the one real failure here.
+
+The reason may be that the instance is benign in context, and it may equally be that
+covering it would make the branch too large to review. Both are legitimate, and this is the
+moment to say which. What is not legitimate is discovering the instance and leaving it out
+of the list.
 
 This is the right moment to split work: if covering every instance would make one branch too
 large to review, propose sequenced tickets in the plan and let Rob choose. Do not create
@@ -292,13 +298,45 @@ revision history.
 
 Launch the `design-adversary` subagent.
 
-**The delegation prompt contains only:** the path to the plan file, and the ticket IDs.
-Nothing about why you chose the approach, nothing you learned during exploration, nothing
-about what you expect it to find. It reviews the plan as written, cold.
+**The first delegation prompt contains only:** the path to the plan file, and the ticket
+IDs. Nothing about why you chose the approach, nothing you learned during exploration,
+nothing about what you expect it to find. It reviews the plan as written, cold.
 
-Fix every BLOCKER and MAJOR, then re-run the review on the revised plan. Repeat until it
-returns no BLOCKERs, to a maximum of three rounds. If BLOCKERs persist after the third, stop
-and bring the disagreement to Rob rather than continuing to iterate.
+Fix every BLOCKER, and fix the MAJORs you agree with. **MAJORs do not trigger another
+round** — they get one pass, and a MAJOR you disagree with is noted in chat at Step 6, not
+argued with the reviewer.
+
+Re-run only if the round returned BLOCKERs. The second delegation adds exactly one
+sentence — that the plan is a revision of one already reviewed — and still carries no
+findings list, no summary of what you changed, and no defense of it. The reviewer stays
+blind, per `deliver`'s invariant; it is told a round happened, never what it said.
+
+**Two rounds, not three.** Every round rewrites the document in place, so a third is paid
+for in full rewrites and lands almost entirely on prose the first two rounds wrote. The
+kit-wide cap is three; this loop's is two, deliberately. If BLOCKERs persist after the
+second, stop and bring the disagreement to Rob rather than continuing to iterate.
+
+### A finding is fixed inside this plan, or it goes to Rob
+
+**No finding may be resolved by deferring the work.** Not by creating a follow-up ticket,
+not by proposing a split, not by moving an item into "what explicitly does not ship", not by
+adding a `Deviation` row that narrows the scope. Those are scope decisions, and per Step 4
+scope decisions are Rob's.
+
+For each finding there are exactly two legal moves:
+
+1. **Fix it in the plan** — change the approach, add the phase, correct the claim, reorder
+   the phases. The plan gets better and the scope stays put.
+2. **Carry it to Rob** as an open question, stated in one line with the reviewer's finding
+   attached, and let him decide. Then stop and wait, as at Step 6.
+
+A round whose fixes are predominantly deferrals has not improved the plan — it has moved
+work out of view and left the document reading as if the work were done. If you find
+yourself writing a follow-up ticket to satisfy a reviewer, that is the signal: the finding
+belongs in front of Rob, not in a ticket you filed to clear it.
+
+A MINOR you disagree with needs no ticket and no escalation. Note the disagreement in one
+line when you present, and move on.
 
 ## Step 6 — Present for approval
 
