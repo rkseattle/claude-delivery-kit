@@ -167,20 +167,20 @@ config conversation.
 
 ## Line budget
 
-`deliver` caps each file so the corpus cannot ratchet upward: 130 lines for an agent
-definition, 320 for a skill, 300 for a gate. A change that would breach a cap names what
-comes out. These generic files are held to the same caps as the project copies they
-replace.
+`deliver` caps each file so the corpus cannot ratchet upward, and a change that would
+breach a cap names what comes out. **The caps themselves live in one place — the table in
+`skills/deliver/references/invariants.md`** — and CI enforces them in the `Line budget`
+step of `.github/workflows/ci.yml`. They are deliberately not repeated here: a second copy
+drifts from the enforced one, and a reader trusting the stale copy plans against a cap that
+does not exist.
 
-The skill cap was 300 in both projects and is 320 here, raised deliberately rather than
-met by compression. `deliver` merges two projects' invariants and adds one rule neither
-had — **Shared before project**, which sends a generally-applicable rule to this plugin
-instead of a project file. That rule is what stops the drift this repo exists to end, so
-it earned the twenty lines rather than being cut to fit.
+A skill's cap covers its `references/` files, counted together with the body. The split
+exists to cut what loads per invocation, not to create room the budget cannot see.
 
-`greptile-reviewer.md` sits at the cap. It absorbed two projects' review dimensions, so
-it is the file most likely to want to grow; the pressure is the cap working as intended,
-and the place for per-dimension detail is `agent-rules/`, not here.
+`design-adversary.md` sits at its cap, as does `deliver` with its references. Both are
+files that absorbed two projects' worth of rules, so they are the likeliest to want to
+grow; the pressure is the cap working as intended, and the place for per-dimension detail
+is `agent-rules/`, not here.
 
 ## Hooks
 
