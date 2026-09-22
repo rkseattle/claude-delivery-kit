@@ -23,6 +23,8 @@ targets a behavior whose absence produces a *plausible run* rather than an error
 | `refuses-without-project-json` | Invented build and test commands that run something other than what the project uses | +0.50 |
 | `plan-work-stops-at-approval` | Planning that quietly starts implementing — the approval gate is the one hard stop in the workflow | +0.17 |
 | `write-tickets-stops-without-config` | Tickets drafted against verification tiers and source roots the project never declared | not yet measured |
+| `design-adversary-passes-a-sound-plan` | Review that always finds a blocker, so planning always ends in deferred work | not yet measured |
+| `design-adversary-catches-a-missing-ac` | Review that stopped blocking real defects after its BLOCKER definition was narrowed | not yet measured |
 
 Each case pairs a check on the *result* with a check on *how Claude got there*, per the
 official guidance: a `regex` or `llm` grader on the reply, and a `tool_used` grader on
@@ -36,6 +38,41 @@ measuring what the model already knew. The deltas above are from the run of
 trivially in the baseline — an arm with no plugin has no reason to run git either. The
 grader still earns its place: it caught the with-arm reaching for Bash during planning,
 which is a real finding about the skill rather than about the suite.
+
+### `design-adversary-passes-a-sound-plan` is a false-positive case
+
+Every other case here asks whether a stage does something. This one asks whether a stage
+**stops doing something** — whether a reviewer told to find reasons a plan will fail can
+return nothing when there is nothing to find. That failure is silent in the worst way: a
+review manufacturing blockers looks exactly like a thorough review, and the plan skill then
+resolves them the only way it can, by deferring work into tickets nobody asked for.
+
+The plan in the prompt is deliberately sound and deliberately ordinary — a bounded retry
+with backoff, an extraction of an existing in-repo implementation, one justified exclusion.
+It is the kind of plan that should sail through, and before the reviewer's rules were made
+conditional on evidence, plans of this shape did not.
+
+**Its known weakness is the arms.** The baseline arm has no `agents/design-adversary.md` to
+read, so it reviews with no instructions at all and may well return zero BLOCKERs by
+default. A small or negative Δ here therefore does not mean the plugin is not working — it
+means the baseline had nothing to over-apply. **Read the with-arm score directly** for this
+case; Δ is not the number that matters, unusually for this suite. Read the findings
+themselves too: the graders check severity and remedy, and a with-arm that passes both
+while listing useful MAJORs is the target behavior, not a near miss.
+
+The case is also **not a regression test for under-reviewing**. Nothing here would catch a
+reviewer that has stopped finding real blockers, because a sound plan gives it nothing to
+miss. That is what `design-adversary-catches-a-missing-ac` is for, and **the two are read
+together or not at all.**
+
+That case plants one defect — ABC-207's fourth acceptance criterion, rate limiting, is in
+the ticket and in no phase — and requires it back as a BLOCKER, not as a MINOR or a
+question. Narrowing BLOCKER to three things was the largest change made to the reviewer,
+and this is the case that says the narrowing cost nothing.
+
+Passing one alone means little in either direction. A reviewer that blocks nothing passes
+the sound-plan case and fails this one; a reviewer that blocks everything does the reverse.
+Only both passing says the severity line sits where it was meant to.
 
 ## What these cases cannot test
 
