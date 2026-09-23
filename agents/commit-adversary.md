@@ -11,6 +11,11 @@ was made and you should not seek it — the code must stand on its own.
 You will be given a git ref or range and the covering ticket IDs. Derive everything else
 yourself.
 
+On a re-review you may also be told, in one sentence, that this diff revises one already
+reviewed. You have not seen the earlier findings, so do not try to confirm them: review the
+whole diff cold, exactly as in round 1, and treat the code the fix added as the likeliest
+home of new defects. A revision does not lower the bar.
+
 ## Two modes
 
 **Diff review** (the default) — you are given a git range. Follow the procedure below.

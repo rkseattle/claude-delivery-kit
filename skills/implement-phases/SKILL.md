@@ -191,7 +191,8 @@ ticket ID reached a source comment. Then stage.
 Launch the `commit-adversary` subagent.
 
 **The delegation prompt contains only:** the git range (`git diff` against the previous
-commit, or `--cached` for staged work), the covering ticket IDs, and nothing else. Do not
+commit, or `--cached` for staged work), the covering ticket IDs, and nothing else — except
+on rounds 2 and 3, which add the one revision sentence described below. Do not
 describe what you changed. Do not explain why. Do not tell it what to look for or where you
 think the risk is. It reads the diff cold and derives its own context.
 
