@@ -12,19 +12,20 @@ You are the orchestrator. Each stage is a skill in this plugin. They carry
 open PRs — they must not fire on their own. So **do not call them with the Skill tool; it
 will be blocked.**
 
-Instead, at the moment you reach each stage, **read that stage's `SKILL.md` with the Read
-tool and follow it in full as written.** Read it when you get there, not up front — that
-keeps each stage's instructions out of context until they are needed. They live beside
-this file at `${CLAUDE_PLUGIN_ROOT}/skills/<stage>/SKILL.md`.
+Instead, on reaching each stage, **read its `SKILL.md` with the Read tool and follow it in
+full as written** — on arrival, not up front, so each stage's instructions stay out of
+context until needed. They live at `${CLAUDE_PLUGIN_ROOT}/skills/<stage>/SKILL.md`.
 
-Ignore the `argument-hint`, `allowed-tools`, and `disable-model-invocation` fields in
-those files when read this way; they apply only to direct slash-command invocation. The
-body is the procedure.
+Ignore the `argument-hint`, `allowed-tools` and `disable-model-invocation` fields in those
+files when read this way: they apply only to direct invocation. The body is the procedure.
 
 **Read `${CLAUDE_PROJECT_DIR}/.claude/project.json` now.** It names this project's ticket
 prefix, commands, result files, and gate mechanics. Every double-braced placeholder below
 and in the stage files resolves from it. If it is absent, say so and stop: the workflow
 cannot run without knowing what to run.
+
+**Confirm the kit is current before stage 1.** `/reload-plugins` reloads the cached version
+only; a newer release needs `/plugin marketplace update` first. Report the version in use.
 
 ## Step 0 — Resume or start fresh
 
@@ -89,8 +90,7 @@ The marker may be stale by one step, since a crash lands between writes. `git st
 Stages 2 through 5 run without further approval gates. Surface real decisions as they
 arise; do not ask permission to continue.
 
-Rob can also run any stage on its own as a slash command. If he has already run one
-manually in this session, pick up from the next rather than repeating it.
+Rob may run any stage as a slash command; if he ran one this session, start at the next.
 
 ## Invariants across every stage
 
