@@ -205,7 +205,8 @@ after the next round finds it.
 
 Address PATTERN SPREAD findings in this same commit unless they are genuinely out of scope,
 in which case say so explicitly and note them for the branch review. Re-run the review on the
-fixed diff. Repeat to a maximum of three rounds; if BLOCKERs persist after the third, stop
+fixed diff, adding one sentence that it revises a diff already reviewed — no findings, no
+summary of changes. Repeat to a maximum of three rounds; if BLOCKERs persist after the third, stop
 and bring it to Rob, declaring the stop per `deliver`'s invariants.
 
 Before round 3, apply `deliver`'s revert rule: if round 2's findings were mostly against what
