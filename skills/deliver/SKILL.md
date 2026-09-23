@@ -24,12 +24,12 @@ prefix, commands, result files, and gate mechanics. Every double-braced placehol
 and in the stage files resolves from it. If it is absent, say so and stop: the workflow
 cannot run without knowing what to run.
 
-**Confirm the kit is current before stage 1.** `/reload-plugins` reloads the cached version
-only; a newer release needs `/plugin marketplace update` first. Report the version in use.
-
 ## Step 0 — Resume or start fresh
 
 **Before stage 1, before anything else**, read `.claude/state/current-plan.json`.
+
+Then report the kit version from `${CLAUDE_PLUGIN_ROOT}/.claude-plugin/plugin.json` and remind
+Rob a newer release needs `/plugin marketplace update`, then `/reload-plugins`. Continue.
 
 | State                                            | Action                                            |
 | ------------------------------------------------ | ------------------------------------------------- |
