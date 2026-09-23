@@ -24,7 +24,7 @@ to run. Read both.
 6. **Dependency audit**, where the project has dependencies — unconditional, never
    conditional on whether they changed. Advisories land against versions already in the
    lockfile, so "nothing changed" is precisely when drift goes unnoticed until CI is red.
-   The bar is zero high/critical, with no allowlist.
+   The bar is zero advisories, with no allowlist, matching the pre-push gate.
 
 **Network-dependent tests never gate a commit.** Integration tests that make live calls
 stay opt-in: a commit gate that depends on a third party being up is a gate that fails for
@@ -121,8 +121,14 @@ The project's domain list is in `{{mechanics_gate_dod}}`.
   you measured, not what seemed better.
 - **Pure functions get unit tests**, including the boundary cases. There is no excuse for
   verifying these by eye.
+- **A new exported generic type or function gets a typed caller** in a typechecked file in
+  the same commit. Called only from untyped tests, a variance error compiles unnoticed.
 
 ## Before `git add`
+
+**Compare against the parent with `git worktree add` or `git show <ref>:<path>`, never
+`git stash` and `stash pop` on a staged tree** — pop restores the working tree, not the
+index, and the commit that follows is missing whatever was staged.
 
 Read the diff and ask: does any block of logic appear more than once — within a file,
 across files in this diff, or once here and once already in the repo? If yes, extract the
