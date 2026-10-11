@@ -29,8 +29,8 @@ skills/                write-tickets, deliver, plan-work, implement-phases,
                        branch-review, ship-pr, ci-green
 agents/                ticket-, design-, commit-, ci-failure-, greptile- adversaries
 gates/                 status-report.md, definition-of-done.md, pre-push.md,
-                       read-only-agent.md (the universal halves only), and
-                       project-config.md
+                       read-only-agent.md (the universal halves only),
+                       project-config.md, and exceptions.md
 hooks/                 hooks.json + the two hooks and their self-tests
 scripts/ci/            the CI checks, runnable locally; all.sh runs every one
 reference/             software-engineering-rule-book.md, the source the rules
@@ -152,9 +152,10 @@ restarts the push gate — a project whose selector resolves a diff to affected 
 re-run that set and have a real verdict; one without a selector has no such answer and its
 only honest re-verification is everything.
 
-Four more keys tailor the workflow to the project, per the rule book's "Tailoring and
+Five more keys tailor the workflow to the project, per the rule book's "Tailoring and
 exceptions" section and its Appendices A through C. Each is optional, and each bullet
-below gives its default; the `roles` entries are placeholders, not defaults.
+below gives its default; the `roles` and `exceptions_log` values are placeholders, not
+defaults.
 
 ```json
 {
@@ -169,7 +170,8 @@ below gives its default; the `roles` entries are placeholders, not defaults.
     "release_manager": "<handle>",
     "security": "<handle>",
     "service_owner": "<handle>"
-  }
+  },
+  "exceptions_log": "<path to the project's rule-book exceptions register>"
 }
 ```
 
@@ -184,6 +186,8 @@ below gives its default; the `roles` entries are placeholders, not defaults.
   absent-key rule above applied per role, so a missing role never resolves to `none`,
   and a project with no `roles` key at all has the person running the session in every
   role.
+- `exceptions_log` — the project's register of rule-book exceptions, in the format
+  `gates/exceptions.md` defines. Default `none`.
 
 ## Friction and citations
 
