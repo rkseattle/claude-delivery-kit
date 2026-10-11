@@ -3,9 +3,12 @@
 # name everything else refers to it by. Usage: frontmatter-names.sh [repo-root]
 set -euo pipefail
 root="${1:-.}"
+shopt -s nullglob
+skills=("$root"/skills/*/SKILL.md)
+[ "${#skills[@]}" -gt 0 ] || { echo "no skills/*/SKILL.md under $root"; exit 1; }
 fail=0
 name_of() { awk '/^---$/{c++;next} c==1 && /^name:/{print $2; exit}' "$1"; }
-for f in "$root"/skills/*/SKILL.md; do
+for f in "${skills[@]}"; do
   want=$(basename "$(dirname "$f")"); got=$(name_of "$f")
   [ "$want" = "$got" ] || { echo "MISMATCH $f: dir=$want name=$got"; fail=1; }
 done

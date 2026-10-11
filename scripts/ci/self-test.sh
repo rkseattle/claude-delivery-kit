@@ -12,11 +12,14 @@ fail=0
 
 fresh_copy() {
   rm -rf "$tmp/repo"; mkdir -p "$tmp/repo"
-  (cd "$root" && git ls-files | while IFS= read -r f; do
+  local files f
+  files=$(git -C "$root" ls-files) || { echo "cannot list tracked files"; exit 1; }
+  while IFS= read -r f; do
     mkdir -p "$tmp/repo/$(dirname "$f")"
-    cp -p "$f" "$tmp/repo/$f" || { echo "cannot copy tracked file $f"; exit 1; }
-  done) || exit 1
-  git -C "$tmp/repo" init -q && git -C "$tmp/repo" add -A --force
+    cp -p "$root/$f" "$tmp/repo/$f" || { echo "cannot copy tracked file $f"; exit 1; }
+  done <<< "$files"
+  { git -C "$tmp/repo" init -q && git -C "$tmp/repo" add -A --force; } \
+    || { echo "cannot stage the copy"; exit 1; }
 }
 
 report() {  # report <want> <got> <check> <description>
@@ -37,7 +40,7 @@ for path in "$here"/*.sh; do
 done
 
 mkdir -p "$tmp/empty"
-for check in json-parses.sh bundled-refs.sh no-leaks.sh; do
+for check in json-parses.sh bundled-refs.sh no-leaks.sh frontmatter-names.sh line-budget.sh; do
   expect fail "a root with nothing to scan" "$check" "$tmp/empty"
 done
 
@@ -112,5 +115,15 @@ fresh_copy; jq '.mechanics_gate_pre_push = "none"' "$root/.claude/project.json" 
 expect fail "a mechanics gate set to none" ci-steps-mirrored.sh
 fresh_copy; sed -i.bak '/^ *run: /d' "$tmp/repo/.github/workflows/ci.yml"
 expect fail "a ci.yml with no run: steps" ci-steps-mirrored.sh
+
+fresh_copy; printf '%s\n' '' '      - name: Multi-line' '        run: |' '          echo one' \
+  >> "$tmp/repo/.github/workflows/ci.yml"
+expect fail "a multi-line run: block" ci-steps-mirrored.sh
+fresh_copy; printf '%s\n' '' '      - name: Mentions run: in its name' '        uses: some/action@v1' \
+  >> "$tmp/repo/.github/workflows/ci.yml"
+expect fail "an action whose step name contains run:" ci-steps-mirrored.sh
+fresh_copy; sed -i.bak '/No project-specific tokens/d' "$tmp/repo/.claude/gates/pre-push-mechanics.md"
+printf '%s\n' "Also see \`bash scripts/ci/no-leaks.sh\`." >> "$tmp/repo/.claude/gates/pre-push-mechanics.md"
+expect fail "a command mentioned in prose but missing from the table" ci-steps-mirrored.sh
 
 exit "$fail"

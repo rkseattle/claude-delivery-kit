@@ -9,8 +9,8 @@ Every `{{key}}` in a skill, gate, or agent of this plugin resolves from
 `build_command`, `push_command`, `unit_test_scope`, `post_fix_verification_scope`,
 `verification_tiers`.
 
-If the file is absent, or any of these keys is missing from it, **stop before acting on
-any key** and name each missing one. None of them has a default: a guessed parent branch
+If the file is absent, or any of these keys is missing, empty, `none`, or still a README
+placeholder in angle brackets, **stop before acting on any key** and name each one. None of them has a default: a guessed parent branch
 or build command runs something the project never asked for, and nothing reports it.
 
 ## Every other key

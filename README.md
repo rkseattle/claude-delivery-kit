@@ -137,7 +137,8 @@ session on real hardware, or nothing beyond the checklist — the single biggest
 between the two projects this was extracted from.
 
 The values in the block above are illustrations, not defaults. Some of its keys are
-required and have no default; a missing one stops the run. Any other key absent from
+required and have no default; one that is missing, empty, `none`, or a `<placeholder>`
+stops the run. Any other key absent from
 project.json resolves to the default this README gives it, or to `none` where it gives
 none. `extra_gates` defaults to `[]`. `gates/project-config.md` names the required keys
 and holds the procedure every skill and agent follows, including how a run reports the

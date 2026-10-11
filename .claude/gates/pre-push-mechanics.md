@@ -7,6 +7,8 @@ CI's order, from the repo root:
 bash scripts/ci/all.sh
 ```
 
+Run it after `git add`: `json-parses.sh` reads tracked files only.
+
 ## CI jobs and their local equivalents
 
 | CI job · step | Local command |
@@ -22,6 +24,7 @@ bash scripts/ci/all.sh
 | `manifest` · Bundled-file references | `bash scripts/ci/bundled-refs.sh` |
 | `manifest` · No project-specific tokens | `bash scripts/ci/no-leaks.sh` |
 | `manifest` · Every CI step has a local equivalent | `bash scripts/ci/ci-steps-mirrored.sh` |
+| `manifest` · CI scripts pass shellcheck | `shellcheck scripts/ci/*.sh` |
 | `manifest` · CI checks fail on their defects | `bash scripts/ci/self-test.sh` |
 
 A step added to `.github/workflows/ci.yml` gets a row here and a line in

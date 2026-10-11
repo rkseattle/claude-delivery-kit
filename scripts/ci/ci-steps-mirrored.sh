@@ -12,17 +12,22 @@ mechanics="$root/$gate"
 ci="$root/.github/workflows/ci.yml"
 # A step with no run: line (an action) has no local command to mirror; only checkout may.
 unmirrored=$(awk '
-  /^      - / { if (b != "") print b; b = $0; next }
-  /^  [a-z]/  { if (b != "") print b; b = ""; next }
-  b != ""     { b = b " " $0 }
-  END         { if (b != "") print b }' "$ci" | grep -v 'run:' | grep -v 'uses: actions/checkout@' || true)
+  function flush() { if (name != "" && !run && !checkout) print name; name = "" }
+  /^ *- /                          { flush(); name = $0; run = 0; checkout = 0 }
+  /^  [a-z]/                       { flush() }
+  /^ *(- )?run: /                  { run = 1 }
+  /^ *(- )?uses: actions\/checkout@/ { checkout = 1 }
+  END                              { flush() }' "$ci")
 [ -z "$unmirrored" ] || { echo "CI steps with no local command: $unmirrored"; exit 1; }
-steps=$(sed -n 's/^ *run: //p' "$ci")
+steps=$(sed -n 's/^ *run: //p' "$ci" | awk '!seen[$0]++')
 [ -n "$steps" ] || { echo "no run: steps found in ci.yml"; exit 1; }
+! grep -qxE '[|>][-+]?' <<< "$steps" \
+  || { echo "a multi-line run: block has no single command to mirror; move it to scripts/ci/"; exit 1; }
 fail=0
 while IFS= read -r cmd; do
   grep -qxF "$cmd" "$root/scripts/ci/all.sh" || { echo "all.sh lacks: $cmd"; fail=1; }
-  grep -qF "\`$cmd\`" "$mechanics" || { echo "$mechanics lacks: $cmd"; fail=1; }
+  grep -E '^\|' "$mechanics" | grep -qF "| \`$cmd\` |" \
+    || { echo "$mechanics has no table row for: $cmd"; fail=1; }
 done <<< "$steps"
 local_order=$(grep -xF -f <(printf '%s\n' "$steps") "$root/scripts/ci/all.sh" || true)
 if [ "$fail" = 0 ] && [ "$local_order" != "$steps" ]; then

@@ -71,6 +71,9 @@ jobs:
       - name: Every CI step has a local equivalent
         run: bash scripts/ci/ci-steps-mirrored.sh
 
+      - name: CI scripts pass shellcheck
+        run: shellcheck scripts/ci/*.sh
+
       # A check whose only failure mode is silence looks like a clean run. This proves
       # each one still fails on the defect it exists to catch.
       - name: CI checks fail on the defects they exist to catch

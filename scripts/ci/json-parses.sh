@@ -2,7 +2,7 @@
 # Every tracked JSON file parses. Usage: json-parses.sh [repo-root]
 #
 # Files come from `git ls-files`, so a newly tracked JSON file is checked without an edit
-# here. Each failure sets a flag rather than relying on `set -e`, which ignores a failure
+# here; run it after `git add`, since an untracked file is not seen. Each failure sets a flag rather than relying on `set -e`, which ignores a failure
 # on the left of `&&` and would let only the last file decide the result.
 set -uo pipefail
 root="${1:-.}"

@@ -6,6 +6,9 @@
 # of sight of the budget would let the ratchet resume under a different name.
 set -euo pipefail
 root="${1:-.}"
+shopt -s nullglob
+skills=("$root"/skills/*/SKILL.md)
+[ "${#skills[@]}" -gt 0 ] || { echo "no skills/*/SKILL.md under $root"; exit 1; }
 fail=0
 check() {
   local n
@@ -15,15 +18,17 @@ check() {
 check_skill() {
   local dir n
   dir="$(dirname "$1")"
-  # shellcheck disable=SC2046
-  n=$(cat "$1" $(find "$dir/references" -name '*.md' 2>/dev/null | sort) | wc -l | tr -d ' ')
+  local files=("$1")
+  while IFS= read -r ref; do files+=("$ref"); done \
+    < <(find "$dir/references" -name '*.md' 2>/dev/null | sort)
+  n=$(cat "${files[@]}" | wc -l | tr -d ' ')
   if [ "$n" -gt "$2" ]; then
     echo "OVER CAP $1 (+references): $n > $2"; fail=1
   else
     echo "ok: $1 (+references) = $n <= $2"
   fi
 }
-for f in "$root"/skills/*/SKILL.md; do check_skill "$f" 480; done
+for f in "${skills[@]}"; do check_skill "$f" 480; done
 for f in "$root"/agents/*.md; do check "$f" 140; done
 for f in "$root"/gates/*.md; do
   if [ "$(basename "$f")" = "status-report.md" ]; then check "$f" 140; else check "$f" 300; fi

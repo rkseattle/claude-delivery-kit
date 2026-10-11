@@ -34,7 +34,8 @@ targets a behavior whose absence produces a *plausible run* rather than an error
 
 Each case should pair a check on the *result* with a check on *how Claude got there*, per
 the official guidance: a `regex` or `llm` grader on the reply, and a `tool_used` grader on
-the transcript. `write-tickets-stops-without-config` and the two missing-key cases do;
+the transcript. The two missing-key cases do. `write-tickets-stops-without-config` has a
+`tool_used` grader that cannot fail, since Write is not in its allowlist, and
 `refuses-without-project-json` and both `design-adversary-*` cases grade the reply only.
 
 **Δ is the number that matters, not the score.** A case scoring 1.00 in both arms is
@@ -109,8 +110,8 @@ servers, no user settings. That constrains what can be tested here:
   The cases with a `context.scaffold_script` write a `.claude/project.json` and nothing
   else. Measured 2026-10-11 against the skills on `main` before `gates/project-config.md`,
   the required-key case scored 0.33 and the optional-key case 0.44, with no run passing,
-  against 1.00 for both after it; the runs are kept locally under
-  `results/2026-10-11-missing-keys/`.
+  against 1.00 for both after it, 3 runs per arm. `results/` is not tracked, so re-run
+  both against `main` and the branch to check these.
 - **Not testable without more scaffolding**: anything needing Jira, a git history, or a
   populated `.claude/state/`. The citation contract end-to-end — the highest-value case —
   is in this category: it spans `plan-work` → `implement-phases` → `ci-green` across a
