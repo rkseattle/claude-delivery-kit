@@ -23,13 +23,7 @@ one, not on every run.
 
 ## Adversarial reviews stay blind
 
-Every delegation to `design-adversary`, `commit-adversary`, `greptile-reviewer`,
-`ci-failure-adversary`, or `ticket-adversary` carries only refs — a file path, a git
-range, a branch name, ticket IDs, failure evidence. Never your reasoning, never a summary
-of what you changed, never a hint about where the risk is.
-
-Their entire value is having no implementation context; anything you add spends it. Cap
-every review loop at three rounds, then escalate the disagreement to Rob.
+An adversary's value is having no implementation context; anything you add spends it.
 
 ## Revert, not iterate
 
@@ -133,11 +127,6 @@ ticket through its normal workflow states — In Progress, In Review — is rout
 no permission.
 
 ## Report full status at every boundary
-
-Finishing a phase or a stage is never just a line saying it is done.
-`${CLAUDE_PLUGIN_ROOT}/gates/status-report.md` defines the format; stages 3 through 5
-report the same things scaled to what they do — a stage that fixes review findings still
-says which files it touched, how long it ran, and which ACs it moved.
 
 A boundary crossed without a status report is the single most common way a run becomes
 unreviewable: the information exists only while the phase is fresh, and reconstructing it

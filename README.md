@@ -187,7 +187,8 @@ defaults.
   and a project with no `roles` key at all has the person running the session in every
   role.
 - `exceptions_log` — the project's register of rule-book exceptions, in the format
-  `gates/exceptions.md` defines. Default `none`.
+  `gates/exceptions.md` defines. Default `none`, under which a run stops rather than skip
+  a "must" step.
 
 ## Friction and citations
 

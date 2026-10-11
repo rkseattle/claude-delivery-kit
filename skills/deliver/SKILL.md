@@ -31,6 +31,10 @@ below and in the stage files resolves from it.
 Then report the kit version from `${CLAUDE_PLUGIN_ROOT}/.claude-plugin/plugin.json` and remind
 Rob a newer release needs `/plugin marketplace update`, then `/reload-plugins`. Continue.
 
+Then list every row of `${CLAUDE_PLUGIN_ROOT}/gates/exceptions.md` and `{{exceptions_log}}`
+whose `Expiry` is before today's date, each to be remediated or renewed, or say none has
+expired. Say in one line when `{{exceptions_log}}` is `none` or names no file.
+
 | State                                            | Action                                            |
 | ------------------------------------------------ | ------------------------------------------------- |
 | Absent, or its `branch` is not checked out       | Fresh run — go to stage 1                         |
@@ -139,10 +143,19 @@ its normal states is routine and needs no permission.
 **No failure is ever a known flake.** Full policy, including what does not count as a
 failure at all: the failure-handling section of `{{failure_policy_gate}}`.
 
-**Gates are unconditional.** Definition of Done before every commit
-(`${CLAUDE_PLUGIN_ROOT}/gates/definition-of-done.md` plus `{{mechanics_gate_dod}}`).
-Pre-push checklist before every push (`${CLAUDE_PLUGIN_ROOT}/gates/pre-push.md` plus
-`{{mechanics_gate_pre_push}}`). Read result files, never exit codes or console output.
+**Gates are unconditional**, save the recorded exception below. Definition of Done before
+every commit (`${CLAUDE_PLUGIN_ROOT}/gates/definition-of-done.md` plus
+`{{mechanics_gate_dod}}`). Pre-push checklist before every push
+(`${CLAUDE_PLUGIN_ROOT}/gates/pre-push.md` plus `{{mechanics_gate_pre_push}}`). Read result
+files, never exit codes or console output.
+
+**A skipped "must" step is a recorded exception.** It is a numbered step in a gate file or
+a stage `SKILL.md` whose condition applied and that the run did not execute, other than
+through that gate's own bypass section. Only `{{roles.tech_lead}}` may approve one; then
+append a row to `{{exceptions_log}}` in `${CLAUDE_PLUGIN_ROOT}/gates/exceptions.md`'s
+format, `Expiry` 90 days after the run date, and commit it alone as `<TICKET> - Record
+rule-book exception` before continuing. With `{{exceptions_log}}` set to `none`, stop
+instead of skipping the step.
 
 **Jira transitions are real steps.** In Progress before the first line of code, In Review
 after the PR opens. Look up the issue's available transitions via the Atlassian MCP first —

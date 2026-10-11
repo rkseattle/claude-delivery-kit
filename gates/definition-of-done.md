@@ -1,4 +1,4 @@
-# Definition of Done — required before every `git commit`, no exceptions
+# Definition of Done — required before every `git commit`, bar an exception `deliver` records
 
 Run in order. All must be green. Read this file before the first commit of a session; it
 does not need re-reading between commits.
