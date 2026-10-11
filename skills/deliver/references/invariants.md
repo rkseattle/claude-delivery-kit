@@ -164,7 +164,8 @@ in one direction unless something holds it. Each file has a cap:
 | File                               | Cap |
 | ---------------------------------- | --- |
 | `CLAUDE.md`                        | 400 |
-| Any gate (`status-report.md`: 140) | 300 |
+| Any gate                           | 300 |
+| `status-report.md`                 | 140 |
 | Any skill `SKILL.md` + references  | 480 |
 | Any agent definition               | 140 |
 
