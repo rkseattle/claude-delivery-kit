@@ -17,9 +17,8 @@ prevents each one. Read it and
 Read `${CLAUDE_PROJECT_DIR}/.claude/project.json` first: `{{ticket_prefix}}`,
 `{{jira_project}}`, `{{registry_file}}`, `{{source_roots}}`, `{{verification_tiers}}`,
 `{{plan_rules_file}}`, `{{build_command}}`, and `{{parent_branch_default}}` all come from
-it. Tickets written against invented tiers and roots fail at `plan-work` for reasons
-nobody can see.
-Read `${CLAUDE_PLUGIN_ROOT}/gates/project-config.md` and follow it exactly.
+it. Read `${CLAUDE_PLUGIN_ROOT}/gates/project-config.md` and follow it exactly: tickets
+written against invented tiers and roots fail at `plan-work` for reasons nobody can see.
 
 No ticket is created, edited, or transitioned before Step 7's approval. The only file this
 skill writes before then is the draft.

@@ -6,9 +6,9 @@ disable-model-invocation: true
 allowed-tools: Read, Write, Edit, Grep, Glob, Bash, Task
 ---
 
-Full branch review. Base ref: $ARGUMENTS (default `{{parent_branch_default}}`).
-
 Read `${CLAUDE_PLUGIN_ROOT}/gates/project-config.md` and follow it exactly.
+
+Full branch review. Base ref: $ARGUMENTS (default `{{parent_branch_default}}`).
 
 Run this after every phase is committed and before `/ship-pr`.
 

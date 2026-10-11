@@ -135,11 +135,12 @@ most: it is where `ship-pr` learns whether this project's diff needs a push-run 
 session on real hardware, or nothing beyond the checklist — the single biggest divergence
 between the two projects this was extracted from.
 
-The values in the block above are illustrations, not defaults. Ten of its keys are
+The values in the block above are illustrations, not defaults. Some of its keys are
 required and have no default; a missing one stops the run. Any other key absent from
 project.json resolves to the default this README gives it, or to `none` where it gives
-none. `extra_gates` defaults to `[]`. `gates/project-config.md` names the required keys
-and holds the procedure every skill and agent follows.
+none, and either way the run says which value each absent key took. `extra_gates`
+defaults to `[]`. `gates/project-config.md` names the required keys and holds the
+procedure every skill and agent follows.
 
 Two keys exist because the projects hold genuinely different policy on the same question,
 and each states its reasoning rather than just its answer. `unit_test_scope` is the

@@ -32,9 +32,10 @@ targets a behavior whose absence produces a *plausible run* rather than an error
 | `stops-on-missing-required-key` | A guessed parent branch that the run then branches from and pushes against | +1.00 |
 | `announces-missing-optional-keys` | An invented registry or rules path, or optional keys that quietly read as nothing | +1.00 |
 
-Each case pairs a check on the *result* with a check on *how Claude got there*, per the
-official guidance: a `regex` or `llm` grader on the reply, and a `tool_used` grader on
-the transcript.
+Each case should pair a check on the *result* with a check on *how Claude got there*, per
+the official guidance: a `regex` or `llm` grader on the reply, and a `tool_used` grader on
+the transcript. `write-tickets-stops-without-config` and the two missing-key cases do;
+`refuses-without-project-json` and both `design-adversary-*` cases grade the reply only.
 
 **Δ is the number that matters, not the score.** A case scoring 1.00 in both arms is
 measuring what the model already knew. The deltas above are from the run of
@@ -104,7 +105,9 @@ servers, no user settings. That constrains what can be tested here:
 - **Testable with a scaffold**: a workspace that needs only files written before the run.
   The cases with a `context.scaffold_script` write a `.claude/project.json` and nothing
   else. Measured 2026-10-11 against the skills on `main` before `gates/project-config.md`,
-  they scored 0.50 and 0.67, against 1.00 for both after it.
+  the required-key case scored 0.33 and the optional-key case 0.44, with no run passing,
+  against 1.00 for both after it; the runs are kept locally under
+  `results/2026-10-11-missing-keys/`.
 - **Not testable without more scaffolding**: anything needing Jira, a git history, or a
   populated `.claude/state/`. The citation contract end-to-end — the highest-value case —
   is in this category: it spans `plan-work` → `implement-phases` → `ci-green` across a

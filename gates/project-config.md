@@ -15,9 +15,12 @@ or build command runs something the project never asked for, and nothing reports
 
 ## Every other key
 
-A missing key resolves to the default given in `${CLAUDE_PLUGIN_ROOT}/README.md`'s
-`project.json` section, or to `none` where that section gives none.
+A missing key resolves to the default stated in the prose of
+`${CLAUDE_PLUGIN_ROOT}/README.md`'s `project.json` section, or to `none` where it states
+none. A value shown in that section's example blocks is an illustration, never a default.
 
-Where a key used by the file that sent you here is `none` — set that way or left out —
-say so in **one line naming every such key**, never one line per key, and never invent a
-substitute. Each stage announces its own `none` keys, including under `/deliver`.
+Where a key used by the file that sent you here, or by a gate it reads, was left out or
+is `none`, say so in **one line naming every such key and the value it took** — its
+default or `none` — never one line per key, and never invent a substitute. A default is
+announced like `none`: a project that omitted `project_size` is told it is running as
+`small`. Each stage announces its own keys, including under `/deliver`.
