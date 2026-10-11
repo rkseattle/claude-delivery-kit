@@ -167,8 +167,8 @@ The skill cap is 480 rather than 320 because splitting a skill into references r
 dense prose into more lines than it replaced — `deliver` went from 321 lines to 208 of
 body plus 252 of reference. The per-invocation load fell 44%, which is what the budget
 exists to control, while the raw total rose. A cap that punished that split would be
-measuring the wrong quantity. The agent and gate caps moved 130 → 140 for the citations
-work, which named no displacement when it landed.
+measuring the wrong quantity. The agent and `status-report.md` caps moved 130 → 140 for
+the citations work, which named no displacement when it landed.
 
 A project may tighten a cap in `project.json`; it may not raise one without Rob.
 

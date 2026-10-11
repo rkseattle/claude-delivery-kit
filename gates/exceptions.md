@@ -12,7 +12,7 @@ A register is one Markdown table with these columns, in this order:
 
 | Column        | Holds                                                                  |
 | ------------- | ---------------------------------------------------------------------- |
-| `Rule`        | The rule or step waived, numbered as the rule book numbers it          |
+| `Rule`        | The rule or step waived, numbered where it is defined                  |
 | `Reason`      | Why the run or the kit departs from it                                 |
 | `Risk`        | What can go wrong while the exception stands                           |
 | `Expiry`      | An ISO 8601 date, `YYYY-MM-DD`                                         |
