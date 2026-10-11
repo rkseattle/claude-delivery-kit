@@ -7,9 +7,9 @@ CI's order, from the repo root:
 bash scripts/ci/all.sh
 ```
 
-Run it after `git add`: `json-parses.sh` reads tracked files only. CI's shellcheck is the
-runner's packaged version, which can flag what a newer local one passes (SC2015 did); a
-CI-only shellcheck finding is a real one, fixed the same way.
+Run it after `git add`: `json-parses.sh` reads tracked files only. `shellcheck.sh` pins
+shellcheck 0.11.0 for both CI and local runs, downloading and checksumming it once when the
+installed one differs.
 
 ## CI jobs and their local equivalents
 
@@ -26,7 +26,7 @@ CI-only shellcheck finding is a real one, fixed the same way.
 | `manifest` · Bundled-file references | `bash scripts/ci/bundled-refs.sh` |
 | `manifest` · No project-specific tokens | `bash scripts/ci/no-leaks.sh` |
 | `manifest` · Every CI step has a local equivalent | `bash scripts/ci/ci-steps-mirrored.sh` |
-| `manifest` · CI scripts pass shellcheck | `shellcheck scripts/ci/*.sh` |
+| `manifest` · CI scripts pass shellcheck | `bash scripts/ci/shellcheck.sh` |
 | `manifest` · CI checks fail on their defects | `bash scripts/ci/self-test.sh` |
 
 A step added to `.github/workflows/ci.yml` gets a row here and a line in

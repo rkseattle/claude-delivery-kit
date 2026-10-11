@@ -72,7 +72,7 @@ jobs:
         run: bash scripts/ci/ci-steps-mirrored.sh
 
       - name: CI scripts pass shellcheck
-        run: shellcheck scripts/ci/*.sh
+        run: bash scripts/ci/shellcheck.sh
 
       # A check whose only failure mode is silence looks like a clean run. This proves
       # each one still fails on the defect it exists to catch.

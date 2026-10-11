@@ -40,7 +40,7 @@ for path in "$here"/*.sh; do
 done
 
 mkdir -p "$tmp/empty"
-for check in json-parses.sh bundled-refs.sh no-leaks.sh frontmatter-names.sh line-budget.sh; do
+for check in json-parses.sh bundled-refs.sh no-leaks.sh frontmatter-names.sh line-budget.sh shellcheck.sh; do
   expect fail "a root with nothing to scan" "$check" "$tmp/empty"
 done
 

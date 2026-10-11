@@ -16,5 +16,5 @@ bash scripts/ci/line-budget.sh
 bash scripts/ci/bundled-refs.sh
 bash scripts/ci/no-leaks.sh
 bash scripts/ci/ci-steps-mirrored.sh
-shellcheck scripts/ci/*.sh
+bash scripts/ci/shellcheck.sh
 bash scripts/ci/self-test.sh
