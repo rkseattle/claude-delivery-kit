@@ -32,6 +32,7 @@ gates/                 status-report.md, definition-of-done.md, pre-push.md,
                        read-only-agent.md (the universal halves only), and
                        project-config.md
 hooks/                 hooks.json + the two hooks and their self-tests
+scripts/ci/            the CI checks, runnable locally; all.sh runs every one
 reference/             software-engineering-rule-book.md, the source the rules
                        are measured against
 ```
@@ -215,10 +216,10 @@ config conversation.
 
 `deliver` caps each file so the corpus cannot ratchet upward, and a change that would
 breach a cap names what comes out. **The caps themselves live in one place — the table in
-`skills/deliver/references/invariants.md`** — and CI enforces them in the `Line budget`
-step of `.github/workflows/ci.yml`. They are deliberately not repeated here: a second copy
-drifts from the enforced one, and a reader trusting the stale copy plans against a cap that
-does not exist.
+`skills/deliver/references/invariants.md`** — and CI enforces them with
+`scripts/ci/line-budget.sh`, run by the `Line budget` step. They are deliberately not
+repeated here: a second copy drifts from the enforced one, and a reader trusting the stale
+copy plans against a cap that does not exist.
 
 A skill's cap covers its `references/` files, counted together with the body. The split
 exists to cut what loads per invocation, not to create room the budget cannot see.
