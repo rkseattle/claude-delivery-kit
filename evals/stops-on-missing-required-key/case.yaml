@@ -1,0 +1,4 @@
+schema_version: "1.1"
+name: stops-on-missing-required-key
+context:
+  scaffold_script: scaffold.sh
