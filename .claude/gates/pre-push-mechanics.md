@@ -7,7 +7,9 @@ CI's order, from the repo root:
 bash scripts/ci/all.sh
 ```
 
-Run it after `git add`: `json-parses.sh` reads tracked files only.
+Run it after `git add`: `json-parses.sh` reads tracked files only. CI's shellcheck is the
+runner's packaged version, which can flag what a newer local one passes (SC2015 did); a
+CI-only shellcheck finding is a real one, fixed the same way.
 
 ## CI jobs and their local equivalents
 

@@ -6,8 +6,9 @@ set -euo pipefail
 root="${1:-.}"
 gate=$(jq -er '.mechanics_gate_pre_push' "$root/.claude/project.json") \
   || { echo "project.json names no mechanics_gate_pre_push"; exit 1; }
-[ "$gate" != none ] && [ -f "$root/$gate" ] \
-  || { echo "mechanics_gate_pre_push is $gate, not a file this repo has"; exit 1; }
+if [ "$gate" = none ] || [ ! -f "$root/$gate" ]; then
+  echo "mechanics_gate_pre_push is $gate, not a file this repo has"; exit 1
+fi
 mechanics="$root/$gate"
 ci="$root/.github/workflows/ci.yml"
 # A step with no run: line (an action) has no local command to mirror; only checkout may.
