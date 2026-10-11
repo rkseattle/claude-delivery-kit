@@ -16,6 +16,9 @@ bypasses in it.
 
 A single source removes the class. What cannot be shared is declared, not duplicated.
 
+The kit's rules are measured against one source:
+`reference/software-engineering-rule-book.md`. A ticket that quotes a rule cites it there.
+
 ## Layout
 
 ```
@@ -26,8 +29,12 @@ skills/                write-tickets, deliver, plan-work, implement-phases,
                        branch-review, ship-pr, ci-green
 agents/                ticket-, design-, commit-, ci-failure-, greptile- adversaries
 gates/                 status-report.md, definition-of-done.md, pre-push.md,
-                       read-only-agent.md (the universal halves only)
+                       read-only-agent.md (the universal halves only), and
+                       project-config.md
 hooks/                 hooks.json + the two hooks and their self-tests
+scripts/ci/            the CI checks, runnable locally; all.sh runs every one
+reference/             software-engineering-rule-book.md, the source the rules
+                       are measured against
 ```
 
 The skills reference `${CLAUDE_PLUGIN_ROOT}/gates/*.md`. Those three files land in the
@@ -129,6 +136,14 @@ most: it is where `ship-pr` learns whether this project's diff needs a push-run 
 session on real hardware, or nothing beyond the checklist — the single biggest divergence
 between the two projects this was extracted from.
 
+The values in the block above are illustrations, not defaults. Some of its keys are
+required and have no default; one that is missing, empty, `none`, or a `<placeholder>`
+stops the run. Any other key absent from
+project.json resolves to the default this README gives it, or to `none` where it gives
+none. `extra_gates` defaults to `[]`. `gates/project-config.md` names the required keys
+and holds the procedure every skill and agent follows, including how a run reports the
+value each absent key took.
+
 Two keys exist because the projects hold genuinely different policy on the same question,
 and each states its reasoning rather than just its answer. `unit_test_scope` is the
 whole-target-versus-changed-workspaces trade: matching CI exactly, against a suite slow
@@ -136,6 +151,39 @@ enough that the cost is real. `post_fix_verification_scope` is whether a fix com
 restarts the push gate — a project whose selector resolves a diff to affected tests can
 re-run that set and have a real verdict; one without a selector has no such answer and its
 only honest re-verification is everything.
+
+Four more keys tailor the workflow to the project, per the rule book's "Tailoring and
+exceptions" section and its Appendices A through C. Each is optional, and each bullet
+below gives its default; the `roles` entries are placeholders, not defaults.
+
+```json
+{
+  "project_size": "small",
+  "lifecycle_model": "continuous",
+  "disciplines": [],
+  "roles": {
+    "sponsor": "<handle>",
+    "product_owner": "<handle>",
+    "tech_lead": "<handle>",
+    "qa": "<handle>",
+    "release_manager": "<handle>",
+    "security": "<handle>",
+    "service_owner": "<handle>"
+  }
+}
+```
+
+- `project_size` — `small`, `medium`, or `large`. Default `small`.
+- `lifecycle_model` — `waterfall`, `iterative`, or `continuous`. Default `continuous`.
+- `disciplines` — a list drawn from `security`, `data-ml`, `mobile`, `embedded`, and
+  `sre`. Default `[]`.
+- `roles` — a map from each role above to the person who holds it.
+  `{{roles.<role>}}` in a skill resolves to that role's entry in `roles`, so
+  `{{roles.tech_lead}}` names the tech lead. Default: a role absent from `roles` is the
+  person running the session, and the skill addresses that person directly. That is the
+  absent-key rule above applied per role, so a missing role never resolves to `none`,
+  and a project with no `roles` key at all has the person running the session in every
+  role.
 
 ## Friction and citations
 
@@ -169,10 +217,10 @@ config conversation.
 
 `deliver` caps each file so the corpus cannot ratchet upward, and a change that would
 breach a cap names what comes out. **The caps themselves live in one place — the table in
-`skills/deliver/references/invariants.md`** — and CI enforces them in the `Line budget`
-step of `.github/workflows/ci.yml`. They are deliberately not repeated here: a second copy
-drifts from the enforced one, and a reader trusting the stale copy plans against a cap that
-does not exist.
+`skills/deliver/references/invariants.md`** — and CI enforces them with
+`scripts/ci/line-budget.sh`, run by the `Line budget` step. They are deliberately not
+repeated here: a second copy drifts from the enforced one, and a reader trusting the stale
+copy plans against a cap that does not exist.
 
 A skill's cap covers its `references/` files, counted together with the body. The split
 exists to cut what loads per invocation, not to create room the budget cannot see.

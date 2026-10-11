@@ -4,8 +4,12 @@ Behavioral tests for the stage skills. CI checks that the kit's files are *well-
 this suite asks whether the skills still *do what they claim*.
 
 ```bash
-claude plugin eval .
+claude plugin eval . --scaffold
 ```
+
+`--scaffold` runs the `scaffold.sh` of each case with a `context.scaffold_script`. Those
+cases need it to write their `project.json`; without it they run in an empty workspace and
+fail.
 
 Each case runs with and without the plugin loaded, three times by default, so the report
 shows what the plugin contributes rather than what the model would have done anyway.
@@ -22,17 +26,25 @@ targets a behavior whose absence produces a *plausible run* rather than an error
 | `deliver-reads-stage-files` | A run following a remembered approximation of a stage rather than the stage | +1.00 |
 | `refuses-without-project-json` | Invented build and test commands that run something other than what the project uses | +0.50 |
 | `plan-work-stops-at-approval` | Planning that quietly starts implementing — the approval gate is the one hard stop in the workflow | +0.17 |
-| `write-tickets-stops-without-config` | Tickets drafted against verification tiers and source roots the project never declared | not yet measured |
+| `write-tickets-stops-without-config` | Tickets drafted against verification tiers and source roots the project never declared | +0.50 |
 | `design-adversary-passes-a-sound-plan` | Review that always finds a blocker, so planning always ends in deferred work | not yet measured |
 | `design-adversary-catches-a-missing-ac` | Review that stopped blocking real defects after its BLOCKER definition was narrowed | not yet measured |
+| `stops-on-missing-required-key` | A guessed parent branch that the run then branches from and pushes against | +1.00 |
+| `announces-missing-optional-keys` | An invented registry or rules path, or optional keys that quietly read as nothing | +1.00 |
 
-Each case pairs a check on the *result* with a check on *how Claude got there*, per the
-official guidance: a `regex` or `llm` grader on the reply, and a `tool_used` grader on
-the transcript.
+Each case should pair a check on the *result* with a check on *how Claude got there*, per
+the official guidance: a `regex` or `llm` grader on the reply, and a `tool_used` grader on
+the transcript. The two missing-key cases do. `write-tickets-stops-without-config` has a
+`tool_used` grader that cannot fail, since Write is not in its allowlist, and
+`refuses-without-project-json` and both `design-adversary-*` cases grade the reply only.
 
 **Δ is the number that matters, not the score.** A case scoring 1.00 in both arms is
 measuring what the model already knew. The deltas above are from the run of
-2026-09-14 against Opus 5; re-measure rather than trusting them after a model change.
+2026-09-14 against Opus 5, except the two missing-key rows and the two project.json rows
+(`refuses-without-project-json`, `write-tickets-stops-without-config`), measured
+2026-10-11 against Opus 5.5; re-measure rather than trusting them after a model change.
+The missing-key rows' +1.00 is partly by construction, since the baseline has no gate to
+read, so their meaningful comparison is against `main`'s skills, below.
 
 `plan-work-stops-at-approval` sits at +0.17 because its `no-branch-created` grader passes
 trivially in the baseline — an arm with no plugin has no reason to run git either. The
@@ -94,7 +106,13 @@ servers, no user settings. That constrains what can be tested here:
 
 - **Testable**: whether a stage reads its files, whether it refuses without configuration,
   whether planning stops at the approval gate, the shape of what it produces.
-- **Not testable without scaffolding**: anything needing Jira, a git history, or a
+- **Testable with a scaffold**: a workspace that needs only files written before the run.
+  The cases with a `context.scaffold_script` write a `.claude/project.json` and nothing
+  else. Measured 2026-10-11 against the skills on `main` before `gates/project-config.md`,
+  the required-key case scored 0.33 and the optional-key case 0.44, with no run passing,
+  against 1.00 for both after it, 3 runs per arm. `results/` is not tracked, so re-run
+  both against `main` and the branch to check these.
+- **Not testable without more scaffolding**: anything needing Jira, a git history, or a
   populated `.claude/state/`. The citation contract end-to-end — the highest-value case —
   is in this category: it spans `plan-work` → `implement-phases` → `ci-green` across a
   real delivery. Reaching it needs a `case.yaml` with a `context.scaffold_script` that

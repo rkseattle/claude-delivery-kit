@@ -28,32 +28,13 @@ jobs:
       - name: Branch-guard self-test
         run: bash hooks/protect-plan-branch.sh --self-test
 
-      # A self-test passes whether or not anything still points at the hook, so assert
-      # the wiring itself. This is what catches a hooks.json entry renamed, retyped, or
-      # pointed at a path that no longer exists — the failure the self-tests cannot see.
+      # Every check below lives in scripts/ci/ so it runs identically here and locally
+      # (scripts/ci/all.sh). Each script's header says what it catches.
       - name: Hooks are wired, and every command exists and is executable
-        run: |
-          set -euo pipefail
-          jq -e '.hooks.Stop[0].hooks[0].command' hooks/hooks.json > /dev/null
-          jq -e '.hooks.PostToolUse[] | select(.matcher == "Bash")' hooks/hooks.json > /dev/null
+        run: bash scripts/ci/hooks-wired.sh
 
-          jq -r '.hooks | to_entries[] | .value[] | .hooks[] | .command' hooks/hooks.json \
-          | while read -r cmd; do
-              path="${cmd/\$\{CLAUDE_PLUGIN_ROOT\}/$GITHUB_WORKSPACE}"
-              test -x "$path" || { echo "hook command is not executable: $path"; exit 1; }
-              echo "ok: $path"
-            done
-
-      # The self-tests take the hook under test as $1, so they run it wherever it sits.
-      # That is what lets the hooks live in a plugin rather than at a fixed project path,
-      # and it is worth asserting: a self-test that hardcoded its target would pass here
-      # and fail the moment the plugin is installed somewhere else.
       - name: Self-tests accept the hook path as an argument
-        run: |
-          set -euo pipefail
-          cp -r hooks "$RUNNER_TEMP/relocated"
-          bash "$RUNNER_TEMP/relocated/block-false-stop.sh" --self-test
-          bash "$RUNNER_TEMP/relocated/protect-plan-branch.sh" --self-test
+        run: bash scripts/ci/hooks-relocatable.sh
 
   ticket-lint:
     name: Ticket linter self-test
@@ -73,118 +54,43 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Every JSON file parses
-        run: |
-          set -euo pipefail
-          for f in .claude-plugin/plugin.json .claude-plugin/marketplace.json hooks/hooks.json; do
-            python3 -c "import json,sys; json.load(open('$f'))" && echo "ok: $f"
-          done
+        run: bash scripts/ci/json-parses.sh
 
-      # A skill or agent whose frontmatter name does not match its location is invisible
-      # under the name everything else refers to it by.
       - name: Frontmatter names match their paths
-        run: |
-          set -euo pipefail
-          fail=0
-          for f in skills/*/SKILL.md; do
-            want=$(basename "$(dirname "$f")")
-            got=$(awk '/^---$/{c++;next} c==1 && /^name:/{print $2; exit}' "$f")
-            if [ "$want" != "$got" ]; then
-              echo "MISMATCH $f: dir=$want name=$got"
-              fail=1
-            fi
-          done
-          for f in agents/*.md; do
-            want=$(basename "$f" .md)
-            got=$(awk '/^---$/{c++;next} c==1 && /^name:/{print $2; exit}' "$f")
-            if [ "$want" != "$got" ]; then
-              echo "MISMATCH $f: file=$want name=$got"
-              fail=1
-            fi
-          done
-          exit "$fail"
+        run: bash scripts/ci/frontmatter-names.sh
 
-      # deliver's line budget, enforced. Every run is asked for friction and no run is
-      # asked what to remove, so without this the corpus only ever grows.
-      #
-      # A skill is counted as its SKILL.md PLUS its references/, because a split that
-      # moved text out of sight of the budget would let the ratchet resume under a
-      # different name. The cap is correspondingly higher than a body-only one: reflowing
-      # dense prose into a reference file costs lines while cutting what loads per run.
       - name: Line budget
-        run: |
-          set -euo pipefail
-          fail=0
-          check() {
-            n=$(wc -l < "$1")
-            if [ "$n" -gt "$2" ]; then
-              echo "OVER CAP $1: $n > $2"
-              fail=1
-            fi
-          }
-          check_skill() {
-            local dir n
-            dir="$(dirname "$1")"
-            # shellcheck disable=SC2046
-            n=$(cat "$1" $(find "$dir/references" -name '*.md' 2>/dev/null | sort) | wc -l)
-            if [ "$n" -gt "$2" ]; then
-              echo "OVER CAP $1 (+references): $n > $2"
-              fail=1
-            else
-              echo "ok: $1 (+references) = $n <= $2"
-            fi
-          }
-          for f in skills/*/SKILL.md; do check_skill "$f" 480; done
-          for f in agents/*.md; do check "$f" 140; done
-          for f in gates/*.md; do
-            if [ "$(basename "$f")" = "status-report.md" ]; then
-              check "$f" 140
-            else
-              check "$f" 300
-            fi
-          done
-          exit "$fail"
+        run: bash scripts/ci/line-budget.sh
 
-      # Every ${CLAUDE_PLUGIN_ROOT} reference must name a file that exists. These resolve
-      # at runtime inside a project, so a typo here surfaces as a stage silently reading
-      # nothing rather than as an error.
       - name: Bundled-file references resolve
-        run: |
-          set -euo pipefail
-          fail=0
-          # Process substitution, not `grep | while read`: a pipe runs the loop in a
-          # subshell, so neither the flag nor an `exit` inside it reaches this step and
-          # the check always passes — a guard whose only failure mode is silence.
-          while read -r ref; do
-            p=".${ref#\$\{CLAUDE_PLUGIN_ROOT\}}"
-            if [ -e "$p" ]; then
-              echo "ok: $ref"
-            else
-              echo "BROKEN: $ref"
-              fail=1
-            fi
-          done < <(grep -rhoE '\$\{CLAUDE_PLUGIN_ROOT\}/[a-zA-Z0-9/_.-]+' skills gates agents | sort -u)
-          exit "$fail"
+        run: bash scripts/ci/bundled-refs.sh
 
-      # The kit must not acquire a rule that only makes sense in one project. This is the
-      # "Shared before project" invariant, checked rather than trusted.
-      #
-      # The patterns live in a file rather than inline. A guard that names the projects it
-      # protects is itself the leak it exists to prevent — this workflow is public, and an
-      # inline list would publish the very identifiers the check exists to keep out.
-      # consumers.txt is gitignored and supplied per-checkout; absent it, the shape rules
-      # below still run.
       - name: No project-specific tokens leaked into shared files
-        run: |
-          set -euo pipefail
-          # Shape rules: build-tool invocations, language-specific manifests, and
-          # ticket-prefix patterns have no place in a project-agnostic file, whatever
-          # project they came from.
-          if grep -rniE '\.(lproj|pbxproj|xctestplan)\b|xcodebuild|swiftlint|swiftformat|\bpool\.query\b|npm run [a-z_:]+|\b[A-Z]{3,10}-[0-9]+\b' \
-               skills gates agents; then
-            echo "a project-specific token reached a shared file"; exit 1
-          fi
-          if [ -f .github/consumers.txt ] \
-             && grep -rniEf .github/consumers.txt skills gates agents; then
-            echo "a consuming project was named in a shared file"; exit 1
-          fi
-          echo "clean"
+        run: bash scripts/ci/no-leaks.sh
+
+      - name: Every CI step has a local equivalent
+        run: bash scripts/ci/ci-steps-mirrored.sh
+
+      - name: CI scripts pass shellcheck
+        run: bash scripts/ci/shellcheck.sh
+
+      # A check whose only failure mode is silence looks like a clean run. This proves
+      # each one still fails on the defect it exists to catch.
+      - name: CI checks fail on the defects they exist to catch
+        run: bash scripts/ci/self-test.sh
+
+  # The one check to require in branch protection. It waits on every job and fails if any
+  # failed or was cancelled; `if: always()` keeps it from being skipped, which GitHub
+  # counts as passing.
+  ci-passed:
+    name: CI passed
+    if: always()
+    needs: [hooks, ticket-lint, manifest]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Every job succeeded
+        env:
+          NEEDS: ${{ toJSON(needs) }}
+        run: bash scripts/ci/all-jobs-passed.sh

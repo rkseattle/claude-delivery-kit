@@ -13,6 +13,7 @@ Requires an approved plan. If no plan has been approved in this session, stop an
 
 Read `${CLAUDE_PROJECT_DIR}/.claude/project.json` first for this project's ticket prefix,
 parent branch, and gate mechanics.
+Read `${CLAUDE_PLUGIN_ROOT}/gates/project-config.md` and follow it exactly.
 
 ## Step 1 — Set up once
 
