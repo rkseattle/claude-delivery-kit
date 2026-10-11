@@ -134,6 +134,17 @@ most: it is where `ship-pr` learns whether this project's diff needs a push-run 
 session on real hardware, or nothing beyond the checklist — the single biggest divergence
 between the two projects this was extracted from.
 
+The values in the block above are illustrations, not defaults. Ten keys are required:
+`ticket_prefix`, `jira_project`, `repo_slug`, `parent_branch_default`, `source_roots`,
+`build_command`, `push_command`, `unit_test_scope`, `post_fix_verification_scope`, and
+`verification_tiers`. A required key has no default: a skill that finds one missing
+must stop and name the key rather than guess, because a guessed parent branch or build
+command does real damage.
+
+Any other key absent from project.json resolves to the default this README gives it, or to
+`none` where it gives none. A skill that reads `none` says so in one line, whether the key
+was set to `none` or left out. `extra_gates` defaults to `[]`.
+
 Two keys exist because the projects hold genuinely different policy on the same question,
 and each states its reasoning rather than just its answer. `unit_test_scope` is the
 whole-target-versus-changed-workspaces trade: matching CI exactly, against a suite slow
@@ -141,6 +152,39 @@ enough that the cost is real. `post_fix_verification_scope` is whether a fix com
 restarts the push gate — a project whose selector resolves a diff to affected tests can
 re-run that set and have a real verdict; one without a selector has no such answer and its
 only honest re-verification is everything.
+
+Four more keys tailor the workflow to the project, per the rule book's "Tailoring and
+exceptions" section and its Appendices A through C. Each is optional, and each bullet
+below gives its default; the `roles` entries are placeholders, not defaults.
+
+```json
+{
+  "project_size": "small",
+  "lifecycle_model": "continuous",
+  "disciplines": [],
+  "roles": {
+    "sponsor": "<handle>",
+    "product_owner": "<handle>",
+    "tech_lead": "<handle>",
+    "qa": "<handle>",
+    "release_manager": "<handle>",
+    "security": "<handle>",
+    "service_owner": "<handle>"
+  }
+}
+```
+
+- `project_size` — `small`, `medium`, or `large`. Default `small`.
+- `lifecycle_model` — `waterfall`, `iterative`, or `continuous`. Default `continuous`.
+- `disciplines` — a list drawn from `security`, `data-ml`, `mobile`, `embedded`, and
+  `sre`. Default `[]`.
+- `roles` — a map from each role above to the person who holds it.
+  `{{roles.<role>}}` in a skill resolves to that role's entry in `roles`, so
+  `{{roles.tech_lead}}` names the tech lead. Default: a role absent from `roles` is the
+  person running the session, and the skill addresses that person directly. That is the
+  absent-key rule above applied per role, so a missing role never resolves to `none`,
+  and a project with no `roles` key at all has the person running the session in every
+  role.
 
 ## Friction and citations
 
