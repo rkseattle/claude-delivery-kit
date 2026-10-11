@@ -29,7 +29,8 @@ skills/                write-tickets, deliver, plan-work, implement-phases,
                        branch-review, ship-pr, ci-green
 agents/                ticket-, design-, commit-, ci-failure-, greptile- adversaries
 gates/                 status-report.md, definition-of-done.md, pre-push.md,
-                       read-only-agent.md (the universal halves only)
+                       read-only-agent.md (the universal halves only), and
+                       project-config.md
 hooks/                 hooks.json + the two hooks and their self-tests
 reference/             software-engineering-rule-book.md, the source the rules
                        are measured against
@@ -134,16 +135,11 @@ most: it is where `ship-pr` learns whether this project's diff needs a push-run 
 session on real hardware, or nothing beyond the checklist — the single biggest divergence
 between the two projects this was extracted from.
 
-The values in the block above are illustrations, not defaults. Ten keys are required:
-`ticket_prefix`, `jira_project`, `repo_slug`, `parent_branch_default`, `source_roots`,
-`build_command`, `push_command`, `unit_test_scope`, `post_fix_verification_scope`, and
-`verification_tiers`. A required key has no default: a skill that finds one missing
-must stop and name the key rather than guess, because a guessed parent branch or build
-command does real damage.
-
-Any other key absent from project.json resolves to the default this README gives it, or to
-`none` where it gives none. A skill that reads `none` says so in one line, whether the key
-was set to `none` or left out. `extra_gates` defaults to `[]`.
+The values in the block above are illustrations, not defaults. Ten of its keys are
+required and have no default; a missing one stops the run. Any other key absent from
+project.json resolves to the default this README gives it, or to `none` where it gives
+none. `extra_gates` defaults to `[]`. `gates/project-config.md` names the required keys
+and holds the procedure every skill and agent follows.
 
 Two keys exist because the projects hold genuinely different policy on the same question,
 and each states its reasoning rather than just its answer. `unit_test_scope` is the

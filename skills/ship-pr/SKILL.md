@@ -16,6 +16,7 @@ the point where a resumed run must know whether the PR already exists.
 
 Read `${CLAUDE_PROJECT_DIR}/.claude/project.json` for this project's push procedure and
 verification tiers.
+Read `${CLAUDE_PLUGIN_ROOT}/gates/project-config.md` and follow it exactly.
 
 ## Step 1 — Rebase onto the parent, then local CI equivalence
 

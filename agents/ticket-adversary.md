@@ -21,7 +21,8 @@ Read `${CLAUDE_PLUGIN_ROOT}/gates/read-only-agent.md` and follow it exactly.
 
 1. Read `${CLAUDE_PROJECT_DIR}/.claude/project.json`,
    `${CLAUDE_PLUGIN_ROOT}/skills/write-tickets/references/rubric.md`, and the handoff and
-   **Size** limits in `${CLAUDE_PLUGIN_ROOT}/skills/plan-work/SKILL.md`.
+   **Size** limits in `${CLAUDE_PLUGIN_ROOT}/skills/plan-work/SKILL.md`. Resolve
+   project.json per `${CLAUDE_PLUGIN_ROOT}/gates/project-config.md`.
 2. Read `${CLAUDE_PROJECT_DIR}/.claude/agent-rules/ticket-adversary.md`. If it does not
    exist, say so in one line and judge against `CLAUDE.md` and `{{plan_rules_file}}` alone
    rather than inventing requirements.

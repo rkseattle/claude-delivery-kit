@@ -15,6 +15,7 @@ branch awaiting CI from one still unpushed.
 
 Read `${CLAUDE_PROJECT_DIR}/.claude/project.json` for this project's repo slug, result
 artifact, and failure shapes.
+Read `${CLAUDE_PLUGIN_ROOT}/gates/project-config.md` and follow it exactly.
 
 ## Step 1 — Arm the monitor, then stop talking
 

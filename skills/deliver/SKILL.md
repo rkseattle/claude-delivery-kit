@@ -19,10 +19,10 @@ context until needed. They live at `${CLAUDE_PLUGIN_ROOT}/skills/<stage>/SKILL.m
 Ignore the `argument-hint`, `allowed-tools` and `disable-model-invocation` fields in those
 files when read this way: they apply only to direct invocation. The body is the procedure.
 
-**Read `${CLAUDE_PROJECT_DIR}/.claude/project.json` now.** It names this project's ticket
-prefix, commands, result files, and gate mechanics. Every double-braced placeholder below
-and in the stage files resolves from it. If it is absent, say so and stop: the workflow
-cannot run without knowing what to run.
+**Read `${CLAUDE_PROJECT_DIR}/.claude/project.json` now**, following
+`${CLAUDE_PLUGIN_ROOT}/gates/project-config.md` exactly. It names this project's ticket
+prefix, commands, result files, and gate mechanics, and every double-braced placeholder
+below and in the stage files resolves from it.
 
 ## Step 0 — Resume or start fresh
 

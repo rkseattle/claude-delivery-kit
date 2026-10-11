@@ -14,6 +14,7 @@ no commit. The approval gate at the end is real.
 
 Read `${CLAUDE_PROJECT_DIR}/.claude/project.json` first: `{{ticket_prefix}}`,
 `{{jira_project}}`, `{{registry_file}}`, and the build command below all come from it.
+Read `${CLAUDE_PLUGIN_ROOT}/gates/project-config.md` and follow it exactly.
 
 ## Step 1 — Resolve the arguments to a ticket set
 

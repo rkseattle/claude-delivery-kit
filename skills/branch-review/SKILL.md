@@ -8,6 +8,8 @@ allowed-tools: Read, Write, Edit, Grep, Glob, Bash, Task
 
 Full branch review. Base ref: $ARGUMENTS (default `{{parent_branch_default}}`).
 
+Read `${CLAUDE_PLUGIN_ROOT}/gates/project-config.md` and follow it exactly.
+
 Run this after every phase is committed and before `/ship-pr`.
 
 Set `"stage": "branch-review"` in `.claude/state/current-plan.json` now, and update
