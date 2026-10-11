@@ -157,15 +157,8 @@ most common way a run becomes unreviewable.
 stage appends to `friction[]` and `citations[]` and prints nothing; `ci-green` reports both
 before it deletes that file. Both are proposed, never applied on your own initiative.
 
-**These files have a line budget**, and a skill's cap covers its `references/` files
-counted with the body:
-
-| File                               | Cap |
-| ---------------------------------- | --- |
-| `CLAUDE.md`                        | 400 |
-| Any gate (`status-report.md`: 140) | 300 |
-| Any skill `SKILL.md` + references  | 480 |
-| Any agent definition               | 140 |
+**These files have a line budget.** The caps are the table under "The line budget" in
+`${CLAUDE_PLUGIN_ROOT}/skills/deliver/references/invariants.md`.
 
 **A proposal that would breach a cap must name what comes out.** Prefer replacing to
 appending in every case. A project may tighten a cap in `project.json`; raising one is

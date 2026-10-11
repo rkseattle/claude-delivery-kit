@@ -225,10 +225,9 @@ copy plans against a cap that does not exist.
 A skill's cap covers its `references/` files, counted together with the body. The split
 exists to cut what loads per invocation, not to create room the budget cannot see.
 
-`design-adversary.md` sits at its cap, as does `deliver` with its references. Both are
-files that absorbed two projects' worth of rules, so they are the likeliest to want to
-grow; the pressure is the cap working as intended, and the place for per-dimension detail
-is `agent-rules/`, not here.
+`design-adversary.md` sits at its cap. It absorbed two projects' worth of rules, so it is
+the likeliest to want to grow; the pressure is the cap working as intended, and the place
+for per-dimension detail is `agent-rules/`, not here.
 
 ## Hooks
 
