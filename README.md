@@ -138,9 +138,9 @@ between the two projects this was extracted from.
 The values in the block above are illustrations, not defaults. Some of its keys are
 required and have no default; a missing one stops the run. Any other key absent from
 project.json resolves to the default this README gives it, or to `none` where it gives
-none, and either way the run says which value each absent key took. `extra_gates`
-defaults to `[]`. `gates/project-config.md` names the required keys and holds the
-procedure every skill and agent follows.
+none. `extra_gates` defaults to `[]`. `gates/project-config.md` names the required keys
+and holds the procedure every skill and agent follows, including how a run reports the
+value each absent key took.
 
 Two keys exist because the projects hold genuinely different policy on the same question,
 and each states its reasoning rather than just its answer. `unit_test_scope` is the

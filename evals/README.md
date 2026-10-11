@@ -26,7 +26,7 @@ targets a behavior whose absence produces a *plausible run* rather than an error
 | `deliver-reads-stage-files` | A run following a remembered approximation of a stage rather than the stage | +1.00 |
 | `refuses-without-project-json` | Invented build and test commands that run something other than what the project uses | +0.50 |
 | `plan-work-stops-at-approval` | Planning that quietly starts implementing — the approval gate is the one hard stop in the workflow | +0.17 |
-| `write-tickets-stops-without-config` | Tickets drafted against verification tiers and source roots the project never declared | not yet measured |
+| `write-tickets-stops-without-config` | Tickets drafted against verification tiers and source roots the project never declared | +0.50 |
 | `design-adversary-passes-a-sound-plan` | Review that always finds a blocker, so planning always ends in deferred work | not yet measured |
 | `design-adversary-catches-a-missing-ac` | Review that stopped blocking real defects after its BLOCKER definition was narrowed | not yet measured |
 | `stops-on-missing-required-key` | A guessed parent branch that the run then branches from and pushes against | +1.00 |
@@ -39,8 +39,11 @@ the transcript. `write-tickets-stops-without-config` and the two missing-key cas
 
 **Δ is the number that matters, not the score.** A case scoring 1.00 in both arms is
 measuring what the model already knew. The deltas above are from the run of
-2026-09-14 against Opus 5, except the two missing-key rows, measured 2026-10-11 against
-Opus 5.5; re-measure rather than trusting them after a model change.
+2026-09-14 against Opus 5, except the two missing-key rows and the two project.json rows
+(`refuses-without-project-json`, `write-tickets-stops-without-config`), measured
+2026-10-11 against Opus 5.5; re-measure rather than trusting them after a model change.
+The missing-key rows' +1.00 is partly by construction, since the baseline has no gate to
+read, so their meaningful comparison is against `main`'s skills, below.
 
 `plan-work-stops-at-approval` sits at +0.17 because its `no-branch-created` grader passes
 trivially in the baseline — an arm with no plugin has no reason to run git either. The
