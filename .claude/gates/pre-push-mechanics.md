@@ -28,6 +28,7 @@ installed one differs.
 | `manifest` · Every CI step has a local equivalent | `bash scripts/ci/ci-steps-mirrored.sh` |
 | `manifest` · CI scripts pass shellcheck | `bash scripts/ci/shellcheck.sh` |
 | `manifest` · CI checks fail on their defects | `bash scripts/ci/self-test.sh` |
+| `ci-passed` · Every job succeeded (the check to require) | `bash scripts/ci/all-jobs-passed.sh` |
 
 A step added to `.github/workflows/ci.yml` gets a row here and a line in
 `scripts/ci/all.sh` in the same commit; `ci-steps-mirrored.sh` fails CI otherwise.

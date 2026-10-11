@@ -78,3 +78,19 @@ jobs:
       # each one still fails on the defect it exists to catch.
       - name: CI checks fail on the defects they exist to catch
         run: bash scripts/ci/self-test.sh
+
+  # The one check to require in branch protection. It waits on every job and fails if any
+  # failed or was cancelled; `if: always()` keeps it from being skipped, which GitHub
+  # counts as passing.
+  ci-passed:
+    name: CI passed
+    if: always()
+    needs: [hooks, ticket-lint, manifest]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Every job succeeded
+        env:
+          NEEDS: ${{ toJSON(needs) }}
+        run: bash scripts/ci/all-jobs-passed.sh

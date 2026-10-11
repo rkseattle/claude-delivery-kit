@@ -126,4 +126,22 @@ fresh_copy; sed -i.bak '/No project-specific tokens/d' "$tmp/repo/.claude/gates/
 printf '%s\n' "Also see \`bash scripts/ci/no-leaks.sh\`." >> "$tmp/repo/.claude/gates/pre-push-mechanics.md"
 expect fail "a command mentioned in prose but missing from the table" ci-steps-mirrored.sh
 
+fresh_copy; sed -i.bak '/^    if: always()$/d' "$tmp/repo/.github/workflows/ci.yml"
+expect fail "the aggregate job without if: always()" all-jobs-passed.sh
+fresh_copy; sed -i.bak 's/^    needs: \[hooks, ticket-lint, manifest\]$/    needs: [hooks, manifest]/' \
+  "$tmp/repo/.github/workflows/ci.yml"
+expect fail "the aggregate job not needing every job" all-jobs-passed.sh
+fresh_copy
+ok3='"hooks":{"result":"success"},"ticket-lint":{"result":"success"}'
+for results in "{$ok3,\"manifest\":{\"result\":\"failure\"}}" \
+               "{$ok3,\"manifest\":{\"result\":\"cancelled\"}}" \
+               '{"hooks":{"result":"success"},"manifest":{"result":"success"}}' 'not json' '{}'; do
+  if NEEDS="$results" bash "$here/all-jobs-passed.sh" "$tmp/repo" > /dev/null 2>&1; then got=pass; else got=fail; fi
+  report fail "$got" all-jobs-passed.sh "job results $results"
+done
+for results in "{$ok3,\"manifest\":{\"result\":\"success\"}}" "{$ok3,\"manifest\":{\"result\":\"skipped\"}}"; do
+  if NEEDS="$results" bash "$here/all-jobs-passed.sh" "$tmp/repo" > /dev/null 2>&1; then got=pass; else got=fail; fi
+  report pass "$got" all-jobs-passed.sh "job results $results"
+done
+
 exit "$fail"
