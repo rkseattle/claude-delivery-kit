@@ -16,6 +16,9 @@ bypasses in it.
 
 A single source removes the class. What cannot be shared is declared, not duplicated.
 
+The kit's rules are measured against one source:
+`reference/software-engineering-rule-book.md`. A ticket that quotes a rule cites it there.
+
 ## Layout
 
 ```
@@ -28,6 +31,8 @@ agents/                ticket-, design-, commit-, ci-failure-, greptile- adversa
 gates/                 status-report.md, definition-of-done.md, pre-push.md,
                        read-only-agent.md (the universal halves only)
 hooks/                 hooks.json + the two hooks and their self-tests
+reference/             software-engineering-rule-book.md, the source the rules
+                       are measured against
 ```
 
 The skills reference `${CLAUDE_PLUGIN_ROOT}/gates/*.md`. Those three files land in the
