@@ -67,14 +67,15 @@ In order, all green, before every `git push`:
    the branch's net diff: a secret added in one commit and deleted in a later one is still
    pushed.
 7. **Static analysis, new findings only** — the Definition of Done's static-analysis step,
-   with `git worktree add --detach "$staged" HEAD` in place of its `checkout-index` export
-   and its trap removing both worktrees —
-   `trap 'git worktree remove --force "$base"; git worktree remove --force "$staged"' EXIT`
+   with `git worktree add --detach "$staged" HEAD` in place of its `checkout-index` export,
+   `git diff -z -M --name-status "$merge_base" HEAD` as its renames, and its trap removing
+   both worktrees —
+   `git worktree remove --force "$staged"` in place of its `rm -rf "$staged"`
    — so staged changes not yet committed are not scanned as HEAD.
 
    Steps 6 and 7 take those Definition of Done steps whole, with the paragraph after them:
-   the same bars, a missing or unparseable report fails the push, and a scan whose key is
-   `none` is named in the one line `gates/project-config.md` defines.
+   the same script and verdicts, suppressions counted, and a scan whose key is `none` named
+   in the one line `gates/project-config.md` defines.
 
 8. **A production-configuration build**, where the project has one distinct from its test
    build. Optimization and stripped debug-only paths mean a production-only break is

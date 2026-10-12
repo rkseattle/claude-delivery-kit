@@ -11,6 +11,7 @@ bash scripts/ci/hooks-wired.sh
 bash scripts/ci/hooks-relocatable.sh
 python3 skills/write-tickets/scripts/lint_draft.py --self-test
 python3 skills/ci-green/scripts/review_gate.py --self-test
+python3 gates/scripts/sarif_gate.py --self-test
 bash scripts/ci/json-parses.sh
 bash scripts/ci/frontmatter-names.sh
 bash scripts/ci/line-budget.sh

@@ -30,7 +30,8 @@ skills/                write-tickets, deliver, plan-work, implement-phases,
 agents/                ticket-, design-, commit-, ci-failure-, greptile- adversaries
 gates/                 status-report.md, definition-of-done.md, pre-push.md,
                        read-only-agent.md (the universal halves only),
-                       project-config.md, exceptions.md, and rule-book-review.md
+                       project-config.md, exceptions.md, and rule-book-review.md;
+                       scripts/sarif_gate.py turns scan reports into their verdicts
 hooks/                 hooks.json + the two hooks and their self-tests
 scripts/ci/            the CI checks, runnable locally; all.sh runs every one
 reference/             software-engineering-rule-book.md, the source the rules
@@ -152,12 +153,14 @@ asks. The wait only keeps the run open; what stops an unreviewed merge is a bran
 protection rule or ruleset requiring an approval of the latest push.
 
 `secret_scan_command` and `sast_command` serve rule book R12 and Appendix B1's scans. Each
-writes SARIF 2.1.0 to standard output. The secret scanner reads added lines as a
-patch on standard input —
-`gitleaks stdin --redact --report-format sarif --report-path /dev/stdout` is one that does; a scanner that only reads files is wrapped to read `/dev/stdin`. The
-static analyzer runs from a tree's root. The bars each is held to are in
-`gates/definition-of-done.md`; the pre-push checklist runs both again, feeding the secret
-scanner each commit's message with its patch.
+writes SARIF 2.1.0 to standard output, redacted, with inline suppression comments ignored;
+`gates/scripts/sarif_gate.py` turns the reports into the gates' verdicts. The secret scanner
+reads added lines as a patch on standard input —
+`gitleaks stdin --redact --ignore-gitleaks-allow --report-format sarif --report-path /dev/stdout`
+is one that does, and a scanner that only reads files is wrapped to read `/dev/stdin`. The
+static analyzer runs from a tree's root, e.g. `semgrep scan --sarif --disable-nosem`. The
+bars are in `gates/definition-of-done.md`; the pre-push checklist runs both again, feeding
+the secret scanner each commit's message with its patch.
 
 `clean_build_command` serves rule book R10: the one documented command that builds the
 project from a clean checkout. It installs in the ecosystem's locked mode — `npm ci`,

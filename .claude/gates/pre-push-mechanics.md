@@ -21,6 +21,7 @@ installed one differs.
 | `hooks` · Self-tests accept the hook path | `bash scripts/ci/hooks-relocatable.sh` |
 | `ticket-lint` · Linter fixtures | `python3 skills/write-tickets/scripts/lint_draft.py --self-test` |
 | `ticket-lint` · Review gate self-test | `python3 skills/ci-green/scripts/review_gate.py --self-test` |
+| `ticket-lint` · SARIF gate self-test | `python3 gates/scripts/sarif_gate.py --self-test` |
 | `manifest` · Every JSON file parses | `bash scripts/ci/json-parses.sh` |
 | `manifest` · Frontmatter names | `bash scripts/ci/frontmatter-names.sh` |
 | `manifest` · Line budget | `bash scripts/ci/line-budget.sh` |
