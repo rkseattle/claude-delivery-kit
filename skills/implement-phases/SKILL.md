@@ -184,8 +184,10 @@ benign-in-context bar and deferral procedure.
 ### 2b. Read the diff before staging
 
 Run the "Before `git add`" checks in `${CLAUDE_PLUGIN_ROOT}/gates/definition-of-done.md` —
-extract duplicated logic, cut comments that restate the code or narrate history, confirm no
-ticket ID reached a source comment. Then stage.
+call existing helpers, keep one definition of each business rule, constant, and schema,
+extract a block of logic with no helper at its third occurrence (two is not a finding), cut
+comments that restate the code or narrate history, confirm no ticket ID reached a source
+comment. Then stage.
 
 ### 2c. Adversarial review, before the commit
 

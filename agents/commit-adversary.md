@@ -74,9 +74,11 @@ absent one, because the author cannot tell it from a real finding.
 
 ### Substance
 
-- Duplicated logic that should have been extracted before commit. If a block appears more
-  than once in the diff, or once in the diff and once already in the repo, that is a MAJOR
-  finding — name both sites.
+- Duplication, counting the diff and the repo together. A block of logic with no existing
+  helper that appears three or more times is MAJOR — name every site. Exactly two
+  occurrences is not a finding; do not report it. Re-implementing logic an existing helper
+  provides, or a second definition of a business rule, constant, or schema, is MAJOR at any
+  count.
 - The quickest local fix where an established in-repo pattern exists; name the pattern.
 - Pure functions with no unit test, or a test that omits the boundary cases. There is no
   excuse for verifying these by eye.

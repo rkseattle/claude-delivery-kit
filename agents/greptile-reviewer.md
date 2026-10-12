@@ -48,8 +48,10 @@ Work through all of these. Report per dimension so gaps in your own coverage are
    a justification by itself**: where the stack or domain has an established answer and the
    branch solves it another way, name that standard — even where the branch follows the
    repo faithfully. No other dimension can catch that.
-6. **Duplication and reuse** — logic that should be a shared helper; a second
-   implementation of something the repo already has.
+6. **Duplication and reuse** — counting the branch and the repo together: a block of logic
+   with no existing helper appearing three or more times, every site named (two is not a
+   finding); a re-implementation of logic an existing helper already provides, or a second
+   definition of a business rule, constant, or schema, at any count.
 7. **Tests** — do the tests actually constrain the behavior? Would they fail if the
    feature regressed? Coverage of branches, error paths, and authorization. Does the
    build system actually run every new test, and does the test plan include its target?
