@@ -55,8 +55,8 @@ In order, all green, before every `git push`:
    lockfile clean yesterday fails today because the advisory database moved, not because
    anything in the repo did. The bar is zero, with no allowlist.
 6. **Secret scan of every commit being pushed** — the Definition of Done's secret-scan step,
-   its added-lines filter included, fed every commit's message and patch in place of the
-   staged diff:
+   its added-lines filter included, with every commit's message and patch written to
+   `$patch` in place of the staged diff:
 
    ```bash
    git log -p -U0 --no-color --no-ext-diff --no-textconv --diff-merges=first-parent \
@@ -67,11 +67,9 @@ In order, all green, before every `git push`:
    the branch's net diff: a secret added in one commit and deleted in a later one is still
    pushed.
 7. **Static analysis, new findings only** — the Definition of Done's static-analysis step,
-   with `git worktree add --detach "$staged" HEAD` in place of its `checkout-index` export,
-   `git diff -z -M --name-status "$merge_base" HEAD` as its renames, and its trap removing
-   both worktrees —
-   `git worktree remove --force "$staged"` in place of its `rm -rf "$staged"`
-   — so staged changes not yet committed are not scanned as HEAD.
+   without its index diff and `git apply`, so `$staged` is HEAD itself and staged changes not yet
+   committed are not scanned as what is pushed, and with
+   `git diff -z -M --name-status "$merge_base" HEAD` as its renames.
 
    Steps 6 and 7 take those Definition of Done steps whole, with the paragraph after them:
    the same script and verdicts, suppressions counted, and a scan whose key is `none` named

@@ -160,7 +160,8 @@ reads added lines as a patch on standard input —
 is one that does, and a scanner that only reads files is wrapped to read `/dev/stdin`. The
 static analyzer runs from a tree's root, e.g. `semgrep scan --sarif --disable-nosem`. The
 bars are in `gates/definition-of-done.md`; the pre-push checklist runs both again, feeding
-the secret scanner each commit's message with its patch.
+the secret scanner each commit's message with its patch. Both default to `none`, and a
+skipped scan is announced.
 
 `clean_build_command` serves rule book R10: the one documented command that builds the
 project from a clean checkout. It installs in the ecosystem's locked mode — `npm ci`,

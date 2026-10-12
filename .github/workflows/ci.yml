@@ -36,7 +36,7 @@ jobs:
       - name: Self-tests accept the hook path as an argument
         run: bash scripts/ci/hooks-relocatable.sh
 
-  ticket-lint:
+  script-tests:
     name: Script self-tests
     runs-on: ubuntu-latest
     steps:
@@ -95,7 +95,7 @@ jobs:
   ci-passed:
     name: CI passed
     if: always()
-    needs: [hooks, ticket-lint, manifest]
+    needs: [hooks, script-tests, manifest]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

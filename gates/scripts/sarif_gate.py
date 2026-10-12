@@ -65,8 +65,9 @@ def results(report):
     diff under review must not clear the finding it suppresses."""
     for run in report["runs"]:
         for result in run["results"]:
-            # SARIF: a kind other than fail (pass, notApplicable, informational...) is no finding.
-            if result.get("kind", "fail") == "fail":
+            # SARIF: pass, notApplicable and informational are no finding; review and open are
+            # undecided, so they count.
+            if result.get("kind", "fail") in ("fail", "review", "open"):
                 yield run, result
 
 
@@ -156,21 +157,42 @@ def secret_findings(report):
     return found
 
 
+def fingerprint(result):
+    """The tool's stable identity for a finding, as GitHub code scanning matches alerts across
+    commits: fingerprints, else partialFingerprints, or None when the tool gives neither."""
+    for field in ("fingerprints", "partialFingerprints"):
+        values = result.get(field)
+        if isinstance(values, dict) and values:
+            return json.dumps(sorted(values.items()))
+    return None
+
+
 def high_counts(report, root, renames=None):
-    counts = collections.Counter()
+    """High or Critical results counted by identity — the fingerprint where the tool gives
+    one, else tool, rule and file — with the file each identity was found in."""
+    counts, files = collections.Counter(), {}
     for run, result in results(report):
         if is_high(run, result):
             path, _ = location_of(run, result, root)
             path = (renames or {}).get(path, path)
-            counts[(tool_name(run), rule_of(run, result)[0], path)] += 1
-    return counts
+            mark = fingerprint(result)
+            identity = (tool_name(run), rule_of(run, result)[0], mark or path, mark is not None)
+            counts[identity] += 1
+            files[identity] = path
+    return counts, files
 
 
 def new_findings(staged, base, staged_root, base_root, renames=None):
-    """Keys whose High or Critical count rose over the base, with the rise."""
-    before = high_counts(base, base_root, renames) if base else collections.Counter()
-    after = high_counts(staged, staged_root)
-    return {key: count - before[key] for key, count in after.items() if count > before[key]}
+    """(tool, rule, file) with how many High or Critical findings it gained over the base. A
+    fingerprinted finding is new unless the base has the same fingerprint, so one fixed and
+    another added in the same file is still caught."""
+    before = high_counts(base, base_root, renames)[0] if base else collections.Counter()
+    after, files = high_counts(staged, staged_root)
+    new = collections.Counter()
+    for identity, count in after.items():
+        if count > before[identity]:
+            new[(identity[0], identity[1], files[identity])] += count - before[identity]
+    return dict(new)
 
 
 def parse_renames(text):
@@ -276,6 +298,15 @@ NEW_FINDINGS_CASES = [
      sarif(run([{"ruleIndex": -1, "rule": {"index": 0}, "locations": finding("src/b.py")["locations"]}],
                [HIGH_RULE])), None, {("analyzer", "r1", "src/b.py"): 1}),
     ("a result whose kind is pass", sarif(run([finding("src/b.py", kind="pass")], [HIGH_RULE])), None, {}),
+    ("one High fixed and another added in the same file",
+     sarif(run([finding("src/a.py", line=9, partialFingerprints={"primaryLocationLineHash": "new:1"})], [HIGH_RULE])),
+     sarif(run([finding("src/a.py", partialFingerprints={"primaryLocationLineHash": "old:1"})], [HIGH_RULE])),
+     {("analyzer", "r1", "src/a.py"): 1}),
+    ("a fingerprinted finding that moved lines and files",
+     sarif(run([finding("src/z.py", line=40, partialFingerprints={"primaryLocationLineHash": "old:1"})], [HIGH_RULE])),
+     sarif(run([finding("src/a.py", partialFingerprints={"primaryLocationLineHash": "old:1"})], [HIGH_RULE])), {}),
+    ("an undecided result whose kind is review",
+     sarif(run([finding("src/b.py", kind="review")], [HIGH_RULE])), None, {("analyzer", "r1", "src/b.py"): 1}),
     ("the same key from a different tool",
      sarif(run([finding("src/a.py")], [HIGH_RULE]), run([finding("src/a.py")], [HIGH_RULE], name="other")),
      DEBT, {("other", "r1", "src/a.py"): 1}),
