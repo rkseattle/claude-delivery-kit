@@ -137,20 +137,23 @@ know it already exists, or it re-enters this stage and pushes again. `/ci-green`
 the file when the run genuinely ends.
 
 Then set `stage_step` to `4 — reviewer request` and request the human review rule book R2
-requires. **The reviewer set** is `{{reviewers}}`, each entry trimmed of whitespace, with
-the PR author's login removed, compared case-insensitively since GitHub logins are. It is
-`none` when `{{reviewers}}` is `none`, missing, or a placeholder in angle brackets, or when
-nothing is left after the removal. GitHub rejects a request for the author's own review,
-and a one-person repo has no one else to ask.
+requires. **The reviewer set** is `{{reviewers}}` with the PR author's login removed:
+GitHub rejects a request for the author's own review, and a one-person repo has no one else
+to ask. `review_gate.py` resolves it — trimming entries, matching the author
+case-insensitively — and prints `none` for `none`, a missing key, a placeholder, or a set
+left empty once the author is removed:
 
 ```bash
+gate=${CLAUDE_PLUGIN_ROOT}/skills/ci-green/scripts/review_gate.py
+python3 "$gate" reviewer-set --reviewers '{{reviewers}}'      # anyone named at all?
 gh pr view <pr> --json author --jq .author.login
-gh pr edit <pr> --add-reviewer <the reviewer set, comma-separated>
+python3 "$gate" reviewer-set --reviewers '{{reviewers}}' --author <login>
+gh pr edit <pr> --add-reviewer <the set it printed>
 ```
 
-Look up the author only when `{{reviewers}}` names someone. With the reviewer set `none`,
+Look up the author only when the first call names someone. With the reviewer set `none`,
 request nothing and say so in one line — the same line that announces an absent
-`reviewers` key, not a second one. A failed call — either command above, an unknown login,
+`reviewers` key, not a second one. A failed call — any command above, an unknown login,
 a team without access — is reported and stops the stage, declared per `deliver`'s
 invariants: a PR waiting on a review nobody was asked for never gets one.
 
