@@ -25,6 +25,51 @@ to run. Read both.
    conditional on whether they changed. Advisories land against versions already in the
    lockfile, so "nothing changed" is precisely when drift goes unnoticed until CI is red.
    The bar is zero advisories, with no allowlist, matching the pre-push gate.
+7. **Secret scan of the staged additions.**
+
+   ```bash
+   secrets_sarif=$(mktemp); echo "$secrets_sarif"
+   git diff --cached -U0 --no-color --no-ext-diff \
+     | sed -e '/^-/d' -e 's/^\(@@ [^@]* @@\).*/\1/' \
+     | {{secret_scan_command}} > "$secrets_sarif"
+   ```
+
+   Only added lines go in: a removed line is a secret leaving, and context — including the
+   line git copies into a hunk header — is code this commit did not write. The bar is zero
+   results across every `runs[].results`. A committed secret stays in history after the
+   line is deleted, so this is the last point where catching one costs nothing but an edit.
+8. **Static analysis, new findings only**, on exactly the staged tree and on the base this
+   branch was cut from. `<parent>` is `{{parent_branch_default}}` unless the branch was cut
+   from another, as in the pre-push gate's rebase step:
+
+   ```bash
+   staged=$(mktemp -d); base=$(mktemp -d -u); staged_sarif=$(mktemp); base_sarif=$(mktemp)
+   trap 'git worktree remove --force "$base"; rm -rf "$staged"' EXIT
+   echo "$staged_sarif $base_sarif"; git worktree prune
+   git checkout-index -a --prefix="$staged/"
+   git worktree add --detach "$base" "$(git merge-base HEAD origin/<parent>)"
+   (cd "$staged" && {{sast_command}}) > "$staged_sarif"
+   (cd "$base" && {{sast_command}}) > "$base_sarif"
+   ```
+
+   The trap removes both trees however the block exits, and `prune` clears a worktree a
+   killed run left registered; `--force` because a scan's untracked output makes plain
+   `remove` refuse. Normalize each result's file —
+   `locations[0].physicalLocation.artifactLocation.uri`, resolved through its `uriBaseId`
+   — to a path relative to its run's root, both sides resolved with `pwd -P`. Its rule is
+   `ruleId`, else `rule.id`, else the `ruleIndex` entry of the rules in `tool.driver` or the
+   `tool.extensions[]` component it names. It is High or Critical when
+   `properties.security-severity` on that rule, else on the result, parsed as a number, is
+   at least 7.0 — or, with neither, when its `level`, else its rule's
+   `defaultConfiguration.level`, else `warning`, is `error`. A result with an `accepted`
+   suppression does not count. Pair runs by `tool.driver.name` and count per rule and file:
+   a count above the base's blocks the commit. Debt already on the base does
+   not: it would fail every commit for reasons unrelated to the diff.
+
+Each `*_sarif` is a fresh `mktemp` path outside both trees. A report that is missing, empty,
+not SARIF 2.1.0, or without `runs[]` is a failed scan, never zero findings. A scan whose key
+is `none` is skipped and named in the one-line announcement `gates/project-config.md`
+defines; the other still runs.
 
 **Network-dependent tests never gate a commit.** Integration tests that make live calls
 stay opt-in: a commit gate that depends on a third party being up is a gate that fails for
@@ -32,7 +77,7 @@ reasons that have nothing to do with the diff.
 
 ## What this gate does not cover
 
-Every project has behavior its local suite cannot reach. Steps 1–6 say nothing about it,
+Every project has behavior its local suite cannot reach. Steps 1–8 say nothing about it,
 and a green run is not evidence for it. `{{failure_policy_gate}}` names that behavior and
 the gate that covers it. Knowing which claim a green suite supports is the difference
 between "the math is tested" and "the behavior is correct".

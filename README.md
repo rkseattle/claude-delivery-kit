@@ -113,6 +113,8 @@ The stage skills carry the procedure; the commands, paths and thresholds come fr
   "build_manifest": "<file the build enumerates sources in, or none>",
   "push_command": "git push -u --force-with-lease origin <branch>",
   "release_build_command": "<production-config build, or none>",
+  "secret_scan_command": "<secret scanner: patch on stdin, SARIF on stdout, or none>",
+  "sast_command": "<static analyzer writing SARIF 2.1.0 to stdout, or none>",
   "unit_test_scope": "<the whole target, or the changed workspaces — and why>",
   "post_fix_verification_scope": "<what a fix commit must re-run before the gate passes>",
   "results_file": "<path the local gate writes its verdict to>",
@@ -146,6 +148,13 @@ an R2 exception in `exceptions_log`, pausing once for the tech lead to approve i
 unexpired R2 row already covers the run. With `exceptions_log` also `none`, it stops and
 asks. The wait only keeps the run open; what stops an unreviewed merge is a branch
 protection rule or ruleset requiring an approval of the latest push.
+
+`secret_scan_command` and `sast_command` serve rule book R12 and Appendix B1's scans. Each
+writes SARIF 2.1.0 to standard output. The secret scanner reads added lines as a
+patch on standard input — `gitleaks stdin --report-format sarif --report-path /dev/stdout`
+is one that does; a scanner that only reads files is wrapped to read `/dev/stdin`. The
+static analyzer runs from a tree's root. The bars each is held to are in
+`gates/definition-of-done.md`. Both default to `none`, and a skipped scan is announced.
 
 The values in the block above are illustrations, not defaults. Some of its keys are
 required and have no default; one that is missing, empty, `none`, or a `<placeholder>`
