@@ -54,10 +54,27 @@ In order, all green, before every `git push`:
    whether they changed. Advisories are published against versions you already have: a
    lockfile clean yesterday fails today because the advisory database moved, not because
    anything in the repo did. The bar is zero, with no allowlist.
-6. **A production-configuration build**, where the project has one distinct from its test
+6. **Secret scan of every commit being pushed** — the Definition of Done's secret-scan step,
+   its added-lines filter included, fed every commit's message and patch in place of the
+   staged diff:
+   `git log -p -U0 --no-color --no-ext-diff --diff-merges=first-parent --format='%w(0,4,4)%B' origin/<parent>..HEAD`.
+   The indent keeps a message line starting with `-` from being filtered as a removal. Not
+   the branch's net diff: a secret added in one commit and deleted in a later one is still
+   pushed.
+7. **Static analysis, new findings only** — the Definition of Done's static-analysis step,
+   with `git worktree add --detach "$staged" HEAD` in place of its `checkout-index` export
+   and its trap removing both worktrees —
+   `trap 'git worktree remove --force "$base"; git worktree remove --force "$staged"' EXIT`
+   — so staged changes not yet committed are not scanned as HEAD.
+
+   Steps 6 and 7 take those Definition of Done steps whole, with the paragraph after them:
+   the same bars, a missing or unparseable report fails the push, and a scan whose key is
+   `none` is named in the one line `gates/project-config.md` defines.
+
+8. **A production-configuration build**, where the project has one distinct from its test
    build. Optimization and stripped debug-only paths mean a production-only break is
    invisible until this point.
-7. **The verification tier the diff needs**, per `{{verification_step_file}}`. Where a push
+9. **The verification tier the diff needs**, per `{{verification_step_file}}`. Where a push
    hook runs an expensive suite, this is where it happens; where the tier is one no
    automation can reach, this is where the charter is handed over. Answer it explicitly —
    do not skip past it because everything else is green.
@@ -66,14 +83,14 @@ In order, all green, before every `git push`:
    tool timeout and a session-scoped background task dies with the session; both kill the
    run mid-suite and leave no result file.
 
-8. **`git status`** — scan for tracked files with local modifications that are **not** part
+10. **`git status`** — scan for tracked files with local modifications that are **not** part
    of the intended commit set. Restore stray artifacts and generated outputs. When unsure
    whether a change was intentional, ask — never silently include or silently drop it.
 
 Lint and typecheck are separate gates from tests: a branch that fails either fails CI even
 when every test passes locally.
 
-Steps 2–8 all describe the post-rebase tree. If anything sends you back to step 1 — a late
+Steps 2–10 all describe the post-rebase tree. If anything sends you back to step 1 — a late
 conflict, a parent that moved while the suite was running — the steps after it are stale and
 run again.
 
@@ -99,8 +116,9 @@ If the reason is "I already ran it by hand", all of these must hold:
 3. **HEAD is unchanged from what that run executed against.** Any commit, amend, or rebase
    afterwards voids the result and the gate restarts from step 1. Confirm it; do not assume.
 4. **The cheap gates still run.** A bypass skips one leg, not the checklist. Lint,
-   typecheck, unit tests and the audit are seconds against a long suite, and the audit in
-   particular fails on advisories published against a lockfile nobody touched.
+   typecheck, unit tests, the audit and the secret scan are seconds against a long suite,
+   and the audit in particular fails on advisories published against a lockfile nobody
+   touched.
 
 **Never bypass to get around a failure, a flake, or a run you would rather not sit
 through.**

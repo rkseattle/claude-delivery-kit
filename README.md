@@ -154,7 +154,8 @@ writes SARIF 2.1.0 to standard output. The secret scanner reads added lines as a
 patch on standard input — `gitleaks stdin --report-format sarif --report-path /dev/stdout`
 is one that does; a scanner that only reads files is wrapped to read `/dev/stdin`. The
 static analyzer runs from a tree's root. The bars each is held to are in
-`gates/definition-of-done.md`. Both default to `none`, and a skipped scan is announced.
+`gates/definition-of-done.md`; the pre-push checklist runs both again, feeding the secret
+scanner each commit's message with its patch.
 
 The values in the block above are illustrations, not defaults. Some of its keys are
 required and have no default; one that is missing, empty, `none`, or a `<placeholder>`
