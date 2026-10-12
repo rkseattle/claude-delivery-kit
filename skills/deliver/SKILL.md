@@ -151,11 +151,11 @@ files, never exit codes or console output.
 
 **A skipped "must" step is a recorded exception.** It is a numbered step in a gate file or
 a stage `SKILL.md` whose condition applied and that the run did not execute, other than
-through a gate bypass that logs itself. Only `{{roles.tech_lead}}` may approve one; then
-append a row to `{{exceptions_log}}` in `${CLAUDE_PLUGIN_ROOT}/gates/exceptions.md`'s
-format, `Expiry` 90 days after the run date, and commit it alone as `<TICKET> - Record
-rule-book exception` before continuing. With `{{exceptions_log}}` set to `none`, stop
-instead of skipping the step.
+through a gate bypass that logs itself. Only `{{roles.tech_lead}}` may approve one, or
+`{{roles.sponsor}}` for a Phase 1 or 2 rule; then append a row to `{{exceptions_log}}` in
+`${CLAUDE_PLUGIN_ROOT}/gates/exceptions.md`'s format, `Expiry` 90 days after the run
+date, and commit it alone as `<TICKET> - Record rule-book exception` before continuing.
+With `{{exceptions_log}}` set to `none`, stop instead of skipping the step.
 
 **Jira transitions are real steps.** In Progress before the first line of code, In Review
 after the PR opens. Look up the issue's available transitions via the Atlassian MCP first —

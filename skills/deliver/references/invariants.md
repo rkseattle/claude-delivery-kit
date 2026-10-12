@@ -9,7 +9,6 @@ one, not on every run.
 - Adversarial reviews stay blind
 - Revert, not iterate
 - Industry-standard patterns only, and the standard is named
-- Root cause, then pattern spread
 - Enforcement machinery is planned before it is written
 - Fixing is the default; deferring needs permission
 - Never create a Jira work item without asking
@@ -52,12 +51,6 @@ it. If nothing external fits, that is the finding to bring to Rob.
 
 Every stage appends what it cited to `citations[]` and prints nothing; `ci-green` reports
 the whole list once, before it deletes that file. Justify every departure in writing.
-
-## Root cause, then pattern spread
-
-Every fix — plan finding, review finding, test failure, CI failure, PR comment — gets
-root-caused, and the codebase gets grepped for other instances of that same cause. Fix
-all live instances in the same pass.
 
 ## Enforcement machinery is planned before it is written
 
