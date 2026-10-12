@@ -140,7 +140,11 @@ between the two projects this was extracted from.
 `reviewers` serves rule book R2: every change is reviewed by someone other than its author.
 It is a comma-separated list of GitHub logins or `org/team` slugs, the form
 `gh pr edit --add-reviewer` takes. `ship-pr` requests them on the PR, leaving out the PR's
-author. Default `none`: no reviewer is requested.
+author, and `ci-green` does not finish until someone other than the author approves the
+PR's latest commit. Default `none`: no reviewer is requested, and `ci-green` instead records
+an R2 exception in `exceptions_log`, pausing once for the tech lead to approve it, unless an
+unexpired R2 row already covers the run. With `exceptions_log` also `none`, it stops and
+asks.
 
 The values in the block above are illustrations, not defaults. Some of its keys are
 required and have no default; one that is missing, empty, `none`, or a `<placeholder>`

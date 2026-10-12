@@ -1,12 +1,12 @@
 ---
 name: ci-green
-description: Monitor a PR's CI run and review feedback until every job passes and no unaddressed comments remain, root-causing each failure in an isolated subagent and propagating fix patterns across the codebase.
+description: Monitor a PR's CI run and review feedback until every job passes, no unaddressed comments remain, and someone other than the author has approved the PR — or, with no reviewers configured, a rule-book R2 exception is recorded — root-causing each failure in an isolated subagent and propagating fix patterns across the codebase.
 argument-hint: [PR number, defaults to the current branch's PR]
 disable-model-invocation: true
 allowed-tools: Read, Write, Edit, Grep, Glob, Bash, Task
 ---
 
-Drive PR $ARGUMENTS to fully green with no outstanding feedback.
+Drive PR $ARGUMENTS to fully green with no outstanding feedback and a human approval.
 
 Set `"stage": "ci-green"` and `"pr"` to the PR number in `.claude/state/current-plan.json`
 now, and update `stage_step` on entering each step below. `/deliver`'s Step 0 resumes from
@@ -65,7 +65,8 @@ For every failing job:
 
 2. **Root-cause it**, under `{{failure_policy_gate}}`'s failure policy — it governs CI jobs
    as much as local runs. No `paused` declaration is needed for the routine loop here;
-   declare one only when ending a turn to ask Rob something.
+   declare one only when ending a turn deliberately — to ask Rob something, or to wait on a
+   reviewer per Step 5.
 
    The failure shapes worth distinguishing on sight are in `{{mechanics_gate_pre_push}}`.
    Two generalize: a lint job that fails where the local run passed usually means CI runs at
@@ -103,12 +104,14 @@ affects, once. Do not re-run the whole suite to check a narrow fix.
 
 ## Step 4 — PR review feedback
 
-Fetch from **both** endpoints. A review's main body is posted as an issue comment, so
-checking only the pulls endpoint misses all the prose feedback:
+Fetch from **all three** endpoints. Each holds feedback the others do not: inline comments
+on the diff, top-level conversation comments (where most bots post their summary), and
+review submissions, which carry a reviewer's body and their approve-or-request-changes state:
 
 ```bash
-gh api repos/{{repo_slug}}/pulls/<pr>/comments    # inline diff comments
-gh api repos/{{repo_slug}}/issues/<pr>/comments   # top-level review body
+gh api --paginate repos/{{repo_slug}}/pulls/<pr>/comments   # inline diff comments
+gh api --paginate repos/{{repo_slug}}/issues/<pr>/comments  # conversation comments
+gh api --paginate repos/{{repo_slug}}/pulls/<pr>/reviews    # review bodies and states
 ```
 
 Then, in this order:
@@ -126,14 +129,58 @@ Then, in this order:
    Replies to Greptile comments start with `@greptile:` followed by a space.
 3. **Reply to the main PR summary comment** with a summary of all changes made, via the
    `issues/<pr>/comments` endpoint. Skip it only when every finding was handled inline and a
-   summary would restate them verbatim.
+   summary would restate them verbatim. A review body with findings no inline thread
+   carries — a `CHANGES_REQUESTED` written as prose — is answered the same way, naming the
+   reviewer and the commits that address it.
 
 Never run a fresh `/code-review` when asked to address existing feedback.
 
 ## Step 5 — Loop
 
-Push, re-arm the monitor, stay silent. Repeat steps 2–4 until every check passes and no
-comment is unaddressed.
+Push, re-arm the monitor, stay silent. Repeat steps 2–4 until every check passes, no
+comment is unaddressed, and the PR has the approval rule book R2 requires — or, with no
+reviewer set, the R2 exception below.
+
+**The approval.** Resolve the reviewer set exactly as `/ship-pr` Step 4 defines it. When it
+names anyone, the loop exits only on an approving review of the current head commit from a
+person, other than the PR author, who belongs to the repo:
+
+```bash
+gh pr view <pr> --json headRefOid,author --jq '[.headRefOid, .author.login] | @tsv'
+gh api --paginate repos/{{repo_slug}}/pulls/<pr>/reviews \
+  --jq '.[] | [.user.login, .user.type, .author_association, .state, .commit_id] | @tsv'
+```
+
+Reviews come back oldest first. Count only `user.type` `User` with `author_association`
+`OWNER`, `MEMBER`, or `COLLABORATOR` — a bot or a drive-by account is not the person R2
+asks for. Per login, the latest `APPROVED`, `CHANGES_REQUESTED`, or `DISMISSED` is that
+reviewer's state; `COMMENTED` changes nothing. The approval exists when some counted
+non-author login's state is `APPROVED` on a `commit_id` equal to the head — so a later
+`CHANGES_REQUESTED` from that login cancels it, and a fix pushed after it needs a fresh one.
+Read this list, not `reviewDecision`, which GitHub fills only under a required-review rule.
+
+With every check green, every comment addressed, and the approval outstanding, re-request
+the reviewer set with the `gh pr edit <pr> --add-reviewer` call `/ship-pr` Step 4 makes,
+failure handled the same way: GitHub clears a request once it is answered, so after a push
+nobody is asked for the new head unless this asks. Then declare the stop per `deliver`'s
+invariants (`"paused": true`), say in one line who was asked and that `/deliver` or
+`/ci-green` resumes once a review lands, and end the turn. Waiting on a person is not a
+monitor's job: no poll, no `sleep`.
+
+With the reviewer set `none`, skip that wait and say so in one line. The wait is this
+step's to run, so skipping it falls under `deliver`'s skipped-"must"-step invariant, with
+`ci-green Step 5: approving review (rule book R2)` in the register's `Rule` column:
+
+- `{{exceptions_log}}` also `none`, a placeholder, or no file — there is nowhere to record
+  it: stop before Step 6, declared per `deliver`'s invariants, and ask Rob to set one key or
+  the other.
+- An unexpired row whose `Rule` names rule book R2 covers the run, whatever its wording:
+  name it, append nothing.
+- Otherwise ask `{{roles.tech_lead}}` to approve the exception, declaring the stop the same
+  way; then append the row, commit it alone, push it per
+  `${CLAUDE_PLUGIN_ROOT}/gates/pre-push.md`, and loop once more until that commit is
+  green — all before Step 6. Declined, the run stays open until `{{reviewers}}` names
+  someone and the wait above runs instead.
 
 Report at the end of each iteration, not only when the loop exits — an iteration is a
 boundary like a phase, and a run that goes quiet for four pushes is one nobody can follow.
@@ -141,8 +188,9 @@ Per iteration: which checks went green and which are still red, the commits adde
 they touched, how long the iteration took, and one line per issue fixed with its root cause
 and the sites the pattern-spread grep covered.
 
-When the loop exits, report the full status: final check status, every commit added across
-all iterations, all files changed, total wall-clock, the acceptance criteria table with
+When the loop exits, report the full status: final check status, the approving review
+(login and commit) or the R2 row that covers its absence, every commit added across all
+iterations, all files changed, total wall-clock, the acceptance criteria table with
 evidence — CI passing is evidence for an AC that a test covers, and now is when it becomes
 available — and, still listed as outstanding, any AC awaiting out-of-band verification. **CI
 going green does not close those.**
@@ -183,10 +231,11 @@ needed.
 
 ## Step 6 — Clean up the run's scratch files
 
-**Only once the run is genuinely finished** — every check green, no unaddressed comment, and
-Step 5's report written, both lists included. That ordering is not arbitrary: those lists
-live in the file this step deletes, so cleanup runs after the report or they are gone.
-Report the deletions as part of that report.
+**Only once the run is genuinely finished** — every check green, no unaddressed comment, the
+approval in hand or its R2 exception pushed or already covered, and Step 5's report
+written, both lists included. That ordering is not arbitrary: those lists live in the file
+this step deletes, so cleanup runs after the report or they are gone. Report the deletions
+as part of that report.
 
 ```bash
 rm -f .claude/state/current-plan.json .claude/state/blocked-*
@@ -209,7 +258,7 @@ Delete nothing outside `docs/plans/` and `.claude/state/`, and never a tracked f
 `git status` must be clean afterward, exactly as it was before.
 
 If the PR is not merged yet, that is fine — the branch and the PR are the record from here
-on. But if anything is still red or unaddressed, the run has not finished and nothing gets
-deleted. **An outstanding out-of-band verification does not block cleanup**: it is Rob's to
-run, it is recorded in the PR body, and holding the state file open for it would strand the
-branch guard indefinitely.
+on. But if anything is still red or unaddressed, or the approval is outstanding, the run
+has not finished and nothing gets deleted. **An outstanding out-of-band verification does
+not block cleanup**: it is Rob's to run, it is recorded in the PR body, and holding the
+state file open for it would strand the branch guard indefinitely.

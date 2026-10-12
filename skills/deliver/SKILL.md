@@ -87,9 +87,9 @@ The marker may be stale by one step, since a crash lands between writes. `git st
    push, PR, Jira to In Review.
 
 5. **`ci-green`** — the PR opened in stage 4. Monitor CI and PR feedback; root-cause every
-   failure in an isolated subagent; loop until fully green with no unaddressed comments.
-   Then, and only then, delete the run's scratch files — the state file and the plan — so
-   Step 0 cannot resume a run that already shipped.
+   failure in an isolated subagent; loop until green, comments addressed, and an approving
+   review in hand or its R2 exception recorded. Then, and only then, delete the scratch
+   files — the state file and the plan — so Step 0 cannot resume a run that shipped.
 
 Stages 2 through 5 run without further approval gates. Surface real decisions as they
 arise; do not ask permission to continue.
