@@ -3,8 +3,8 @@
 Run in order. All must be green. Read this file before the first commit of a session; it
 does not need re-reading between commits.
 
-The commands are in `{{mechanics_gate_dod}}` — this file is the policy, that file is what
-to run. Read both.
+This file is the policy, plus the kit's own scan commands; `{{mechanics_gate_dod}}` holds
+the project's commands. Read both.
 
 ## The gate
 
@@ -28,53 +28,59 @@ to run. Read both.
 7. **Secret scan of the staged additions.**
 
    ```bash
-   gate="${CLAUDE_PLUGIN_ROOT}/gates/scripts/sarif_gate.py"; patch=$(mktemp)
-   secrets_sarif=$(mktemp); trap 'rm -f "$patch" "$secrets_sarif"' EXIT
-   git diff --cached -U0 --no-color --no-ext-diff --no-textconv > "$patch" \
-     || { echo "UNUSABLE patch: git failed"; exit 2; }
-   sed -e '/^-/d' -e 's/^\(@@ [^@]* @@\).*/\1/' "$patch" \
-     | {{secret_scan_command}} > "$secrets_sarif"
-   python3 "$gate" secrets "$secrets_sarif"
+   (
+     gate="${CLAUDE_PLUGIN_ROOT}/gates/scripts/sarif_gate.py"; patch=$(mktemp)
+     secrets_sarif=$(mktemp); trap 'rm -f "$patch" "$secrets_sarif"' EXIT
+     git diff --cached -U0 --no-color --no-ext-diff --no-textconv > "$patch" \
+       || { echo "UNUSABLE patch: git failed"; exit 2; }
+     sed -e '/^-/d' -e 's/^\(@@ [^@]* @@\).*/\1/' "$patch" \
+       | {{secret_scan_command}} > "$secrets_sarif"
+     python3 "$gate" secrets "$secrets_sarif"
+   )
    ```
 
    Only added lines go in: a removed line is a secret leaving, and context — including the
    line git copies into a hunk header — is code this commit did not write. The bar is zero
    findings, and a patch git failed to produce is a failed scan, never an empty one. A
-   committed secret stays in history after the line is deleted, so this is the
-   last point where catching one costs nothing but an edit. The scanner runs redacted, and
+   committed secret stays in history after the line is deleted, so this is the last point
+   where catching one costs nothing but an edit. The scanner runs redacted, and
    the script prints each finding's rule and location, never its text.
 8. **Static analysis, new findings only**, on exactly the staged tree and on the base this
    branch was cut from. `<parent>` is `{{parent_branch_default}}` unless the branch was cut
    from another, as in the pre-push gate's rebase step:
 
    ```bash
-   gate="${CLAUDE_PLUGIN_ROOT}/gates/scripts/sarif_gate.py"
-   staged=$(mktemp -d -u); base=$(mktemp -d -u); renames=$(mktemp); index=$(mktemp)
-   staged_sarif=$(mktemp); base_sarif=$(mktemp)
-   trap 'git worktree remove --force "$staged"; git worktree remove --force "$base"
-         rm -f "$renames" "$index" "$staged_sarif" "$base_sarif"' EXIT
-   git worktree prune; merge_base=$(git merge-base HEAD origin/<parent>)
-   git worktree add --detach "$staged" HEAD
-   git diff --cached --binary --no-ext-diff --no-textconv > "$index" \
-     && git -C "$staged" apply --allow-empty "$index" \
-     || { echo "UNUSABLE staged tree: the index did not apply"; exit 2; }
-   git worktree add --detach "$base" "$merge_base"
-   git diff --cached -z -M --name-status "$merge_base" > "$renames" \
-     || { echo "UNUSABLE renames: git failed"; exit 2; }
-   (cd "$staged" && {{sast_command}}) > "$staged_sarif"
-   (cd "$base" && {{sast_command}}) > "$base_sarif"
-   python3 "$gate" new-findings "$staged_sarif" "$base_sarif" --staged-root "$staged" \
-     --base-root "$base" --renames "$renames"
+   (
+     gate="${CLAUDE_PLUGIN_ROOT}/gates/scripts/sarif_gate.py"
+     staged=$(mktemp -d); base=$(mktemp -d); renames=$(mktemp); index=$(mktemp)
+     staged_sarif=$(mktemp); base_sarif=$(mktemp)
+     trap 'for tree in "$staged" "$base"; do
+             git worktree remove --force "$tree" 2>/dev/null || rm -rf "$tree"; done
+           rm -f "$renames" "$index" "$staged_sarif" "$base_sarif"' EXIT
+     git worktree prune; merge_base=$(git merge-base HEAD origin/<parent>)
+     git worktree add --detach "$staged" HEAD
+     git diff --cached --binary --no-ext-diff --no-textconv > "$index" \
+       && git -C "$staged" apply --index --allow-empty "$index" \
+       || { echo "UNUSABLE staged tree: the index did not apply"; exit 2; }
+     git worktree add --detach "$base" "$merge_base"
+     git diff --cached -z -M --name-status "$merge_base" > "$renames" \
+       || { echo "UNUSABLE renames: git failed"; exit 2; }
+     (cd "$staged" && {{sast_command}}) > "$staged_sarif"
+     (cd "$base" && {{sast_command}}) > "$base_sarif"
+     python3 "$gate" new-findings "$staged_sarif" "$base_sarif" --staged-root "$staged" \
+       --base-root "$base" --renames "$renames"
+   )
    ```
 
-   Both trees are git worktrees, so a scanner that selects files through git sees each the
-   same way, and the staged one holds the index's changes and nothing unstaged. The commit
+   Both trees are git worktrees whose index matches their files, so a scanner that selects
+   files through git sees each the same way, and the staged one holds the index's changes —
+   added files tracked, deleted ones gone — and nothing unstaged. The commit
    is blocked when a High or Critical finding — `security-severity` of at least 7.0, or
    with none, a `level` of `error` — is new: its fingerprint is absent from the base, or,
    for a tool that gives none, it is more numerous in its file than on the base. Debt
    already on the base does not block, since it would fail every commit for reasons
-   unrelated to the diff. The trap removes both trees however the block exits short of
-   `SIGKILL`; after one, remove the leftover `$TMPDIR` entries `git worktree list` shows
+   unrelated to the diff. The subshell's trap removes both trees however the block exits
+   short of `SIGKILL`, and cannot replace or be replaced by another block's; after one, remove the leftover `$TMPDIR` entries `git worktree list` shows
    with `git worktree remove --force`.
    With no `origin/<parent>` there is no base: say so in one line, drop the `merge_base`,
    base `worktree add`, renames and base-scan lines, and end with
@@ -87,10 +93,9 @@ unusable report — a failed scan, never zero findings. It counts suppressed res
 suppression cannot clear the finding it was added beside; run each scanner with inline
 suppression comments ignored (`gitleaks --ignore-gitleaks-allow`, `semgrep --disable-nosem`).
 A finding the project accepts, or a change to a scanner's configuration or ignore files, is
-an exception recorded per `${CLAUDE_PLUGIN_ROOT}/gates/exceptions.md`. Run each block in a
-fresh shell, since a later `trap ... EXIT` replaces this one. A scan whose key is `none` is
-skipped and named in the one-line announcement `gates/project-config.md` defines; the
-other still runs.
+an exception recorded per `${CLAUDE_PLUGIN_ROOT}/gates/exceptions.md`. A scan whose key is
+`none` is skipped and named in the one-line announcement `gates/project-config.md`
+defines; the other still runs.
 
 **Network-dependent tests never gate a commit.** Integration tests that make live calls
 stay opt-in: a commit gate that depends on a third party being up is a gate that fails for

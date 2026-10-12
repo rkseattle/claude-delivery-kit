@@ -1,7 +1,7 @@
 # Pre-push and pre-PR gate
 
-The commands, job names and thresholds are in `{{mechanics_gate_pre_push}}` — this file is
-the policy, that file is what to run. Read both.
+This file is the policy, plus the kit's own scan and build commands; the project's
+commands, job names and thresholds are in `{{mechanics_gate_pre_push}}`. Read both.
 
 ## Pre-push checklist
 
@@ -82,7 +82,7 @@ In order, all green, before every `git push`:
    ignored or untracked local file cannot make the build pass:
 
    ```bash
-   clean=$(mktemp -d -u); repo=$PWD; git worktree prune
+   clean=$(mktemp -d); repo=$PWD; git worktree prune
    git worktree add --detach "$clean" HEAD
    ( trap 'cd "$repo" && git worktree remove --force "$clean"' EXIT
      cd "$clean" && {{clean_build_command}} ); build_status=$?

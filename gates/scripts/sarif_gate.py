@@ -40,12 +40,12 @@ def load(path):
     if not text.strip():
         raise ValueError(f"{path} is empty")
     try:
-        report = json.loads(text)
+        parsed = json.loads(text)
     except json.JSONDecodeError as error:
         raise ValueError(f"{path} is not JSON: {error.msg}") from error
-    if not isinstance(report, dict) or report.get("version") != "2.1.0":
+    if not isinstance(parsed, dict) or parsed.get("version") != "2.1.0":
         raise ValueError(f"{path} is not SARIF 2.1.0")
-    runs = report.get("runs")
+    runs = parsed.get("runs")
     if not isinstance(runs, list) or not runs or not all(isinstance(run, dict) for run in runs):
         raise ValueError(f"{path} has no runs")
     for run in runs:
@@ -57,13 +57,13 @@ def load(path):
         if any(isinstance(invocation, dict) and invocation.get("executionSuccessful") is False
                for invocation in run.get("invocations") or []):
             raise ValueError(f"{path} has a run whose invocation failed")
-    return report
+    return parsed
 
 
-def results(report):
+def results(sarif_report):
     """Every (run, result) pair. Suppressed results are included: a suppression added in the
     diff under review must not clear the finding it suppresses."""
-    for run in report["runs"]:
+    for run in sarif_report["runs"]:
         for result in run["results"]:
             # SARIF: pass, notApplicable and informational are no finding; review and open are
             # undecided, so they count.
@@ -147,10 +147,10 @@ def location_of(run, result, root):
     return os.path.normpath(path) if path else "", line
 
 
-def secret_findings(report):
+def secret_findings(sarif_report):
     """`rule file:line` per result; the matched text never leaves the report."""
     found = []
-    for run, result in results(report):
+    for run, result in results(sarif_report):
         rule_id, _ = rule_of(run, result)
         path, line = location_of(run, result, None)
         found.append(f"{rule_id} {path}:{line}")
@@ -167,15 +167,16 @@ def fingerprint(result):
     return None
 
 
-def high_counts(report, root, renames=None):
+def high_counts(sarif_report, root, renames=None, renamed=frozenset()):
     """High or Critical results counted by identity — the fingerprint where the tool gives
-    one, else tool, rule and file — with the file each identity was found in."""
+    one, else tool, rule and file — with the file each identity was found in. A file in
+    `renamed` is matched by path: a fingerprint may hash the path, which the rename changed."""
     counts, files = collections.Counter(), {}
-    for run, result in results(report):
+    for run, result in results(sarif_report):
         if is_high(run, result):
             path, _ = location_of(run, result, root)
             path = (renames or {}).get(path, path)
-            mark = fingerprint(result)
+            mark = None if path in renamed else fingerprint(result)
             identity = (tool_name(run), rule_of(run, result)[0], mark or path, mark is not None)
             counts[identity] += 1
             files[identity] = path
@@ -186,8 +187,9 @@ def new_findings(staged, base, staged_root, base_root, renames=None):
     """(tool, rule, file) with how many High or Critical findings it gained over the base. A
     fingerprinted finding is new unless the base has the same fingerprint, so one fixed and
     another added in the same file is still caught."""
-    before = high_counts(base, base_root, renames)[0] if base else collections.Counter()
-    after, files = high_counts(staged, staged_root)
+    renamed = frozenset((renames or {}).values())
+    before = high_counts(base, base_root, renames, renamed)[0] if base else collections.Counter()
+    after, files = high_counts(staged, staged_root, renamed=renamed)
     new = collections.Counter()
     for identity, count in after.items():
         if count > before[identity]:
@@ -305,6 +307,9 @@ NEW_FINDINGS_CASES = [
     ("a fingerprinted finding that moved lines and files",
      sarif(run([finding("src/z.py", line=40, partialFingerprints={"primaryLocationLineHash": "old:1"})], [HIGH_RULE])),
      sarif(run([finding("src/a.py", partialFingerprints={"primaryLocationLineHash": "old:1"})], [HIGH_RULE])), {}),
+    ("a fingerprint that hashes the path, across a rename",
+     sarif(run([finding("src/moved.py", partialFingerprints={"matchBasedId/v1": "moved:h"})], [HIGH_RULE])),
+     sarif(run([finding("src/a.py", partialFingerprints={"matchBasedId/v1": "a:h"})], [HIGH_RULE])), {}),
     ("an undecided result whose kind is review",
      sarif(run([finding("src/b.py", kind="review")], [HIGH_RULE])), None, {("analyzer", "r1", "src/b.py"): 1}),
     ("the same key from a different tool",
@@ -315,8 +320,9 @@ NEW_FINDINGS_CASES = [
 
 def self_test():
     failures = 0
+    case_renames = parse_renames("R100\0src/a.py\0src/moved.py\0")
     for name, staged, base, expected in NEW_FINDINGS_CASES:
-        got = new_findings(staged, base, "/s", "/b")
+        got = new_findings(staged, base, "/s", "/b", case_renames if "rename" in name else None)
         failures += report("new-findings", name, got, expected)
     absolute = new_findings(sarif(run([finding("file:///s/src/a.py")], [HIGH_RULE])),
                             sarif(run([finding("file:///b/src/a.py")], [HIGH_RULE])), "/s", "/b")
