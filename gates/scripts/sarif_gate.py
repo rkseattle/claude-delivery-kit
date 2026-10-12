@@ -1,8 +1,19 @@
 #!/usr/bin/env python3
-"""The scan verdicts the commit and push gates read, from SARIF 2.1.0. Standard library only.
+"""The scanners' git inputs and the verdicts the commit and push gates read from their SARIF
+2.1.0 reports. Standard library only.
 
 Called by gates/definition-of-done.md (steps 7 and 8) and gates/pre-push.md (steps 6 and 7).
 
+    sarif_gate.py patch --staged | --commits RANGE
+        writes the secret scanner's input to stdout: the added lines of the staged diff, or
+        of every commit in RANGE with its message indented; exit 2 if git fails
+    sarif_gate.py renames BASE --staged | --head
+        writes `git diff -z -M --name-status` from BASE to the index or HEAD, the --renames
+        input of new-findings; exit 2 if git fails
+    sarif_gate.py tree DIR --staged | --ref REF
+        makes DIR a worktree holding exactly the index, added files tracked and deleted ones
+        gone — or, before the first commit, an export of the index — or a worktree of REF;
+        reports `worktree` or `export` on stderr; exit 2 if git fails or REF is empty
     sarif_gate.py secrets REPORT
         prints `clean`, or `findings N` and one `rule file:line` per finding — never the
         matched text; exit 0 only if clean
@@ -22,6 +33,7 @@ import collections
 import json
 import math
 import os
+import re
 import subprocess
 import sys
 import tempfile
@@ -215,6 +227,83 @@ def parse_renames(text):
     return renames
 
 
+# Every diff a gate reads ignores the user's diff configuration: a relative diff from a
+# subdirectory would drop changes outside it, and textconv would decrypt git-crypt files.
+GIT_DIFF = ["--no-color", "--no-ext-diff", "--no-textconv", "--no-relative", "--src-prefix=a/",
+            "--dst-prefix=b/"]
+HUNK_HEADER = re.compile(rb"^(@@ [^@]* @@)")
+GIT_ENVIRONMENT = None  # the self-test's isolated environment; None is the caller's
+
+
+def git(*arguments, cwd=None):
+    """git's stdout as bytes, or ValueError naming the subcommand that failed."""
+    completed = subprocess.run(["git", *arguments], cwd=cwd, capture_output=True, check=False,
+                               env=GIT_ENVIRONMENT)
+    if completed.returncode != 0:
+        message = completed.stderr.decode("utf8", "replace").strip().splitlines()
+        command = next((a for a in arguments if not a.startswith("-")), arguments[0])
+        raise ValueError(f"git {command} failed: {message[-1] if message else completed.returncode}")
+    return completed.stdout
+
+
+def added_lines(patch):
+    """Only what the patch adds: removed lines and their --- headers go, and a hunk header
+    loses the context line git copies after it. A removed line is a secret leaving, and
+    context is code this change did not write."""
+    kept = []
+    for line in patch.split(b"\n"):
+        if line.startswith(b"-"):
+            continue
+        header = HUNK_HEADER.match(line)
+        kept.append(header.group(1) if header else line)
+    return b"\n".join(kept)
+
+
+def staged_patch(cwd=None):
+    return added_lines(git("diff", "--cached", "-U0", *GIT_DIFF, cwd=cwd))
+
+
+def commits_patch(revision_range, cwd=None):
+    """Every commit's message and patch, not the net diff: a secret added in one commit and
+    deleted in a later one is still pushed. The indent keeps a message line that starts
+    with `-` from reading as a removal."""
+    return added_lines(git("log", "-p", "-U0", *GIT_DIFF, "--diff-merges=first-parent",
+                           "--format=%w(0,4,4)%B", revision_range, cwd=cwd))
+
+
+def rename_status(base, staged=True, cwd=None):
+    target = ["--cached", base] if staged else [base, "HEAD"]
+    return git("diff", "-z", "-M", "--name-status", *GIT_DIFF, *target, cwd=cwd)
+
+
+def make_tree(directory, ref=None, cwd=None):
+    """With a ref, DIR is a worktree of it. Without, DIR is a worktree of HEAD given the
+    index's tree with read-tree, so its files and index are exactly what the commit records
+    — nothing unstaged — and no diff configuration is involved; before the first commit it
+    is an export of the index instead. Returns `worktree` or `export`."""
+    if ref is not None:
+        if not ref:
+            raise ValueError("an empty ref names no tree")  # an unset $merge_base, say
+        git("worktree", "add", "--detach", directory, ref, cwd=cwd)
+        return "worktree"
+    try:
+        git("rev-parse", "--verify", "--quiet", "HEAD", cwd=cwd)
+    except ValueError:
+        git("checkout-index", "--all", f"--prefix={os.path.join(directory, '')}", cwd=cwd)
+        return "export"
+    tree = git("write-tree", cwd=cwd).decode().strip()
+    git("worktree", "add", "--detach", directory, "HEAD", cwd=cwd)
+    try:
+        git("read-tree", "-u", "--reset", tree, cwd=directory)
+    except ValueError:
+        try:
+            git("worktree", "remove", "--force", directory, cwd=cwd)
+        except ValueError:
+            pass  # the read-tree failure is the one to report
+        raise
+    return "worktree"
+
+
 # Fixtures. Each case is one way a finding could pass when it should block, or block when it
 # should pass.
 def sarif(*runs):
@@ -373,7 +462,140 @@ def self_test():
                                                           message={"text": "AKIA..."})]))),
                        ["aws-key cfg.env:3"])
     failures += cli_cases()
+    failures += git_cases()
     return 1 if failures else 0
+
+
+def git_cases():
+    """Each case runs against a scratch repository with no user or system git config."""
+    failures = 0
+    global GIT_ENVIRONMENT
+    # An inherited GIT_DIR, GIT_INDEX_FILE or GIT_CONFIG_PARAMETERS would aim the fixture at
+    # another repository or configuration, so none survives.
+    GIT_ENVIRONMENT = {key: value for key, value in os.environ.items() if not key.startswith("GIT_")}
+    GIT_ENVIRONMENT.update(GIT_CONFIG_NOSYSTEM="1", GIT_CONFIG_GLOBAL=os.devnull, GIT_AUTHOR_NAME="t",
+                           GIT_AUTHOR_EMAIL="t@t", GIT_COMMITTER_NAME="t", GIT_COMMITTER_EMAIL="t@t")
+    try:
+        with tempfile.TemporaryDirectory() as scratch:
+            repo = os.path.join(scratch, "repo")
+            def write(path, content, mode="w"):
+                with open(os.path.join(repo, path), mode) as handle:
+                    handle.write(content)
+            git("init", "--quiet", repo)
+            write("kept.py", "a = 1\nb = 2\nc = 3\n")
+            git("add", "kept.py", cwd=repo)
+            failures += report("tree", "an export before the first commit", (
+                make_tree(os.path.join(scratch, "unborn"), cwd=repo),
+                sorted(os.listdir(os.path.join(scratch, "unborn")))), ("export", ["kept.py"]))
+            write("gone.txt", "old\n")
+            write("blob.bin", b"\x00\x01", "wb")
+            write(".gitattributes", "*.enc diff=reveal\n")
+            write("secret.enc", "ciphertext\n")
+            git("config", "diff.reveal.textconv", "sed s/ciphertext/PLAINTEXT/", cwd=repo)
+            # Diff settings a user may have, none of which may change what a gate reads.
+            for key, value in (("diff.relative", "true"), ("color.diff", "always"),
+                               ("color.ui", "always"), ("diff.noprefix", "true")):
+                git("config", key, value, cwd=repo)
+            os.mkdir(os.path.join(repo, "sub"))
+            git("add", ".", cwd=repo)
+            git("commit", "--quiet", "-m", "base", cwd=repo)
+            write("kept.py", "a = 1\nb = 2\nc = 3\nd = 4\n")
+            write("new.py", "token = 'added'\n")
+            write("blob.bin", b"\x00\x01\x02", "wb")
+            write("secret.enc", "ciphertext2\n")
+            git("rm", "--quiet", "gone.txt", cwd=repo)
+            git("add", ".", cwd=repo)
+            write("kept.py", "unstaged = True\n")
+            failures += report("patch", "the textconv driver is live in this fixture",
+                               b"PLAINTEXT" in git("diff", "--cached", "--no-color", cwd=repo), True)
+            patch = staged_patch(cwd=os.path.join(repo, "sub"))
+            failures += report("patch", "added lines in, removed and context out", (
+                b"+d = 4" in patch, b"+token = 'added'" in patch, b"old" in patch,
+                b"c = 3" in patch, b"unstaged" in patch), (True, True, False, False, False))
+            failures += report("patch", "textconv never runs", b"PLAINTEXT" in patch, False)
+            failures += report("patch", "paths keep their prefix under diff.noprefix",
+                               b"+++ b/new.py" in patch, True)
+            failures += report("renames", "the staged deletion from a subdirectory",
+                               b"gone.txt" in rename_status("HEAD", cwd=os.path.join(repo, "sub")), True)
+            tree = os.path.join(scratch, "staged")
+            mode = make_tree(tree, cwd=repo)
+            listed = git("ls-files", cwd=tree).decode().split()
+            with open(os.path.join(tree, "kept.py")) as handle:
+                kept = handle.read()
+            with open(os.path.join(tree, "blob.bin"), "rb") as handle:
+                blob = handle.read()
+            failures += report("tree", "the index, tracked, without unstaged edits", (
+                mode, "new.py" in listed, "gone.txt" in listed, kept.endswith("d = 4\n"),
+                blob, git("diff", "--name-only", cwd=tree) + git("ls-files", "--others", cwd=tree),
+                git("diff", "--cached", "--binary", "HEAD", cwd=tree)
+                == git("diff", "--cached", "--binary", "HEAD", cwd=repo)),
+                ("worktree", True, False, True, b"\x00\x01\x02", b"", True))
+            try:
+                make_tree(tree, cwd=repo)
+                failures += report("tree", "a directory already in use", "made", "ValueError")
+            except ValueError:
+                failures += report("tree", "a directory already in use", "ValueError", "ValueError")
+            git("worktree", "remove", "--force", tree, cwd=repo)
+            git("checkout", "--quiet", "--", "kept.py", cwd=repo)
+            git("commit", "--quiet", "-m", "add\n\n- leaked: AKIAADDED", cwd=repo)
+            write("new.py", "token = 'clean'\n")
+            git("commit", "--quiet", "-am", "scrub", cwd=repo)
+            failures += report("renames", "from a base to HEAD",
+                               b"gone.txt" in rename_status("HEAD~2", staged=False, cwd=repo), True)
+            git("checkout", "--quiet", "-b", "side", "HEAD~1", cwd=repo)
+            write("side.py", "side = 1\n")
+            git("add", "side.py", cwd=repo)
+            git("commit", "--quiet", "-m", "side", cwd=repo)
+            git("checkout", "--quiet", "-", cwd=repo)
+            git("merge", "--quiet", "--no-commit", "side", cwd=repo)
+            write("side.py", "side = 1\nfrom_merge = 'only in the merge'\n")
+            git("commit", "--quiet", "-am", "merge", cwd=repo)
+            failures += report("patch", "content only a merge commit adds",
+                               b"only in the merge" in commits_patch("HEAD~1..HEAD", cwd=repo), True)
+            git("reset", "--quiet", "--hard", "HEAD~1", cwd=repo)
+            pushed = commits_patch("HEAD~2..HEAD", cwd=repo)
+            failures += report("patch", "a secret deleted in a later commit is still pushed",
+                               b"token = 'added'" in pushed, True)
+            failures += report("patch", "a message line starting with - survives",
+                               b"    - leaked: AKIAADDED" in pushed, True)
+            try:
+                commits_patch("no-such-ref..HEAD", cwd=repo)
+                failures += report("patch", "git failing", "patch", "ValueError")
+            except ValueError:
+                failures += report("patch", "git failing", "ValueError", "ValueError")
+            at_ref = os.path.join(scratch, "at-ref")
+            failures += report("tree", "a worktree of a ref", (
+                make_tree(at_ref, "HEAD~1", cwd=repo),
+                git("rev-parse", "HEAD", cwd=at_ref) == git("rev-parse", "HEAD~1", cwd=repo)),
+                ("worktree", True))
+            git("worktree", "remove", "--force", at_ref, cwd=repo)
+            run_cli = lambda *arguments: subprocess.run(
+                [sys.executable, os.path.abspath(__file__), *arguments], capture_output=True,
+                cwd=repo, check=False, env=GIT_ENVIRONMENT)
+            failures += report("cli", "tree with an empty ref", run_cli("tree", at_ref, "--ref", "").returncode, 2)
+            listed = run_cli("renames", "HEAD~2", "--head")
+            failures += report("cli", "renames --head", (listed.returncode, b"gone.txt" in listed.stdout), (0, True))
+            listed = run_cli("renames", "HEAD", "--staged")
+            failures += report("cli", "renames --staged with nothing staged", (listed.returncode, listed.stdout), (0, b""))
+            produced = run_cli("patch", "--commits", "HEAD~1..HEAD")
+            failures += report("cli", "patch --commits", (produced.returncode, b"token = 'clean'" in produced.stdout), (0, True))
+            built = run_cli("tree", at_ref, "--staged")
+            failures += report("cli", "tree --staged", (built.returncode, built.stdout, built.stderr.strip()), (0, b"", b"worktree"))
+            git("worktree", "remove", "--force", at_ref, cwd=repo)
+            outside = os.path.join(scratch, "outside")
+            os.mkdir(outside)
+            for name, arguments in (("patch outside a repository", ["patch", "--staged"]),
+                                    ("tree outside a repository", ["tree", "t", "--staged"]),
+                                    ("tree of a missing ref", ["tree", "t", "--ref", "nope"]),
+                                    ("renames from a missing base", ["renames", "nope", "--head"])):
+                completed = subprocess.run(
+                    [sys.executable, os.path.abspath(__file__), *arguments], capture_output=True,
+                    cwd=outside if arguments[-1] == "--staged" or arguments[0] == "patch" else repo, check=False,
+                    env=dict(GIT_ENVIRONMENT, GIT_CEILING_DIRECTORIES=scratch))
+                failures += report("cli", name, completed.returncode, 2)
+    finally:
+        GIT_ENVIRONMENT = None
+    return failures
 
 
 def cli_cases():
@@ -457,10 +679,33 @@ def main():
     compare.add_argument("--base-root")
     compare.add_argument("--renames")
     compare.add_argument("--no-base", action="store_true")
+    produce = commands.add_parser("patch")
+    source = produce.add_mutually_exclusive_group(required=True)
+    source.add_argument("--staged", action="store_true")
+    source.add_argument("--commits", metavar="RANGE")
+    moved = commands.add_parser("renames")
+    moved.add_argument("base")
+    side = moved.add_mutually_exclusive_group(required=True)
+    side.add_argument("--staged", action="store_true")
+    side.add_argument("--head", action="store_true")
+    materialize = commands.add_parser("tree")
+    materialize.add_argument("directory")
+    content = materialize.add_mutually_exclusive_group(required=True)
+    content.add_argument("--staged", action="store_true")
+    content.add_argument("--ref")
     args = parser.parse_args()
     if args.self_test:
         return self_test()
     try:
+        if args.command == "patch":
+            sys.stdout.buffer.write(staged_patch() if args.staged else commits_patch(args.commits))
+            return 0
+        if args.command == "renames":
+            sys.stdout.buffer.write(rename_status(args.base, staged=args.staged))
+            return 0
+        if args.command == "tree":
+            print(make_tree(args.directory, args.ref), file=sys.stderr)
+            return 0
         if args.command == "secrets":
             found = secret_findings(load(args.report))
             print(f"findings {len(found)}" if found else "clean")
@@ -482,7 +727,7 @@ def main():
             return 1 if new else 0
     except (ValueError, OSError, AttributeError, TypeError, IndexError, KeyError) as error:
         # A wrong-shaped entry in a parseable report is an unusable report, not a finding.
-        print(f"UNUSABLE report: {error}", file=sys.stderr)
+        print(f"UNUSABLE: {error}", file=sys.stderr)
         return 2
     parser.print_usage(sys.stderr)
     return 2

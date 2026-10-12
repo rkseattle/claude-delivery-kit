@@ -55,21 +55,13 @@ In order, all green, before every `git push`:
    lockfile clean yesterday fails today because the advisory database moved, not because
    anything in the repo did. The bar is zero, with no allowlist.
 6. **Secret scan of every commit being pushed** — the Definition of Done's secret-scan step,
-   its added-lines filter included, with every commit's message and patch written to
-   `$patch` in place of the staged diff:
-
-   ```bash
-   git log -p -U0 --no-color --no-ext-diff --no-textconv --diff-merges=first-parent \
-     --format='%w(0,4,4)%B' origin/<parent>..HEAD
-   ```
-
-   The indent keeps a message line starting with `-` from being filtered as a removal. Not
-   the branch's net diff: a secret added in one commit and deleted in a later one is still
-   pushed.
+   with `python3 "$gate" patch --commits origin/<parent>..HEAD` in place of
+   `patch --staged`: every commit's message and added lines, not the branch's net diff,
+   since a secret added in one commit and deleted in a later one is still pushed.
 7. **Static analysis, new findings only** — the Definition of Done's static-analysis step,
-   without its index diff and `git apply`, so `$staged` is HEAD itself and staged changes not yet
-   committed are not scanned as what is pushed, and with
-   `git diff -z -M --name-status "$merge_base" HEAD` as its renames.
+   with `tree "$staged" --ref HEAD` in place of `tree "$staged" --staged`, so staged
+   changes not yet committed are not scanned as what is pushed, and with
+   `renames "$merge_base" --head` in place of `renames "$merge_base" --staged`.
 
    Steps 6 and 7 take those Definition of Done steps whole, with the paragraph after them:
    the same script and verdicts, suppressions counted, and a scan whose key is `none` named
@@ -83,15 +75,16 @@ In order, all green, before every `git push`:
 
    ```bash
    clean=$(mktemp -d); repo=$PWD; git worktree prune
-   git worktree add --detach "$clean" HEAD
-   ( trap 'cd "$repo" && git worktree remove --force "$clean"' EXIT
-     cd "$clean" && {{clean_build_command}} ); build_status=$?
-   echo "clean build exited $build_status"
+   python3 "${CLAUDE_PLUGIN_ROOT}/gates/scripts/sarif_gate.py" tree "$clean" --ref HEAD \
+     && ( trap 'cd "$repo" && git worktree remove --force "$clean"' EXIT
+          cd "$clean" && {{clean_build_command}} ); build_status=$?
+   rmdir "$clean" 2>/dev/null; echo "clean build exited $build_status"
    ```
 
    The subshell's trap removes the worktree however the build ends short of `SIGKILL`, and
    keeps its `cd` and trap out of the caller's shell; the step fails on a non-zero
-   `build_status`. With `{{clean_build_command}}` set to `none`, the build is skipped and
+   `build_status`, which a tree git failed to build also sets rather than building an
+   empty directory; `rmdir` clears the directory such a failure leaves. With `{{clean_build_command}}` set to `none`, the build is skipped and
    named in the one-line announcement `gates/project-config.md` defines.
 
 10. **The verification tier the diff needs**, per `{{verification_step_file}}`. Where a push

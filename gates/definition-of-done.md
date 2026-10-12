@@ -31,20 +31,18 @@ the project's commands. Read both.
    (
      gate="${CLAUDE_PLUGIN_ROOT}/gates/scripts/sarif_gate.py"; patch=$(mktemp)
      secrets_sarif=$(mktemp); trap 'rm -f "$patch" "$secrets_sarif"' EXIT
-     git diff --cached -U0 --no-color --no-ext-diff --no-textconv > "$patch" \
-       || { echo "UNUSABLE patch: git failed"; exit 2; }
-     sed -e '/^-/d' -e 's/^\(@@ [^@]* @@\).*/\1/' "$patch" \
-       | {{secret_scan_command}} > "$secrets_sarif"
+     python3 "$gate" patch --staged > "$patch" || exit 2
+     {{secret_scan_command}} < "$patch" > "$secrets_sarif"
      python3 "$gate" secrets "$secrets_sarif"
    )
    ```
 
    Only added lines go in: a removed line is a secret leaving, and context — including the
    line git copies into a hunk header — is code this commit did not write. The bar is zero
-   findings, and a patch git failed to produce is a failed scan, never an empty one. A
-   committed secret stays in history after the line is deleted, so this is the last point
-   where catching one costs nothing but an edit. The scanner runs redacted, and
-   the script prints each finding's rule and location, never its text.
+   findings, and a patch git failed to produce is a failed scan (exit 2), never an empty
+   one. A committed secret stays in history after the line is deleted, so this is the last
+   point where catching one costs nothing but an edit. The scanner runs redacted, and the
+   script prints each finding's rule and location, never its text.
 8. **Static analysis, new findings only**, on exactly the staged tree and on the base this
    branch was cut from. `<parent>` is `{{parent_branch_default}}` unless the branch was cut
    from another, as in the pre-push gate's rebase step:
@@ -52,19 +50,15 @@ the project's commands. Read both.
    ```bash
    (
      gate="${CLAUDE_PLUGIN_ROOT}/gates/scripts/sarif_gate.py"
-     staged=$(mktemp -d); base=$(mktemp -d); renames=$(mktemp); index=$(mktemp)
+     staged=$(mktemp -d); base=$(mktemp -d); renames=$(mktemp)
      staged_sarif=$(mktemp); base_sarif=$(mktemp)
      trap 'for tree in "$staged" "$base"; do
              git worktree remove --force "$tree" 2>/dev/null || rm -rf "$tree"; done
-           rm -f "$renames" "$index" "$staged_sarif" "$base_sarif"' EXIT
-     git worktree prune; merge_base=$(git merge-base HEAD origin/<parent>)
-     git worktree add --detach "$staged" HEAD
-     git diff --cached --binary --no-ext-diff --no-textconv > "$index" \
-       && git -C "$staged" apply --index --allow-empty "$index" \
-       || { echo "UNUSABLE staged tree: the index did not apply"; exit 2; }
-     git worktree add --detach "$base" "$merge_base"
-     git diff --cached -z -M --name-status "$merge_base" > "$renames" \
-       || { echo "UNUSABLE renames: git failed"; exit 2; }
+           rm -f "$renames" "$staged_sarif" "$base_sarif"' EXIT
+     git worktree prune; merge_base=$(git merge-base HEAD origin/<parent>) || exit 2
+     python3 "$gate" tree "$staged" --staged || exit 2
+     python3 "$gate" tree "$base" --ref "$merge_base" || exit 2
+     python3 "$gate" renames "$merge_base" --staged > "$renames" || exit 2
      (cd "$staged" && {{sast_command}}) > "$staged_sarif"
      (cd "$base" && {{sast_command}}) > "$base_sarif"
      python3 "$gate" new-findings "$staged_sarif" "$base_sarif" --staged-root "$staged" \
@@ -74,19 +68,19 @@ the project's commands. Read both.
 
    Both trees are git worktrees whose index matches their files, so a scanner that selects
    files through git sees each the same way, and the staged one holds the index's changes —
-   added files tracked, deleted ones gone — and nothing unstaged. The commit
-   is blocked when a High or Critical finding — `security-severity` of at least 7.0, or
-   with none, a `level` of `error` — is new: its fingerprint is absent from the base, or,
-   for a tool that gives none, it is more numerous in its file than on the base. Debt
-   already on the base does not block, since it would fail every commit for reasons
-   unrelated to the diff. The subshell's trap removes both trees however the block exits
-   short of `SIGKILL`, and cannot replace or be replaced by another block's; after one, remove the leftover `$TMPDIR` entries `git worktree list` shows
-   with `git worktree remove --force`.
-   With no `origin/<parent>` there is no base: say so in one line, drop the `merge_base`,
-   base `worktree add`, renames and base-scan lines, and end with
+   added files tracked, deleted ones gone — and nothing unstaged. A tree git failed to
+   build is a failed scan, never an empty tree scanned clean. The commit is blocked when a
+   High or Critical finding — `security-severity` of at least 7.0, or with none, a `level`
+   of `error` — is new: its fingerprint is absent from the base, or, for a tool that gives
+   none, it is more numerous in its file than on the base. Debt already on the base does
+   not block, since it would fail every commit for reasons unrelated to the diff. The
+   subshell's trap removes both trees however the block exits short of `SIGKILL`, and
+   cannot replace or be replaced by another block's; after one, remove the leftover
+   `$TMPDIR` entries `git worktree list` shows with `git worktree remove --force`. With no `origin/<parent>` there is no base: say so in one
+   line, drop the `merge_base`, base `tree`, renames and base-scan lines, and end with
    `python3 "$gate" new-findings "$staged_sarif" --no-base --staged-root "$staged"`. Before
-   the repo's first commit there is no HEAD either: export the index with
-   `git checkout-index -a --prefix="$staged/"` in place of the staged worktree lines.
+   the repo's first commit `tree --staged` exports the index instead — a plain directory a
+   git-based scanner cannot select from — and there is no base.
 
 The script's printed verdict is each scan's: `clean`, or what blocks. Its exit 2 is an
 unusable report — a failed scan, never zero findings. It counts suppressed results, so a

@@ -31,7 +31,8 @@ agents/                ticket-, design-, commit-, ci-failure-, greptile- adversa
 gates/                 status-report.md, definition-of-done.md, pre-push.md,
                        read-only-agent.md (the universal halves only),
                        project-config.md, exceptions.md, and rule-book-review.md;
-                       scripts/sarif_gate.py turns scan reports into their verdicts
+                       scripts/sarif_gate.py builds the scanners' git inputs and reads
+                       their reports into the gates' verdicts
 hooks/                 hooks.json + the two hooks and their self-tests
 scripts/ci/            the CI checks, runnable locally; all.sh runs every one
 reference/             software-engineering-rule-book.md, the source the rules
@@ -154,8 +155,9 @@ protection rule or ruleset requiring an approval of the latest push.
 
 `secret_scan_command` and `sast_command` serve rule book R12 and Appendix B1's scans. Each
 writes SARIF 2.1.0 to standard output, redacted, with inline suppression comments ignored;
-`gates/scripts/sarif_gate.py` turns the reports into the gates' verdicts. The secret scanner
-reads added lines as a patch on standard input —
+`gates/scripts/sarif_gate.py` builds what each scanner reads from git and turns the reports
+into the gates' verdicts. The secret scanner reads added lines as a patch on standard
+input —
 `gitleaks stdin --redact --ignore-gitleaks-allow --report-format sarif --report-path /dev/stdout`
 is one that does, and a scanner that only reads files is wrapped to read `/dev/stdin`. The
 static analyzer runs from a tree's root, e.g. `semgrep scan --sarif --disable-nosem`. The
