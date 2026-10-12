@@ -123,6 +123,7 @@ a gap or a decision you must be able to state.
 | Anything about what CI runs | The workflow **and** the job list in the pre-push gate | The gate that tells you what to run locally goes stale, so a CI job stops having a local equivalent |
 | A new or upgraded dependency | Pin its exact version in the ecosystem's exact form: `1.2.3` in npm, `==1.2.3` in pip, `=1.2.3` in Cargo, a commit SHA for a git dependency. No range operator, partial version, branch, or tag. Commit the lockfile change in the same commit. An ecosystem without a lockfile commits a fully resolved pin file instead, such as `pip-compile` output, since an exact direct pin leaves its own dependencies floating. Check its license and transitive tree, run the audit, and re-resolve from scratch if you added an override | A range resolves to whatever is newest at install time, so two checkouts of one commit build different code; an incremental install silently ignores overrides for transitive dependencies |
 | Behavior a user can see | The user-facing docs | Nothing verifies documentation; drift is only ever found by a reader |
+| A public interface, added or changed | Its definition, in the same commit, where rule-book check 7 places it: under `{{interface_docs}}` for a kind that directory holds; otherwise, and always when it is `none` or absent, the doc comment at its declaration | A stale definition misleads every new caller and fails nothing |
 | A test reading a file outside its own scope | Make an existing CI filter cover both sides | A guard pinning the other side never runs on the edit it exists to catch |
 
 The project's own couplings are in `{{mechanics_gate_dod}}`. Neither table is exhaustive,
@@ -181,8 +182,8 @@ Read the diff against the repo, counting the two together, and fix every hit of 
 in `${CLAUDE_PLUGIN_ROOT}/gates/rule-book-review.md` before staging: call an existing helper
 rather than re-implement it, keep one definition of each business rule, constant, and
 schema, extract a shared helper for a block of logic with no helper at its third
-occurrence (two is not a finding), and leave no swallowed exception, unvalidated input, or
-reach into another module's internals.
+occurrence (two is not a finding), and leave no swallowed exception, unvalidated input,
+reach into another module's internals, or public interface with a stale definition.
 
 Then read every comment the diff adds or changes. Cut any that restates the code, runs past
 `CLAUDE.md`'s budget, or narrates a review round rather than describing the code — the

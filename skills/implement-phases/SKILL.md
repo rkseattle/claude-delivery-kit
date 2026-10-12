@@ -186,7 +186,7 @@ benign-in-context bar and deferral procedure.
 ### 2b. Read the diff before staging
 
 Run the "Before `git add`" checks in `${CLAUDE_PLUGIN_ROOT}/gates/definition-of-done.md` —
-all six rule-book checks, among them extraction at the third occurrence (two is not a
+every rule-book check, among them extraction at the third occurrence (two is not a
 finding), then cut comments that restate the code or narrate history and confirm no ticket
 ID reached a source comment. Then stage.
 

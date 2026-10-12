@@ -116,6 +116,7 @@ The stage skills carry the procedure; the commands, paths and thresholds come fr
   "secret_scan_command": "<secret scanner: patch on stdin, SARIF on stdout, or none>",
   "sast_command": "<static analyzer writing SARIF 2.1.0 to stdout, or none>",
   "clean_build_command": "<build from a fresh checkout, dependencies included, or none>",
+  "interface_docs": "<directory holding interface definitions, e.g. docs/api, or none>",
   "unit_test_scope": "<the whole target, or the changed workspaces — and why>",
   "post_fix_verification_scope": "<what a fix commit must re-run before the gate passes>",
   "results_file": "<path the local gate writes its verdict to>",
@@ -164,6 +165,11 @@ project from a clean checkout. It installs in the ecosystem's locked mode — `n
 fails the build rather than being rewritten. The pre-push checklist runs it in a fresh
 `git worktree` of HEAD, which holds no submodules, so a project with them initializes them
 in this command. Default `none`, announced as skipped.
+
+`interface_docs` serves rule book R3: where a project keeps its interface definitions —
+OpenAPI specs, schemas, CLI references. Check 7 in `gates/rule-book-review.md` says when a
+definition must change with its interface. Default `none`, under which every definition is
+the doc comment at the interface's declaration.
 
 The values in the block above are illustrations, not defaults. Some of its keys are
 required and have no default; one that is missing, empty, `none`, or a `<placeholder>`

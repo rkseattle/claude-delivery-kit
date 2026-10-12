@@ -64,7 +64,8 @@ Work through all of these. Report per dimension so gaps in your own coverage are
    carried by color alone, and text that scales with the platform's dynamic type setting.
    A fixed text size or a fixed-height container holding text is a regression.
 10. **Completeness** — user docs, build-manifest membership for new files, and whatever
-    else the project's rules file requires for user-visible behavior.
+    else the project's rules file requires for user-visible behavior. A public interface
+    added or changed without its definition (rule-book check 7) is at least MAJOR.
 11. **Dead code** — unused imports, properties, localization keys, orphaned helpers.
 
 The rule-book checks are defined in `${CLAUDE_PLUGIN_ROOT}/gates/rule-book-review.md`; read

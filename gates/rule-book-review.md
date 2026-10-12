@@ -5,7 +5,7 @@ them name each check, but this is the definition they defer to. A reviewer repor
 as at least MAJOR, naming every site.
 
 Checks 1–3 count the change and the repo together: a duplicate is no less real because its
-other half was already committed. Checks 4–6 apply to the code the change adds or alters.
+other half was already committed. Checks 4–7 apply to the code the change adds or alters.
 
 ## Duplication — R5
 
@@ -31,3 +31,12 @@ other half was already committed. Checks 4–6 apply to the code the change adds
 6. **Reached-into internals.** A read or write of another module's internal state or data
    store that bypasses its public interface. Name the interface it should have gone
    through, or report that the module has none.
+7. **Stale interface definition.** A public interface — an exported symbol, endpoint, CLI
+   flag, or file format another module reads — added or changed in a commit that leaves its
+   definition as it was. `{{interface_docs}}` resolves per
+   `${CLAUDE_PLUGIN_ROOT}/gates/project-config.md`. Every interface of a kind already defined
+   in that directory has its definition there, so an added one gets its file there; moving
+   a new kind there is a choice the commit message states. Every other kind, and every
+   interface when it is `none` or absent, is defined by the doc comment at its declaration.
+   Callers code against the definition, so a stale one misleads every new caller and fails
+   nothing.
