@@ -74,19 +74,11 @@ absent one, because the author cannot tell it from a real finding.
 
 ### Substance
 
-- Duplication, counting the diff and the repo together. A block of logic with no existing
-  helper that appears three or more times is MAJOR — name every site. Exactly two
-  occurrences is not a finding; do not report it. Re-implementing logic an existing helper
-  provides, or a second definition of a business rule, constant, or schema, is MAJOR at any
-  count.
-- A caught exception neither rethrown nor logged, including one replaced by a fallback
-  value. At least MAJOR.
-- Input from outside the process that crosses a trust boundary — from a user, the network,
-  or a file or payload another party controls — used before it is validated, or a query
-  built from it without parameters. At least MAJOR.
-- A read or write of another module's internal state or data store that bypasses that
-  module's public interface. At least MAJOR — name the interface it should have gone
-  through, or report that the module has none.
+- Every check in `${CLAUDE_PLUGIN_ROOT}/gates/rule-book-review.md`, read in full: an
+  existing helper re-implemented, a second definition, a block of logic with no helper at
+  its third occurrence (exactly two is not a finding — do not report it), a swallowed
+  exception, unvalidated input at a trust boundary, and a reach into another module's
+  internals that bypasses its public interface. Each hit is at least MAJOR, every site named.
 - The quickest local fix where an established in-repo pattern exists; name the pattern.
 - Pure functions with no unit test, or a test that omits the boundary cases. There is no
   excuse for verifying these by eye.

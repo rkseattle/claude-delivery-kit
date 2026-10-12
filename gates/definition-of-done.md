@@ -130,15 +130,11 @@ The project's domain list is in `{{mechanics_gate_dod}}`.
 `git stash` and `stash pop` on a staged tree** — pop restores the working tree, not the
 index, and the commit that follows is missing whatever was staged.
 
-Read the diff against the repo, counting the two together, and fix each of these before
-staging:
-
-- **Logic an existing helper already provides** — call the helper; re-implementing it is a
-  second definition at any count.
-- **A business rule, constant, or schema** — one definition, at any count.
-- **A block of logic with no existing helper** — extract a shared helper at its third
-  occurrence, within a file, across files, or between the diff and the repo. Two
-  occurrences are not a finding: the rule of three, so the helper is shaped by three callers.
+Read the diff against the repo, counting the two together, and fix every hit of checks 1–3
+in `${CLAUDE_PLUGIN_ROOT}/gates/rule-book-review.md` before staging: call an existing helper
+rather than re-implement it, keep one definition of each business rule, constant, and
+schema, and extract a shared helper for a block of logic with no helper at its third
+occurrence (two is not a finding).
 
 Then read every comment the diff adds or changes. Cut any that restates the code, runs past
 `CLAUDE.md`'s budget, or narrates a review round rather than describing the code — the

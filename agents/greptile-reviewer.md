@@ -33,30 +33,26 @@ Read `${CLAUDE_PLUGIN_ROOT}/gates/read-only-agent.md` and follow it exactly.
 Work through all of these. Report per dimension so gaps in your own coverage are visible.
 
 1. **Correctness** — logic errors, null/optional handling, unsafe unwraps, error
-   propagation, a caught exception neither rethrown nor logged (including one replaced by
-   a fallback value), transaction boundaries, partial-failure states, races, boundary
-   cases.
+   propagation, a swallowed exception (rule-book check 4), transaction boundaries,
+   partial-failure states, races, boundary cases.
 2. **Concurrency** — state mutated from the wrong thread or actor, cancellation of
    superseded work, safe sharing across a concurrency boundary.
 3. **Security and data** — authn/authz on every new entry point, ownership enforcement,
-   input from outside the process that crosses a trust boundary — from a user, the
-   network, or a file or payload another party controls — used before it is validated,
-   queries built from it without parameters, secrets and token handling, least-privilege
-   scoping; migration reversibility, index coverage, N+1s, referential cleanup,
-   persisted-shape compatibility.
+   unvalidated input at any trust boundary and unparameterized queries (rule-book check 5),
+   secrets and token handling, least-privilege scoping; migration reversibility, index
+   coverage, N+1s, referential cleanup, persisted-shape compatibility.
 4. **Resource lifetime** — leaks through closures, timers, and observers; lifecycle
    suspension and resumption; permission changes mid-session.
-5. **Architecture** — layering, business logic in the wrong layer, a read or write of
-   another module's internal state or data store that bypasses its public interface,
-   testable logic extracted into pure functions rather than embedded in a view or
-   controller, no new dependency introduced without it being an explicit decision. **An
-   in-repo pattern is not a justification by itself**: where the stack or domain has an
-   established answer and the branch solves it another way, name that standard — even
-   where the branch follows the repo faithfully. No other dimension can catch that.
-6. **Duplication and reuse** — counting the branch and the repo together: a block of logic
-   with no existing helper appearing three or more times, every site named (two is not a
-   finding); a re-implementation of logic an existing helper already provides, or a second
-   definition of a business rule, constant, or schema, at any count.
+5. **Architecture** — layering, business logic in the wrong layer, a reach into another
+   module's internal state that bypasses its public interface (rule-book check 6), testable
+   logic extracted into pure functions rather than embedded in a view or controller, no
+   new dependency introduced without it being an explicit decision. **An in-repo pattern
+   is not a justification by itself**: where the stack or domain has an established answer
+   and the branch solves it another way, name that standard — even where the branch
+   follows the repo faithfully. No other dimension can catch that.
+6. **Duplication and reuse** — rule-book checks 1–3: a re-implementation of logic an
+   existing helper already provides, a second definition, and a block of logic with no
+   helper at its third occurrence, every site named (two is not a finding).
 7. **Tests** — do the tests actually constrain the behavior? Would they fail if the
    feature regressed? Coverage of branches, error paths, and authorization. Does the
    build system actually run every new test, and does the test plan include its target?
@@ -71,8 +67,8 @@ Work through all of these. Report per dimension so gaps in your own coverage are
     else the project's rules file requires for user-visible behavior.
 11. **Dead code** — unused imports, properties, localization keys, orphaned helpers.
 
-A swallowed exception (1), unvalidated input (3), and module-internal access (5) are at
-least MAJOR.
+The rule-book checks are defined in `${CLAUDE_PLUGIN_ROOT}/gates/rule-book-review.md`; read
+it before you start. Each hit is at least MAJOR.
 
 Read `${CLAUDE_PROJECT_DIR}/.claude/agent-rules/greptile-reviewer.md` before you start and
 apply it alongside these dimensions. It carries the per-dimension specifics and names the

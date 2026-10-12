@@ -30,7 +30,7 @@ skills/                write-tickets, deliver, plan-work, implement-phases,
 agents/                ticket-, design-, commit-, ci-failure-, greptile- adversaries
 gates/                 status-report.md, definition-of-done.md, pre-push.md,
                        read-only-agent.md (the universal halves only),
-                       project-config.md, and exceptions.md
+                       project-config.md, exceptions.md, and rule-book-review.md
 hooks/                 hooks.json + the two hooks and their self-tests
 scripts/ci/            the CI checks, runnable locally; all.sh runs every one
 reference/             software-engineering-rule-book.md, the source the rules
