@@ -31,6 +31,10 @@ below and in the stage files resolves from it.
 Then report the kit version from `${CLAUDE_PLUGIN_ROOT}/.claude-plugin/plugin.json` and remind
 Rob a newer release needs `/plugin marketplace update`, then `/reload-plugins`. Continue.
 
+Then list every row of `${CLAUDE_PLUGIN_ROOT}/gates/exceptions.md` and `{{exceptions_log}}`
+whose `Expiry` is before today's date, each to be remediated or renewed, or say none has
+expired. Say in one line when `{{exceptions_log}}` is `none` or names no file.
+
 | State                                            | Action                                            |
 | ------------------------------------------------ | ------------------------------------------------- |
 | Absent, or its `branch` is not checked out       | Fresh run — go to stage 1                         |
@@ -64,10 +68,6 @@ ships code that skipped the gate it was interrupted before reaching.
 
 The marker may be stale by one step, since a crash lands between writes. `git status`,
 `git log`, and the phase list win wherever they disagree with it.
-
-Last, list every row of `${CLAUDE_PLUGIN_ROOT}/gates/exceptions.md` and `{{exceptions_log}}`
-whose `Expiry` is before today's date, each to be remediated or renewed, or say none has
-expired. Say in one line when `{{exceptions_log}}` is `none` or names no file.
 
 ## Stages
 
@@ -150,12 +150,13 @@ every commit (`${CLAUDE_PLUGIN_ROOT}/gates/definition-of-done.md` plus
 files, never exit codes or console output.
 
 **A skipped "must" step is a recorded exception.** It is a numbered step in a gate file or
-a stage `SKILL.md` whose condition applied and that the run did not execute, other than
-through a gate bypass that logs itself. Only `{{roles.tech_lead}}` may approve one, or
-`{{roles.sponsor}}` for a Phase 1 or 2 rule; then append a row to `{{exceptions_log}}` in
-`${CLAUDE_PLUGIN_ROOT}/gates/exceptions.md`'s format, `Expiry` 90 days after the run
-date, and commit it alone as `<TICKET> - Record rule-book exception` before continuing.
-With `{{exceptions_log}}` set to `none`, stop instead of skipping the step.
+a stage `SKILL.md` whose condition applied and that the run did not execute, a gate bypass
+included. Only `{{roles.tech_lead}}` may approve one, or `{{roles.sponsor}}` for a rule-book
+Phase 1 or 2 (planning, requirements) rule. Append a row to `{{exceptions_log}}` in
+`${CLAUDE_PLUGIN_ROOT}/gates/exceptions.md`'s format, `Expiry` 90 days after the run date,
+and commit it alone as `<TICKET> - Record rule-book exception` right after the gated commit
+or push, before anything else, so it never voids the gate it records; push it before the
+run ends. With `{{exceptions_log}}` set to `none`, stop instead of skipping the step.
 
 **Jira transitions are real steps.** In Progress before the first line of code, In Review
 after the PR opens. Look up the issue's available transitions via the Atlassian MCP first —
