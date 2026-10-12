@@ -37,7 +37,8 @@ expired. Say in one line when `{{exceptions_log}}` is `none`, a placeholder, or 
 
 | State                                            | Action                                            |
 | ------------------------------------------------ | ------------------------------------------------- |
-| Absent, or its `branch` is not checked out       | Fresh run — go to stage 1                         |
+| Absent, or another branch's with no `pr`         | Fresh run — go to stage 1                         |
+| Another branch's, with a `pr` recorded           | **Stop and ask:** resume, or abandon per ci-green |
 | Present, unfinished, tickets match or none given | **Resume path** below                             |
 | Present, but $ARGUMENTS names different tickets  | **Stop and ask.** Never start over the top of it. |
 
@@ -84,12 +85,12 @@ The marker may be stale by one step, since a crash lands between writes. `git st
    pattern across the codebase.
 
 4. **`ship-pr`** — substitute $ARGUMENTS for the ticket IDs. Pre-push gate, clean tree,
-   push, PR, Jira to In Review.
+   push, PR, reviewer request, Jira to In Review.
 
 5. **`ci-green`** — the PR opened in stage 4. Monitor CI and PR feedback; root-cause every
-   failure in an isolated subagent; loop until fully green with no unaddressed comments.
-   Then, and only then, delete the run's scratch files — the state file and the plan — so
-   Step 0 cannot resume a run that already shipped.
+   failure in an isolated subagent; loop until green, comments addressed, and an approving
+   review in hand or its R2 exception recorded. Then, and only then, delete the scratch
+   files — the state file and the plan — so Step 0 cannot resume a run that shipped.
 
 Stages 2 through 5 run without further approval gates. Surface real decisions as they
 arise; do not ask permission to continue.

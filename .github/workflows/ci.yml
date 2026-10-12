@@ -37,7 +37,7 @@ jobs:
         run: bash scripts/ci/hooks-relocatable.sh
 
   ticket-lint:
-    name: Ticket linter self-test
+    name: Skill script self-tests
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -46,6 +46,11 @@ jobs:
       # firing fails here instead of passing every draft it was meant to stop.
       - name: Linter fixtures produce their declared counts
         run: python3 skills/write-tickets/scripts/lint_draft.py --self-test
+
+      # One case per way an approval could count when it should not, and per reviewer-set
+      # edge; ship-pr and ci-green call this script rather than re-deriving the rules.
+      - name: Review gate self-test
+        run: python3 skills/ci-green/scripts/review_gate.py --self-test
 
   manifest:
     name: Plugin manifest

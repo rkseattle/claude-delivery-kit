@@ -66,6 +66,9 @@ whether each is a live defect or benign in its context and why.
 
 ## Standing rules
 
+- Apply every check in `${CLAUDE_PLUGIN_ROOT}/gates/rule-book-review.md` to the fix's own
+  diff. Each hit goes under Required changes, every site named: a fix that swallows an
+  exception or trusts unvalidated input reintroduces the defect class it should close.
 - A failure is never dismissed as a known flake, pre-existing, or unrelated. If the fix's
   defense rests on the test having failed before, that defense is rejected.
 - A rerun that passes is not evidence of a fix.

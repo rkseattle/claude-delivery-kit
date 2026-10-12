@@ -1,6 +1,6 @@
 ---
 name: ship-pr
-description: Run the full pre-push gate, resolve any out-of-band verification the diff needs, push the branch, open the PR, and transition the covered Jira tickets to In Review.
+description: Run the full pre-push gate, resolve any out-of-band verification the diff needs, push the branch, open the PR, request its reviewers, and transition the covered Jira tickets to In Review.
 argument-hint: <TICKET-N> [TICKET-N ...]
 disable-model-invocation: true
 allowed-tools: Read, Grep, Glob, Bash
@@ -12,7 +12,9 @@ Run only after `/branch-review` has returned APPROVE.
 
 Set `"stage": "ship-pr"` in `.claude/state/current-plan.json` now, and update `stage_step`
 on entering each step below. `/deliver`'s Step 0 resumes from those — and Step 4's push is
-the point where a resumed run must know whether the PR already exists.
+the point where a resumed run must know whether the PR already exists. **A `"pr"` already
+in that file means an earlier run opened the PR:** resume at `stage_step`, skipping Steps
+1–3, the push, and `gh pr create`.
 
 Read `${CLAUDE_PROJECT_DIR}/.claude/project.json` for this project's push procedure and
 verification tiers.
@@ -101,16 +103,15 @@ does not govern it. Confirm HEAD is unchanged, then start it again.
 a while, and let it. The bypass exists for the documented post-failure case in
 `{{mechanics_gate_pre_push}}`, not for a run you would rather not sit through.
 
+Before creating it, check whether the branch already has an open one —
+`gh pr view <branch> --json number,state` — since a run can die between `gh pr create` and
+the state write below. An `OPEN` PR is recorded and used, never opened twice; a closed or
+merged one is not reused. A "no pull requests found" message, matched case-insensitively,
+means create one; any other failure of that call stops the stage, declared per `deliver`'s invariants.
+
 ```bash
 gh pr create --title "<ALL ticket IDs> — <summary>" --body "<body>"
 ```
-
-Once the PR exists, record it in `.claude/state/current-plan.json` — `"pr"` set to its
-number, `"stage": "ci-green"` — and **leave the state file in place.** The work is not
-finished until CI is green, and `/deliver`'s Step 0 resumes stage 5 from these fields: a run
-interrupted between the push and a green build must know the PR already exists, or it
-re-enters this stage and pushes again. `/ci-green` deletes the file when the run genuinely
-ends.
 
 Title lists every covered ticket ID in full — never abbreviated, never partial.
 
@@ -131,6 +132,33 @@ Body:
   it is not where a deferral gets decided, and "listed in the PR" is not a substitute for
   fixing.
 
+Once the PR exists, record `"pr"` set to its number in `.claude/state/current-plan.json`,
+and **leave the state file in place.** The work is not finished until CI is green, and
+`/deliver`'s Step 0 resumes from these fields: a run interrupted after the PR opened must
+know it already exists, or it re-enters this stage and pushes again. `/ci-green` deletes
+the file when the run genuinely ends.
+
+Then set `stage_step` to `4 — reviewer request` and request the human review rule book R2
+requires. **The reviewer set** is `{{reviewers}}` with the PR author's login removed:
+GitHub rejects a request for the author's own review, and a one-person repo has no one else
+to ask. `review_gate.py` resolves it — trimming entries, matching the author
+case-insensitively — and prints `none` for `none`, a missing key, a placeholder, or a set
+left empty once the author is removed:
+
+```bash
+gate=${CLAUDE_PLUGIN_ROOT}/skills/ci-green/scripts/review_gate.py
+python3 "$gate" reviewer-set --reviewers='{{reviewers}}'      # anyone named at all?
+gh pr view <pr> --json author --jq .author.login
+python3 "$gate" reviewer-set --reviewers='{{reviewers}}' --author <login>
+gh pr edit <pr> --add-reviewer <the set it printed>
+```
+
+Look up the author only when the first call names someone. With the reviewer set `none`,
+request nothing and say so in one line — the same line that announces an absent
+`reviewers` key, not a second one. A failed call — any command above, an unknown login,
+a team without access — is reported and stops the stage, declared per `deliver`'s
+invariants: a PR waiting on a review nobody was asked for never gets one.
+
 ## Step 5 — Jira
 
 Transition every covered ticket to **In Review**. Look up the issue's available transitions
@@ -138,8 +166,8 @@ via the Atlassian MCP first and use the ID it returns — never guess one.
 
 ## Step 6 — Hand off
 
-Report the PR URL and the ticket transitions, then the stage status in the same shape every
-phase used:
+Report the PR URL, the reviewers requested (or that none were), and the ticket transitions,
+then the stage status in the same shape every phase used:
 
 - **Stage table** — which `deliver` stages are complete and which remain, with the
   wall-clock each took.

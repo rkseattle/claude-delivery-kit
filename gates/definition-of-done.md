@@ -130,9 +130,12 @@ The project's domain list is in `{{mechanics_gate_dod}}`.
 `git stash` and `stash pop` on a staged tree** — pop restores the working tree, not the
 index, and the commit that follows is missing whatever was staged.
 
-Read the diff and ask: does any block of logic appear more than once — within a file,
-across files in this diff, or once here and once already in the repo? If yes, extract the
-helper first, then stage.
+Read the diff against the repo, counting the two together, and fix every hit of the checks
+in `${CLAUDE_PLUGIN_ROOT}/gates/rule-book-review.md` before staging: call an existing helper
+rather than re-implement it, keep one definition of each business rule, constant, and
+schema, extract a shared helper for a block of logic with no helper at its third
+occurrence (two is not a finding), and leave no swallowed exception, unvalidated input, or
+reach into another module's internals.
 
 Then read every comment the diff adds or changes. Cut any that restates the code, runs past
 `CLAUDE.md`'s budget, or narrates a review round rather than describing the code — the
