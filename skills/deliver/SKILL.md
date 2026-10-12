@@ -38,7 +38,7 @@ expired. Say in one line when `{{exceptions_log}}` is `none`, a placeholder, or 
 | State                                            | Action                                            |
 | ------------------------------------------------ | ------------------------------------------------- |
 | Absent, or another branch's with no `pr`         | Fresh run — go to stage 1                         |
-| Another branch's, with a `pr` recorded           | **Stop and ask.** A shipped run awaits review.    |
+| Another branch's, with a `pr` recorded           | **Stop and ask:** resume that PR's run, or end it |
 | Present, unfinished, tickets match or none given | **Resume path** below                             |
 | Present, but $ARGUMENTS names different tickets  | **Stop and ask.** Never start over the top of it. |
 

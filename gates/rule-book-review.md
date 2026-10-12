@@ -1,8 +1,8 @@
 # Rule-book review checks — one definition for every author and reviewer
 
-Rule book R3, R4, R5 and R8 as checks on a change, stated here once; every file that
-applies them points here rather than restating them. A reviewer reports each hit as at
-least MAJOR, naming every site.
+Rule book R3, R4, R5 and R8 as checks on a change, defined here once. The files that apply
+them name each check, but this is the definition they defer to. A reviewer reports each hit
+as at least MAJOR, naming every site.
 
 Checks 1–3 count the change and the repo together: a duplicate is no less real because its
 other half was already committed. Checks 4–6 apply to the code the change adds or alters.

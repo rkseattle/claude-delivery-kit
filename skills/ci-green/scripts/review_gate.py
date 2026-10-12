@@ -20,9 +20,12 @@ import subprocess
 import sys
 
 PLACEHOLDER = re.compile(r"^<.*>$")
+# COLLABORATOR includes read-only collaborators, whom a required-review rule would not count;
+# branch protection, not this script, is what blocks a merge.
 COUNTED_ASSOCIATIONS = {"OWNER", "MEMBER", "COLLABORATOR"}
-# COMMENTED and PENDING never change a reviewer's standing; these three do.
-DECISIVE_STATES = {"APPROVED", "CHANGES_REQUESTED", "DISMISSED"}
+# COMMENTED and PENDING never change a reviewer's standing. GitHub marks a dismissed review
+# DISMISSED in place, and a dismissed review no longer counts at all.
+DECISIVE_STATES = {"APPROVED", "CHANGES_REQUESTED"}
 
 
 def reviewer_set(reviewers, author=None):
@@ -67,7 +70,9 @@ def parse_reviews(text):
 def approval(reviews, head, author):
     """GitHub's review decision for the head commit, counting only the repo's own people."""
     standing = {}
-    for review in reviews:
+    # Review ids rise with submission, so ordering by id makes "latest wins" hold whatever
+    # order the pages arrive in; a review without an id keeps its place.
+    for review in sorted(reviews, key=lambda r: r.get("id") or 0):
         user = review.get("user") or {}
         login = user.get("login") or ""
         if (user.get("type") != "User"
@@ -105,8 +110,12 @@ APPROVAL_CASES = [
      [review("ana", "APPROVED"), review("ben", "CHANGES_REQUESTED", "old")], "blocked ben"),
     ("a comment after an approval", [review("ana", "APPROVED"), review("ana", "COMMENTED")],
      "approved ana"),
-    ("a dismissed approval", [review("ana", "APPROVED"), review("ana", "DISMISSED")],
-     "outstanding"),
+    ("a dismissed approval", [review("ana", "DISMISSED")], "outstanding"),
+    ("an approval standing after a dismissed changes request",
+     [review("ana", "APPROVED"), review("ana", "DISMISSED")], "approved ana"),
+    ("reviews out of id order",
+     [dict(review("ana", "APPROVED"), id=2), dict(review("ana", "CHANGES_REQUESTED"), id=1)],
+     "approved ana"),
     ("an approval after a changes request",
      [review("ana", "CHANGES_REQUESTED", "old"), review("ana", "APPROVED")], "approved ana"),
     ("no reviews at all", [], "outstanding"),
@@ -116,8 +125,7 @@ APPROVAL_CASES = [
      [review("ana", "APPROVED"), review("eve", "CHANGES_REQUESTED", association="NONE")],
      "approved ana"),
     ("a dismissed changes request",
-     [review("ben", "CHANGES_REQUESTED"), review("ben", "DISMISSED"), review("ana", "APPROVED")],
-     "approved ana"),
+     [review("ben", "DISMISSED"), review("ana", "APPROVED")], "approved ana"),
     ("a comment after a changes request",
      [review("ana", "APPROVED"), review("ben", "CHANGES_REQUESTED"), review("ben", "COMMENTED")],
      "blocked ben"),
