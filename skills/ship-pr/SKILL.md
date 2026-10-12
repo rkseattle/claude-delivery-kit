@@ -1,6 +1,6 @@
 ---
 name: ship-pr
-description: Run the full pre-push gate, resolve any out-of-band verification the diff needs, push the branch, open the PR, and transition the covered Jira tickets to In Review.
+description: Run the full pre-push gate, resolve any out-of-band verification the diff needs, push the branch, open the PR, request its reviewers, and transition the covered Jira tickets to In Review.
 argument-hint: <TICKET-N> [TICKET-N ...]
 disable-model-invocation: true
 allowed-tools: Read, Grep, Glob, Bash
@@ -103,6 +103,10 @@ does not govern it. Confirm HEAD is unchanged, then start it again.
 a while, and let it. The bypass exists for the documented post-failure case in
 `{{mechanics_gate_pre_push}}`, not for a run you would rather not sit through.
 
+Before creating it, check whether the branch already has one —
+`gh pr view <branch> --json number` — since a run can die between `gh pr create` and the
+state write below. An existing PR is recorded and used, never opened twice.
+
 ```bash
 gh pr create --title "<ALL ticket IDs> — <summary>" --body "<body>"
 ```
@@ -157,7 +161,8 @@ via the Atlassian MCP first and use the ID it returns — never guess one.
 
 ## Step 6 — Hand off
 
-Report the PR URL and the ticket transitions, then the stage status in the same shape every
+Report the PR URL, the reviewers requested (or that none were), and the ticket transitions,
+then the stage status in the same shape every
 phase used:
 
 - **Stage table** — which `deliver` stages are complete and which remain, with the

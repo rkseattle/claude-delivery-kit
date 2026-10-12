@@ -144,7 +144,8 @@ author, and `ci-green` does not finish until someone other than the author appro
 PR's latest commit. Default `none`: no reviewer is requested, and `ci-green` instead records
 an R2 exception in `exceptions_log`, pausing once for the tech lead to approve it, unless an
 unexpired R2 row already covers the run. With `exceptions_log` also `none`, it stops and
-asks.
+asks. The wait only keeps the run open; what stops an unreviewed merge is a branch
+protection rule or ruleset requiring an approval of the latest push.
 
 The values in the block above are illustrations, not defaults. Some of its keys are
 required and have no default; one that is missing, empty, `none`, or a `<placeholder>`

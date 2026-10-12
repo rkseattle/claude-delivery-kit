@@ -31,7 +31,9 @@ They apply to every commit in this skill and do not need re-reading between phas
 
 Then write the phase list to `.claude/state/current-plan.json`, which is what the `Stop`
 hook reads to tell an unfinished plan from a finished one, and what the branch guard reads
-to put HEAD back on this branch whenever a command moves it off.
+to put HEAD back on this branch whenever a command moves it off. A file already there for
+another branch with a `pr` recorded is a shipped run awaiting review: stop and ask rather
+than overwrite it.
 
 ```json
 {
