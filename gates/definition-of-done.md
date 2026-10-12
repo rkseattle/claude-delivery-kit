@@ -29,7 +29,7 @@ to run. Read both.
 
    ```bash
    secrets_sarif=$(mktemp); echo "$secrets_sarif"
-   git diff --cached -U0 --no-color --no-ext-diff \
+   git diff --cached -U0 --no-color --no-ext-diff --no-textconv \
      | sed -e '/^-/d' -e 's/^\(@@ [^@]* @@\).*/\1/' \
      | {{secret_scan_command}} > "$secrets_sarif"
    ```
@@ -38,6 +38,8 @@ to run. Read both.
    line git copies into a hunk header — is code this commit did not write. The bar is zero
    results across every `runs[].results`. A committed secret stays in history after the
    line is deleted, so this is the last point where catching one costs nothing but an edit.
+   The report must not carry the secret itself — run the scanner in its redacting mode —
+   and is deleted once its verdict is read.
 8. **Static analysis, new findings only**, on exactly the staged tree and on the base this
    branch was cut from. `<parent>` is `{{parent_branch_default}}` unless the branch was cut
    from another, as in the pre-push gate's rebase step:
@@ -52,9 +54,11 @@ to run. Read both.
    (cd "$base" && {{sast_command}}) > "$base_sarif"
    ```
 
-   The trap removes both trees however the block exits, and `prune` clears a worktree a
-   killed run left registered; `--force` because a scan's untracked output makes plain
-   `remove` refuse. Normalize each result's file —
+   The trap removes both trees however the block exits short of `SIGKILL`; after one, remove
+   the leftover `$TMPDIR` entries `git worktree list` shows with `git worktree remove
+   --force`. `--force` because a scan's untracked output makes plain `remove` refuse. Before
+   the repo's first commit, or with no `origin/<parent>`, there is no base: say so in one
+   line and count every High or Critical finding as new. Normalize each result's file —
    `locations[0].physicalLocation.artifactLocation.uri`, resolved through its `uriBaseId`
    — to a path relative to its run's root, both sides resolved with `pwd -P`. Its rule is
    `ruleId`, else `rule.id`, else the `ruleIndex` entry of the rules in `tool.driver` or the

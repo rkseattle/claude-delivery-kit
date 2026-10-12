@@ -57,7 +57,12 @@ In order, all green, before every `git push`:
 6. **Secret scan of every commit being pushed** — the Definition of Done's secret-scan step,
    its added-lines filter included, fed every commit's message and patch in place of the
    staged diff:
-   `git log -p -U0 --no-color --no-ext-diff --diff-merges=first-parent --format='%w(0,4,4)%B' origin/<parent>..HEAD`.
+
+   ```bash
+   git log -p -U0 --no-color --no-ext-diff --no-textconv --diff-merges=first-parent \
+     --format='%w(0,4,4)%B' origin/<parent>..HEAD
+   ```
+
    The indent keeps a message line starting with `-` from being filtered as a removal. Not
    the branch's net diff: a secret added in one commit and deleted in a later one is still
    pushed.
@@ -85,23 +90,24 @@ In order, all green, before every `git push`:
    echo "clean build exited $build_status"
    ```
 
-   The subshell's trap removes the worktree however the build ends, killed included, and
+   The subshell's trap removes the worktree however the build ends short of `SIGKILL`, and
    keeps its `cd` and trap out of the caller's shell; the step fails on a non-zero
    `build_status`. With `{{clean_build_command}}` set to `none`, the build is skipped and
    named in the one-line announcement `gates/project-config.md` defines.
 
 10. **The verification tier the diff needs**, per `{{verification_step_file}}`. Where a push
-   hook runs an expensive suite, this is where it happens; where the tier is one no
-   automation can reach, this is where the charter is handed over. Answer it explicitly —
-   do not skip past it because everything else is green.
+    hook runs an expensive suite, this is where it happens; where the tier is one no
+    automation can reach, this is where the charter is handed over. Answer it explicitly —
+    do not skip past it because everything else is green.
 
-   **Detach the push** when the gate runs inside it. A foreground call cannot outlive its
-   tool timeout and a session-scoped background task dies with the session; both kill the
-   run mid-suite and leave no result file.
+    **Detach the push** when the gate runs inside it. A foreground call cannot outlive its
+    tool timeout and a session-scoped background task dies with the session; both kill the
+    run mid-suite and leave no result file.
 
-11. **`git status`** — scan for tracked files with local modifications that are **not** part
-   of the intended commit set. Restore stray artifacts and generated outputs. When unsure
-   whether a change was intentional, ask — never silently include or silently drop it.
+11. **`git status`** — scan for tracked files with local modifications that are **not**
+    part of the intended commit set. Restore stray artifacts and generated outputs. When
+    unsure whether a change was intentional, ask — never silently include or silently drop
+    it.
 
 Lint and typecheck are separate gates from tests: a branch that fails either fails CI even
 when every test passes locally.

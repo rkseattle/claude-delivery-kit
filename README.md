@@ -153,8 +153,8 @@ protection rule or ruleset requiring an approval of the latest push.
 
 `secret_scan_command` and `sast_command` serve rule book R12 and Appendix B1's scans. Each
 writes SARIF 2.1.0 to standard output. The secret scanner reads added lines as a
-patch on standard input — `gitleaks stdin --report-format sarif --report-path /dev/stdout`
-is one that does; a scanner that only reads files is wrapped to read `/dev/stdin`. The
+patch on standard input —
+`gitleaks stdin --redact --report-format sarif --report-path /dev/stdout` is one that does; a scanner that only reads files is wrapped to read `/dev/stdin`. The
 static analyzer runs from a tree's root. The bars each is held to are in
 `gates/definition-of-done.md`; the pre-push checklist runs both again, feeding the secret
 scanner each commit's message with its patch.
