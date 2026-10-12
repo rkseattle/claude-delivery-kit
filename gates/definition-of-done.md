@@ -66,6 +66,8 @@ to run. Read both.
    a count above the base's blocks the commit. Debt already on the base does
    not: it would fail every commit for reasons unrelated to the diff.
 
+Run each block in a fresh shell: a later `trap ... EXIT` in the same shell — the block run
+twice, or pre-push's variant after it — replaces this one and leaves a worktree behind.
 Each `*_sarif` is a fresh `mktemp` path outside both trees. A report that is missing, empty,
 not SARIF 2.1.0, or without `runs[]` is a failed scan, never zero findings. A scan whose key
 is `none` is skipped and named in the one-line announcement `gates/project-config.md`
@@ -119,7 +121,7 @@ a gap or a decision you must be able to state.
 | --- | --- | --- |
 | A pattern a hook should enforce | The hook **and** its self-test | A hook that does not know about a new pattern reports success. Self-tests assert finding _counts_, not exit status |
 | Anything about what CI runs | The workflow **and** the job list in the pre-push gate | The gate that tells you what to run locally goes stale, so a CI job stops having a local equivalent |
-| A new dependency | Check its license and transitive tree, run the audit, and re-resolve from scratch if you added an override | An incremental install silently ignores overrides for transitive dependencies |
+| A new or upgraded dependency | Pin its exact version in the ecosystem's exact form: `1.2.3` in npm, `==1.2.3` in pip, `=1.2.3` in Cargo, a commit SHA for a git dependency. No range operator, partial version, branch, or tag. Commit the lockfile change in the same commit. An ecosystem without a lockfile commits a fully resolved pin file instead, such as `pip-compile` output, since an exact direct pin leaves its own dependencies floating. Check its license and transitive tree, run the audit, and re-resolve from scratch if you added an override | A range resolves to whatever is newest at install time, so two checkouts of one commit build different code; an incremental install silently ignores overrides for transitive dependencies |
 | Behavior a user can see | The user-facing docs | Nothing verifies documentation; drift is only ever found by a reader |
 | A test reading a file outside its own scope | Make an existing CI filter cover both sides | A guard pinning the other side never runs on the edit it exists to catch |
 

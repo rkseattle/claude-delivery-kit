@@ -74,7 +74,23 @@ In order, all green, before every `git push`:
 8. **A production-configuration build**, where the project has one distinct from its test
    build. Optimization and stripped debug-only paths mean a production-only break is
    invisible until this point.
-9. **The verification tier the diff needs**, per `{{verification_step_file}}`. Where a push
+9. **A clean-checkout build** — `{{clean_build_command}}` in a fresh checkout of HEAD, so an
+   ignored or untracked local file cannot make the build pass:
+
+   ```bash
+   clean=$(mktemp -d -u); repo=$PWD; git worktree prune
+   git worktree add --detach "$clean" HEAD
+   ( trap 'cd "$repo" && git worktree remove --force "$clean"' EXIT
+     cd "$clean" && {{clean_build_command}} ); build_status=$?
+   echo "clean build exited $build_status"
+   ```
+
+   The subshell's trap removes the worktree however the build ends, killed included, and
+   keeps its `cd` and trap out of the caller's shell; the step fails on a non-zero
+   `build_status`. With `{{clean_build_command}}` set to `none`, the build is skipped and
+   named in the one-line announcement `gates/project-config.md` defines.
+
+10. **The verification tier the diff needs**, per `{{verification_step_file}}`. Where a push
    hook runs an expensive suite, this is where it happens; where the tier is one no
    automation can reach, this is where the charter is handed over. Answer it explicitly —
    do not skip past it because everything else is green.
@@ -83,14 +99,14 @@ In order, all green, before every `git push`:
    tool timeout and a session-scoped background task dies with the session; both kill the
    run mid-suite and leave no result file.
 
-10. **`git status`** — scan for tracked files with local modifications that are **not** part
+11. **`git status`** — scan for tracked files with local modifications that are **not** part
    of the intended commit set. Restore stray artifacts and generated outputs. When unsure
    whether a change was intentional, ask — never silently include or silently drop it.
 
 Lint and typecheck are separate gates from tests: a branch that fails either fails CI even
 when every test passes locally.
 
-Steps 2–10 all describe the post-rebase tree. If anything sends you back to step 1 — a late
+Steps 2–11 all describe the post-rebase tree. If anything sends you back to step 1 — a late
 conflict, a parent that moved while the suite was running — the steps after it are stale and
 run again.
 

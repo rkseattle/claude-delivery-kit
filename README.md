@@ -115,6 +115,7 @@ The stage skills carry the procedure; the commands, paths and thresholds come fr
   "release_build_command": "<production-config build, or none>",
   "secret_scan_command": "<secret scanner: patch on stdin, SARIF on stdout, or none>",
   "sast_command": "<static analyzer writing SARIF 2.1.0 to stdout, or none>",
+  "clean_build_command": "<build from a fresh checkout, dependencies included, or none>",
   "unit_test_scope": "<the whole target, or the changed workspaces — and why>",
   "post_fix_verification_scope": "<what a fix commit must re-run before the gate passes>",
   "results_file": "<path the local gate writes its verdict to>",
@@ -156,6 +157,13 @@ is one that does; a scanner that only reads files is wrapped to read `/dev/stdin
 static analyzer runs from a tree's root. The bars each is held to are in
 `gates/definition-of-done.md`; the pre-push checklist runs both again, feeding the secret
 scanner each commit's message with its patch.
+
+`clean_build_command` serves rule book R10: the one documented command that builds the
+project from a clean checkout. It installs in the ecosystem's locked mode — `npm ci`,
+`cargo build --locked`, `uv sync --locked` — so a lockfile that disagrees with its manifest
+fails the build rather than being rewritten. The pre-push checklist runs it in a fresh
+`git worktree` of HEAD, which holds no submodules, so a project with them initializes them
+in this command. Default `none`, announced as skipped.
 
 The values in the block above are illustrations, not defaults. Some of its keys are
 required and have no default; one that is missing, empty, `none`, or a `<placeholder>`
