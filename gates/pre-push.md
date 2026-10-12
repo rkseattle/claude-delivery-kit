@@ -89,6 +89,9 @@ has its own escape hatch, use it: it logs the use with a timestamp and the branc
 `--no-verify` reaches the same end silently and leaves nothing to audit. Use `--no-verify`
 only when the gate itself is broken in a way its own switch cannot route around.
 
+Under `deliver`, either bypass is also a recorded exception: a row in the project's register,
+committed right after the push it let through, per `deliver`'s skipped-step invariant.
+
 If the reason is "I already ran it by hand", all of these must hold:
 
 1. **Every part of the suite ran**, not one half of a partitioned run.

@@ -41,6 +41,8 @@ in full. It takes under a minute, so there is no subset worth trusting instead.
 ## Failure shapes
 
 - `OVER CAP <file>` — a line budget breach; the change names what comes out.
+- `UNPARSEABLE cap table` — `skills/deliver/references/invariants.md` is missing, or its cap
+  table lost a row, repeated one, or holds a cap that is not a whole number; fix the table.
 - `BROKEN: <path>` — a malformed JSON file or a `${CLAUDE_PLUGIN_ROOT}` reference to a
   missing file.
 - `FAIL <check>: <case>` from `self-test.sh` — a check stopped catching its defect; fix the

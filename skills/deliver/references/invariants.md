@@ -9,7 +9,6 @@ one, not on every run.
 - Adversarial reviews stay blind
 - Revert, not iterate
 - Industry-standard patterns only, and the standard is named
-- Root cause, then pattern spread
 - Enforcement machinery is planned before it is written
 - Fixing is the default; deferring needs permission
 - Never create a Jira work item without asking
@@ -23,13 +22,7 @@ one, not on every run.
 
 ## Adversarial reviews stay blind
 
-Every delegation to `design-adversary`, `commit-adversary`, `greptile-reviewer`,
-`ci-failure-adversary`, or `ticket-adversary` carries only refs — a file path, a git
-range, a branch name, ticket IDs, failure evidence. Never your reasoning, never a summary
-of what you changed, never a hint about where the risk is.
-
-Their entire value is having no implementation context; anything you add spends it. Cap
-every review loop at three rounds, then escalate the disagreement to Rob.
+An adversary's value is having no implementation context; anything you add spends it.
 
 ## Revert, not iterate
 
@@ -58,12 +51,6 @@ it. If nothing external fits, that is the finding to bring to Rob.
 
 Every stage appends what it cited to `citations[]` and prints nothing; `ci-green` reports
 the whole list once, before it deletes that file. Justify every departure in writing.
-
-## Root cause, then pattern spread
-
-Every fix — plan finding, review finding, test failure, CI failure, PR comment — gets
-root-caused, and the codebase gets grepped for other instances of that same cause. Fix
-all live instances in the same pass.
 
 ## Enforcement machinery is planned before it is written
 
@@ -134,11 +121,6 @@ no permission.
 
 ## Report full status at every boundary
 
-Finishing a phase or a stage is never just a line saying it is done.
-`${CLAUDE_PLUGIN_ROOT}/gates/status-report.md` defines the format; stages 3 through 5
-report the same things scaled to what they do — a stage that fixes review findings still
-says which files it touched, how long it ran, and which ACs it moved.
-
 A boundary crossed without a status report is the single most common way a run becomes
 unreviewable: the information exists only while the phase is fresh, and reconstructing it
 afterward from `git log` loses the timing and the friction entirely.
@@ -164,7 +146,8 @@ in one direction unless something holds it. Each file has a cap:
 | File                               | Cap |
 | ---------------------------------- | --- |
 | `CLAUDE.md`                        | 400 |
-| Any gate (`status-report.md`: 140) | 300 |
+| Any gate                           | 300 |
+| `status-report.md`                 | 140 |
 | Any skill `SKILL.md` + references  | 480 |
 | Any agent definition               | 140 |
 
@@ -177,8 +160,8 @@ The skill cap is 480 rather than 320 because splitting a skill into references r
 dense prose into more lines than it replaced — `deliver` went from 321 lines to 208 of
 body plus 252 of reference. The per-invocation load fell 44%, which is what the budget
 exists to control, while the raw total rose. A cap that punished that split would be
-measuring the wrong quantity. The agent and gate caps moved 130 → 140 for the citations
-work, which named no displacement when it landed.
+measuring the wrong quantity. The agent and `status-report.md` caps moved 130 → 140 for
+the citations work, which named no displacement when it landed.
 
 A project may tighten a cap in `project.json`; it may not raise one without Rob.
 

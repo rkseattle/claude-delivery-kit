@@ -32,6 +32,13 @@ expect() {  # expect <pass|fail> <description> <check> [root] — root defaults 
   report "$1" "$got" "$3" "$2"
 }
 
+expect_saying() {  # expect_saying <description> <check> <text> [root] — exit 1, and <text> in the output
+  local out got rc=0
+  out=$(bash "$here/$2" "${4:-$tmp/repo}" 2>&1) || rc=$?
+  if [ "$rc" = 1 ] && grep -qF -- "$3" <<< "$out"; then got=fail; else got="exit $rc without '$3'"; fi
+  report fail "$got" "$2" "$1"
+}
+
 # Every check script gets a clean-copy case, so a new check cannot be added without one.
 for path in "$here"/*.sh; do
   check="$(basename "$path")"
@@ -81,6 +88,23 @@ fresh_copy; yes x | head -n 141 >> "$tmp/repo/gates/status-report.md"
 expect fail "status-report.md past its tighter cap" line-budget.sh
 fresh_copy; yes x | head -n 301 > "$tmp/repo/gates/padding.md"
 expect fail "a gate past its cap" line-budget.sh
+caps=skills/deliver/references/invariants.md
+for row in "Any skill|skills/deliver/SKILL.md" "Any agent|agents/design-adversary.md" \
+           "Any gate|gates/pre-push.md" "status-report.md|gates/status-report.md"; do
+  fresh_copy; sed -i.bak -E "s/^(\\| [\`]?${row%%|*}[^|]*\\| *)[0-9]+/\\1100/" "$tmp/repo/$caps"
+  expect_saying "the ${row%%|*} cap set to 100 in the table" line-budget.sh "OVER CAP $tmp/repo/${row#*|}"
+done
+fresh_copy; sed -i.bak '/^| Any agent/d' "$tmp/repo/$caps"
+expect_saying "a cap table with no Any agent row" line-budget.sh "UNPARSEABLE cap table"
+fresh_copy; sed -i.bak '/^| Any agent/p' "$tmp/repo/$caps"
+expect_saying "a cap table with two Any agent rows" line-budget.sh "UNPARSEABLE cap table"
+fresh_copy; sed -i.bak -E 's/^(\| Any agent[^|]*\| *)[0-9]+/\1x/' "$tmp/repo/$caps"
+expect_saying "a cap table whose Any agent cap is not a number" line-budget.sh "UNPARSEABLE cap table"
+fresh_copy; printf '%s\n' '' '## Elsewhere' '' '| Any agent | 1 |' >> "$tmp/repo/$caps"
+expect pass "an Any agent row outside the line budget section" line-budget.sh
+expect_saying "a root with no skills" line-budget.sh "no skills/*/SKILL.md" "$tmp/empty"
+fresh_copy; rm "$tmp/repo/$caps"
+expect_saying "no cap table file" line-budget.sh "UNPARSEABLE cap table $tmp/repo/$caps: no such file"
 
 mkdir -p "$tmp/norefs/skills" "$tmp/norefs/gates" "$tmp/norefs/agents"
 echo "no references here" > "$tmp/norefs/gates/plain.md"
