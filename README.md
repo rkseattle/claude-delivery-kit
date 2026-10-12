@@ -126,7 +126,8 @@ The stage skills carry the procedure; the commands, paths and thresholds come fr
   "registry_file": ".claude/registries.md",
   "plan_rules_file": ".claude/plan-rules.md",
   "user_docs_targets": "README.md docs/user-guide.md",
-  "extra_gates": [".claude/gates/<project-only gate>.md"]
+  "extra_gates": [".claude/gates/<project-only gate>.md"],
+  "reviewers": "<comma-separated GitHub logins or org/team slugs, or none>"
 }
 ```
 
@@ -135,6 +136,11 @@ line rather than inventing a substitute. `verification_step_file` is the one tha
 most: it is where `ship-pr` learns whether this project's diff needs a push-run suite, a
 session on real hardware, or nothing beyond the checklist — the single biggest divergence
 between the two projects this was extracted from.
+
+`reviewers` serves rule book R2: every change is reviewed by someone other than its author.
+It is a comma-separated list of GitHub logins or `org/team` slugs, the form
+`gh pr edit --add-reviewer` takes. `ship-pr` requests them on the PR, leaving out the PR's
+author. Default `none`: no reviewer is requested.
 
 The values in the block above are illustrations, not defaults. Some of its keys are
 required and have no default; one that is missing, empty, `none`, or a `<placeholder>`
