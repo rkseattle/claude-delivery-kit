@@ -103,9 +103,11 @@ does not govern it. Confirm HEAD is unchanged, then start it again.
 a while, and let it. The bypass exists for the documented post-failure case in
 `{{mechanics_gate_pre_push}}`, not for a run you would rather not sit through.
 
-Before creating it, check whether the branch already has one —
-`gh pr view <branch> --json number` — since a run can die between `gh pr create` and the
-state write below. An existing PR is recorded and used, never opened twice.
+Before creating it, check whether the branch already has an open one —
+`gh pr view <branch> --json number,state` — since a run can die between `gh pr create` and
+the state write below. An `OPEN` PR is recorded and used, never opened twice; a closed or
+merged one is not reused. A "no pull requests found" message, matched case-insensitively,
+means create one; any other failure of that call stops the stage, declared per `deliver`'s invariants.
 
 ```bash
 gh pr create --title "<ALL ticket IDs> — <summary>" --body "<body>"
@@ -145,9 +147,9 @@ left empty once the author is removed:
 
 ```bash
 gate=${CLAUDE_PLUGIN_ROOT}/skills/ci-green/scripts/review_gate.py
-python3 "$gate" reviewer-set --reviewers '{{reviewers}}'      # anyone named at all?
+python3 "$gate" reviewer-set --reviewers='{{reviewers}}'      # anyone named at all?
 gh pr view <pr> --json author --jq .author.login
-python3 "$gate" reviewer-set --reviewers '{{reviewers}}' --author <login>
+python3 "$gate" reviewer-set --reviewers='{{reviewers}}' --author <login>
 gh pr edit <pr> --add-reviewer <the set it printed>
 ```
 
@@ -165,8 +167,7 @@ via the Atlassian MCP first and use the ID it returns — never guess one.
 ## Step 6 — Hand off
 
 Report the PR URL, the reviewers requested (or that none were), and the ticket transitions,
-then the stage status in the same shape every
-phase used:
+then the stage status in the same shape every phase used:
 
 - **Stage table** — which `deliver` stages are complete and which remain, with the
   wall-clock each took.

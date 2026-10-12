@@ -168,40 +168,39 @@ fi
 rm -f "$reviews"
 ```
 
-It reads reviews the way GitHub's review decision does: each reviewer's latest approval,
-changes request, or dismissal stands, and a comment changes nothing — so a later changes
-request from the approver cancels an approval, and a fix pushed after one needs a fresh
-one. Its self-test names every case. Read this list, not `reviewDecision`, which GitHub
-fills only under a required-review rule. `blocked <login>` is feedback to address under
-Step 4. `no verdict: gh failed` — possibly after writing some pages — and the script's
+It reads reviews the way GitHub's review decision does: each reviewer's latest approval or
+changes request stands, a dismissed review no longer counts (GitHub's "Dismissing a pull
+request review"), and a comment changes nothing — so a later changes request from the
+approver cancels an approval, and a fix pushed after one needs a fresh one. Its self-test
+names every case. Read this list, not `reviewDecision`, which GitHub fills only under a
+required-review rule. `blocked <login>` is feedback to address under Step 4.
+`no verdict: gh failed` — possibly after writing some pages — and the script's
 `UNPARSEABLE` (exit 2) are not answers: report it and stop, declared per `deliver`'s
-invariants. Read the head again after an `approved`: if it moved between the two calls,
-the verdict judged a superseded commit, so run both again.
+invariants. Read the head again after an `approved`: if it moved between the two calls, the
+verdict judged a superseded commit, so run both again.
 
 With every check green and every comment addressed, and the verdict `outstanding` — or
 `blocked` with each blocking review answered by a fix commit and a reply — re-request the
-reviewer set with the `gh pr edit <pr> --add-reviewer` call `/ship-pr` Step 4 makes,
-failure handled the same way: GitHub clears a request once it is answered, so after a push
-nobody is asked for the new head, and a reviewer who requested changes is never asked
-again, unless this asks. Then declare the stop per `deliver`'s
-invariants (`"paused": true`), say in one line who was asked and that `/deliver` or
-`/ci-green` resumes once a review lands, and end the turn. Waiting on a person is not a
-monitor's job: no poll, no `sleep`.
+reviewer set plus every login `blocked` named — `review_gate.py reviewer-set` over both,
+with `--author`, dedupes them — with the `gh pr edit <pr> --add-reviewer` call `/ship-pr`
+Step 4 makes, failure handled the same way. GitHub clears a request once it is answered, so after a push nobody is asked for the
+new head, and a reviewer who requested changes is never asked again, unless this asks.
+Then declare the stop per `deliver`'s invariants (`"paused": true`), say in one line who was
+asked and that `/deliver` or `/ci-green` resumes once a review lands, and end the turn.
+Waiting on a person is not a monitor's job: no poll, no `sleep`.
 
 With the reviewer set `none`, skip that wait and say so in one line. The wait is this
 step's to run, so skipping it falls under `deliver`'s skipped-"must"-step invariant, with
-`ci-green Step 5: approving review (rule book R2)` in the register's `Rule` column:
+`ci-green Step 5: approving review (rule book R2)` in the register's `Rule` column. That
+invariant decides who approves the exception and how its row is committed. What this step
+adds:
 
-- `{{exceptions_log}}` also `none`, a placeholder, or no file — there is nowhere to record
-  it: stop before Step 6, declared per `deliver`'s invariants, and ask Rob to set one key or
-  the other.
-- An unexpired row for the same rule — one whose `Rule` names rule book R2 — covers the
-  run: name it, append nothing.
+- `{{exceptions_log}}` also `none`, a placeholder, or no file: stop before Step 6, declared
+  per `deliver`'s invariants, and ask Rob to set one key or the other.
+- An unexpired row whose `Rule` names rule book R2 covers the run: name it, append nothing.
 - Otherwise ask `{{roles.tech_lead}}` to approve the exception, declaring the stop the same
-  way; then append the row, commit it alone, push it per
-  `${CLAUDE_PLUGIN_ROOT}/gates/pre-push.md`, and loop once more until that commit is
-  green — all before Step 6. Declined, the run stays open until `{{reviewers}}` names
-  someone and the wait above runs instead.
+  way; once approved, append the R2 row and push it and see it green before Step 6. A
+  declined exception leaves the run open until `{{reviewers}}` names someone.
 
 Report at the end of each iteration, not only when the loop exits — an iteration is a
 boundary like a phase, and a run that goes quiet for four pushes is one nobody can follow.
@@ -280,6 +279,18 @@ Delete nothing outside `docs/plans/` and `.claude/state/`, and never a tracked f
 
 If the PR is not merged yet, that is fine — the branch and the PR are the record from here
 on. But if anything is still red or unaddressed, or the approval is outstanding, the run
-has not finished and nothing gets deleted. **An outstanding out-of-band verification does
-not block cleanup**: it is Rob's to run, it is recorded in the PR body, and holding the
-state file open for it would strand the branch guard indefinitely.
+has not finished and Step 6 deletes nothing — only Rob's choice to abandon it, below, does.
+**An outstanding out-of-band verification does not block cleanup**: it is Rob's to run, it
+is recorded in the PR body, and holding the state file open for it would strand the branch
+guard indefinitely.
+
+## Abandoning a run
+
+Not Step 6: Step 6 runs only on a finished run. This is what ending a run means whenever
+`deliver`'s Step 0 stops on an unfinished run that has a `pr` recorded — on this branch or
+another, red, unaddressed, or waiting on a review — and Rob chooses to end it.
+Write Step 5's report with both lists, comment on the PR naming what was still outstanding
+— failing checks, open comments, the R2 approval — then delete the same files Step 6 does.
+If the comment cannot be posted, delete nothing: report the failure, since the PR comment
+is the only record left once the state file is gone. The tickets stay In Review: the PR is
+still open, and moving them is Rob's call.

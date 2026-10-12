@@ -60,19 +60,35 @@ def parse_reviews(text):
             raise ValueError("the output is not a JSON array — an error body, most likely")
         pages = value if value and all(isinstance(page, list) for page in value) else [value]
         for page in pages:
-            if not isinstance(page, list) or not all(
-                    isinstance(r, dict) and isinstance(r.get("user"), (dict, type(None)))
-                    for r in page):
+            if not isinstance(page, list) or not all(well_formed(r) for r in page):
                 raise ValueError("a page of reviews is not a JSON array of review objects")
             reviews.extend(page)
+
+
+def well_formed(review):
+    """Every field approval() reads has the type the List reviews endpoint documents."""
+    if not isinstance(review, dict):
+        return False
+    user = review.get("user")
+    if user is not None and not (isinstance(user, dict)
+                                 and isinstance(user.get("login"), str) and user["login"]
+                                 and isinstance(user.get("type"), (str, type(None)))):
+        return False
+    expected = {"id": int, "state": str, "commit_id": str, "submitted_at": str,
+                "author_association": str}
+    return all(review.get(field) is None or isinstance(review.get(field), kind)
+               and not isinstance(review.get(field), bool)
+               for field, kind in expected.items())
 
 
 def approval(reviews, head, author):
     """GitHub's review decision for the head commit, counting only the repo's own people."""
     standing = {}
-    # Review ids rise with submission, so ordering by id makes "latest wins" hold whatever
-    # order the pages arrive in; a review without an id keeps its place.
-    for review in sorted(reviews, key=lambda r: r.get("id") or 0):
+    # submitted_at, then id, orders reviews by submission — compared as strings, which
+    # holds because GitHub writes every timestamp in UTC with a Z suffix — so "latest wins" holds whatever
+    # order the pages arrive in. A review with no submitted_at sorts first; the stable sort
+    # keeps reviews with equal keys in the order given.
+    for review in sorted(reviews, key=lambda r: (r.get("submitted_at") or "", r.get("id") or 0)):
         user = review.get("user") or {}
         login = user.get("login") or ""
         if (user.get("type") != "User"
@@ -113,6 +129,17 @@ APPROVAL_CASES = [
     ("a dismissed approval", [review("ana", "DISMISSED")], "outstanding"),
     ("an approval standing after a dismissed changes request",
      [review("ana", "APPROVED"), review("ana", "DISMISSED")], "approved ana"),
+    ("reviews out of submission order",
+     [dict(review("ana", "APPROVED"), submitted_at="2026-01-02T00:00:00Z"),
+      dict(review("ana", "CHANGES_REQUESTED"), submitted_at="2026-01-01T00:00:00Z")],
+     "approved ana"),
+    ("submission order over id order",
+     [dict(review("ana", "APPROVED"), id=1, submitted_at="2026-01-02T00:00:00Z"),
+      dict(review("ana", "CHANGES_REQUESTED"), id=2, submitted_at="2026-01-01T00:00:00Z")],
+     "approved ana"),
+    ("a review with no submitted_at sorts first",
+     [dict(review("ana", "APPROVED"), submitted_at="2026-01-01T00:00:00Z"),
+      review("ana", "CHANGES_REQUESTED")], "approved ana"),
     ("reviews out of id order",
      [dict(review("ana", "APPROVED"), id=2), dict(review("ana", "CHANGES_REQUESTED"), id=1)],
      "approved ana"),
@@ -159,6 +186,29 @@ CLI_CASES = [
     ("an error body exits 2", ["approval", "--head", "head", "--author", "rob"],
      '{"message": "Not Found"}', "", 2),
     ("a bare scalar exits 2", ["approval", "--head", "head", "--author", "rob"], "5", "", 2),
+    ("a numeric login exits 2", ["approval", "--head", "head", "--author", "rob"],
+     '[{"user": {"login": 5, "type": "User"}, "state": "APPROVED"}]', "", 2),
+    ("a non-string state exits 2", ["approval", "--head", "head", "--author", "rob"],
+     '[{"user": {"login": "ana", "type": "User"}, "state": ["APPROVED"]}]', "", 2),
+    ("a review with no login exits 2", ["approval", "--head", "head", "--author", "rob"],
+     '[{"user": {"type": "User"}, "author_association": "OWNER", "state": "APPROVED",'
+     ' "commit_id": "head"}]', "", 2),
+    ("an empty login exits 2", ["approval", "--head", "head", "--author", "rob"],
+     '[{"user": {"login": "", "type": "User"}, "state": "APPROVED"}]', "", 2),
+    ("a boolean id exits 2", ["approval", "--head", "head", "--author", "rob"],
+     '[{"id": true, "state": "APPROVED"}]', "", 2),
+    ("a numeric commit_id exits 2", ["approval", "--head", "head", "--author", "rob"],
+     '[{"state": "APPROVED", "commit_id": 7}]', "", 2),
+    ("a numeric submitted_at exits 2", ["approval", "--head", "head", "--author", "rob"],
+     '[{"state": "APPROVED", "submitted_at": 7}]', "", 2),
+    ("a numeric author_association exits 2", ["approval", "--head", "head", "--author", "rob"],
+     '[{"state": "APPROVED", "author_association": 7}]', "", 2),
+    ("a numeric user type exits 2", ["approval", "--head", "head", "--author", "rob"],
+     '[{"user": {"login": "ana", "type": 7}, "state": "APPROVED"}]', "", 2),
+    ("mixed id types exit 2", ["approval", "--head", "head", "--author", "rob"],
+     '[{"id": 1, "state": "APPROVED"}, {"id": "2", "state": "APPROVED"}]', "", 2),
+    ("a leading dash in reviewers", ["reviewer-set", "--reviewers=-ana", "--author", "rob"], "",
+     "-ana", 0),
 ]
 
 REVIEWER_SET_CASES = [
