@@ -36,8 +36,8 @@ jobs:
       - name: Self-tests accept the hook path as an argument
         run: bash scripts/ci/hooks-relocatable.sh
 
-  ticket-lint:
-    name: Skill script self-tests
+  script-tests:
+    name: Script self-tests
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -51,6 +51,11 @@ jobs:
       # edge; ship-pr and ci-green call this script rather than re-deriving the rules.
       - name: Review gate self-test
         run: python3 skills/ci-green/scripts/review_gate.py --self-test
+
+      # One case per way a scan finding could pass the commit or push gate when it should
+      # block; both gates call this script rather than reading SARIF by hand.
+      - name: SARIF gate self-test
+        run: python3 gates/scripts/sarif_gate.py --self-test
 
   manifest:
     name: Plugin manifest
@@ -90,7 +95,7 @@ jobs:
   ci-passed:
     name: CI passed
     if: always()
-    needs: [hooks, ticket-lint, manifest]
+    needs: [hooks, script-tests, manifest]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

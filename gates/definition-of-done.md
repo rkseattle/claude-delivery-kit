@@ -3,8 +3,8 @@
 Run in order. All must be green. Read this file before the first commit of a session; it
 does not need re-reading between commits.
 
-The commands are in `{{mechanics_gate_dod}}` — this file is the policy, that file is what
-to run. Read both.
+This file is the policy, plus the kit's own scan commands; `{{mechanics_gate_dod}}` holds
+the project's commands. Read both.
 
 ## The gate
 
@@ -25,6 +25,71 @@ to run. Read both.
    conditional on whether they changed. Advisories land against versions already in the
    lockfile, so "nothing changed" is precisely when drift goes unnoticed until CI is red.
    The bar is zero advisories, with no allowlist, matching the pre-push gate.
+7. **Secret scan of the staged additions.**
+
+   ```bash
+   (
+     gate="${CLAUDE_PLUGIN_ROOT}/gates/scripts/sarif_gate.py"; patch=$(mktemp)
+     secrets_sarif=$(mktemp); trap 'rm -f "$patch" "$secrets_sarif"' EXIT
+     python3 "$gate" patch --staged > "$patch" || exit 2
+     {{secret_scan_command}} < "$patch" > "$secrets_sarif"
+     python3 "$gate" secrets "$secrets_sarif"
+   )
+   ```
+
+   Only added lines go in: a removed line is a secret leaving, and context — including the
+   line git copies into a hunk header — is code this commit did not write. The bar is zero
+   findings, and a patch git failed to produce is a failed scan (exit 2), never an empty
+   one. A committed secret stays in history after the line is deleted, so this is the last
+   point where catching one costs nothing but an edit. The scanner runs redacted, and the
+   script prints each finding's rule and location, never its text.
+8. **Static analysis, new findings only**, on exactly the staged tree and on the base this
+   branch was cut from. `<parent>` is `{{parent_branch_default}}` unless the branch was cut
+   from another, as in the pre-push gate's rebase step:
+
+   ```bash
+   (
+     gate="${CLAUDE_PLUGIN_ROOT}/gates/scripts/sarif_gate.py"
+     staged=$(mktemp -d); base=$(mktemp -d); renames=$(mktemp)
+     staged_sarif=$(mktemp); base_sarif=$(mktemp)
+     trap 'for tree in "$staged" "$base"; do
+             git worktree remove --force "$tree" 2>/dev/null || rm -rf "$tree"; done
+           rm -f "$renames" "$staged_sarif" "$base_sarif"' EXIT
+     git worktree prune; merge_base=$(git merge-base HEAD origin/<parent>) || exit 2
+     python3 "$gate" tree "$staged" --staged || exit 2
+     python3 "$gate" tree "$base" --ref "$merge_base" || exit 2
+     python3 "$gate" renames "$merge_base" --staged > "$renames" || exit 2
+     (cd "$staged" && {{sast_command}}) > "$staged_sarif"
+     (cd "$base" && {{sast_command}}) > "$base_sarif"
+     python3 "$gate" new-findings "$staged_sarif" "$base_sarif" --staged-root "$staged" \
+       --base-root "$base" --renames "$renames"
+   )
+   ```
+
+   Both trees are git worktrees whose index matches their files, so a scanner that selects
+   files through git sees each the same way, and the staged one holds the index's changes —
+   added files tracked, deleted ones gone — and nothing unstaged. A tree git failed to
+   build is a failed scan, never an empty tree scanned clean. The commit is blocked when a
+   High or Critical finding — `security-severity` of at least 7.0, or with none, a `level`
+   of `error` — is new: its fingerprint is absent from the base, or, for a tool that gives
+   none, it is more numerous in its file than on the base. Debt already on the base does
+   not block, since it would fail every commit for reasons unrelated to the diff. The
+   subshell's trap removes both trees however the block exits short of `SIGKILL`, and
+   cannot replace or be replaced by another block's; after one, remove the leftover
+   `$TMPDIR` entries `git worktree list` shows with `git worktree remove --force`. With no `origin/<parent>` there is no base: say so in one
+   line, drop the `merge_base`, base `tree`, renames and base-scan lines, and end with
+   `python3 "$gate" new-findings "$staged_sarif" --no-base --staged-root "$staged"`. Before
+   the repo's first commit `tree --staged` exports the index instead — a plain directory a
+   git-based scanner cannot select from — and there is no base.
+
+The script's printed verdict is each scan's: `clean`, or what blocks. Its exit 2 is an
+unusable report — a failed scan, never zero findings. It counts suppressed results, so a
+suppression cannot clear the finding it was added beside; run each scanner with inline
+suppression comments ignored (`gitleaks --ignore-gitleaks-allow`, `semgrep --disable-nosem`).
+A finding the project accepts, or a change to a scanner's configuration or ignore files, is
+an exception recorded per `${CLAUDE_PLUGIN_ROOT}/gates/exceptions.md`. A scan whose key is
+`none` is skipped and named in the one-line announcement `gates/project-config.md`
+defines; the other still runs.
 
 **Network-dependent tests never gate a commit.** Integration tests that make live calls
 stay opt-in: a commit gate that depends on a third party being up is a gate that fails for
@@ -32,7 +97,7 @@ reasons that have nothing to do with the diff.
 
 ## What this gate does not cover
 
-Every project has behavior its local suite cannot reach. Steps 1–6 say nothing about it,
+Every project has behavior its local suite cannot reach. Steps 1–8 say nothing about it,
 and a green run is not evidence for it. `{{failure_policy_gate}}` names that behavior and
 the gate that covers it. Knowing which claim a green suite supports is the difference
 between "the math is tested" and "the behavior is correct".
@@ -74,8 +139,9 @@ a gap or a decision you must be able to state.
 | --- | --- | --- |
 | A pattern a hook should enforce | The hook **and** its self-test | A hook that does not know about a new pattern reports success. Self-tests assert finding _counts_, not exit status |
 | Anything about what CI runs | The workflow **and** the job list in the pre-push gate | The gate that tells you what to run locally goes stale, so a CI job stops having a local equivalent |
-| A new dependency | Check its license and transitive tree, run the audit, and re-resolve from scratch if you added an override | An incremental install silently ignores overrides for transitive dependencies |
+| A new or upgraded dependency | Commit the lockfile change in the same commit; an ecosystem without a lockfile commits a fully resolved pin file instead, such as `pip-compile` output, since an exact direct pin leaves its own dependencies floating. An application or tool pins its exact version in the ecosystem's exact form — `1.2.3` in npm, `==1.2.3` in pip, `=1.2.3` in Cargo, a commit SHA for a git dependency — with no range operator, partial version, branch, or tag. A published library keeps a compatible range in its manifest, as the Cargo and npm docs advise, since an exact pin there forces conflicts on its consumers; its lockfile and the locked-mode clean build make it reproducible. Check its license and transitive tree, run the audit, and re-resolve from scratch if you added an override | A range resolves to whatever is newest at install time, so two checkouts of one commit build different code; an incremental install silently ignores overrides for transitive dependencies |
 | Behavior a user can see | The user-facing docs | Nothing verifies documentation; drift is only ever found by a reader |
+| A public interface, added or changed | Its definition, in the same commit, where rule-book check 7 places it: under `{{interface_docs}}` for a kind that directory holds; otherwise, and always when it is `none` or absent, the doc comment at its declaration | A stale definition misleads every new caller and fails nothing |
 | A test reading a file outside its own scope | Make an existing CI filter cover both sides | A guard pinning the other side never runs on the edit it exists to catch |
 
 The project's own couplings are in `{{mechanics_gate_dod}}`. Neither table is exhaustive,
@@ -134,8 +200,8 @@ Read the diff against the repo, counting the two together, and fix every hit of 
 in `${CLAUDE_PLUGIN_ROOT}/gates/rule-book-review.md` before staging: call an existing helper
 rather than re-implement it, keep one definition of each business rule, constant, and
 schema, extract a shared helper for a block of logic with no helper at its third
-occurrence (two is not a finding), and leave no swallowed exception, unvalidated input, or
-reach into another module's internals.
+occurrence (two is not a finding), and leave no swallowed exception, unvalidated input,
+reach into another module's internals, or public interface with a stale definition.
 
 Then read every comment the diff adds or changes. Cut any that restates the code, runs past
 `CLAUDE.md`'s budget, or narrates a review round rather than describing the code — the

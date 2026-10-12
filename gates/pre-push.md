@@ -1,7 +1,7 @@
 # Pre-push and pre-PR gate
 
-The commands, job names and thresholds are in `{{mechanics_gate_pre_push}}` — this file is
-the policy, that file is what to run. Read both.
+This file is the policy, plus the kit's own scan and build commands; the project's
+commands, job names and thresholds are in `{{mechanics_gate_pre_push}}`. Read both.
 
 ## Pre-push checklist
 
@@ -54,26 +54,57 @@ In order, all green, before every `git push`:
    whether they changed. Advisories are published against versions you already have: a
    lockfile clean yesterday fails today because the advisory database moved, not because
    anything in the repo did. The bar is zero, with no allowlist.
-6. **A production-configuration build**, where the project has one distinct from its test
+6. **Secret scan of every commit being pushed** — the Definition of Done's secret-scan step,
+   with `python3 "$gate" patch --commits origin/<parent>..HEAD` in place of
+   `patch --staged`: every commit's message and added lines, not the branch's net diff,
+   since a secret added in one commit and deleted in a later one is still pushed.
+7. **Static analysis, new findings only** — the Definition of Done's static-analysis step,
+   with `tree "$staged" --ref HEAD` in place of `tree "$staged" --staged`, so staged
+   changes not yet committed are not scanned as what is pushed, and with
+   `renames "$merge_base" --head` in place of `renames "$merge_base" --staged`.
+
+   Steps 6 and 7 take those Definition of Done steps whole, with the paragraph after them:
+   the same script and verdicts, suppressions counted, and a scan whose key is `none` named
+   in the one line `gates/project-config.md` defines.
+
+8. **A production-configuration build**, where the project has one distinct from its test
    build. Optimization and stripped debug-only paths mean a production-only break is
    invisible until this point.
-7. **The verification tier the diff needs**, per `{{verification_step_file}}`. Where a push
-   hook runs an expensive suite, this is where it happens; where the tier is one no
-   automation can reach, this is where the charter is handed over. Answer it explicitly —
-   do not skip past it because everything else is green.
+9. **A clean-checkout build** — `{{clean_build_command}}` in a fresh checkout of HEAD, so an
+   ignored or untracked local file cannot make the build pass:
 
-   **Detach the push** when the gate runs inside it. A foreground call cannot outlive its
-   tool timeout and a session-scoped background task dies with the session; both kill the
-   run mid-suite and leave no result file.
+   ```bash
+   clean=$(mktemp -d); repo=$PWD; git worktree prune
+   python3 "${CLAUDE_PLUGIN_ROOT}/gates/scripts/sarif_gate.py" tree "$clean" --ref HEAD \
+     && ( trap 'cd "$repo" && git worktree remove --force "$clean"' EXIT
+          cd "$clean" && {{clean_build_command}} ); build_status=$?
+   rmdir "$clean" 2>/dev/null; echo "clean build exited $build_status"
+   ```
 
-8. **`git status`** — scan for tracked files with local modifications that are **not** part
-   of the intended commit set. Restore stray artifacts and generated outputs. When unsure
-   whether a change was intentional, ask — never silently include or silently drop it.
+   The subshell's trap removes the worktree however the build ends short of `SIGKILL`, and
+   keeps its `cd` and trap out of the caller's shell; the step fails on a non-zero
+   `build_status`, which a tree git failed to build also sets rather than building an
+   empty directory; `rmdir` clears the directory such a failure leaves. With `{{clean_build_command}}` set to `none`, the build is skipped and
+   named in the one-line announcement `gates/project-config.md` defines.
+
+10. **The verification tier the diff needs**, per `{{verification_step_file}}`. Where a push
+    hook runs an expensive suite, this is where it happens; where the tier is one no
+    automation can reach, this is where the charter is handed over. Answer it explicitly —
+    do not skip past it because everything else is green.
+
+    **Detach the push** when the gate runs inside it. A foreground call cannot outlive its
+    tool timeout and a session-scoped background task dies with the session; both kill the
+    run mid-suite and leave no result file.
+
+11. **`git status`** — scan for tracked files with local modifications that are **not**
+    part of the intended commit set. Restore stray artifacts and generated outputs. When
+    unsure whether a change was intentional, ask — never silently include or silently drop
+    it.
 
 Lint and typecheck are separate gates from tests: a branch that fails either fails CI even
 when every test passes locally.
 
-Steps 2–8 all describe the post-rebase tree. If anything sends you back to step 1 — a late
+Steps 2–11 all describe the post-rebase tree. If anything sends you back to step 1 — a late
 conflict, a parent that moved while the suite was running — the steps after it are stale and
 run again.
 
@@ -99,8 +130,9 @@ If the reason is "I already ran it by hand", all of these must hold:
 3. **HEAD is unchanged from what that run executed against.** Any commit, amend, or rebase
    afterwards voids the result and the gate restarts from step 1. Confirm it; do not assume.
 4. **The cheap gates still run.** A bypass skips one leg, not the checklist. Lint,
-   typecheck, unit tests and the audit are seconds against a long suite, and the audit in
-   particular fails on advisories published against a lockfile nobody touched.
+   typecheck, unit tests, the audit and the secret scan are seconds against a long suite,
+   and the audit in particular fails on advisories published against a lockfile nobody
+   touched.
 
 **Never bypass to get around a failure, a flake, or a run you would rather not sit
 through.**

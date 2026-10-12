@@ -30,7 +30,9 @@ skills/                write-tickets, deliver, plan-work, implement-phases,
 agents/                ticket-, design-, commit-, ci-failure-, greptile- adversaries
 gates/                 status-report.md, definition-of-done.md, pre-push.md,
                        read-only-agent.md (the universal halves only),
-                       project-config.md, exceptions.md, and rule-book-review.md
+                       project-config.md, exceptions.md, and rule-book-review.md;
+                       scripts/sarif_gate.py builds the scanners' git inputs and reads
+                       their reports into the gates' verdicts
 hooks/                 hooks.json + the two hooks and their self-tests
 scripts/ci/            the CI checks, runnable locally; all.sh runs every one
 reference/             software-engineering-rule-book.md, the source the rules
@@ -113,6 +115,10 @@ The stage skills carry the procedure; the commands, paths and thresholds come fr
   "build_manifest": "<file the build enumerates sources in, or none>",
   "push_command": "git push -u --force-with-lease origin <branch>",
   "release_build_command": "<production-config build, or none>",
+  "secret_scan_command": "<secret scanner: patch on stdin, SARIF on stdout, or none>",
+  "sast_command": "<static analyzer writing SARIF 2.1.0 to stdout, or none>",
+  "clean_build_command": "<build from a fresh checkout, dependencies included, or none>",
+  "interface_docs": "<directory holding interface definitions, e.g. docs/api, or none>",
   "unit_test_scope": "<the whole target, or the changed workspaces — and why>",
   "post_fix_verification_scope": "<what a fix commit must re-run before the gate passes>",
   "results_file": "<path the local gate writes its verdict to>",
@@ -146,6 +152,30 @@ an R2 exception in `exceptions_log`, pausing once for the tech lead to approve i
 unexpired R2 row already covers the run. With `exceptions_log` also `none`, it stops and
 asks. The wait only keeps the run open; what stops an unreviewed merge is a branch
 protection rule or ruleset requiring an approval of the latest push.
+
+`secret_scan_command` and `sast_command` serve rule book R12 and Appendix B1's scans. Each
+writes SARIF 2.1.0 to standard output, redacted, with inline suppression comments ignored;
+`gates/scripts/sarif_gate.py` builds what each scanner reads from git and turns the reports
+into the gates' verdicts. The secret scanner reads added lines as a patch on standard
+input —
+`gitleaks stdin --redact --ignore-gitleaks-allow --report-format sarif --report-path /dev/stdout`
+is one that does, and a scanner that only reads files is wrapped to read `/dev/stdin`. The
+static analyzer runs from a tree's root, e.g. `semgrep scan --sarif --disable-nosem`. The
+bars are in `gates/definition-of-done.md`; the pre-push checklist runs both again, feeding
+the secret scanner each commit's message with its patch. Both default to `none`, and a
+skipped scan is announced.
+
+`clean_build_command` serves rule book R10: the one documented command that builds the
+project from a clean checkout. It installs in the ecosystem's locked mode — `npm ci`,
+`cargo build --locked`, `uv sync --locked` — so a lockfile that disagrees with its manifest
+fails the build rather than being rewritten. The pre-push checklist runs it in a fresh
+`git worktree` of HEAD, which holds no submodules, so a project with them initializes them
+in this command. Default `none`, announced as skipped.
+
+`interface_docs` serves rule book R3: where a project keeps its interface definitions —
+OpenAPI specs, schemas, CLI references. Check 7 in `gates/rule-book-review.md` says when a
+definition must change with its interface. Default `none`, under which every definition is
+the doc comment at the interface's declaration.
 
 The values in the block above are illustrations, not defaults. Some of its keys are
 required and have no default; one that is missing, empty, `none`, or a `<placeholder>`

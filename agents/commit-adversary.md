@@ -77,8 +77,9 @@ absent one, because the author cannot tell it from a real finding.
 - Every check in `${CLAUDE_PLUGIN_ROOT}/gates/rule-book-review.md`, read in full: an
   existing helper re-implemented, a second definition, a block of logic with no helper at
   its third occurrence (exactly two is not a finding — do not report it), a swallowed
-  exception, unvalidated input at a trust boundary, and a reach into another module's
-  internals that bypasses its public interface. Each hit is at least MAJOR, every site named.
+  exception, unvalidated input at a trust boundary, a reach into another module's
+  internals that bypasses its public interface, and a public interface added or changed
+  while its definition stayed as it was. Each hit is at least MAJOR, every site named.
 - The quickest local fix where an established in-repo pattern exists; name the pattern.
 - Pure functions with no unit test, or a test that omits the boundary cases. There is no
   excuse for verifying these by eye.

@@ -152,11 +152,11 @@ expect fail "a command mentioned in prose but missing from the table" ci-steps-m
 
 fresh_copy; sed -i.bak '/^    if: always()$/d' "$tmp/repo/.github/workflows/ci.yml"
 expect fail "the aggregate job without if: always()" all-jobs-passed.sh
-fresh_copy; sed -i.bak 's/^    needs: \[hooks, ticket-lint, manifest\]$/    needs: [hooks, manifest]/' \
+fresh_copy; sed -i.bak 's/^    needs: \[hooks, script-tests, manifest\]$/    needs: [hooks, manifest]/' \
   "$tmp/repo/.github/workflows/ci.yml"
 expect fail "the aggregate job not needing every job" all-jobs-passed.sh
 fresh_copy
-ok3='"hooks":{"result":"success"},"ticket-lint":{"result":"success"}'
+ok3='"hooks":{"result":"success"},"script-tests":{"result":"success"}'
 for results in "{$ok3,\"manifest\":{\"result\":\"failure\"}}" \
                "{$ok3,\"manifest\":{\"result\":\"cancelled\"}}" \
                '{"hooks":{"result":"success"},"manifest":{"result":"success"}}' 'not json' '{}'; do
