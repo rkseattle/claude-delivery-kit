@@ -114,11 +114,11 @@ what each round's findings were against: the branch's own code, or the previous 
 fix. Predominantly the latter means the fix is the wrong shape — revert it and take a
 different approach rather than running a third round.
 
-**Industry-standard patterns only, and the standard is named** — including the replacement
-approach after a revert. Name the documented standard, framework convention, or known
-implementation the approach is an instance of, before writing it. In-repo precedent
-justifies a choice only where you can name it that way too. If nothing external fits, that
-is the finding to bring to Rob. Every stage appends what it cited to `citations[]`.
+**External first, and the standard is named.** Before choosing any approach — a plan, a
+review or CI fix, a test harness, a revert's replacement — name two or three real
+implementations of the whole problem (for a fix, its failure mode) before weighing the
+repo's or the ticket's design, which are proposals, never defaults. Name the one the choice
+follows and justify departures; take a no-fit to Rob. Log survey and choice to `citations[]`.
 
 **Root cause, then pattern spread.** Every fix — plan finding, review finding, test
 failure, CI failure, PR comment — gets root-caused, and the codebase gets grepped for

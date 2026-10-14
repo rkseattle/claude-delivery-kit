@@ -7,8 +7,10 @@
 # the flag nor an `exit` inside it reaches the script and the check always passes. A failed
 # or empty scan fails too, rather than reading as no broken references.
 set -euo pipefail
+# The pattern is ASCII; matching bytes keeps a stray invalid UTF-8 byte from hiding a line.
+export LC_ALL=C
 root="${1:-.}"
-refs=$(cd "$root" && grep -rhoE '\$\{CLAUDE_PLUGIN_ROOT\}/[a-zA-Z0-9/_.-]+' skills gates agents | sort -u) \
+refs=$(cd "$root" && grep -rhoaE '\$\{CLAUDE_PLUGIN_ROOT\}/[a-zA-Z0-9/_.-]+' skills gates agents | sort -u) \
   || { echo "cannot scan skills, gates and agents under $root"; exit 1; }
 fail=0
 while read -r ref; do

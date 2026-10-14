@@ -3,7 +3,7 @@ name: implement-phases
 description: Execute an approved phased plan — create the branch, transition Jira to In Progress, then implement, adversarially review, and commit each phase in turn without pausing between them.
 argument-hint: <path-to-plan.md>
 disable-model-invocation: true
-allowed-tools: Read, Write, Edit, Grep, Glob, Bash, Task
+allowed-tools: Read, Write, Edit, Grep, Glob, Bash, Task, WebSearch, WebFetch
 ---
 
 Implement the approved plan at: $ARGUMENTS
@@ -84,7 +84,7 @@ not paraphrase the text: an AC reworded into something easier to satisfy is how 
 reports green against criteria nobody agreed to. If the plan has no coverage table either,
 say so and ask rather than writing the criteria yourself.
 
-`citations[]` records the external standard behind each design decision, appended as the
+`citations[]` records the external survey behind each design decision, appended as the
 decision is made and read back by `/ci-green`'s end-of-run report. A commit message alone
 cannot serve: it loses which finding the citation answered, and a citation made at plan time
 never reaches one.
@@ -92,15 +92,16 @@ never reaches one.
 ```json
 "citations": [
   { "stage": "plan-work", "phase": null, "decision": "<what was decided>",
-    "standard": "<the documented standard, convention, or known implementation>",
+    "surveyed": ["<two or three real implementations of the whole problem>"],
+    "standard": "<the one of those the decision follows>",
     "applied_as": "<what it looks like in this codebase>", "waived": false }
 ]
 ```
 
-`waived: true` with the reason in `standard` is the honest entry where nothing external
-applies — a category the run must be able to state rather than pad. Carry the plan's
-`Approach` citation across at Step 1 so the report is not missing the decision that shaped
-every phase under it.
+`waived: true` is the honest entry where nothing external applies: `surveyed` still lists
+what was checked, and `standard` holds the reason none fit — never padding. `/ci-green`'s
+end-of-run report lists every waived entry for Rob. Carry the plan's `Approach` citation
+across at Step 1 so the report is not missing the decision that shaped every phase under it.
 
 Carry the plan's `Ticket gaps` across at Step 1 too, one `friction[]` entry per line with
 `stage: "plan-work"` and `target_file` set to
@@ -164,9 +165,9 @@ reading it. Record it to `friction[]` the moment you notice it, per
 `${CLAUDE_PLUGIN_ROOT}/gates/status-report.md` — noticing afterward does not work, because
 by then the cost is invisible.
 
-Industry-standard patterns only, per `deliver`'s invariant. Put the reason for any departure
-from in-repo precedent in the commit message — that is where a reviewer looks, and it does
-not go stale the way an inline defense does.
+External first, per `deliver`'s invariant. Record the survey and the choice in the commit
+message, including why it follows or departs from in-repo precedent — that is where a
+reviewer looks, and it does not go stale the way an inline defense does.
 
 **Register each new file with the build as you create it, not later.** A source file the
 build system does not include is not built: its code is dead, its tests never run, and every
@@ -200,13 +201,15 @@ on rounds 2 and 3, which add the one revision sentence described below. Do not
 describe what you changed. Do not explain why. Do not tell it what to look for or where you
 think the risk is. It reads the diff cold and derives its own context.
 
-Fix every BLOCKER and MAJOR. **Before writing each fix, name the pattern it follows and
-where that pattern comes from** — the documented standard, framework convention, or known
-implementation it is an instance of. In-repo precedent counts only when you can name it that
-way too; a precedent you cannot, is local invention, and matching it is how a wrong shape
-spreads. One line per fix, in the commit message, and appended to `citations[]` with this
-phase's number. A fix you cannot source externally needs the search before the edit, not
-after the next round finds it.
+Fix every BLOCKER and MAJOR. **Before writing each fix, survey its failure mode** per
+`deliver`'s invariant: two or three real implementations that solve it, then the one the fix
+follows. In-repo precedent is a proposal weighed against them, never the default; one that
+matches nothing surveyed is local invention, and matching it is how a wrong shape spreads.
+One line per fix in the commit message, naming the implementation followed; the survey
+goes in its `citations[]` entry with this phase's number. A fix you cannot source
+externally needs the search before the edit, not after the next round finds it; where the
+search finds nothing that fits, stop and take it to Rob per `deliver`'s invariant, declaring
+the stop, and record the entry `waived` with his answer.
 
 Address PATTERN SPREAD findings in this same commit unless they are genuinely out of scope,
 in which case say so explicitly and note them for the branch review. Re-run the review on the

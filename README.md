@@ -1,9 +1,9 @@
 # delivery-kit
 
 The shared half of the phased-delivery workflow: stage skills, adversary agents, the
-universal gates, and the two hooks. Projects keep only what is genuinely theirs — the
-commands, thresholds and job names — in `.claude/project.json` and a pair of mechanics
-gate files.
+universal gates, and the two hooks, plus one standalone skill, `readme-docs`. Projects
+keep only what is genuinely theirs — the commands, thresholds and job names — in
+`.claude/project.json` and a pair of mechanics gate files.
 
 ## Why this exists
 
@@ -21,12 +21,12 @@ The kit's rules are measured against one source:
 
 ## Layout
 
-```
+```text
 .claude-plugin/
   plugin.json          the manifest
   marketplace.json     this repo is also its own marketplace
 skills/                write-tickets, deliver, plan-work, implement-phases,
-                       branch-review, ship-pr, ci-green
+                       branch-review, ship-pr, ci-green; readme-docs (standalone)
 agents/                ticket-, design-, commit-, ci-failure-, greptile- adversaries
 gates/                 status-report.md, definition-of-done.md, pre-push.md,
                        read-only-agent.md (the universal halves only),
@@ -42,6 +42,18 @@ reference/             software-engineering-rule-book.md, the source the rules
 The skills reference `${CLAUDE_PLUGIN_ROOT}/gates/*.md`. Those three files land in the
 gates commit; until then the references resolve to nothing and a run would say so rather
 than proceed on a gate it could not read.
+
+## Standalone skills
+
+These are not delivery stages: they load on their own, by description, and work with or
+without the rest of the kit.
+
+- **`readme-docs`** — writes, rewrites, or audits a project's `README.md` and the docs it
+  links to, with every command and link checked against the repo by
+  `skills/readme-docs/scripts/check_readme.py`. It arrives with the plugin as
+  `delivery-kit:readme-docs`. To use it without the plugin, copy `skills/readme-docs/` to
+  `.claude/skills/readme-docs/` in a repo, or to `~/.claude/skills/readme-docs/` for every
+  project; a copy there wins the bare name `readme-docs` over the plugin's.
 
 ## Installing in a project
 
@@ -82,7 +94,7 @@ section each: the rules to attack. Merging two projects' rule lists into one fil
 produce a list where most entries are inapplicable noise, so each agent reads its own
 rules from the project instead:
 
-```
+```text
 .claude/agent-rules/commit-adversary.md
 .claude/agent-rules/design-adversary.md
 .claude/agent-rules/greptile-reviewer.md
@@ -234,16 +246,17 @@ defaults.
 ## Friction and citations
 
 Stages record two lists to `.claude/state/current-plan.json` as they go, printing nothing:
-process friction to `friction[]`, and the external standard behind each design decision to
+process friction to `friction[]`, and the external survey behind each design decision to
 `citations[]`. `ci-green` reports both once, at the end of delivery, before Step 6 deletes
 that file.
 
-A citation names the documented standard, framework convention, or known implementation a
-decision is an instance of, and how it was applied here. It is recorded at the decision
+A citation names the two or three real implementations of the whole problem surveyed
+before the decision (`surveyed`), the one it follows (`standard`), and how it was applied
+here; the schema is in `skills/implement-phases/SKILL.md`. It is recorded at the decision
 because that is the only moment it is knowable — `git log` cannot say afterward which
 standard shaped a choice, and a review round's citation never reaches a commit message at
-all. `waived` entries name what had no external answer, which is where invention becomes
-visible.
+all. `waived` entries name what had no external answer — still listing what was surveyed —
+which is where invention becomes visible.
 
 ```json
 { "stage": "implement-phases", "phase": 3, "phase_name": "E2E specs",

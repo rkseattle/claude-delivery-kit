@@ -3,7 +3,7 @@ name: ci-green
 description: Monitor a PR's CI run and review feedback until every job passes, no unaddressed comments remain, and someone other than the author has approved the PR — or, with no reviewers configured, a rule-book R2 exception is recorded — root-causing each failure in an isolated subagent and propagating fix patterns across the codebase.
 argument-hint: [PR number, defaults to the current branch's PR]
 disable-model-invocation: true
-allowed-tools: Read, Write, Edit, Grep, Glob, Bash, Task
+allowed-tools: Read, Write, Edit, Grep, Glob, Bash, Task, WebSearch, WebFetch
 ---
 
 Drive PR $ARGUMENTS to fully green with no outstanding feedback and, where reviewers are
@@ -76,12 +76,13 @@ For every failing job:
    a test that fails in CI but passes locally is first an environment question: check whether
    it depends on a machine detail the two sides resolve differently.
 
-3. **Write the fix** using the industry-standard pattern for the failure mode, naming that
-   pattern before you write it — the documented standard, framework convention, or known
-   implementation it is an instance of, in one line in the commit message and appended to
-   `citations[]` with this iteration's number. In-repo precedent counts only where you can
-   name it that way as well. A fix sourced from nothing but the surrounding code is the shape
-   that comes back as the next red build.
+3. **Write the fix** after surveying the failure mode, per `deliver`'s invariant: two or
+   three real implementations that solve it, and the one the fix follows — named in one line
+   in the commit message, with survey and choice appended to `citations[]` carrying
+   `iteration` as friction entries do. In-repo precedent is a proposal weighed against the
+   survey, never the default; where nothing fits, stop and take it to Rob, declaring the
+   stop, and record the entry `waived` with his answer. A fix sourced from nothing but the
+   surrounding code is the shape that comes back as the next red build.
 4. **Verify it in an isolated subagent before committing.** Launch `ci-failure-adversary`
    with only the failure evidence and the git ref of the fix — no explanation of your
    reasoning, no argument for why the fix is correct. It decides whether the fix addresses
@@ -217,18 +218,20 @@ going green does not close those.**
 
 Then **the standards the delivery was built on.** Read `citations[]` from
 `.claude/state/current-plan.json` and report every entry, deduplicated by standard, with the
-decisions it governed and how it was applied here:
+implementations surveyed, the decisions it governed, and how it was applied here:
 
 ```
-| Standard | Decided at | Applied as |
-|---|---|---|
-| <name of the standard, convention, or implementation> | plan · phase 3 · branch-review | <what it looks like in this codebase> |
+| Standard | Surveyed | Decided at | Applied as |
+|---|---|---|---|
+| <the implementation followed> | <the two or three surveyed> | plan · phase 3 · branch-review | <what it looks like in this codebase> |
 ```
 
 A standard cited in four phases is one row naming all four, not four rows — the repetition
-is the signal that it shaped the branch rather than one edit. List `waived` entries in their
-own short list, each with the reason nothing external applied: that list is where an invented
-pattern becomes visible, so an empty one is a claim, not a formality.
+is the signal that it shaped the branch rather than one edit. Its `Surveyed` cell is the
+union of those entries' `surveyed` lists; waived entries never enter the table. List
+`waived` entries in their own short list, each with what was surveyed and the reason none
+applied: that list is where an invented pattern becomes visible, so an empty one is a
+claim, not a formality.
 
 Report `none` only when the delivery genuinely made no design decision — rare enough to be
 worth saying plainly. A manufactured citation is worse than an absent one, because it reads

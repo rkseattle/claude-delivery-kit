@@ -50,7 +50,9 @@ none: `- None`.
 | Task  | Context, Change, Acceptance criteria, Touch points, Out of scope, Dependencies |
 | Bug   | Environment, Steps to reproduce, Expected, Actual, Evidence, Acceptance criteria, Touch points, Out of scope, Dependencies |
 
-Every type may add **Implementation notes** — constraints with a reason, never steps.
+Every type may add **Implementation notes** — constraints with a reason, never steps. A
+design written there is a proposal `plan-work` checks against real implementations, not a
+decision.
 
 - **Context** — why the ticket exists; any linked source summarized in the ticket.
 - **Behavior** — the one change, from the user's or caller's side.

@@ -49,11 +49,13 @@ Covering ticket: ABC-204.
 
 ## Approach
 
-Exponential backoff with full jitter, as described in the AWS Architecture Blog's
-"Exponential Backoff And Jitter" and implemented in the AWS SDKs. The delay for attempt
-`n` is `random(0, min(cap, base * 2**n))`. Full jitter rather than equal jitter because
-the retrying population here is a fleet of workers draining one queue, which is exactly
-the thundering-herd case the full-jitter variant addresses.
+Surveyed: the AWS SDKs' standard retry mode, gRPC's connection backoff specification, and
+Google Cloud client libraries' retry settings all retry with capped exponential backoff and
+randomized jitter. This plan follows the AWS variant: exponential backoff with full jitter,
+as described in the AWS Architecture Blog's "Exponential Backoff And Jitter". The delay
+for attempt `n` is `random(0, min(cap, base * 2**n))`. Full jitter rather than equal
+jitter because the retrying population here is a fleet of workers draining one queue,
+which is exactly the thundering-herd case the full-jitter variant addresses.
 
 In-repo precedent: `app/services/payment_retry.rb:14` already implements this same
 algorithm for payment-processor calls, with the same `base` and `cap` constants. This plan

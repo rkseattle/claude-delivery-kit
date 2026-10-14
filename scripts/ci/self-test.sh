@@ -112,11 +112,31 @@ expect fail "directories present but no references in them" bundled-refs.sh "$tm
 
 fresh_copy; printf '%s\n' "Read \${CLAUDE_PLUGIN_ROOT}/gates/does-not-exist.md here." >> "$tmp/repo/gates/pre-push.md"
 expect fail "a reference to a file that does not exist" bundled-refs.sh
+fresh_copy; printf '%s\377\n' "Read \${CLAUDE_PLUGIN_ROOT}/gates/does-not-exist.md here." >> "$tmp/repo/gates/pre-push.md"
+expect fail "a broken reference on a line with an invalid UTF-8 byte" bundled-refs.sh
+fresh_copy; printf '%s\0\n' "Read \${CLAUDE_PLUGIN_ROOT}/gates/does-not-exist.md here." >> "$tmp/repo/gates/pre-push.md"
+expect fail "a broken reference in a file grep calls binary" bundled-refs.sh
 
 fresh_copy; printf '%s\n' 'Run xcodebuild test.' >> "$tmp/repo/gates/pre-push.md"
 expect fail "a build-tool invocation in a shared file" no-leaks.sh
 fresh_copy; printf '%s\n' 'See ABC-123.' >> "$tmp/repo/gates/pre-push.md"
 expect fail "a ticket ID in a shared file" no-leaks.sh
+fresh_copy; printf '%s\n' 'Run XcodeBuild test.' >> "$tmp/repo/gates/pre-push.md"
+expect fail "a build-tool invocation in mixed case" no-leaks.sh
+fresh_copy; printf '%s\n' 'Encode as utf-8 for node-20.' >> "$tmp/repo/gates/pre-push.md"
+expect pass "a lowercase word-digit token" no-leaks.sh
+fresh_copy; printf '%s\n' 'Write UTF-8, SHA-256, ISO-8601.' >> "$tmp/repo/gates/pre-push.md"
+expect pass "an allowlisted standard identifier" no-leaks.sh
+fresh_copy; printf '%s\n' 'Write UTF-8 per ABC-123.' >> "$tmp/repo/gates/pre-push.md"
+expect fail "a ticket ID beside an allowlisted identifier" no-leaks.sh
+fresh_copy; printf '%s\n' 'See abc-123.' >> "$tmp/repo/gates/pre-push.md"
+expect pass "a lowercase ticket ID, an accepted narrowing" no-leaks.sh
+fresh_copy; printf '%s\n' 'See XSHA-12 and ISOX-9.' >> "$tmp/repo/gates/pre-push.md"
+expect fail "a ticket ID containing an allowlisted prefix" no-leaks.sh
+fresh_copy; printf 'See ABC-123.\377\n' >> "$tmp/repo/gates/pre-push.md"
+expect fail "a ticket ID on a line with an invalid UTF-8 byte" no-leaks.sh
+fresh_copy; printf 'See ABC-123.\0\n' >> "$tmp/repo/gates/pre-push.md"
+expect fail "a ticket ID in a file grep calls binary" no-leaks.sh
 fresh_copy; printf '%s\n' 'acme-widgets' > "$tmp/repo/.github/consumers.txt"
 printf '%s\n' 'Built for acme-widgets.' >> "$tmp/repo/gates/pre-push.md"
 expect fail "a consuming project named in a shared file" no-leaks.sh

@@ -81,8 +81,8 @@ count and the verdict that ended it.
 
 ## Citations — recorded, not reported
 
-Append every design decision's external standard to `citations[]` — the decision, the
-standard it is an instance of, how it was applied here — and print nothing about it here.
+Append every design decision to `citations[]` — the decision, the real implementations
+`surveyed`, the `standard` it follows, how it was applied — printing nothing.
 Record it at the decision: which standard shaped a choice is exactly what `git log` cannot
 say afterward. `ci-green` reports the list once, deduplicated, so a standard applied across
 four phases reads as one entry.
