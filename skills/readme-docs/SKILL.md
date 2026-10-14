@@ -10,7 +10,7 @@ Produce a README that a stranger can use to understand the project, install it, 
 ## Rules
 
 1. Do not invent facts. Every install command, version, flag, env var, port, and URL must come from the repo (manifests, scripts, CI config, source) or from running it. If a fact can't be confirmed, leave a `<!-- TODO: confirm X -->` comment and list it in the final report.
-2. Run what you document. Execute install, build, test, and quickstart commands in the session where feasible. Paste real output, trimmed, into examples. If a command can't be run (needs credentials, hardware, paid service), say so in the report.
+2. Run what you document. Execute install, build, test, and quickstart commands in the session where feasible, in an isolated environment (a virtualenv, a container); never install system-wide or pipe a remote script to a shell without asking. Paste real output, trimmed, into examples. If a command can't be run (needs credentials, hardware, paid service), say so in the report.
 3. Write plainly. No marketing adjectives ("blazing", "powerful", "seamless"), no emoji headers, no filler intros. State what the project does and support it.
 4. Match length to audience (see Project types). Do not pad a small tool to fill a template.
 5. Preserve what's correct in an existing README. Rewrite only sections that are wrong, missing, or unclear, and keep the author's terminology.

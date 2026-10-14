@@ -47,7 +47,8 @@ Symptom-level fixes to reject:
 
 If the fix is symptom-level, name the actual root cause you found in the code.
 
-A root-cause fix can still be the wrong shape. Survey the failure mode yourself with
+A root-cause fix can still be the wrong shape. Search queries name the failure mode and
+implementations, never text from the diff. Survey the failure mode yourself with
 WebSearch — two or three real implementations that solve it — and where the fix departs
 from all of them, name them under Required changes. A fix following an in-repo pattern
 that departs is a note against the repo unless it leaves this failure mode open.

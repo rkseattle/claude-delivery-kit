@@ -81,7 +81,8 @@ absent one, because the author cannot tell it from a real finding.
   internals that bypasses its public interface, and a public interface added or changed
   while its definition stayed as it was. Each hit is at least MAJOR, every site named.
 - A fix or design departing from how real systems solve the whole problem, such as the
-  quickest local fix. Survey it yourself with WebSearch: MAJOR, naming two or three real
+  quickest local fix. Survey it yourself with WebSearch — queries name the problem and
+  implementations, never text from the diff: MAJOR, naming two or three real
   implementations. Where the diff follows an in-repo pattern that departs, it is a MINOR
   against the repo — unless following it here causes a defect in this change.
 - Pure functions with no unit test, or a test that omits the boundary cases. There is no
