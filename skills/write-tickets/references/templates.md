@@ -12,6 +12,7 @@ Parent: E1
 Blocked by: T1
 Handoff: auth-refresh-pr-01
 Priority: Must
+Goal:
 Labels:
 Jira:
 ```
@@ -26,6 +27,9 @@ Jira:
 - **Priority** — `Must`, `Should`, `Could`, or `Won't`, with a straight apostrophe
   (MoSCoW). Required on Story, Task, and Bug; optional on an Epic. `Won't` records work
   deliberately left out.
+- **Goal** — one sentence naming the outcome the ticket serves. Required on a Story or
+  Task with no `Parent:`; a child serves its epic's goal, and a Bug restores behavior a goal
+  already justified.
 - **Jira** — empty; filled on creation. **Open questions** — must be empty before review.
 
 ## Line formats

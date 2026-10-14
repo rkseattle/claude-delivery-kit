@@ -75,6 +75,11 @@ of an AC — "p95 < 300 ms at 200 requests/second", not "fast". Prevents: a non-
 requirement no design element or test can be checked against. The linter checks the
 comparator and number; the unit is this review's to check.
 
+**R14 Traceable to a goal.** A Story or Task with no `Parent:` carries `Goal:`, one sentence
+naming the outcome it serves, held to R6, R7, and R10 like the sections. Bugs are exempt,
+and an Epic states its goal in `## Goal`; neither carries the header.
+Prevents: work that serves no goal reaching a plan unchallenged.
+
 ## Bug, in addition
 
 **B1 Reproducible.** Steps use specific inputs; Environment names the commit or build;

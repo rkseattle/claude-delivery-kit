@@ -43,7 +43,7 @@ REQUIRED = {
 # MoSCoW as the DSDM Agile Project Framework defines it. The apostrophe is straight.
 PRIORITIES = ["Must", "Should", "Could", "Won't"]
 NFR_SECTION = "Non-functional requirements"
-SPEC_SECTIONS = ["Behavior", "Change", "Acceptance criteria", "Expected", "Success measures", NFR_SECTION]
+SPEC_SECTIONS = ["Goal", "Behavior", "Change", "Acceptance criteria", "Expected", "Success measures", NFR_SECTION]
 UNDECIDED = [r"\bTBD\b", r"\bTBC\b", r"\bTODO\b", r"\?\?", r"\betc\b", r"\be\.g\.", r"\band/or\b",
              r"\bas needed\b", r"\bas appropriate\b", r"\bif possible\b", r"\bwhere applicable\b",
              r"\binvestigate\b", r"\bexplore\b", r"\bconsider\b", r"\bdecide\b", r"\bdetermine whether\b"]
@@ -54,13 +54,15 @@ SESSION_REFS = [r"\bas discussed\b", r"\bas mentioned\b", r"\bper (the )?above\b
                 r"\bearlier in (this|the) (chat|conversation|session)\b", r"\bwe agreed\b"]
 
 HEADER = re.compile(r"^# \[(?P<id>[ESTB]\d+)\]\s+(?P<summary>.+?)\s*$")
-META = re.compile(r"^(Type|Parent|Blocked by|Handoff|Labels|Priority|Jira):\s*(.*)$")
+META = re.compile(r"^(Type|Parent|Blocked by|Handoff|Labels|Priority|Goal|Jira):\s*(.*)$")
 SECTION = re.compile(r"^## (.+?)\s*$")
 VERIFY_TAG = r"\[verify:\s*([^@\]\s][^@\]]*?)\s*@\s*([^\]\s][^\]]*?)\s*\]"
 AC = re.compile(r"^-\s+AC(\d+):\s+(.+?)\s*" + VERIFY_TAG + r"\s*$")
 NFR = re.compile(r"^-\s+NFR(\d+):\s+(.*)$")
 NFR_TAG = re.compile(VERIFY_TAG + r"\s*$")
 NFR_TYPES = ("Epic", "Story")
+GOAL_TYPES = ("Story", "Task")
+GOAL_HEADER = "the Goal header"
 # `<metric> <comparator> <number>`, read at the line's first comparator, the way an OpenSLO
 # threshold pairs an operator with a value: a number anywhere else is not a threshold. The
 # unit is prose, so ticket-adversary checks it, not this.
@@ -160,13 +162,18 @@ def lint(items, repo):
                 err(i, "FORMAT", f"'## {s}' is empty")
         if body(i["sections"].get("Open questions", [])):
             err(i, "R6", "Open questions has content — settle it before review")
-        for s, lines in i["sections"].items():
+        goal = i["meta"].get("Goal", "")
+        if "Goal" in i["meta"] and t not in GOAL_TYPES:
+            err(i, "R14", f"Goal: belongs on a Story or Task, not a {t}")
+        # The Goal: header reaches Jira as the description's first line, so it is prose too.
+        prose = dict(i["sections"], **({GOAL_HEADER: [goal]} if goal else {}))
+        for s, lines in prose.items():
             for line in body(lines):
                 for p in SESSION_REFS:
                     if re.search(p, line, re.I):
                         err(i, "R10", f"refers to the authoring session in {s}: {line[:80]}")
-        for s in SPEC_SECTIONS:
-            for line in body(i["sections"].get(s, [])):
+        for s in SPEC_SECTIONS + [GOAL_HEADER]:
+            for line in body(prose.get(s, [])):
                 text = re.sub(r"\[verify:[^\]]*\]|`[^`]*`", "", line)
                 for p in UNDECIDED:
                     if re.search(p, text, re.I):
@@ -217,6 +224,9 @@ def lint(items, repo):
                         and "enabling" not in o["meta"].get("Labels", "").lower():
                     err(i, "E3", f"child {o['id']} maps to no success measure and is not 'enabling'")
             continue
+
+        if t in GOAL_TYPES and not ids(i["meta"].get("Parent")) and not goal:
+            err(i, "R14", "no Parent: and no Goal: — name the outcome this ticket serves")
 
         h = i["meta"].get("Handoff", "")
         if not h:

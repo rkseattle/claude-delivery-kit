@@ -2,6 +2,7 @@
 # [S1] Set the refresh cookie on sign-in
 Type: Story
 Priority: Must
+Goal: Users stay signed in across browser restarts.
 Handoff: auth-pr-01
 Jira:
 

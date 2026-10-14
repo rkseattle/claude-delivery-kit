@@ -124,22 +124,24 @@ Look up the project's issue types and link types via the Atlassian MCP first; ne
 a name or ID.
 
 1. Epics first, then the rest in draft order.
-2. Summary; description with every `##` section except Open questions and review output;
-   parent; labels, including the `Handoff:` label and, for any ticket with `Priority:`,
+2. Summary; description whose first line is `Goal: <sentence>` when the header has one,
+   then every `##` section except Open questions and review output; parent; labels,
+   including the `Handoff:` label and, for any ticket with `Priority:`,
    `moscow-<priority>` in lowercase — `Won't` is `moscow-wont`.
 3. For each Blocked-by entry, a link of the blocking type with the blocker as outward.
 4. After each creation, write the key into its `Jira:` line and replace its local ID with
    the key everywhere in the draft before creating the next ticket.
-5. Read each ticket back. Headings, AC count, the `moscow-` label, and every
-   `[verify: …]` tag and inline code span must match the draft; if the conversion lost
-   any, update and read back again.
+5. Read each ticket back. Headings, AC count, the `Goal:` line, the `moscow-` label, and
+   every `[verify: …]` tag and inline code span must match the draft; if the conversion
+   lost any, update and read back again.
 
 For `<TICKET-N ...>` arguments: fetch them into a draft with `Jira:` filled and its
-`moscow-*` label as `Priority:` — `moscow-wont` as `Won't`, the rest title-cased. A ticket
-with no such label, or more than one, gets an empty `Priority:` for Step 1 to settle. Run
-Steps 2–7, and update instead of create, replacing the `moscow-*` label rather than adding
-a second. A ticket that must split keeps its key for
-the ACs it retains; say which new key holds the rest.
+`moscow-*` label as `Priority:` — `moscow-wont` as `Won't`, the rest title-cased — and a
+description's leading `Goal:` line as the `Goal:` header. A ticket with no `moscow-*`
+label, or more than one, gets an empty `Priority:` for Step 1 to settle. Run Steps 2–7,
+and update instead of create, replacing the `moscow-*` label rather than adding a second.
+A ticket that must split keeps its key for the ACs it retains; say which new key holds
+the rest.
 
 ## Step 9 — Report
 

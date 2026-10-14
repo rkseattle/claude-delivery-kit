@@ -1,6 +1,7 @@
-<!-- expect errors=19 warnings=0 -->
+<!-- expect errors=22 warnings=0 -->
 # [E1] Contacts export
 Type: Epic
+Goal: Users can take their contacts elsewhere.
 Blocked by: None
 Jira:
 
@@ -109,5 +110,44 @@ x
 - src/auth/routes.ts (modify): guard
 ## Out of scope
 - None (not planned)
+## Dependencies
+- None
+
+# [S5] Name the export file by date
+Type: Story
+Parent: None
+Blocked by: None
+Handoff: contacts-pr-02
+Priority: Should
+Jira:
+## Context
+x
+## Behavior
+x
+## Acceptance criteria
+- AC1: The file is named `contacts-<date>.csv` [verify: automated @ tests/auth/export.test.ts]
+## Touch points
+- src/auth/routes.ts (modify): file name
+## Out of scope
+- Import (not planned)
+## Dependencies
+- None
+
+# [T1] Name the export file by date
+Type: Task
+Blocked by: None
+Handoff: contacts-pr-02
+Priority: Should
+Jira:
+## Context
+x
+## Change
+x
+## Acceptance criteria
+- AC1: The file is named `contacts-<date>.csv` [verify: automated @ tests/auth/export.test.ts]
+## Touch points
+- src/auth/routes.ts (modify): file name
+## Out of scope
+- Import (not planned)
 ## Dependencies
 - None
