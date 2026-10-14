@@ -1,6 +1,7 @@
 <!-- expect errors=0 warnings=0 -->
 # [E1] Keep signed-in users signed in for 30 days
 Type: Epic
+Priority:
 Blocked by: None
 Jira:
 
@@ -106,6 +107,7 @@ POST /auth/refresh with a revoked token returns 401.
 # [B1] Return 400 when the login email is empty
 Type: Bug
 Priority: Won't
+Goal:
 Blocked by: None
 Handoff: auth-refresh-pr-02
 Jira:

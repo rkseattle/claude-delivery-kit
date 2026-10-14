@@ -125,16 +125,16 @@ a name or ID.
 
 1. Epics first, then the rest in draft order.
 2. Summary; description whose first line is `Goal: <sentence>` when the header has one,
-   then every `##` section except Open questions and review output, with each
-   `[verify: …]` and `[children: …]` tag inside a code span — Jira's conversion turns a
-   bare one into `\verify: …\`; parent; labels, including the `Handoff:` label and, for
-   any ticket with `Priority:`, `moscow-<priority>` in lowercase — `Won't` is
-   `moscow-wont`.
+   then every `##` section except Open questions and review output, with each bare
+   `[…]` outside a code span or link — every `[verify: …]` and `[children: …]` tag
+   included — inside a code span: Jira's conversion turns a bare one into `\verify: …\`;
+   parent; labels, including the `Handoff:` label and, for any ticket with a non-empty
+   `Priority:`, `moscow-<priority>` in lowercase — `Won't` is `moscow-wont`.
 3. For each Blocked-by entry, a link of the blocking type with the blocker as outward.
 4. After each creation, write the key into its `Jira:` line and replace its local ID with
    the key everywhere in the draft before creating the next ticket.
 5. Read each ticket back with `jira_get_issue`, which returns Markdown. Check its labels
-   hold the `Handoff:` and `moscow-` labels, save its description verbatim to
+   hold every label item 2 named for it, save its description verbatim to
    `docs/tickets/<slug>.<key>.md`, and run:
 
    ```bash
@@ -151,9 +151,9 @@ a name or ID.
 
 For `<TICKET-N ...>` arguments: fetch them into a draft with `Jira:` filled and its
 `moscow-*` label as `Priority:` — `moscow-wont` as `Won't`, the rest title-cased — and a
-description's leading `Goal:` line as the `Goal:` header, each code-span tag unwrapped to
-a bare `[verify: …]` or `[children: …]` — as is the `\verify: …\` or `\children: …\`
-form a ticket written before tags were wrapped carries. A ticket with no `moscow-*`
+description's leading `Goal:` line as the `Goal:` header, and each code span holding only
+a `[…]` unwrapped to the bare brackets — as is the `\verify: …\` or `\children: …\`
+form a ticket written before brackets were wrapped carries. A ticket with no `moscow-*`
 label, or more than one, gets an empty `Priority:` for Step 1 to settle. Run Steps 2–7,
 and update instead of create, replacing the `moscow-*` label rather than adding a second.
 A ticket that must split keeps its key for the ACs it retains; say which new key holds

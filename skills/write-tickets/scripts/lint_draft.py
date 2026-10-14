@@ -9,8 +9,8 @@
 Checks what a script can settle. Whether a ticket is plannable is ticket-adversary's call.
 """
 import argparse
-import collections
 import contextlib
+import difflib
 import io
 import os
 import re
@@ -73,7 +73,8 @@ GOAL_HEADER = "the Goal header"
 # `<metric> <comparator> <number>`, read at the line's first comparator, the way an OpenSLO
 # threshold pairs an operator with a value: a number anywhere else is not a threshold. The
 # unit is prose, so ticket-adversary checks it, not this.
-COMPARATOR = re.compile(r"<=|>=|≤|≥|<|>|=")
+# Not the > of an arrow (->, =>) or the = of one.
+COMPARATOR = re.compile(r"(?<![-=])(?:<=|>=|≤|≥|<|>|=)(?!>)")
 NUMBER = re.compile(r"\s*[-+]?[$€£]?(?:\d[\d,]*(?:\.\d+)?|\.\d+)")
 TOUCH = re.compile(r"^-\s+`?([^`\s]+)`?\s+\((modify|new|delete)\)\s*:?\s*(.*)$")
 MEASURE = re.compile(r"^-\s+SM(\d+):\s+(.+?)\s*\[children:\s*([^\]\s][^\]]*)\]\s*$")
@@ -82,7 +83,8 @@ MEASURE = re.compile(r"^-\s+SM(\d+):\s+(.+?)\s*\[children:\s*([^\]\s][^\]]*)\]\s
 # which it keeps verbatim.
 JIRA_TAG = re.compile(r"\[(?:verify|children):[^\]]*\]")
 CODE_SPAN = re.compile(r"`[^`]+`")
-NUMBERED_LINE = re.compile(r"^-\s+((?:AC|SM|NFR)\d+):")
+# Any other bare [text] meets the same conversion; a Markdown link's [text](url) does not.
+BARE_BRACKETS = re.compile(r"\[[^\]\n]*\](?!\()")
 KEY = re.compile(r"^[A-Z][A-Z0-9]+-\d+$")
 LOCAL = re.compile(r"^[ESTB]\d+$")
 
@@ -158,7 +160,7 @@ def lint(items, repo):
         if t not in REQUIRED:
             err(i, "FORMAT", f"Type must be one of {sorted(REQUIRED)}, got '{t}'")
             continue
-        priority = i["meta"].get("Priority")
+        priority = i["meta"].get("Priority") or None
         if priority is None:
             if t != "Epic":
                 err(i, "R12", f"missing Priority: — one of {', '.join(PRIORITIES)}")
@@ -176,8 +178,8 @@ def lint(items, repo):
         if body(i["sections"].get("Open questions", [])):
             err(i, "R6", "Open questions has content — settle it before review")
         goal = i["meta"].get("Goal", "")
-        if "Goal" in i["meta"] and t not in GOAL_TYPES:
-            err(i, "R14", f"Goal: belongs on a Story or Task, not a {t}")
+        if goal and t not in GOAL_TYPES:
+            err(i, "R14", f"Goal: belongs on a Story or Task, not on this {t}")
         # The Goal: header reaches Jira as the description's first line, so it is prose too.
         prose = dict(i["sections"], **({GOAL_HEADER: [goal]} if goal else {}))
         for s, lines in prose.items():
@@ -196,7 +198,7 @@ def lint(items, repo):
                         warn(i, "R7", f"vague '{re.search(p, text, re.I).group(0)}' in {s}: {line[:80]}")
         nfr_lines = body(i["sections"].get(NFR_SECTION, []))
         if NFR_SECTION in i["sections"] and t not in NFR_TYPES:
-            err(i, "R13", f"'## {NFR_SECTION}' belongs on an Epic or Story, not a {t}")
+            err(i, "R13", f"'## {NFR_SECTION}' belongs on an Epic or Story, not on this {t}")
             nfr_lines = []
         elif NFR_SECTION in i["sections"] and not nfr_lines:
             err(i, "R13", f"'## {NFR_SECTION}' is empty")
@@ -300,34 +302,30 @@ def lint(items, repo):
     return errors, warns
 
 
-def readback(item, fetched):
-    """What Step 8 wrote for this draft item that the description Jira returned lacks."""
-    lines = body(fetched.splitlines())
-    fetched_ids = {m[1] for m in map(NUMBERED_LINE.match, lines) if m}
-    missing, wanted = [], collections.Counter()
+def jira_line(line):
+    """The line as Step 8 writes it: each bare [bracketed] run outside a code span in one."""
+    parts = re.split(r"(`[^`]+`)", line)
+    return "".join(p if n % 2 else BARE_BRACKETS.sub(lambda m: f"`{m[0]}`", p)
+                   for n, p in enumerate(parts))
+
+
+def jira_description(item):
+    """The description Step 8 writes for a draft item, one non-blank line per entry."""
     goal = item["meta"].get("Goal")
-    if goal and (not lines or lines[0] != f"Goal: {goal}"):
-        missing.append(f"first line 'Goal: {goal}'")
+    lines = [jira_line(f"Goal: {goal}")] if goal else []
     for s, sec in item["sections"].items():
-        if s == "Open questions":
-            continue
-        if f"## {s}" not in lines:
-            missing.append(f"heading '## {s}'")
-        for line in body(sec):
-            numbered = NUMBERED_LINE.match(line)
-            if numbered and numbered[1] not in fetched_ids:
-                missing.append(f"line {numbered[1]}")
-            if s == "Children" and line not in lines:
-                missing.append(f"'## Children' line '{line}'")
-            # Spans first, so a tag quoted inside a span stays part of that span. Counted, not
-            # tested for presence: ACs often repeat one tag word for word.
-            wanted.update(CODE_SPAN.findall(line))
-            wanted.update(f"`{tag}`" for tag in JIRA_TAG.findall(CODE_SPAN.sub(" ", line)))
-    for span, n in wanted.items():
-        found = fetched.count(span)
-        if found < n:
-            missing += [f"code span {span}"] * (n - found)
-    return missing
+        if s != "Open questions":
+            lines += [f"## {s}"] + [jira_line(l) for l in body(sec)]
+    return lines
+
+
+def readback(item, fetched):
+    """Each line Step 8 wrote for this draft item that the description Jira returned lacks
+    or altered: a line diff of the whole description, so nothing is out of its view."""
+    want, got = jira_description(item), body(fetched.splitlines())
+    diff = difflib.SequenceMatcher(None, want, got, autojunk=False)
+    return [f"'{want[n]}'" for op, i1, i2, _, _ in diff.get_opcodes() if op in ("delete", "replace")
+            for n in range(i1, i2)]
 
 
 def readback_cli_test(cases, scratch):

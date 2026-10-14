@@ -22,11 +22,12 @@ POST /auth/refresh with a valid rt cookie returns a new access token.
 ## Touch points
 
 - src/auth/routes.ts (modify): register the route
+- src/auth/__init__.py (modify): export the route
 
 ## Out of scope
 
-- Reuse detection (not planned)
+- Reuse detection (AB-5)
 
 ## Dependencies
 
-- None
+- AB-4: `refresh_tokens` table

@@ -1,4 +1,4 @@
-<!-- expect errors=22 warnings=0 -->
+<!-- expect errors=25 warnings=0 -->
 # [E1] Contacts export
 Type: Epic
 Goal: Users can take their contacts elsewhere.
@@ -6,7 +6,7 @@ Blocked by: None
 Jira:
 
 ## Goal
-Users can take their contacts elsewhere.
+Users can take their contacts elsewhere TBD.
 
 ## Success measures
 - SM1: A user downloads their contacts [children: S1, S9]
@@ -91,7 +91,6 @@ x
 
 # [B1] Fix crash on empty export
 Type: Bug
-Priority: Must
 Handoff: contacts-pr-02
 Jira:
 ## Environment
@@ -137,7 +136,6 @@ x
 Type: Task
 Blocked by: None
 Handoff: contacts-pr-02
-Priority: Should
 Jira:
 ## Context
 x
