@@ -124,21 +124,39 @@ Look up the project's issue types and link types via the Atlassian MCP first; ne
 a name or ID.
 
 1. Epics first, then the rest in draft order.
-2. Summary; description whose first line is `Goal: <sentence>` when the header has one,
-   then every `##` section except Open questions and review output; parent; labels,
-   including the `Handoff:` label and, for any ticket with a non-empty `Priority:`,
+2. Summary, parent, and labels: the `Handoff:` label and, for a non-empty `Priority:`,
    `moscow-<priority>` in lowercase — `Won't` is `moscow-wont`.
-3. For each Blocked-by entry, a link of the blocking type with the blocker as outward.
-4. After each creation, write the key into its `Jira:` line and replace its local ID with
+3. Description: `Goal: <sentence>` first when the header has one, then every `##` section
+   except Open questions and review output, with each `[verify: …]` and `[children: …]`
+   tag inside a code span. Jira's conversion drops a bare tag's brackets; a code span
+   survives it verbatim.
+4. For each Blocked-by entry, a link of the blocking type with the blocker as outward.
+5. After each creation, write the key into its `Jira:` line and replace its local ID with
    the key everywhere in the draft — as a whole ID, never the `S1` in `S10` — before
    creating the next ticket.
-5. Read each ticket back. Headings, AC count, the `Goal:` line, the `moscow-` label, and
-   every `[verify: …]` tag and inline code span must match the draft; if the conversion
-   lost any, update and read back again.
+6. Read each ticket back with `jira_get_issue`, which returns Markdown. Check it carries
+   every label item 2 names, save its description verbatim to
+   `docs/tickets/<slug>.<key>.md`, and run:
+
+   ```bash
+   python3 ${CLAUDE_PLUGIN_ROOT}/skills/write-tickets/scripts/lint_draft.py \
+     docs/tickets/<slug>.md --readback <key> docs/tickets/<slug>.<key>.md
+   ```
+
+   On exit 1, update the description once and run it again. A second exit 1 is damage a
+   re-push cannot repair: stop and bring Rob the `MISSING` lines. Exit 2 means the draft
+   or saved file is unreadable, or nothing in the draft names the key. Delete the saved
+   copy once it exits 0.
+7. A ticket created before one it names — an epic's `[children: …]` and `## Children`, an
+   Out of scope or Dependencies line naming a later sibling — went to Jira holding that
+   local ID. Once every ticket exists, update each ticket whose draft text item 5 changed
+   after its creation, and give it item 6 again.
 
 For `<TICKET-N ...>` arguments: fetch them into a draft with `Jira:` filled and its
 `moscow-*` label as `Priority:` — `moscow-wont` as `Won't`, the rest title-cased — and a
-description's leading `Goal:` line as the `Goal:` header. A ticket with no `moscow-*`
+description's leading `Goal:` line as the `Goal:` header, and each code span holding a
+whole `[verify: … @ …]` or `[children: …]` tag, or a `\verify: …\` left by an older
+write, as the bare tag. A ticket with no `moscow-*`
 label, or more than one, gets an empty `Priority:` for Step 1 to settle. Run Steps 2–7,
 and update instead of create, replacing the `moscow-*` label rather than adding a second.
 A ticket that must split keeps its key for the ACs it retains; say which new key holds
