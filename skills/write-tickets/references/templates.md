@@ -11,6 +11,7 @@ Type: Story
 Parent: E1
 Blocked by: T1
 Handoff: auth-refresh-pr-01
+Priority: Must
 Labels:
 Jira:
 ```
@@ -22,6 +23,9 @@ Jira:
 - **Parent** — an epic's local ID or key. **Blocked by** — IDs or keys, or `None`.
 - **Handoff** — the label `plan-work` will be run with. Required on Story, Task, and Bug;
   a handoff group stays within `plan-work`'s handoff limit, in build order.
+- **Priority** — `Must`, `Should`, `Could`, or `Won't`, with a straight apostrophe
+  (MoSCoW). Required on Story, Task, and Bug; optional on an Epic. `Won't` records work
+  deliberately left out.
 - **Jira** — empty; filled on creation. **Open questions** — must be empty before review.
 
 ## Line formats
@@ -73,6 +77,7 @@ Type: Story
 Parent: E1
 Blocked by: T1
 Handoff: auth-refresh-pr-01
+Priority: Must
 Jira:
 
 ## Context

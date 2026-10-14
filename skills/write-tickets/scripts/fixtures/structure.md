@@ -1,4 +1,4 @@
-<!-- expect errors=15 warnings=0 -->
+<!-- expect errors=18 warnings=0 -->
 # [E1] Contacts export
 Type: Epic
 Blocked by: None
@@ -40,6 +40,7 @@ x
 
 # [S2] Show a download button
 Type: Story
+Priority: Must-have
 Parent: E1
 Blocked by: None
 Handoff: contacts-pr-01
@@ -59,6 +60,7 @@ x
 
 # [S3] Log exports
 Type: Story
+Priority: Won’t
 Parent: E1
 Handoff: contacts-pr-01
 Jira:
@@ -67,6 +69,7 @@ x
 
 # [S4] Rate-limit exports
 Type: Story
+Priority: Must
 Parent: E1
 Blocked by: S1, bogus
 Handoff: contacts-pr-01
@@ -86,6 +89,7 @@ x
 
 # [B1] Fix crash on empty export
 Type: Bug
+Priority: Must
 Handoff: contacts-pr-02
 Jira:
 ## Environment

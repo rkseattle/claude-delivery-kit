@@ -22,6 +22,7 @@ Users who choose "Keep me signed in" stay signed in on that device for 30 days.
 
 # [T1] Create the refresh_tokens table with repository functions
 Type: Task
+Priority: Could
 Parent: E1
 Blocked by: AB-12
 Handoff: auth-refresh-pr-01
@@ -48,6 +49,7 @@ Add table `refresh_tokens` and a repository module exposing `insert`, `findByHas
 
 # [S1] Rotate the refresh token on the refresh endpoint
 Type: Story
+Priority: Must
 Parent: E1
 Blocked by: T1
 Handoff: auth-refresh-pr-01
@@ -76,6 +78,7 @@ POST /auth/refresh with a valid `rt` cookie returns a new access token and repla
 
 # [S2] Reject a revoked refresh token with 401
 Type: Story
+Priority: Should
 Parent: E1
 Blocked by: S1
 Handoff: auth-refresh-pr-02
@@ -102,6 +105,7 @@ POST /auth/refresh with a revoked token returns 401.
 
 # [B1] Return 400 when the login email is empty
 Type: Bug
+Priority: Won't
 Blocked by: None
 Handoff: auth-refresh-pr-02
 Jira:

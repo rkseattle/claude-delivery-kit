@@ -40,6 +40,8 @@ REQUIRED = {
     "Bug": ["Environment", "Steps to reproduce", "Expected", "Actual", "Evidence",
             "Acceptance criteria", "Touch points", "Out of scope", "Dependencies"],
 }
+# MoSCoW as the DSDM Agile Project Framework defines it. The apostrophe is straight.
+PRIORITIES = ["Must", "Should", "Could", "Won't"]
 SPEC_SECTIONS = ["Behavior", "Change", "Acceptance criteria", "Expected", "Success measures"]
 UNDECIDED = [r"\bTBD\b", r"\bTBC\b", r"\bTODO\b", r"\?\?", r"\betc\b", r"\be\.g\.", r"\band/or\b",
              r"\bas needed\b", r"\bas appropriate\b", r"\bif possible\b", r"\bwhere applicable\b",
@@ -51,7 +53,7 @@ SESSION_REFS = [r"\bas discussed\b", r"\bas mentioned\b", r"\bper (the )?above\b
                 r"\bearlier in (this|the) (chat|conversation|session)\b", r"\bwe agreed\b"]
 
 HEADER = re.compile(r"^# \[(?P<id>[ESTB]\d+)\]\s+(?P<summary>.+?)\s*$")
-META = re.compile(r"^(Type|Parent|Blocked by|Handoff|Labels|Jira):\s*(.*)$")
+META = re.compile(r"^(Type|Parent|Blocked by|Handoff|Labels|Priority|Jira):\s*(.*)$")
 SECTION = re.compile(r"^## (.+?)\s*$")
 AC = re.compile(r"^-\s+AC(\d+):\s+(.+?)\s*\[verify:\s*([^@\]]+?)\s*@\s*([^\]]+?)\s*\]\s*$")
 TOUCH = re.compile(r"^-\s+`?([^`\s]+)`?\s+\((modify|new|delete)\)\s*:?\s*(.*)$")
@@ -120,6 +122,12 @@ def lint(items, repo):
         if t not in REQUIRED:
             err(i, "FORMAT", f"Type must be one of {sorted(REQUIRED)}, got '{t}'")
             continue
+        priority = i["meta"].get("Priority")
+        if priority is None:
+            if t != "Epic":
+                err(i, "R12", f"missing Priority: — one of {', '.join(PRIORITIES)}")
+        elif priority not in PRIORITIES:
+            err(i, "R12", f"Priority must be one of {', '.join(PRIORITIES)}, got '{priority}'")
         if len(i["summary"]) > SUMMARY_MAX:
             err(i, "R1", f"summary is {len(i['summary'])} characters, max {SUMMARY_MAX}")
         if re.search(r"\band\b", i["summary"], re.I):

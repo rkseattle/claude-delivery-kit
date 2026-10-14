@@ -64,6 +64,10 @@ behind a link. Prevents: a misread plan.
 behavior, unless the ticket states the change to that behavior. No two tickets change the
 same behavior. Prevents: a `Deviation` row.
 
+**R12 Prioritized.** `Priority:` is one of `Must`, `Should`, `Could`, or `Won't` (MoSCoW).
+`Won't` is written down, not left out, so excluded work is visible as excluded. Prevents: a
+release with no Must set to check "All Must acceptance tests pass" against.
+
 ## Bug, in addition
 
 **B1 Reproducible.** Steps use specific inputs; Environment names the commit or build;

@@ -1,6 +1,7 @@
 <!-- expect errors=3 warnings=1 -->
 # [S1] Set the refresh cookie on sign-in
 Type: Story
+Priority: Must
 Handoff: auth-pr-01
 Jira:
 
