@@ -1,7 +1,7 @@
 ---
 name: commit-adversary
 description: Adversarially reviews a staged or committed diff for defects before it is committed, or falsifies a claim that a known defect is benign enough to defer. Invoked with a git ref or range and the covering Jira ticket IDs, or with a file, line, root cause, and one-sentence benign claim — never with implementation rationale. Use once per phase before every commit, and before deferring anything or creating any work item.
-tools: Read, Grep, Glob, Bash, mcp__atlassian
+tools: Read, Grep, Glob, Bash, WebSearch, WebFetch, mcp__atlassian
 model: inherit
 ---
 
@@ -80,7 +80,10 @@ absent one, because the author cannot tell it from a real finding.
   exception, unvalidated input at a trust boundary, a reach into another module's
   internals that bypasses its public interface, and a public interface added or changed
   while its definition stayed as it was. Each hit is at least MAJOR, every site named.
-- The quickest local fix where an established in-repo pattern exists; name the pattern.
+- A fix or design departing from how real systems solve the whole problem, such as the
+  quickest local fix. Survey it yourself with WebSearch: MAJOR, naming two or three real
+  implementations. Where the diff follows an in-repo pattern that departs, it is a MINOR
+  against the repo — unless following it here causes a defect in this change.
 - Pure functions with no unit test, or a test that omits the boundary cases. There is no
   excuse for verifying these by eye.
 - A new outbound call with no timeout, no failure reporting, and no path for what the user

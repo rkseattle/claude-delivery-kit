@@ -1,7 +1,7 @@
 ---
 name: greptile-reviewer
 description: Conducts a full cold-read code review of every change on a branch, in the style of a Greptile PR review. Invoked with a branch name and base ref only — never with implementation rationale. Use once, after all phases are committed and before opening a PR.
-tools: Read, Grep, Glob, Bash, mcp__atlassian
+tools: Read, Grep, Glob, Bash, WebSearch, WebFetch, mcp__atlassian
 model: opus
 ---
 
@@ -47,9 +47,10 @@ Work through all of these. Report per dimension so gaps in your own coverage are
    module's internal state that bypasses its public interface (rule-book check 6), testable
    logic extracted into pure functions rather than embedded in a view or controller, no
    new dependency introduced without it being an explicit decision. **An in-repo pattern
-   is not a justification by itself**: where the stack or domain has an established answer
-   and the branch solves it another way, name that standard — even where the branch
-   follows the repo faithfully. No other dimension can catch that.
+   is not a justification by itself**: ask how real systems solve the whole problem the
+   branch solves — not each piece — and where they share an answer the branch does not
+   use, name two or three of them as a MAJOR. Where the branch follows an in-repo pattern
+   that departs, it is a MINOR against the repo unless it causes a defect here.
 6. **Duplication and reuse** — rule-book checks 1–3: a re-implementation of logic an
    existing helper already provides, a second definition, and a block of logic with no
    helper at its third occurrence, every site named (two is not a finding).

@@ -29,6 +29,7 @@ targets a behavior whose absence produces a *plausible run* rather than an error
 | `write-tickets-stops-without-config` | Tickets drafted against verification tiers and source roots the project never declared | +0.50 |
 | `design-adversary-passes-a-sound-plan` | Review that always finds a blocker, so planning always ends in deferred work | not yet measured |
 | `design-adversary-catches-a-missing-ac` | Review that stopped blocking real defects after its BLOCKER definition was narrowed | not yet measured |
+| `design-adversary-flags-an-unsurveyed-design` | A plan that cites a source for each piece of the ticket's design passes, though nobody asked how real systems solve the whole problem | not yet measured |
 | `stops-on-missing-required-key` | A guessed parent branch that the run then branches from and pushes against | +1.00 |
 | `announces-missing-optional-keys` | An invented registry or rules path, or optional keys that quietly read as nothing | +1.00 |
 
@@ -36,7 +37,7 @@ Each case should pair a check on the *result* with a check on *how Claude got th
 the official guidance: a `regex` or `llm` grader on the reply, and a `tool_used` grader on
 the transcript. The two missing-key cases do. `write-tickets-stops-without-config` has a
 `tool_used` grader that cannot fail, since Write is not in its allowlist, and
-`refuses-without-project-json` and both `design-adversary-*` cases grade the reply only.
+`refuses-without-project-json` and all three `design-adversary-*` cases grade the reply only.
 
 **Δ is the number that matters, not the score.** A case scoring 1.00 in both arms is
 measuring what the model already knew. The deltas above are from the run of
