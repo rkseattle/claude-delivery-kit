@@ -39,8 +39,14 @@ LINK_DESTINATION = re.compile(r"\]\(\s*(<[^>]*>|(?:[^()\s]|\([^()\s]*\))+)")
 REFERENCE_DEF = re.compile(r"^ {0,3}\[(?!\^)[^\]]+\]:\s*(<[^>]*>|\S+)")
 # Not after a URL's host or another path segment: https://host/Users/x is a link, not a path.
 ABS_PATH = re.compile(r"(?<![\w.:/-])(/Users/\w+|/home/\w+/|C:\\Users\\)")
-# Block quote and list markers ahead of a heading on the same line (CommonMark 5.1, 5.2).
-CONTAINER_PREFIX = re.compile(r"^ {0,3}(?:>\s?|(?:[-*+]|\d+[.)])\s+)+")
+# Block-quote markers are stripped from every line before any block is recognized, as
+# CommonMark's parsing strategy resolves containers first (5.1, Appendix A); list markers
+# ahead of a heading on the same line are stripped when looking for headings (5.2).
+QUOTE_PREFIX = re.compile(r"^(?: {0,3}>\s?)+")
+LIST_PREFIX = re.compile(r"^ {0,3}(?:(?:[-*+]|\d+[.)])\s+)+")
+# HTML a and img elements, which GitHub renders: their targets, and an img's alt.
+HTML_TARGET = re.compile(r"<(?:a|img)\b[^>]*?\b(?:href|src)\s*=\s*[\"']([^\"']+)[\"']", re.I)
+HTML_IMG = re.compile(r"<img\b[^>]*>", re.I)
 SKILL_DIR = Path(__file__).resolve().parent.parent
 FIXTURES = SKILL_DIR / "tests" / "fixtures"
 SKILL_FILES = ["SKILL.md", "references/readme-template.md", "references/checklist.md",
@@ -58,7 +64,7 @@ def split_fences(lines):
     fence = None  # (char, length, indent) of the open fence
     can_start_indented, indented, in_list = True, False, False
     for number, line in enumerate(lines, 1):
-        line = line.expandtabs(4)
+        line = QUOTE_PREFIX.sub("", line.expandtabs(4))
         indent = len(line) - len(line.lstrip(" "))
         if fence is None:
             match = FENCE_OPEN.match(line[indent - min(indent, 3):] if in_list else line)
@@ -105,29 +111,29 @@ def link_target_exists(base, root, target):
     if not path:
         return True
     candidate = (root / path.lstrip("/") if path.startswith("/") else base / path).resolve()
+    root = root.resolve()
     try:
-        candidate.relative_to(root.resolve())  # GitHub cannot serve a path above the repo
+        candidate.relative_to(root)  # GitHub cannot serve a path above the repo
     except ValueError:
         return False
-    return exists_exactly(candidate)
+    return exists_exactly(candidate, root)
 
 
-def exists_exactly(path):
-    """Exists with this exact case in every component, as GitHub's case-sensitive paths need;
-    macOS and Windows file systems would otherwise accept `license` for `LICENSE`."""
-    path = Path(path)
+def exists_exactly(path, root):
+    """Exists with this exact case in every component below root, as GitHub's case-sensitive
+    paths need; macOS and Windows file systems would otherwise accept `license` for
+    `LICENSE`. path is resolved and inside root."""
     if not path.exists():
         return False
-    resolved = Path(path.anchor)
-    for part in path.parts[1:]:
-        if part in (".", ""):
-            continue
-        if part == "..":
-            resolved = resolved.parent
-            continue
-        if part not in {entry.name for entry in resolved.iterdir()}:
+    current = root
+    for part in path.relative_to(root).parts:
+        try:
+            names = {entry.name for entry in current.iterdir()}
+        except OSError:
+            return True  # unreadable directory: existence is all that can be checked
+        if part not in names:
             return False
-        resolved = resolved / part
+        current = current / part
     return True
 
 
@@ -163,7 +169,7 @@ def find_headings(prose):
     headings, previous = [], None
     for number, line in prose:
         # A closing run of # counts only after a space, so "## C#" keeps its "#" (4.2).
-        atx = re.match(r"^ {0,3}(#{1,6})(?:\s+(.*?))?(?:\s+#+)?\s*$", CONTAINER_PREFIX.sub("", line))
+        atx = re.match(r"^ {0,3}(#{1,6})(?:\s+(.*?))?(?:\s+#+)?\s*$", LIST_PREFIX.sub("", line))
         underline = SETEXT_UNDERLINE.match(line)
         if atx:
             headings.append((number, len(atx.group(1)), (atx.group(2) or "").strip()))
@@ -182,7 +188,7 @@ def find_headings(prose):
 def check(path, root=None):
     """Return (errors, warnings), each a list of (code, message)."""
     raw = path.read_bytes()
-    lines = raw.decode(errors="replace").splitlines()
+    lines = raw.decode("utf-8-sig", errors="replace").splitlines()  # GitHub ignores a BOM
     base = path.resolve().parent
     root = root or repo_root(base)
     errors, warnings = [], []
@@ -221,13 +227,15 @@ def check(path, root=None):
     for number, line in prose:
         outside_code = CODE_SPAN.sub("", line)
         targets = [m.group(1) for m in LINK_DESTINATION.finditer(outside_code)]
+        targets += [m.group(1) for m in HTML_TARGET.finditer(outside_code)]
         reference = REFERENCE_DEF.match(outside_code)
         if reference:
             targets.append(reference.group(1))
         for target in targets:
             if not link_target_exists(base, root, target):
                 errors.append(("broken-link", f"line {number}: broken relative link '{target}'"))
-        if re.search(r"!\[\s*\]\(", outside_code):
+        if re.search(r"!\[\s*\]\(", outside_code) or any(
+                not re.search(r"\balt\s*=\s*[\"'][^\"']+", tag, re.I) for tag in HTML_IMG.findall(outside_code)):
             warnings.append(("image-alt", f"line {number}: image without alt text"))
         if PLACEHOLDER.search(line):
             errors.append(("placeholder", f"line {number}: template placeholder: {line.strip()[:80]}"))
@@ -244,6 +252,16 @@ def report(errors, warnings):
     print(f"{len(errors)} error(s), {len(warnings)} warning(s)")
 
 
+def as_declared(findings, declared_codes):
+    """Codes in a fixture header's form: code@line where the header pins that code's line."""
+    pinned = {code.split("@")[0] for code in declared_codes if "@" in code}
+    shown = []
+    for code, message in findings:
+        line = re.match(r"line (\d+)", message)
+        shown.append(f"{code}@{line.group(1)}" if code in pinned and line else code)
+    return sorted(shown)
+
+
 def self_test():
     """Each fixture's first line declares the error and warning codes it must produce."""
     failures = 0
@@ -253,21 +271,22 @@ def self_test():
         print(f"{'ok  ' if ok else 'FAIL'} {name}{'' if ok else ': ' + detail}")
         failures += not ok
 
-    expect = re.compile(r"<!-- expect errors=([a-z0-9,-]*) warnings=([a-z0-9,-]*) -->")
+    # A code may carry @line to pin where it is reported: errors=broken-link@16,h1-count
+    expect = re.compile(r"<!-- expect errors=([a-z0-9,@-]*) warnings=([a-z0-9,@-]*) -->")
     fixtures = sorted(FIXTURES.glob("*.md"))
     result(bool(fixtures), "fixtures present", f"none under {FIXTURES}")
     # A leading-slash link resolves from two levels above this skill, the same tree it sits
     # in under skills/, .claude/skills/, or ~/.claude/skills/.
     root = SKILL_DIR.parent.parent
     for fixture in fixtures:
-        declared = expect.match((fixture.read_text(encoding="utf-8").splitlines() or [""])[0])
+        declared = expect.match((fixture.read_text(encoding="utf-8-sig").splitlines() or [""])[0])
         if not declared:
             result(False, fixture.name, "first line has no <!-- expect ... --> header")
             continue
         errors, warnings = check(fixture, root)
         want = (sorted(filter(None, declared.group(1).split(","))),
                 sorted(filter(None, declared.group(2).split(","))))
-        got = (sorted(code for code, _ in errors), sorted(code for code, _ in warnings))
+        got = (as_declared(errors, want[0]), as_declared(warnings, want[1]))
         result(got == want, fixture.name, f"expected {want}, got {got}")
 
     titles = [title for _, _, title in find_headings([(1, "## C#"), (2, "## Done ##")])]

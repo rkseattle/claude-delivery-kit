@@ -68,7 +68,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md).
 SPDX-ID — see [LICENSE](LICENSE).
 ````
 
-Placeholders are written in CAPS-WITH-HYPHENS so `scripts/check_readme.py` can flag any left behind.
+Placeholders for facts (commands, versions, license) are written in CAPS-WITH-HYPHENS so `scripts/check_readme.py` can flag any left behind. Prose prompts such as the one-sentence description, and the sample Configuration row, are not flagged: replace them by hand.
 
 ## Per-type notes
 

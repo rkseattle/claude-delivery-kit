@@ -1,6 +1,6 @@
 # Eval suite
 
-Behavioral tests for the stage skills. CI checks that the kit's files are *well-formed*;
+Behavioral tests for the kit's skills and agents. CI checks that the kit's files are *well-formed*;
 this suite asks whether the skills still *do what they claim*.
 
 ```bash
