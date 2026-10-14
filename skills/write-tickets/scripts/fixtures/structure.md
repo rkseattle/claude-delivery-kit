@@ -1,4 +1,4 @@
-<!-- expect errors=18 warnings=0 -->
+<!-- expect errors=19 warnings=0 -->
 # [E1] Contacts export
 Type: Epic
 Blocked by: None
@@ -9,6 +9,7 @@ Users can take their contacts elsewhere.
 
 ## Success measures
 - SM1: A user downloads their contacts [children: S1, S9]
+- SM2: A user sees the export size [children:  ]
 
 ## In scope
 - Export

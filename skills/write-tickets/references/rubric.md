@@ -68,6 +68,13 @@ same behavior. Prevents: a `Deviation` row.
 `Won't` is written down, not left out, so excluded work is visible as excluded. Prevents: a
 release with no Must set to check "All Must acceptance tests pass" against.
 
+**R13 Measurable non-functional requirements.** Epic and Story only; a Task or Bug carries
+no NFR section. Each line of `## Non-functional requirements` is `- NFR<n>:` with a symbol
+comparator, number, and unit before a `[verify: <tier> @ <evidence>]` tag, as R7 requires
+of an AC — "p95 < 300 ms at 200 requests/second", not "fast". Prevents: a non-functional
+requirement no design element or test can be checked against. The linter checks the
+comparator and number; the unit is this review's to check.
+
 ## Bug, in addition
 
 **B1 Reproducible.** Steps use specific inputs; Environment names the commit or build;
@@ -88,6 +95,7 @@ demonstrate it.
 **E3** Every child maps to a success measure or carries the `enabling` label.
 **E4** Blocked-by links form no cycle; Children is in build order.
 **E5** Out of scope is present and non-empty.
+**R13** applies to an Epic's `## Non-functional requirements` as to a Story's.
 
 ## Severity
 

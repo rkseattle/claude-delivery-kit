@@ -37,10 +37,16 @@ Jira:
 - <key> (Done): <what it provides>                (Dependencies)
 - Code: `symbol()` in path/to/file (exists on the parent branch)
 - SM1: <observable measure> [children: S1, S2]    (Epic success measures)
+- NFR1: <metric> <comparator> <number><unit> <condition> [verify: <tier> @ <evidence>]
 ```
 
 Commas and semicolons inside an AC make separate `plan-work` rows. Use them only between
 clauses that are each verifiable; keep lists of values inside backticks.
+
+An NFR line's threshold is its first comparator — `<`, `<=`, `>`, `>=`, `=`, `≤`, or `≥`,
+never a word — then a number and its unit: `p95 response < 300 ms at 200 requests/second`,
+not `p95 stays low over 24 hours`. Numbers in the metric name or the condition do not
+count. The linter checks the comparator and number; the unit is checked in review.
 
 Touch points are production files only; tests appear as AC evidence. Dependencies with
 none: `- None`.
@@ -53,6 +59,9 @@ none: `- None`.
 | Story | Context, Behavior, Acceptance criteria, Touch points, Out of scope, Dependencies |
 | Task  | Context, Change, Acceptance criteria, Touch points, Out of scope, Dependencies |
 | Bug   | Environment, Steps to reproduce, Expected, Actual, Evidence, Acceptance criteria, Touch points, Out of scope, Dependencies |
+
+An Epic or a Story may add **Non-functional requirements**, after Success measures or
+Behavior: one NFR line per quality threshold, in the format above.
 
 Every type may add **Implementation notes** — constraints with a reason, never steps. A
 design written there is a proposal `plan-work` checks against real implementations, not a

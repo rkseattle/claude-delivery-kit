@@ -42,7 +42,8 @@ REQUIRED = {
 }
 # MoSCoW as the DSDM Agile Project Framework defines it. The apostrophe is straight.
 PRIORITIES = ["Must", "Should", "Could", "Won't"]
-SPEC_SECTIONS = ["Behavior", "Change", "Acceptance criteria", "Expected", "Success measures"]
+NFR_SECTION = "Non-functional requirements"
+SPEC_SECTIONS = ["Behavior", "Change", "Acceptance criteria", "Expected", "Success measures", NFR_SECTION]
 UNDECIDED = [r"\bTBD\b", r"\bTBC\b", r"\bTODO\b", r"\?\?", r"\betc\b", r"\be\.g\.", r"\band/or\b",
              r"\bas needed\b", r"\bas appropriate\b", r"\bif possible\b", r"\bwhere applicable\b",
              r"\binvestigate\b", r"\bexplore\b", r"\bconsider\b", r"\bdecide\b", r"\bdetermine whether\b"]
@@ -55,9 +56,18 @@ SESSION_REFS = [r"\bas discussed\b", r"\bas mentioned\b", r"\bper (the )?above\b
 HEADER = re.compile(r"^# \[(?P<id>[ESTB]\d+)\]\s+(?P<summary>.+?)\s*$")
 META = re.compile(r"^(Type|Parent|Blocked by|Handoff|Labels|Priority|Jira):\s*(.*)$")
 SECTION = re.compile(r"^## (.+?)\s*$")
-AC = re.compile(r"^-\s+AC(\d+):\s+(.+?)\s*\[verify:\s*([^@\]]+?)\s*@\s*([^\]]+?)\s*\]\s*$")
+VERIFY_TAG = r"\[verify:\s*([^@\]\s][^@\]]*?)\s*@\s*([^\]\s][^\]]*?)\s*\]"
+AC = re.compile(r"^-\s+AC(\d+):\s+(.+?)\s*" + VERIFY_TAG + r"\s*$")
+NFR = re.compile(r"^-\s+NFR(\d+):\s+(.*)$")
+NFR_TAG = re.compile(VERIFY_TAG + r"\s*$")
+NFR_TYPES = ("Epic", "Story")
+# `<metric> <comparator> <number>`, read at the line's first comparator, the way an OpenSLO
+# threshold pairs an operator with a value: a number anywhere else is not a threshold. The
+# unit is prose, so ticket-adversary checks it, not this.
+COMPARATOR = re.compile(r"<=|>=|≤|≥|<|>|=")
+NUMBER = re.compile(r"\s*[-+]?[$€£]?(?:\d[\d,]*(?:\.\d+)?|\.\d+)")
 TOUCH = re.compile(r"^-\s+`?([^`\s]+)`?\s+\((modify|new|delete)\)\s*:?\s*(.*)$")
-MEASURE = re.compile(r"^-\s+SM(\d+):\s+(.+?)\s*\[children:\s*([^\]]+)\]\s*$")
+MEASURE = re.compile(r"^-\s+SM(\d+):\s+(.+?)\s*\[children:\s*([^\]\s][^\]]*)\]\s*$")
 KEY = re.compile(r"^[A-Z][A-Z0-9]+-\d+$")
 LOCAL = re.compile(r"^[ESTB]\d+$")
 
@@ -88,6 +98,17 @@ def parse(text):
 
 def body(lines):
     return [l.strip() for l in lines if l.strip() and not l.strip().startswith("<!--")]
+
+
+def evidence_missing(repo, evidence):
+    # The named path itself must exist: a file whose directory exists but whose name is a
+    # typo is exactly the unfillable `Verified by` cell this catches. Prose evidence has no '/'.
+    return "/" in evidence and not os.path.exists(os.path.join(repo, evidence))
+
+
+def has_threshold(text):
+    cmp = COMPARATOR.search(text)
+    return bool(cmp and text[:cmp.start()].strip() and NUMBER.match(text, cmp.end()))
 
 
 def ids(value):
@@ -153,6 +174,26 @@ def lint(items, repo):
                 for p in VAGUE:
                     if re.search(p, text, re.I):
                         warn(i, "R7", f"vague '{re.search(p, text, re.I).group(0)}' in {s}: {line[:80]}")
+        nfr_lines = body(i["sections"].get(NFR_SECTION, []))
+        if NFR_SECTION in i["sections"] and t not in NFR_TYPES:
+            err(i, "R13", f"'## {NFR_SECTION}' belongs on an Epic or Story, not a {t}")
+            nfr_lines = []
+        elif NFR_SECTION in i["sections"] and not nfr_lines:
+            err(i, "R13", f"'## {NFR_SECTION}' is empty")
+        for line in nfr_lines:
+            m = NFR.match(line)
+            if not m:
+                err(i, "R13", f"not '- NFRn: <metric> <comparator> <number><unit> <condition> "
+                              f"[verify: tier @ evidence]': {line[:80]}")
+                continue
+            num, rest = m.groups()
+            tag = NFR_TAG.search(rest)
+            if not tag:
+                err(i, "R13", f"NFR{num} has no [verify: tier @ evidence] tag")
+            if not has_threshold(rest[:tag.start()] if tag else rest):
+                err(i, "R13", f"NFR{num} has no '<metric> <comparator> <number>' threshold")
+            if tag and evidence_missing(repo, tag.group(2)):
+                err(i, "R13", f"NFR{num} evidence {tag.group(2)} does not exist in the repo")
         for ref in ids(i["meta"].get("Blocked by")) + ids(i["meta"].get("Parent")):
             if LOCAL.match(ref):
                 if ref not in by_id:
@@ -193,11 +234,8 @@ def lint(items, repo):
             clauses = len(re.findall(r"[,;]", re.sub(r"`[^`]*`", "", text))) + 1
             if clauses > 1:
                 warn(i, "R7", f"AC{num} is {clauses} plan-work rows (split on , and ;) — each needs its own verification")
-            if "/" in evidence:
-                # R7 wants the named path itself to exist: a file whose directory exists but
-                # whose name is a typo is exactly the unfillable `Verified by` cell this catches.
-                if not os.path.exists(os.path.join(repo, evidence)):
-                    err(i, "R7", f"AC{num} evidence {evidence} does not exist in the repo")
+            if evidence_missing(repo, evidence):
+                err(i, "R7", f"AC{num} evidence {evidence} does not exist in the repo")
         if t == "Bug" and not any(re.search(r"\bRegression:", l) for l in acs):
             err(i, "B2", "no AC marked 'Regression:'")
 
@@ -246,7 +284,8 @@ def self_test():
     try:
         # Every path the fixtures cite and expect to exist. A fixture citing anything else
         # is asserting that the path is absent — `tests/missing/dir/hash.test.ts` in
-        # clauses.md is deliberately not here, and clean.md must cite only these.
+        # clauses.md and `tests/perf/coldstart.test.ts` in nfr.md are deliberately not
+        # here, and clean.md must cite only these.
         for f in ("src/auth/routes.ts", "src/auth/config.ts", "src/auth/tokens.ts",
                   "tests/auth/button.test.ts", "tests/auth/empty.test.ts",
                   "tests/auth/export.test.ts", "tests/auth/limit.test.ts",
