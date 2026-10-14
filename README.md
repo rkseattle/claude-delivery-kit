@@ -1,9 +1,9 @@
 # delivery-kit
 
 The shared half of the phased-delivery workflow: stage skills, adversary agents, the
-universal gates, and the two hooks. Projects keep only what is genuinely theirs — the
-commands, thresholds and job names — in `.claude/project.json` and a pair of mechanics
-gate files.
+universal gates, and the two hooks, plus one standalone skill, `readme-docs`. Projects
+keep only what is genuinely theirs — the commands, thresholds and job names — in
+`.claude/project.json` and a pair of mechanics gate files.
 
 ## Why this exists
 
@@ -21,12 +21,12 @@ The kit's rules are measured against one source:
 
 ## Layout
 
-```
+```text
 .claude-plugin/
   plugin.json          the manifest
   marketplace.json     this repo is also its own marketplace
 skills/                write-tickets, deliver, plan-work, implement-phases,
-                       branch-review, ship-pr, ci-green
+                       branch-review, ship-pr, ci-green; readme-docs (standalone)
 agents/                ticket-, design-, commit-, ci-failure-, greptile- adversaries
 gates/                 status-report.md, definition-of-done.md, pre-push.md,
                        read-only-agent.md (the universal halves only),
@@ -42,6 +42,18 @@ reference/             software-engineering-rule-book.md, the source the rules
 The skills reference `${CLAUDE_PLUGIN_ROOT}/gates/*.md`. Those three files land in the
 gates commit; until then the references resolve to nothing and a run would say so rather
 than proceed on a gate it could not read.
+
+## Standalone skills
+
+These are not delivery stages: they load on their own, by description, and work with or
+without the rest of the kit.
+
+- **`readme-docs`** — writes, rewrites, or audits a project's `README.md` and the docs it
+  links to, with every command and link checked against the repo by
+  `skills/readme-docs/scripts/check_readme.py`. It arrives with the plugin as
+  `delivery-kit:readme-docs`. To use it without the plugin, copy `skills/readme-docs/` to
+  `.claude/skills/readme-docs/` in a repo, or to `~/.claude/skills/readme-docs/` for every
+  project; a copy there wins the bare name `readme-docs` over the plugin's.
 
 ## Installing in a project
 
@@ -82,7 +94,7 @@ section each: the rules to attack. Merging two projects' rule lists into one fil
 produce a list where most entries are inapplicable noise, so each agent reads its own
 rules from the project instead:
 
-```
+```text
 .claude/agent-rules/commit-adversary.md
 .claude/agent-rules/design-adversary.md
 .claude/agent-rules/greptile-reviewer.md
