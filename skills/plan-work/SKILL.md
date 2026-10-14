@@ -52,10 +52,10 @@ Report the resolved label if it differed from what you were given.
 
 ## Step 2 — Fetch the tickets, sequentially
 
-Fetch each resolved ticket and read the full description and acceptance criteria **before
-launching anything else**. Do not parallelize the fetch with exploration. The session
-context contains recent git commits, and launching an exploration agent before the ticket
-content is known anchors it on the wrong domain — this has happened.
+Fetch each resolved ticket and read the full description, acceptance criteria, and NFR
+lines **before launching anything else**. Do not parallelize the fetch with exploration.
+The session context contains recent git commits, and launching an exploration agent before
+the ticket content is known anchors it on the wrong domain — this has happened.
 
 Read linked and blocking tickets too. Cross-story dependencies are often written in prose
 inside descriptions rather than as Jira links, so read the descriptions for sequencing
@@ -139,6 +139,11 @@ can be independently forgotten, and a theme-level row lets one vanish without le
 visible hole. Any clause whose phase cell you cannot fill is a gap in the plan, not a gap
 in the table.
 
+**Each NFR line is a row too.** The `## Non-functional requirements` lines of a covering
+Epic or Story are criteria like its ACs: each takes the next `AC<n>` ID, with
+`NFR<n>: <text>` in the `AC` column and its `[verify:]` tag's tier in `Verified by`, as
+for an AC. A threshold no phase meets is the same gap.
+
 **`Verified by` is mandatory** and names which tier covers the clause. The project's tiers
 are in `{{verification_tiers}}` — typically a named test, and, where the automated suite
 cannot reach the behavior, an out-of-band session. A behavior's math being tested and the
@@ -192,9 +197,9 @@ introduces does not build, and the claim is then false.
 ```
 
 `Ticket gaps` lists each place a covering ticket, as written, made this plan propose a
-split, add a `Deviation` row, or hold an AC clause with no fillable phase — one line each,
-naming the ticket, the gap, and the `write-tickets` rubric criterion it falls under. Omit
-the section when there are none. `implement-phases` copies it into `friction[]`.
+split, add a `Deviation` row, or hold an AC clause or NFR line with no fillable phase —
+one line each, naming the ticket, the gap, and the `write-tickets` rubric criterion it falls
+under. Omit the section when there are none. `implement-phases` copies it into `friction[]`.
 
 The architecture rules the plan must respect are in `CLAUDE.md` and
 `{{plan_rules_file}}`. Read them rather than working from memory.
@@ -209,9 +214,9 @@ compress seven phases into six. Unlike a line count this cannot be satisfied by 
 prose, which is why it comes first.
 
 **500 lines for the document, counting everything except the acceptance-criteria table.**
-That table is one row per AC clause by design, and a plan covering several tickets can carry
-thirty rows before a single phase is written — counting it would penalize the splitting rule
-above it. Everything else counts.
+That table is one row per AC clause and NFR line by design, and a plan covering several
+tickets can carry thirty rows before a single phase is written — counting it would penalize
+the splitting rule above it. Everything else counts.
 
 **5 lines for `Change summary`.** This is the field that actually overflows, so it is the
 field with the limit. What changes, and why, in five lines or fewer. If a claim needs three
@@ -291,7 +296,7 @@ item below, either fix it or satisfy yourself it holds:
    absence is a claim like any other.
 2. **Every registry the plan edits** — the Step 3 grep was run and its consumers are listed
    in the phase that edits it.
-3. **Every AC clause** — has a row, a phase number, and a `Verified by` value.
+3. **Every AC clause and NFR line** — has a row, a phase number, and a `Verified by` value.
 4. **Every cross-phase reference** — a phase naming a function, error code, or type that a
    later phase introduces does not build on its own; either move it or reorder.
 5. **Every "independently committable" claim** — pick the phase you are least sure of and

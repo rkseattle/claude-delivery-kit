@@ -72,9 +72,10 @@ check "All Must acceptance tests pass" against.
 **R13 Measurable non-functional requirements.** Epic and Story only; a Task or Bug carries
 no NFR section. Each line of `## Non-functional requirements` is `- NFR<n>:` with a symbol
 comparator, number, and unit before a `[verify: <tier> @ <evidence>]` tag, as R7 requires
-of an AC — "p95 < 300 ms at 200 requests/second", not "fast". Prevents: a non-functional
-requirement no design element or test can be checked against. The linter checks the
-comparator and number; the unit is this review's to check.
+of an AC — "p95 < 300 ms at 200 requests/second", not "fast". `plan-work` gives each line a
+coverage row of its own. The linter checks the comparator and number; the unit is this
+review's to check. Prevents: a non-functional requirement no design element or test can be
+checked against.
 
 **R14 Traceable to a goal.** A Story or Task with no `Parent:` carries `Goal:`, one sentence
 naming the outcome it serves, held to R6, R7, and R10 like the sections. Bugs are exempt,

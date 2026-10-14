@@ -53,8 +53,8 @@ Read `${CLAUDE_PLUGIN_ROOT}/gates/read-only-agent.md` and follow it exactly.
 1. `git diff <range>` for the changed hunks, then `git diff --stat <range>` for shape.
 2. **Read each changed file in full**, not just the hunks. Most real defects live in the
    interaction between new code and the code around it, which the hunk hides.
-3. Fetch the covering tickets and read the acceptance criteria. Does this diff actually
-   satisfy them, or only approximately?
+3. Fetch the covering tickets and read the acceptance criteria and NFR lines. Does this
+   diff actually satisfy them, or only approximately?
 4. Grep the repo for every symbol, route, script name, config key, or file the diff
    renamed, moved, or changed the signature of. Unreferenced callers are among the most
    common defect classes anywhere — build manifests, CI workflow steps, package scripts,
