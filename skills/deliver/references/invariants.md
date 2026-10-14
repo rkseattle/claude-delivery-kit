@@ -8,7 +8,7 @@ one, not on every run.
 
 - Adversarial reviews stay blind
 - Revert, not iterate
-- Industry-standard patterns only, and the standard is named
+- External first, and the standard is named
 - Enforcement machinery is planned before it is written
 - Fixing is the default; deferring needs permission
 - Never create a Jira work item without asking
@@ -38,19 +38,23 @@ exploring a design that should not exist rather than a defect that should be gon
 further round adds surface for the next one to find, which is why these loops end at the
 cap rather than at APPROVE.
 
-## Industry-standard patterns only, and the standard is named
+## External first, and the standard is named
 
-This includes the replacement approach after a revert. Never the simplest or easiest
-solution. "A different approach" drawn from the same reading of the surrounding code
-produces the same shape and fails the same way; that is the loop.
+Every design decision — a plan's approach, a review or CI fix, a test harness, the
+replacement after a revert — starts from two or three real implementations of the whole
+problem, named before weighing the repo's design or the ticket's, as an RFC's prior-art
+section or an ADR's considered options precede its decision. For a fix the whole problem is
+the failure mode: read the failing code to name it, then survey how others fix that mode.
+The repo's and the ticket's designs are proposals weighed against the survey, never defaults:
+another approach drawn from the same reading of the surrounding code fails the same way.
 
-Name the documented standard, framework convention, or known implementation the approach
-is an instance of, before writing it. In-repo precedent justifies a choice only where you
-can name it that way too — one you cannot is local invention, and following it spreads
-it. If nothing external fits, that is the finding to bring to Rob.
-
-Every stage appends what it cited to `citations[]` and prints nothing; `ci-green` reports
-the whole list once, before it deletes that file. Justify every departure in writing.
+The chosen approach names the surveyed implementation it follows — never the simplest by
+default — or says in writing why it departs from all of them. An approach that does neither
+is local invention, and following it spreads it. Per-component citations for a design already
+chosen do not satisfy this: a per-file sync model had one for every piece while the whole
+problem had a standard answer, git's own model, that nobody asked for. If nothing external
+fits, bring that to Rob and record it `waived`. Every stage appends survey and choice to
+`citations[]` without printing; `ci-green` reports the list once, before deleting that file.
 
 ## Enforcement machinery is planned before it is written
 
