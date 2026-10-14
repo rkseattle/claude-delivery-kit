@@ -65,8 +65,8 @@ Whichever he chooses, the PR body records those ACs as outstanding until the ver
 reports. Never mark such an AC met on the strength of a green automated run.
 
 If the verification fails, root-cause it, survey the failure mode per `deliver`'s
-invariant, and fix, then re-verify **only what the fix affects**,
-per `{{failure_policy_gate}}`. If you cannot find the root cause, declare the stop per
+invariant, and fix, then re-verify **only what the fix affects**, per
+`{{failure_policy_gate}}`. If you cannot find the root cause, declare the stop per
 `deliver`'s invariants and ask.
 
 ## Step 3 — Clean the working tree

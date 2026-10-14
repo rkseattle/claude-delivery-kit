@@ -36,9 +36,10 @@ targets a behavior whose absence produces a *plausible run* rather than an error
 
 Each case should pair a check on the *result* with a check on *how Claude got there*, per
 the official guidance: a `regex` or `llm` grader on the reply, and a `tool_used` grader on
-the transcript. The two missing-key cases and `readme-docs-updates-an-existing-readme` do. `write-tickets-stops-without-config` has a
-`tool_used` grader that cannot fail, since Write is not in its allowlist, and
-`refuses-without-project-json` and all three `design-adversary-*` cases grade the reply only.
+the transcript. The two missing-key cases and `readme-docs-updates-an-existing-readme`
+do. `write-tickets-stops-without-config` has a `tool_used` grader that cannot fail, since
+Write is not in its allowlist, and `refuses-without-project-json` and all three
+`design-adversary-*` cases grade the reply only.
 
 **Δ is the number that matters, not the score.** A case scoring 1.00 in both arms is
 measuring what the model already knew. The deltas above are from the run of
@@ -93,9 +94,10 @@ Only both passing says the severity line sits where it was meant to.
 `tool_used: Skill` is the natural grader for "did the plugin fire", and it is
 **unsatisfiable here** for the stage skills. Each carries `disable-model-invocation: true`,
 so the model is structurally unable to invoke one; `readme-docs` does not, which is why its
-case can grade on it. a slash command in a prompt body reaches
-the run as literal text rather than as an invocation, since the harness sends the body
-exactly as written.
+case can grade on it. A slash command in a prompt body reaches the run as literal text
+rather than as an invocation, since the harness sends the body exactly as written; the
+`readme-docs` case names the plugin skill that way so the model loads it rather than a
+same-named user-level copy.
 
 What the with-arm measures instead is the plugin's *files being present, findable, and
 followed*. That is a real difference — the baseline arm scores 0.00 on
@@ -111,8 +113,9 @@ servers, no user settings. That constrains what can be tested here:
   whether planning stops at the approval gate, the shape of what it produces.
 - **Testable with a scaffold**: a workspace that needs only files written before the run.
   The missing-key cases' `context.scaffold_script` writes a `.claude/project.json` and
-  nothing else; `readme-docs-updates-an-existing-readme`'s writes a small Python project. Measured 2026-10-11 against the skills on `main` before `gates/project-config.md`,
-  the required-key case scored 0.33 and the optional-key case 0.44, with no run passing,
+  nothing else; `readme-docs-updates-an-existing-readme`'s writes a small Python project.
+  Measured 2026-10-11 against the skills on `main` before `gates/project-config.md`, the
+  required-key case scored 0.33 and the optional-key case 0.44, with no run passing,
   against 1.00 for both after it, 3 runs per arm. `results/` is not tracked, so re-run
   both against `main` and the branch to check these.
 - **Not testable without more scaffolding**: anything needing Jira, a git history, or a
