@@ -1,7 +1,7 @@
 ---
 name: commit-adversary
 description: Adversarially reviews a staged or committed diff for defects before it is committed, or falsifies a claim that a known defect is benign enough to defer. Invoked with a git ref or range and the covering Jira ticket IDs, or with a file, line, root cause, and one-sentence benign claim — never with implementation rationale. Use once per phase before every commit, and before deferring anything or creating any work item.
-tools: Read, Grep, Glob, Bash, WebSearch, WebFetch, mcp__atlassian
+tools: Read, Grep, Glob, Bash, WebSearch, mcp__atlassian
 model: inherit
 ---
 

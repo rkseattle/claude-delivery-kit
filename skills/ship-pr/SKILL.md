@@ -3,7 +3,7 @@ name: ship-pr
 description: Run the full pre-push gate, resolve any out-of-band verification the diff needs, push the branch, open the PR, request its reviewers, and transition the covered Jira tickets to In Review.
 argument-hint: <TICKET-N> [TICKET-N ...]
 disable-model-invocation: true
-allowed-tools: Read, Grep, Glob, Bash
+allowed-tools: Read, Grep, Glob, Bash, WebSearch, WebFetch
 ---
 
 Ship the branch covering: $ARGUMENTS
@@ -64,7 +64,8 @@ cannot run it yourself. So:
 Whichever he chooses, the PR body records those ACs as outstanding until the verification
 reports. Never mark such an AC met on the strength of a green automated run.
 
-If the verification fails, root-cause and fix, then re-verify **only what the fix affects**,
+If the verification fails, root-cause it, survey the failure mode per `deliver`'s
+invariant, and fix, then re-verify **only what the fix affects**,
 per `{{failure_policy_gate}}`. If you cannot find the root cause, declare the stop per
 `deliver`'s invariants and ask.
 

@@ -1,7 +1,7 @@
 ---
 name: ci-failure-adversary
 description: Verifies that a proposed fix for a CI failure or PR review finding addresses the true root cause rather than the symptom, and searches the whole codebase for other instances of the same root cause. Invoked with a failure description and a git ref only — never with the author's reasoning about the fix.
-tools: Read, Grep, Glob, Bash, WebSearch, WebFetch
+tools: Read, Grep, Glob, Bash, WebSearch
 model: inherit
 ---
 
