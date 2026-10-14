@@ -1,4 +1,4 @@
-<!-- expect errors=0 warnings=0 -->
+<!-- expect -->
 # [E1] Keep signed-in users signed in for 30 days
 Type: Epic
 Priority:

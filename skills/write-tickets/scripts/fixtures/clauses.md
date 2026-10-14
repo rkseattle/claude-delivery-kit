@@ -1,4 +1,4 @@
-<!-- expect errors=5 warnings=1 -->
+<!-- expect FORMAT=1 R3=1 R7=3 warn:R7=1 -->
 # [S1] Set the refresh cookie on sign-in
 Type: Story
 Priority: Must

@@ -403,8 +403,70 @@ def readback_cli_test(cases, scratch):
     return failed
 
 
+FINDING = re.compile(r"^(ERROR|WARN)\s+\S+ \[([^\]]+)\]")
+# One key per code, warnings as warn:CODE. check_readme.py lists codes instead
+# (errors=R1,R1); both scripts are stdlib-only and standalone, so neither imports the other.
+EXPECT = re.compile(r"<!-- expect((?: [\w:]+=\d+)*) -->")
+
+
+def code_counts(findings):
+    """{code: n} for errors and {warn:code: n} for warnings, as fixtures declare them."""
+    counts = {}
+    for f in findings:
+        m = FINDING.match(f)
+        key = "unparsed" if not m else m[2] if m[1] == "ERROR" else f"warn:{m[2]}"
+        counts[key] = counts.get(key, 0) + 1
+    return counts
+
+
+def declared_counts(text):
+    """The counts a fixture's line 1 declares, or a string saying why there are none."""
+    m = EXPECT.match(text)
+    if not m:
+        return "line 1 has no <!-- expect CODE=n ... --> header"
+    pairs = [p.split("=") for p in m.group(1).split()]
+    keys = [k for k, _ in pairs]
+    if len(set(keys)) < len(keys):
+        return f"a code is declared twice: {' '.join(keys)}"
+    if any(int(v) == 0 for _, v in pairs):
+        return "a code is declared =0; leave it out instead"
+    if "unparsed" in keys:
+        return "unparsed is not a code; the linter printed a line it should not have"
+    return {k: int(v) for k, v in pairs}
+
+
+def fixture_matches(text, findings):
+    """(ok, why) for a fixture's declared counts against what the linter found."""
+    want, got = declared_counts(text), code_counts(findings)
+    if isinstance(want, str):
+        return False, want
+    show = lambda c: " ".join(f"{k}={v}" for k, v in sorted(c.items())) or "nothing"
+    return want == got, f"expected {show(want)}, got {show(got)}"
+
+
+def counts_test():
+    """The comparison itself: each way a fixture could pass while a check misfires, and the
+    reason a malformed header gives."""
+    cases = (("the right total under the wrong code", "<!-- expect R12=1 -->", ["ERROR S1 [R13] x"], ""),
+             ("a code the fixture does not declare", "<!-- expect R12=1 -->",
+              ["ERROR S1 [R12] x", "WARN  S1 [R7] y"], ""),
+             ("a warning counted as an error", "<!-- expect R7=1 -->", ["WARN  S1 [R7] y"], ""),
+             ("a finding the linter could not have printed", "<!-- expect -->", ["R12 x"], ""),
+             ("no declaration at all", "# [S1] x", [], "no <!-- expect"),
+             ("a code declared twice", "<!-- expect R12=1 R12=1 -->", ["ERROR S1 [R12] x"], "twice"),
+             ("a code declared =0", "<!-- expect R12=0 -->", [], "=0"),
+             ("unparsed declared as a code", "<!-- expect unparsed=1 -->", ["R12 x"], "not a code"))
+    failed = 0
+    for name, header, findings, reason in cases:
+        ok, why = fixture_matches(header, findings)
+        good = not ok and reason in why
+        print(f"{'ok  ' if good else 'FAIL'} counts: {name} fails the fixture")
+        failed += not good
+    return failed
+
+
 def self_test():
-    """Each fixture declares its expected counts on line 1: <!-- expect errors=N warnings=M -->."""
+    """Each fixture declares its exact count per code on line 1: <!-- expect R12=2 warn:R7=1 -->."""
     here = os.path.join(os.path.dirname(os.path.abspath(__file__)), "fixtures")
     repo = tempfile.mkdtemp()
     try:
@@ -425,11 +487,9 @@ def self_test():
             if name.startswith(".") or os.path.isdir(os.path.join(here, name)):
                 continue  # editor metadata, and readback/ below; any other file is a fixture
             text = open(os.path.join(here, name), encoding="utf8").read()
-            want = re.match(r"<!-- expect errors=(\d+) warnings=(\d+) -->", text)
             errors, warns = lint(parse(text), repo)
-            got = (len(errors), len(warns))
-            ok = want and got == (int(want.group(1)), int(want.group(2)))
-            print(f"{'ok  ' if ok else 'FAIL'} {name}: errors={got[0]} warnings={got[1]}")
+            ok, why = fixture_matches(text, errors + warns)
+            print(f"{'ok  ' if ok else 'FAIL'} {name}: {why}")
             if not ok:
                 failed += 1
                 print("\n".join("     " + l for l in errors + warns))
@@ -447,6 +507,7 @@ def self_test():
                 failed += 1
                 print("\n".join("     " + l for l in got or []))
         failed += readback_cli_test(cases, repo)
+        failed += counts_test()
         return 1 if failed else 0
     finally:
         shutil.rmtree(repo)

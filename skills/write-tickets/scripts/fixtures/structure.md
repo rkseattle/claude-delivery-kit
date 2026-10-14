@@ -1,4 +1,4 @@
-<!-- expect errors=26 warnings=0 -->
+<!-- expect B2=1 E2=2 E3=3 E4=1 FORMAT=6 R12=6 R14=3 R2=1 R3=2 R6=1 -->
 # [E1] Contacts export
 Type: Epic
 Priority: High

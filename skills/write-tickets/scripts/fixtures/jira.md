@@ -1,4 +1,4 @@
-<!-- expect errors=5 warnings=0 -->
+<!-- expect FORMAT=5 -->
 # [S1] Export contacts as a file
 Type: Story
 Handoff: jira-pr-01

@@ -1,4 +1,4 @@
-<!-- expect errors=16 warnings=1 -->
+<!-- expect R13=15 R6=1 warn:R7=1 -->
 # [E1] Keep sign-in responsive under load
 Type: Epic
 Blocked by: None
