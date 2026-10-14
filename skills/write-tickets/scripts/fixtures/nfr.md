@@ -1,4 +1,4 @@
-<!-- expect errors=14 warnings=1 -->
+<!-- expect errors=15 warnings=1 -->
 # [E1] Keep sign-in responsive under load
 Type: Epic
 Blocked by: None
@@ -54,6 +54,8 @@ POST /auth/login answers within the budget below at peak traffic.
 - NFR15: p95 response < low at 200 requests/second [verify: out-of-band @ load test report]
 - NFR16: < 300 ms at 200 requests/second [verify: out-of-band @ load test report]
 - NFR17: Login->dashboard p95 < 300 ms at 50 requests/second [verify: out-of-band @ load test report]
+- NFR18: `GET /a?x=1` latency stays low [verify: out-of-band @ load test report]
+- NFR19: Export of `contacts-<date>.csv` takes < 2 s at 10 requests/second [verify: out-of-band @ load test report]
 
 ## Acceptance criteria
 - AC1: POST /auth/login with valid credentials returns 200 [verify: automated @ tests/auth/login.test.ts]
