@@ -40,8 +40,13 @@ CODE_PLACEHOLDER = re.compile(
 PLACEHOLDER = re.compile(CODE_PLACEHOLDER.pattern + r"|(?<![\w-])project-name(?![\w-])")
 # Not after a URL's host or another path segment: https://host/Users/x is a link, not a path.
 ABS_PATH = re.compile(r"(?<![\w.:/-])(/Users/\w+|/home/\w+/|C:\\Users\\)")
-# HTML that GitHub renders: a and img targets, img alt text, and h1 titles.
+# Files whose #fragments are checked against their headings.
 MARKDOWN_SUFFIXES = {".md", ".markdown", ".mdown", ".mkd"}
+# HTML attributes that name a file GitHub serves, per tag; srcset holds a list of them.
+HTML_LINK_ATTRIBUTES = {
+    "a": ("href",), "area": ("href",), "img": ("src", "srcset"), "source": ("src", "srcset"),
+    "video": ("src", "poster"), "audio": ("src",), "track": ("src",),
+}
 FOOTNOTE_LABEL = re.compile(r"^ {0,3}\[\^[^\]]+\]:")
 SKILL_DIR = Path(__file__).resolve().parent.parent
 FIXTURES = SKILL_DIR / "tests" / "fixtures"
@@ -99,6 +104,10 @@ def link_target_exists(base, root, target, anchors):
         return True
     location, _, fragment = target.partition("#")
     path, fragment = unquote(location.split("?")[0]), unquote(fragment).lower()
+    if fragment.startswith("user-content-"):  # the id GitHub actually renders
+        fragment = fragment[len("user-content-"):]
+    if "?" in location:  # a query (?plain=1) switches GitHub to a view with its own anchors
+        fragment = ""
     if not path:
         return fragment in ("", "top") or fragment in anchors
     candidate = (root / path.lstrip("/") if path.startswith("/") else base / path).resolve()
@@ -166,9 +175,11 @@ class RenderedHTML(HTMLParser):
         for name in ("id", "name"):
             if values.get(name):
                 self.anchors.append(values[name])
-        target = values.get("href") if tag == "a" else values.get("src") if tag == "img" else None
-        if target:
-            self.targets.append((target, self.here()))
+        for attribute in HTML_LINK_ATTRIBUTES.get(tag, ()):
+            value = (values.get(attribute) or "").strip()
+            candidates = [entry.split()[0] for entry in value.split(",") if entry.strip()] \
+                if attribute == "srcset" else [value] if value else []
+            self.targets.extend((candidate, self.here()) for candidate in candidates)
         if tag == "img" and not (values.get("alt") or "").strip():
             self.missing_alt.append(self.here())
 
@@ -208,12 +219,15 @@ def rendered_text(children):
 def document_anchors(tokens):
     """Every fragment a link may target: heading slugs, numbered for repeats as GitHub
     numbers them, plus HTML id and name attributes."""
-    anchors, counts = set(), {}
+    anchors = set()
     for position, token in enumerate(tokens):
         if token.type == "heading_open":
-            slug = github_slug(rendered_text(tokens[position + 1].children))
-            counts[slug] = counts.get(slug, -1) + 1
-            anchors.add(slug if counts[slug] == 0 else f"{slug}-{counts[slug]}")
+            slug = candidate = github_slug(rendered_text(tokens[position + 1].children))
+            number = 0
+            while candidate in anchors:  # github-slugger: number until unused
+                number += 1
+                candidate = f"{slug}-{number}"
+            anchors.add(candidate)
         html = [token.content] if token.type == "html_block" else [
             child.content for child in token.children or [] if child.type == "html_inline"]
         for fragment in html:
@@ -254,8 +268,7 @@ def scan_inline(findings, children, line, check_target):
 
 def scan_tokens(findings, tokens, check_target, line_offset=0, skip=()):
     """Every block of a parsed document, except paragraphs and code blocks starting on a
-    line in skip;
-    returns (headings, h1 count from HTML)."""
+    line in skip; returns (headings, h1 count from HTML)."""
     headings, h1_count, line = [], 0, line_offset + 1
     for position, token in enumerate(tokens):
         if token.map:

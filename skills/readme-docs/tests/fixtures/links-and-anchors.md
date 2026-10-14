@@ -1,11 +1,12 @@
-<!-- expect errors=broken-link@5,broken-link@8,broken-link@13,broken-link@15,broken-link@23 warnings= -->
+<!-- expect errors=broken-link@6,broken-link@9,broken-link@14,broken-link@16,broken-link@21,broken-link@29 warnings= -->
 # widget
 
-Same-page anchors: [install](#install), [twice](#notes-1), [punctuation](#c--net-support),
+Same-page anchors: [install](#install), [numbered](#notes-1), [third](#notes-2),
+[rendered id](#user-content-usage), [punctuation](#c--net-support),
 [html anchor](#custom), [top](#top), and [missing](#nowhere).
 
 Other files: [guide](manual/guide.md#guide), [second guide](manual/guide_(v2).md#guide-version-2),
-and [missing section](manual/guide.md#nope).
+[source view line](manual/guide.md?plain=1#L1), and [missing section](manual/guide.md#nope).
 
 <a id="custom"></a>
 
@@ -16,6 +17,11 @@ and [missing section](manual/guide.md#nope).
 <a href="manual/a&amp;b.md">an entity in the name resolves</a>
 </p>
 
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="manual/missing-dark.png 2x, LICENSE 1x">
+  <img src="LICENSE" alt="logo">
+</picture>
+
 A footnote with a second paragraph.[^long]
 
 [^long]: The first paragraph is fine.
@@ -25,6 +31,8 @@ A footnote with a second paragraph.[^long]
 ## Install
 
 ## Notes
+
+## Notes 1
 
 ## Notes
 
