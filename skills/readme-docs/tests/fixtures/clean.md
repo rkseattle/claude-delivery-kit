@@ -1,7 +1,8 @@
 <!-- expect errors= warnings= -->
 # widget
 
-A tool that widgets.
+A tool that widgets. Its site centers the title with an `<h1>` tag; the source lives at
+https://example.com/Users/widget.
 
 ## Install
 
@@ -16,6 +17,10 @@ widget --help
 ```
 
 See the [guide](manual/guide.md).
+
+### Bindings for C#
+
+> ## A quoted heading
 
 ## License
 

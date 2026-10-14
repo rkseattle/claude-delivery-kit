@@ -37,7 +37,10 @@ LIST_OR_QUOTE = re.compile(r"^\s*([-*+>]|\d+[.)])(\s|$)")
 CODE_SPAN = re.compile(r"(`+)(?!`).*?(?<!`)\1(?!`)")
 LINK_DESTINATION = re.compile(r"\]\(\s*(<[^>]*>|(?:[^()\s]|\([^()\s]*\))+)")
 REFERENCE_DEF = re.compile(r"^ {0,3}\[(?!\^)[^\]]+\]:\s*(<[^>]*>|\S+)")
-ABS_PATH = re.compile(r"(/Users/\w+|/home/\w+/|C:\\Users\\)")
+# Not after a URL's host or another path segment: https://host/Users/x is a link, not a path.
+ABS_PATH = re.compile(r"(?<![\w.:/-])(/Users/\w+|/home/\w+/|C:\\Users\\)")
+# Block quote and list markers ahead of a heading on the same line (CommonMark 5.1, 5.2).
+CONTAINER_PREFIX = re.compile(r"^ {0,3}(?:>\s?|(?:[-*+]|\d+[.)])\s+)+")
 SKILL_DIR = Path(__file__).resolve().parent.parent
 FIXTURES = SKILL_DIR / "tests" / "fixtures"
 SKILL_FILES = ["SKILL.md", "references/readme-template.md", "references/checklist.md",
@@ -101,7 +104,12 @@ def link_target_exists(base, root, target):
     path = unquote(target.split("#")[0].split("?")[0])
     if not path:
         return True
-    return exists_exactly(root / path.lstrip("/") if path.startswith("/") else base / path)
+    candidate = (root / path.lstrip("/") if path.startswith("/") else base / path).resolve()
+    try:
+        candidate.relative_to(root.resolve())  # GitHub cannot serve a path above the repo
+    except ValueError:
+        return False
+    return exists_exactly(candidate)
 
 
 def exists_exactly(path):
@@ -154,10 +162,11 @@ def find_headings(prose):
     """ATX (#) and setext (underlined) headings as (line_number, level, title)."""
     headings, previous = [], None
     for number, line in prose:
-        atx = re.match(r"^ {0,3}(#{1,6})\s+(.*?)\s*#*\s*$", line)
+        # A closing run of # counts only after a space, so "## C#" keeps its "#" (4.2).
+        atx = re.match(r"^ {0,3}(#{1,6})(?:\s+(.*?))?(?:\s+#+)?\s*$", CONTAINER_PREFIX.sub("", line))
         underline = SETEXT_UNDERLINE.match(line)
         if atx:
-            headings.append((number, len(atx.group(1)), atx.group(2).strip()))
+            headings.append((number, len(atx.group(1)), (atx.group(2) or "").strip()))
             previous = None
             continue
         if (underline and previous and previous[0] == number - 1 and previous[1].strip()
@@ -195,7 +204,7 @@ def check(path, root=None):
     headings = find_headings(prose)
 
     h1_count = sum(1 for heading in headings if heading[1] == 1)
-    h1_count += sum(len(re.findall(r"<h1[\s>]", line, re.I)) for _, line in prose)
+    h1_count += sum(len(re.findall(r"<h1[\s>]", CODE_SPAN.sub("", line), re.I)) for _, line in prose)
     if h1_count != 1:
         errors.append(("h1-count", f"expected exactly one H1, found {h1_count}"))
     previous = 0
@@ -251,7 +260,7 @@ def self_test():
     # in under skills/, .claude/skills/, or ~/.claude/skills/.
     root = SKILL_DIR.parent.parent
     for fixture in fixtures:
-        declared = expect.match((fixture.read_text().splitlines() or [""])[0])
+        declared = expect.match((fixture.read_text(encoding="utf-8").splitlines() or [""])[0])
         if not declared:
             result(False, fixture.name, "first line has no <!-- expect ... --> header")
             continue
@@ -261,6 +270,9 @@ def self_test():
         got = (sorted(code for code, _ in errors), sorted(code for code, _ in warnings))
         result(got == want, fixture.name, f"expected {want}, got {got}")
 
+    titles = [title for _, _, title in find_headings([(1, "## C#"), (2, "## Done ##")])]
+    result(titles == ["C#", "Done"], "closing # needs a space before it", str(titles))
+
     for fixture, code in (("three-errors.md", 1), ("clean.md", 0)):
         run = subprocess.run([sys.executable, __file__, str(FIXTURES / fixture)],
                              stdout=subprocess.DEVNULL)
@@ -269,15 +281,15 @@ def self_test():
     body = "# widget\n\n## Install\n\n## Usage\n\n## License\n"
     with tempfile.TemporaryDirectory() as scratch:
         long_file = Path(scratch) / "long.md"
-        long_file.write_text(body + "text\n" * WARN_LINES)
+        long_file.write_text(body + "text\n" * WARN_LINES, encoding="utf-8")
         _, warnings = check(long_file)
         result([c for c, _ in warnings] == ["length"], "length warning past the line limit", str(warnings))
         big_file = Path(scratch) / "big.md"
-        big_file.write_text(body + ("x" * 99 + "\n") * (MAX_BYTES // 100 + 1))
+        big_file.write_text(body + ("x" * 99 + "\n") * (MAX_BYTES // 100 + 1), encoding="utf-8")
         errors, _ = check(big_file)
         result([c for c, _ in errors] == ["size"], "size error past 500 KiB", str(errors))
 
-    template = (SKILL_DIR / "references" / "readme-template.md").read_text()
+    template = (SKILL_DIR / "references" / "readme-template.md").read_text(encoding="utf-8")
     skeleton = template.split("````markdown", 1)[-1].split("````", 1)[0]
     tokens = set(re.findall(r"\b[A-Z]{2,}(?:[-_][A-Z]{2,})+\b", skeleton)) | {"project-name"}
     missed = sorted(token for token in tokens if not PLACEHOLDER.search(token))
@@ -285,11 +297,11 @@ def self_test():
 
     for name in SKILL_FILES:
         result((SKILL_DIR / name).is_file(), f"skill file {name}", "missing")
-    front = re.match(r"---\n(.*?)\n---\n", (SKILL_DIR / "SKILL.md").read_text(), re.S)
+    front = re.match(r"---\n(.*?)\n---\n", (SKILL_DIR / "SKILL.md").read_text(encoding="utf-8"), re.S)
     fields = dict(re.findall(r"^(\w[\w-]*):\s*(.*)$", front.group(1), re.M)) if front else {}
     result(bool(fields.get("description", "").strip()), "frontmatter description", "empty")
 
-    source = Path(__file__).read_text()
+    source = Path(__file__).read_text(encoding="utf-8")
     try:
         tree = ast.parse(source, feature_version=(3, 8))
         result(True, "parses with the Python 3.8 grammar")

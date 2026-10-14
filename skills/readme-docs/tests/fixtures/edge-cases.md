@@ -1,4 +1,4 @@
-<!-- expect errors=broken-link,placeholder warnings=absolute-path,absolute-path,fence-language -->
+<!-- expect errors=broken-link,broken-link,placeholder warnings=absolute-path,absolute-path,fence-language -->
 # widget
 
 Write `<!--` to open an HTML comment; the rest of this file is still checked.
@@ -31,6 +31,7 @@ A reference definition in angle brackets:
 [guide-ref]: <manual/guide.md>
 
 Wrong case, a 404 on GitHub: [license](license).
+Above the repository root, also a 404: [hosts](../../../../../../../../../../etc/hosts).
 
 ## License
 
