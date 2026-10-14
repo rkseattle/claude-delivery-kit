@@ -52,6 +52,11 @@ jobs:
       - name: Review gate self-test
         run: python3 skills/ci-green/scripts/review_gate.py --self-test
 
+      # Each README fixture declares the exact error and warning codes it must produce, and
+      # the same run checks the skill's files, frontmatter, 3.8 grammar, and stdlib imports.
+      - name: README checker fixtures
+        run: python3 skills/readme-docs/scripts/check_readme.py --self-test
+
       # One case per way a scan finding could pass the commit or push gate when it should
       # block; both gates call this script rather than reading SARIF by hand.
       - name: SARIF gate self-test

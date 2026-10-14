@@ -1,0 +1,4 @@
+schema_version: "1.1"
+name: readme-docs-updates-an-existing-readme
+context:
+  scaffold_script: scaffold.sh

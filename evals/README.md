@@ -30,12 +30,13 @@ targets a behavior whose absence produces a *plausible run* rather than an error
 | `design-adversary-passes-a-sound-plan` | Review that always finds a blocker, so planning always ends in deferred work | not yet measured |
 | `design-adversary-catches-a-missing-ac` | Review that stopped blocking real defects after its BLOCKER definition was narrowed | not yet measured |
 | `design-adversary-flags-an-unsurveyed-design` | A plan that cites a source for each piece of the ticket's design passes, though nobody asked how real systems solve the whole problem | not yet measured |
+| `readme-docs-updates-an-existing-readme` | An update that regenerates the README from the template, dropping custom sections and carrying stale versions over | not yet measured |
 | `stops-on-missing-required-key` | A guessed parent branch that the run then branches from and pushes against | +1.00 |
 | `announces-missing-optional-keys` | An invented registry or rules path, or optional keys that quietly read as nothing | +1.00 |
 
 Each case should pair a check on the *result* with a check on *how Claude got there*, per
 the official guidance: a `regex` or `llm` grader on the reply, and a `tool_used` grader on
-the transcript. The two missing-key cases do. `write-tickets-stops-without-config` has a
+the transcript. The two missing-key cases and `readme-docs-updates-an-existing-readme` do. `write-tickets-stops-without-config` has a
 `tool_used` grader that cannot fail, since Write is not in its allowlist, and
 `refuses-without-project-json` and all three `design-adversary-*` cases grade the reply only.
 
@@ -90,8 +91,9 @@ Only both passing says the severity line sits where it was meant to.
 ## What these cases cannot test
 
 `tool_used: Skill` is the natural grader for "did the plugin fire", and it is
-**unsatisfiable here**. Every stage skill carries `disable-model-invocation: true`, so
-the model is structurally unable to invoke one; a slash command in a prompt body reaches
+**unsatisfiable here** for the stage skills. Each carries `disable-model-invocation: true`,
+so the model is structurally unable to invoke one; `readme-docs` does not, which is why its
+case can grade on it. a slash command in a prompt body reaches
 the run as literal text rather than as an invocation, since the harness sends the body
 exactly as written.
 
@@ -108,8 +110,8 @@ servers, no user settings. That constrains what can be tested here:
 - **Testable**: whether a stage reads its files, whether it refuses without configuration,
   whether planning stops at the approval gate, the shape of what it produces.
 - **Testable with a scaffold**: a workspace that needs only files written before the run.
-  The cases with a `context.scaffold_script` write a `.claude/project.json` and nothing
-  else. Measured 2026-10-11 against the skills on `main` before `gates/project-config.md`,
+  The missing-key cases' `context.scaffold_script` writes a `.claude/project.json` and
+  nothing else; `readme-docs-updates-an-existing-readme`'s writes a small Python project. Measured 2026-10-11 against the skills on `main` before `gates/project-config.md`,
   the required-key case scored 0.33 and the optional-key case 0.44, with no run passing,
   against 1.00 for both after it, 3 runs per arm. `results/` is not tracked, so re-run
   both against `main` and the branch to check these.
