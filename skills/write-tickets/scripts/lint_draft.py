@@ -2,11 +2,16 @@
 """Lint a write-tickets draft. Standard library only.
 
     lint_draft.py DRAFT.md [--repo ROOT]   exit 0 clean, 1 errors, 2 unparseable
+    lint_draft.py DRAFT.md --readback ID FETCHED.md
+                                           exit 0 if Jira kept every element of ticket ID, 1 if not
     lint_draft.py --self-test              runs the fixtures; exit 0 only if every count matches
 
 Checks what a script can settle. Whether a ticket is plannable is ticket-adversary's call.
 """
 import argparse
+import collections
+import contextlib
+import io
 import os
 import re
 import shutil
@@ -53,10 +58,12 @@ VAGUE = [r"\bgracefully\b", r"\bproperly\b", r"\bcorrectly\b", r"\bappropriate(l
 SESSION_REFS = [r"\bas discussed\b", r"\bas mentioned\b", r"\bper (the )?above\b", r"\bsee above\b",
                 r"\bearlier in (this|the) (chat|conversation|session)\b", r"\bwe agreed\b"]
 
-HEADER = re.compile(r"^# \[(?P<id>[ESTB]\d+)\]\s+(?P<summary>.+?)\s*$")
+# A local ID while drafting; Step 8 replaces it with the Jira key once the ticket exists.
+HEADER = re.compile(r"^# \[(?P<id>[ESTB]\d+|[A-Z][A-Z0-9]+-\d+)\]\s+(?P<summary>.+?)\s*$")
 META = re.compile(r"^(Type|Parent|Blocked by|Handoff|Labels|Priority|Goal|Jira):\s*(.*)$")
 SECTION = re.compile(r"^## (.+?)\s*$")
-VERIFY_TAG = r"\[verify:\s*([^@\]\s][^@\]]*?)\s*@\s*([^\]\s][^\]]*?)\s*\]"
+# No backtick inside: Step 8 wraps the whole tag in one code span.
+VERIFY_TAG = r"\[verify:\s*([^@\]\s`][^@\]`]*?)\s*@\s*([^\]\s`][^\]`]*?)\s*\]"
 AC = re.compile(r"^-\s+AC(\d+):\s+(.+?)\s*" + VERIFY_TAG + r"\s*$")
 NFR = re.compile(r"^-\s+NFR(\d+):\s+(.*)$")
 NFR_TAG = re.compile(VERIFY_TAG + r"\s*$")
@@ -70,6 +77,12 @@ COMPARATOR = re.compile(r"<=|>=|≤|≥|<|>|=")
 NUMBER = re.compile(r"\s*[-+]?[$€£]?(?:\d[\d,]*(?:\.\d+)?|\.\d+)")
 TOUCH = re.compile(r"^-\s+`?([^`\s]+)`?\s+\((modify|new|delete)\)\s*:?\s*(.*)$")
 MEASURE = re.compile(r"^-\s+SM(\d+):\s+(.+?)\s*\[children:\s*([^\]\s][^\]]*)\]\s*$")
+# Bracketed tags and code spans hold literal text the word checks skip. Jira's Markdown
+# conversion reads a bare [tag] as markup, so Step 8 writes each one inside a code span,
+# which it keeps verbatim.
+JIRA_TAG = re.compile(r"\[(?:verify|children):[^\]]*\]")
+CODE_SPAN = re.compile(r"`[^`]+`")
+NUMBERED_LINE = re.compile(r"^-\s+((?:AC|SM|NFR)\d+):")
 KEY = re.compile(r"^[A-Z][A-Z0-9]+-\d+$")
 LOCAL = re.compile(r"^[ESTB]\d+$")
 
@@ -174,7 +187,7 @@ def lint(items, repo):
                         err(i, "R10", f"refers to the authoring session in {s}: {line[:80]}")
         for s in SPEC_SECTIONS + [GOAL_HEADER]:
             for line in body(prose.get(s, [])):
-                text = re.sub(r"\[verify:[^\]]*\]|`[^`]*`", "", line)
+                text = CODE_SPAN.sub("", JIRA_TAG.sub("", line))
                 for p in UNDECIDED:
                     if re.search(p, text, re.I):
                         err(i, "R6", f"'{re.search(p, text, re.I).group(0)}' in {s}: {line[:80]}")
@@ -241,7 +254,7 @@ def lint(items, repo):
                 err(i, "R7", f"not '- ACn: ... [verify: tier @ evidence]': {line[:80]}")
                 continue
             num, text, _tier, evidence = m.groups()
-            clauses = len(re.findall(r"[,;]", re.sub(r"`[^`]*`", "", text))) + 1
+            clauses = len(re.findall(r"[,;]", CODE_SPAN.sub("", text))) + 1
             if clauses > 1:
                 warn(i, "R7", f"AC{num} is {clauses} plan-work rows (split on , and ;) — each needs its own verification")
             if evidence_missing(repo, evidence):
@@ -287,6 +300,57 @@ def lint(items, repo):
     return errors, warns
 
 
+def readback(item, fetched):
+    """What Step 8 wrote for this draft item that the description Jira returned lacks."""
+    lines = body(fetched.splitlines())
+    fetched_ids = {m[1] for m in map(NUMBERED_LINE.match, lines) if m}
+    missing, wanted = [], collections.Counter()
+    goal = item["meta"].get("Goal")
+    if goal and (not lines or lines[0] != f"Goal: {goal}"):
+        missing.append(f"first line 'Goal: {goal}'")
+    for s, sec in item["sections"].items():
+        if s == "Open questions":
+            continue
+        if f"## {s}" not in lines:
+            missing.append(f"heading '## {s}'")
+        for line in body(sec):
+            numbered = NUMBERED_LINE.match(line)
+            if numbered and numbered[1] not in fetched_ids:
+                missing.append(f"line {numbered[1]}")
+            if s == "Children" and line not in lines:
+                missing.append(f"'## Children' line '{line}'")
+            # Spans first, so a tag quoted inside a span stays part of that span. Counted, not
+            # tested for presence: ACs often repeat one tag word for word.
+            wanted.update(CODE_SPAN.findall(line))
+            wanted.update(f"`{tag}`" for tag in JIRA_TAG.findall(CODE_SPAN.sub(" ", line)))
+    for span, n in wanted.items():
+        found = fetched.count(span)
+        if found < n:
+            missing += [f"code span {span}"] * (n - found)
+    return missing
+
+
+def readback_cli_test(cases, scratch):
+    """Step 8 runs --readback on a draft whose headers already hold Jira keys."""
+    draft_text = open(os.path.join(cases, "_draft.md"), encoding="utf8").read()
+    keyed = os.path.join(scratch, "keyed.md")
+    with open(keyed, "w", encoding="utf8") as f:
+        f.write(draft_text.replace("[S1]", "[AB-2]").replace("[E1]", "[AB-1]"))
+    rewritten = os.path.join(scratch, "rewritten.md")
+    with open(rewritten, "w", encoding="utf8") as f:
+        f.write(re.sub(r"(# \[S1\].*\n(?:.+\n)*?)Jira:\n", r"\1Jira: AB-3\n", draft_text, count=1))
+    failed = 0
+    for draft, key, case, want in ((keyed, "AB-2", "faithful.md", 0), (keyed, "AB-2", "lost-span.md", 1),
+                                   (rewritten, "AB-3", "faithful.md", 0), (keyed, "AB-9", "faithful.md", 2),
+                                   (keyed, "AB-2", "absent.md", 2)):
+        with contextlib.redirect_stdout(io.StringIO()):
+            got = main([draft, "--readback", key, os.path.join(cases, case)])
+        ok = got == want
+        print(f"{'ok  ' if ok else 'FAIL'} --readback {key} {case}: exit {got}, want {want}")
+        failed += not ok
+    return failed
+
+
 def self_test():
     """Each fixture declares its expected counts on line 1: <!-- expect errors=N warnings=M -->."""
     here = os.path.join(os.path.dirname(os.path.abspath(__file__)), "fixtures")
@@ -306,6 +370,8 @@ def self_test():
             open(os.path.join(repo, f), "w").close()
         failed = 0
         for name in sorted(os.listdir(here)):
+            if name.startswith(".") or os.path.isdir(os.path.join(here, name)):
+                continue  # editor metadata, and readback/ below; any other file is a fixture
             text = open(os.path.join(here, name), encoding="utf8").read()
             want = re.match(r"<!-- expect errors=(\d+) warnings=(\d+) -->", text)
             errors, warns = lint(parse(text), repo)
@@ -315,29 +381,57 @@ def self_test():
             if not ok:
                 failed += 1
                 print("\n".join("     " + l for l in errors + warns))
+        # Each readback case is a description as Jira returned it for an item in _draft.md,
+        # declaring the item and how many elements it lost: <!-- expect id=S1 missing=N -->.
+        cases = os.path.join(here, "readback")
+        draft = {i["id"]: i for i in parse(open(os.path.join(cases, "_draft.md"), encoding="utf8").read())}
+        for name in sorted(n for n in os.listdir(cases) if not n.startswith((".", "_"))):
+            text = open(os.path.join(cases, name), encoding="utf8").read()
+            want = re.match(r"<!-- expect id=(\S+) missing=(\d+) -->", text)
+            got = readback(draft[want.group(1)], text) if want and want.group(1) in draft else None
+            ok = got is not None and len(got) == int(want.group(2))
+            print(f"{'ok  ' if ok else 'FAIL'} readback/{name}: missing={'?' if got is None else len(got)}")
+            if not ok:
+                failed += 1
+                print("\n".join("     " + l for l in got or []))
+        failed += readback_cli_test(cases, repo)
         return 1 if failed else 0
     finally:
         shutil.rmtree(repo)
 
 
-def main():
+def main(argv=None):
     ap = argparse.ArgumentParser()
     ap.add_argument("draft", nargs="?")
     ap.add_argument("--repo", default=os.getcwd())
     ap.add_argument("--self-test", action="store_true")
-    a = ap.parse_args()
+    ap.add_argument("--readback", nargs=2, metavar=("ID", "FETCHED"))
+    a = ap.parse_args(argv)
     if a.self_test:
         return self_test()
     if not a.draft:
         ap.error("a draft path is required")
     try:
         items = parse(open(a.draft, encoding="utf8").read())
+        fetched = open(a.readback[1], encoding="utf8").read() if a.readback else None
     except OSError as e:
         print(f"UNPARSEABLE: {e}")
         return 2
     if not items:
-        print("UNPARSEABLE: no tickets found — headers look like '# [S1] Summary'")
+        print("UNPARSEABLE: no tickets found — headers look like '# [S1] Summary' or '# [AB-1] Summary'")
         return 2
+    if a.readback:
+        # The header holds the key once Step 8 has created the ticket; a rewritten ticket keeps
+        # its local header, and its `Jira:` line holds the key.
+        item = next((i for i in items if a.readback[0] in (i["id"], i["meta"].get("Jira"))), None)
+        if item is None:
+            print(f"UNPARSEABLE: no header or Jira: line names {a.readback[0]} in {a.draft}")
+            return 2
+        missing = readback(item, fetched)
+        for m in missing:
+            print(f"MISSING {a.readback[0]}: {m}")
+        print(f"SUMMARY: {a.readback[0]}, missing from {a.readback[1]}: {len(missing)}")
+        return 1 if missing else 0
     errors, warns = lint(items, os.path.abspath(a.repo))
     print("\n".join(errors + warns))
     print(f"SUMMARY: {len(items)} tickets, {len(errors)} errors, {len(warns)} warnings")

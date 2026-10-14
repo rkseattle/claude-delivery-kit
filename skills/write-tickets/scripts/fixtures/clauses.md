@@ -1,4 +1,4 @@
-<!-- expect errors=4 warnings=1 -->
+<!-- expect errors=5 warnings=1 -->
 # [S1] Set the refresh cookie on sign-in
 Type: Story
 Priority: Must
@@ -19,6 +19,7 @@ Sign-in with "Keep me signed in" sets an `rt` cookie.
 - AC4: Token stored hashed [verify: automated @ tests/missing/dir/hash.test.ts]
 - AC5 Token expires after 30 days
 - AC6: Token is revoked on sign-out [verify:  @ tests/auth/signin.test.ts]
+- AC7: Token is rotated on refresh [verify: automated @ `tests/auth/signin.test.ts`]
 
 ## Touch points
 - src/auth/routes.ts (modify): set cookie
