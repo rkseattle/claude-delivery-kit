@@ -66,7 +66,7 @@ Use relative links for in-repo files so they resolve on any branch.
 
 ### 5. Verify
 
-Run `python3 <skill-dir>/scripts/check_readme.py README.md`, where `<skill-dir>` is the base directory shown when this skill loads. It checks size against GitHub's 500 KiB truncation limit, one H1 and no skipped heading levels, presence of install/usage/license sections, relative links (Markdown and HTML) that resolve, code fences without language tags, images without alt text, absolute local paths, length over 400 lines, and leftover template placeholders. A code span broken across lines can shift later line numbers in its paragraph by one. Fix every error. Review warnings.
+Run `python3 <skill-dir>/scripts/check_readme.py README.md`, where `<skill-dir>` is the base directory shown when this skill loads. It checks size against GitHub's 500 KiB truncation limit, one H1 and no skipped heading levels, presence of install/usage/license sections, relative links (Markdown and HTML) that resolve, including `#section` anchors against GitHub's heading slugs, code fences without language tags, images without alt text, absolute local paths, length over 400 lines, and leftover template placeholders. A code span broken across lines can shift later line numbers in its paragraph by one. Fix every error. Review warnings.
 
 Then check by hand:
 - Run each fenced shell block in the quickstart, in order, from a clean checkout if possible.

@@ -15,6 +15,8 @@ import re
 import subprocess
 import sys
 import tempfile
+from functools import lru_cache
+from html.parser import HTMLParser
 from pathlib import Path
 from urllib.parse import unquote
 
@@ -39,11 +41,8 @@ PLACEHOLDER = re.compile(CODE_PLACEHOLDER.pattern + r"|(?<![\w-])project-name(?!
 # Not after a URL's host or another path segment: https://host/Users/x is a link, not a path.
 ABS_PATH = re.compile(r"(?<![\w.:/-])(/Users/\w+|/home/\w+/|C:\\Users\\)")
 # HTML that GitHub renders: a and img targets, img alt text, and h1 titles.
-HTML_COMMENT = re.compile(r"<!--.*?-->", re.S)
-HTML_TARGET = re.compile(r"<(?:a|img)\b[^>]*?\b(?:href|src)\s*=\s*[\"']([^\"']+)[\"']", re.I)
-HTML_IMG = re.compile(r"<img\b[^>]*>", re.I)
-HTML_ALT = re.compile(r"\balt\s*=\s*[\"'][^\"']+", re.I)
-HTML_H1 = re.compile(r"<h1[\s>]", re.I)
+MARKDOWN_SUFFIXES = {".md", ".markdown", ".mdown", ".mkd"}
+FOOTNOTE_LABEL = re.compile(r"^ {0,3}\[\^[^\]]+\]:")
 SKILL_DIR = Path(__file__).resolve().parent.parent
 FIXTURES = SKILL_DIR / "tests" / "fixtures"
 SKILL_FILES = ["SKILL.md", "references/readme-template.md", "references/checklist.md",
@@ -92,19 +91,27 @@ def exists_exactly(path, root):
     return True
 
 
-def link_target_exists(base, root, target):
-    if re.match(r"^([a-z][a-z0-9+.-]*:|#|//)", target, re.I):
+def link_target_exists(base, root, target, anchors):
+    """A relative target exists with this exact case inside the repository, and its
+    #fragment, if any, names a heading or HTML anchor in the Markdown file it points at
+    (anchors holds this document's own, lowercased). "#top" is the HTML spec's top of page."""
+    if re.match(r"^([a-z][a-z0-9+.-]*:|//)", target, re.I):
         return True
-    path = unquote(target.split("#")[0].split("?")[0])
+    location, _, fragment = target.partition("#")
+    path, fragment = unquote(location.split("?")[0]), unquote(fragment).lower()
     if not path:
-        return True
+        return fragment in ("", "top") or fragment in anchors
     candidate = (root / path.lstrip("/") if path.startswith("/") else base / path).resolve()
     root = root.resolve()
     try:
         candidate.relative_to(root)  # GitHub cannot serve a path above the repo
     except ValueError:
         return False
-    return exists_exactly(candidate, root)
+    if not exists_exactly(candidate, root):
+        return False
+    if fragment and fragment != "top" and candidate.suffix.lower() in MARKDOWN_SUFFIXES and candidate.is_file():
+        return fragment in {anchor.lower() for anchor in anchors_of_file(str(candidate))}
+    return True
 
 
 class Findings:
@@ -133,24 +140,91 @@ def scan_text(findings, text, line, in_code):
                      "absolute local path in code block" if in_code else "absolute local path")
 
 
+class RenderedHTML(HTMLParser):
+    """What GitHub renders from raw HTML, read with the standard library's HTML parser, so
+    attribute values are entity-decoded and may be unquoted or span lines. Comments are
+    skipped; an unclosed one hides the rest of the block, as it does on GitHub."""
+
+    def __init__(self, html, line):
+        super().__init__(convert_charrefs=True)
+        self.first_line, self.code_depth = line, 0
+        self.targets, self.missing_alt, self.anchors, self.text = [], [], [], []
+        self.h1_count = 0
+        unclosed = html.rfind("<!--")
+        self.feed(html[:unclosed] if unclosed > html.rfind("-->") else html)
+        self.close()
+
+    def here(self):
+        return self.first_line + self.getpos()[0] - 1
+
+    def handle_starttag(self, tag, attrs):
+        values = dict(attrs)
+        if tag in ("pre", "code"):
+            self.code_depth += 1
+        if tag == "h1":
+            self.h1_count += 1
+        for name in ("id", "name"):
+            if values.get(name):
+                self.anchors.append(values[name])
+        target = values.get("href") if tag == "a" else values.get("src") if tag == "img" else None
+        if target:
+            self.targets.append((target, self.here()))
+        if tag == "img" and not (values.get("alt") or "").strip():
+            self.missing_alt.append(self.here())
+
+    def handle_endtag(self, tag):
+        if tag in ("pre", "code") and self.code_depth:
+            self.code_depth -= 1
+
+    def handle_data(self, data):
+        for offset, text in enumerate(data.split("\n")):
+            self.text.append((text, self.here() + offset, self.code_depth > 0))
+
+
 def scan_html(findings, html, line, check_target):
-    """Rendered HTML, comments removed (an unclosed one hides the rest, as GitHub renders
-    it): its text, a and img targets, img alt, line by line; returns the h1 count."""
-    html = HTML_COMMENT.sub(lambda comment: "\n" * comment.group().count("\n"), html)
-    html = html.split("<!--", 1)[0]
-    in_pre = False
-    for offset, html_line in enumerate(html.split("\n")):
-        opens = len(re.findall(r"<(?:pre|code)\b", html_line, re.I))
-        closes = len(re.findall(r"</(?:pre|code)>", html_line, re.I))
-        scan_text(findings, re.sub(r"<[^>]*>", " ", html_line), line + offset,
-                  in_code=in_pre or opens > 0)
-        in_pre = (in_pre or opens > closes) and not (closes > opens)
-        for match in HTML_TARGET.finditer(html_line):
-            check_target(match.group(1), line + offset)
-        for tag in HTML_IMG.findall(html_line):
-            if not HTML_ALT.search(tag):
-                findings.add("warning", "image-alt", line + offset, "image without alt text")
-    return len(HTML_H1.findall(html))
+    """Rendered HTML: its text, a and img targets, img alt; returns the h1 count."""
+    rendered = RenderedHTML(html, line)
+    for text, text_line, in_code in rendered.text:
+        scan_text(findings, text, text_line, in_code=in_code)
+    for target, target_line in rendered.targets:
+        check_target(target, target_line)
+    for alt_line in rendered.missing_alt:
+        findings.add("warning", "image-alt", alt_line, "image without alt text")
+    return rendered.h1_count
+
+
+def github_slug(title):
+    """A heading's anchor as GitHub generates it: lowercase, punctuation dropped except
+    hyphens and underscores, spaces to hyphens."""
+    return re.sub(r"[^\w\- ]", "", title.strip().lower()).replace(" ", "-")
+
+
+def rendered_text(children):
+    """A heading's text as rendered: text and inline code, without Markdown syntax."""
+    return "".join(child.content for child in children or []
+                   if child.type in ("text", "code_inline", "softbreak") or child.type == "image")
+
+
+def document_anchors(tokens):
+    """Every fragment a link may target: heading slugs, numbered for repeats as GitHub
+    numbers them, plus HTML id and name attributes."""
+    anchors, counts = set(), {}
+    for position, token in enumerate(tokens):
+        if token.type == "heading_open":
+            slug = github_slug(rendered_text(tokens[position + 1].children))
+            counts[slug] = counts.get(slug, -1) + 1
+            anchors.add(slug if counts[slug] == 0 else f"{slug}-{counts[slug]}")
+        html = [token.content] if token.type == "html_block" else [
+            child.content for child in token.children or [] if child.type == "html_inline"]
+        for fragment in html:
+            anchors.update(RenderedHTML(fragment, 1).anchors)
+    return anchors
+
+
+@lru_cache(maxsize=None)
+def anchors_of_file(path):
+    text = Path(path).read_bytes().decode("utf-8-sig", errors="replace")
+    return document_anchors(parser().parse(text, {}))
 
 
 def scan_inline(findings, children, line, check_target):
@@ -178,12 +252,16 @@ def scan_inline(findings, children, line, check_target):
     return h1_count, line
 
 
-def scan_tokens(findings, tokens, check_target, line_offset=0):
-    """Every block of a parsed document; returns (headings, h1 count from HTML)."""
+def scan_tokens(findings, tokens, check_target, line_offset=0, skip=()):
+    """Every block of a parsed document, except paragraphs and code blocks starting on a
+    line in skip;
+    returns (headings, h1 count from HTML)."""
     headings, h1_count, line = [], 0, line_offset + 1
     for position, token in enumerate(tokens):
         if token.map:
             line = line_offset + token.map[0] + 1
+        if token.type in ("code_block", "inline") and line in skip:
+            continue
         if token.type == "heading_open":
             headings.append((line, int(token.tag[1]), tokens[position + 1].content.strip()))
         elif token.type in ("fence", "code_block"):
@@ -210,8 +288,12 @@ def check(path, root=None):
     root = root or repo_root(base)
     findings = Findings()
 
+    env = {}
+    tokens = parser().parse(text, env)
+    anchors = {anchor.lower() for anchor in document_anchors(tokens)}
+
     def check_target(target, line):
-        if not link_target_exists(base, root, target):
+        if not link_target_exists(base, root, target, anchors):
             findings.add("error", "broken-link", line, f"broken relative link '{unquote(target)}'",
                          key=unquote(target))
 
@@ -220,14 +302,32 @@ def check(path, root=None):
     if len(lines) > WARN_LINES:
         findings.add("warning", "length", None, f"{len(lines)} lines; consider moving sections to docs/")
 
-    env = {}
-    headings, h1_count = scan_tokens(findings, parser().parse(text, env), check_target)
+    # A GitHub footnote is its label's paragraph plus the blank or four-space-indented lines
+    # after it; CommonMark reads those continuation lines as code, so they are checked here,
+    # as the footnote's own Markdown, and skipped in the document pass.
+    code_lines = {index for token in tokens if token.type in ("fence", "code_block") and token.map
+                  for index in range(*token.map)}
+    footnotes, footnote_lines = [], set()
+    for start, label_line in enumerate(lines):
+        if start in code_lines or not FOOTNOTE_LABEL.match(label_line):
+            continue
+        end = start + 1  # the label's paragraph, then blank and indented lines
+        while end < len(lines) and lines[end].strip() and not FOOTNOTE_LABEL.match(lines[end]):
+            end += 1
+        while end < len(lines) and (not lines[end].strip() or re.match(r"^( {4}|\t)", lines[end])):
+            end += 1
+        while end > start + 1 and not lines[end - 1].strip():
+            end -= 1
+        footnote_lines.update(range(start + 1, end + 1))
+        body = [FOOTNOTE_LABEL.sub("", label_line, count=1)]
+        body += [re.sub(r"^( {4}|\t)", "", line) for line in lines[start + 1:end]]
+        footnotes.append(("\n".join(body), start))
+
+    headings, h1_count = scan_tokens(findings, tokens, check_target, skip=footnote_lines)
     for reference in env.get("references", {}).values():
         check_target(reference["href"], reference["map"][0] + 1 if reference.get("map") else None)
-    for mapped in env.get("footnotes", []):
-        if mapped:  # a footnote's text is Markdown of its own: parse it after its label
-            body = re.sub(r"^\s*\[\^[^\]]*\]:", "", "\n".join(lines[mapped[0]:mapped[1]]), count=1)
-            scan_tokens(findings, parser().parse(body, {}), check_target, line_offset=mapped[0])
+    for body, offset in footnotes:
+        scan_tokens(findings, parser().parse(body, {}), check_target, line_offset=offset)
 
     h1_count += sum(1 for heading in headings if heading[1] == 1)
     if h1_count != 1:
