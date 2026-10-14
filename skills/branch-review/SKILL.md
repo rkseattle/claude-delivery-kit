@@ -3,7 +3,7 @@ name: branch-review
 description: Run a cold, Greptile-style full review of every change on the current branch in an isolated subagent, then fix findings by root cause and propagate each fix pattern across the codebase.
 argument-hint: [base-ref, defaults to the project's parent branch]
 disable-model-invocation: true
-allowed-tools: Read, Write, Edit, Grep, Glob, Bash, Task
+allowed-tools: Read, Write, Edit, Grep, Glob, Bash, Task, WebSearch, WebFetch
 ---
 
 Read `${CLAUDE_PLUGIN_ROOT}/gates/project-config.md` and follow it exactly.
@@ -37,14 +37,14 @@ For each BLOCKER and MAJOR, in order:
 3. **Decide the scope of the fix.** Every live instance of the root cause gets fixed in this
    pass; excluding one requires `deliver`'s benign-in-context bar. State the exclusion in
    those terms or fix it.
-4. **Fix using the industry-standard pattern, and name it before writing the fix** — the
-   documented standard, framework convention, or known implementation it is an instance of.
-   Not the minimal edit that clears the finding. Matching in-repo precedent is sufficient
-   only where you can also say what that precedent is an instance of; one you cannot name
-   externally is local invention, and a fix that matches it entrenches the thing the next
-   round will find. Where the finding is itself against an in-repo pattern, the standard is
-   what the fix conforms to — not the pattern. Record the name in the commit message and
-   append it to `citations[]` in `.claude/state/current-plan.json`, per
+4. **Survey the failure mode before writing the fix**, per `deliver`'s invariant: two or
+   three real implementations that solve it, then the one the fix follows. Not the minimal
+   edit that clears the finding. In-repo precedent is a proposal weighed against the survey,
+   never the default; one matching nothing surveyed is local invention, and a fix that
+   matches it entrenches the thing the next round will find. Where nothing fits, stop and
+   take it to Rob, declaring the stop, and record the entry `waived` with his answer. Name
+   the implementation followed in the commit message and append survey
+   and choice to `citations[]` in `.claude/state/current-plan.json`, per
    `${CLAUDE_PLUGIN_ROOT}/gates/status-report.md`.
 
 MINOR findings: fix them. Defer only when the fix needs a decision you cannot make — a

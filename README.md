@@ -234,16 +234,17 @@ defaults.
 ## Friction and citations
 
 Stages record two lists to `.claude/state/current-plan.json` as they go, printing nothing:
-process friction to `friction[]`, and the external standard behind each design decision to
+process friction to `friction[]`, and the external survey behind each design decision to
 `citations[]`. `ci-green` reports both once, at the end of delivery, before Step 6 deletes
 that file.
 
-A citation names the documented standard, framework convention, or known implementation a
-decision is an instance of, and how it was applied here. It is recorded at the decision
+A citation names the two or three real implementations of the whole problem surveyed
+before the decision (`surveyed`), the one it follows (`standard`), and how it was applied
+here; the schema is in `skills/implement-phases/SKILL.md`. It is recorded at the decision
 because that is the only moment it is knowable — `git log` cannot say afterward which
 standard shaped a choice, and a review round's citation never reaches a commit message at
-all. `waived` entries name what had no external answer, which is where invention becomes
-visible.
+all. `waived` entries name what had no external answer — still listing what was surveyed —
+which is where invention becomes visible.
 
 ```json
 { "stage": "implement-phases", "phase": 3, "phase_name": "E2E specs",
