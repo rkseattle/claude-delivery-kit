@@ -53,7 +53,8 @@ jobs:
         run: python3 skills/ci-green/scripts/review_gate.py --self-test
 
       # Each README fixture declares the exact error and warning codes it must produce, and
-      # the same run checks the skill's files, frontmatter, 3.8 grammar, and stdlib imports.
+      # the same run checks the skill's files, frontmatter, and that it and its vendored
+      # parser use the 3.8 grammar and import only the standard library.
       - name: README checker fixtures
         run: python3 skills/readme-docs/scripts/check_readme.py --self-test
 

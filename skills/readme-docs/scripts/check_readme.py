@@ -3,7 +3,11 @@
 
 Usage: python3 check_readme.py [path/to/README.md]   exit 0 clean, 1 on any error
        python3 check_readme.py --self-test          runs tests/fixtures; exit 0 only if all match
-Relative links resolve against the README's directory.
+Relative links resolve against the README's directory, and leading-slash links against the
+repository root.
+
+Markdown is parsed by markdown-it-py, a CommonMark parser vendored under _vendor/, so block
+structure (quotes, lists, fences, HTML blocks) is the parser's, not a reconstruction of it.
 """
 import argparse
 import ast
@@ -13,6 +17,10 @@ import sys
 import tempfile
 from pathlib import Path
 from urllib.parse import unquote
+
+VENDOR = Path(__file__).resolve().parent / "_vendor"
+sys.path.insert(0, str(VENDOR))
+from markdown_it import MarkdownIt  # noqa: E402  vendored, see _vendor/README.md
 
 MAX_BYTES = 500 * 1024  # GitHub truncates rendered READMEs beyond 500 KiB
 WARN_LINES = 400
@@ -28,70 +36,34 @@ CODE_PLACEHOLDER = re.compile(
     r"RUNTIME-NAME|VERSION-RANGE|OTHER-DEPS|EXAMPLE_VAR)\b"
 )
 PLACEHOLDER = re.compile(CODE_PLACEHOLDER.pattern + r"|(?<![\w-])project-name(?![\w-])")
-# CommonMark 0.31.2: fences (4.5), setext headings (4.3), code spans (6.1), link
-# destinations (6.3) with one level of balanced parentheses, and reference definitions
-# (4.7); a `[^label]:` line is a GitHub footnote, not a link.
-FENCE_OPEN = re.compile(r"^ {0,3}(`{3,}|~{3,})(.*)$")
-SETEXT_UNDERLINE = re.compile(r"^ {0,3}(=+|-+)\s*$")
-LIST_OR_QUOTE = re.compile(r"^\s*([-*+>]|\d+[.)])(\s|$)")
-CODE_SPAN = re.compile(r"(`+)(?!`).*?(?<!`)\1(?!`)")
-LINK_DESTINATION = re.compile(r"\]\(\s*(<[^>]*>|(?:[^()\s]|\([^()\s]*\))+)")
-REFERENCE_DEF = re.compile(r"^ {0,3}\[(?!\^)[^\]]+\]:\s*(<[^>]*>|\S+)")
 # Not after a URL's host or another path segment: https://host/Users/x is a link, not a path.
 ABS_PATH = re.compile(r"(?<![\w.:/-])(/Users/\w+|/home/\w+/|C:\\Users\\)")
-# Block-quote markers are stripped from every line before any block is recognized, as
-# CommonMark's parsing strategy resolves containers first (5.1, Appendix A); list markers
-# ahead of a heading on the same line are stripped when looking for headings (5.2).
-QUOTE_PREFIX = re.compile(r"^(?: {0,3}>\s?)+")
-LIST_PREFIX = re.compile(r"^ {0,3}(?:(?:[-*+]|\d+[.)])\s+)+")
-# HTML a and img elements, which GitHub renders: their targets, and an img's alt.
+# HTML that GitHub renders: a and img targets, img alt text, and h1 titles.
+HTML_COMMENT = re.compile(r"<!--.*?-->", re.S)
 HTML_TARGET = re.compile(r"<(?:a|img)\b[^>]*?\b(?:href|src)\s*=\s*[\"']([^\"']+)[\"']", re.I)
 HTML_IMG = re.compile(r"<img\b[^>]*>", re.I)
+HTML_ALT = re.compile(r"\balt\s*=\s*[\"'][^\"']+", re.I)
+HTML_H1 = re.compile(r"<h1[\s>]", re.I)
 SKILL_DIR = Path(__file__).resolve().parent.parent
 FIXTURES = SKILL_DIR / "tests" / "fixtures"
 SKILL_FILES = ["SKILL.md", "references/readme-template.md", "references/checklist.md",
                "scripts/check_readme.py"]
 
 
-def split_fences(lines):
-    """Return (prose, code) as lists of (line_number, text), and warnings for bare fences.
+def set_aside_footnote_definitions(state):
+    """A `[^label]:` line is a GitHub footnote, not a link reference definition. It is moved
+    out of the reference table before inline parsing, so `[^label]` stays text, and its
+    source lines are kept so the footnote's own text can be checked."""
+    references = state.env.get("references", {})
+    for label in [label for label in references if label.startswith("^")]:
+        state.env.setdefault("footnotes", []).append(references.pop(label).get("map"))
 
-    Code is fenced blocks — indented further inside a list item — and indented blocks:
-    four or more spaces (a tab counts as four) after a blank line or a heading, outside a
-    list (CommonMark 4.4, 4.5, 5.2), where indentation continues a list item instead.
-    """
-    prose, code, warnings = [], [], []
-    fence = None  # (char, length, indent) of the open fence
-    can_start_indented, indented, in_list = True, False, False
-    for number, line in enumerate(lines, 1):
-        line = QUOTE_PREFIX.sub("", line.expandtabs(4))
-        indent = len(line) - len(line.lstrip(" "))
-        if fence is None:
-            match = FENCE_OPEN.match(line[indent - min(indent, 3):] if in_list else line)
-            if match and not (match.group(1)[0] == "`" and "`" in match.group(2)):
-                fence = (match.group(1)[0], len(match.group(1)), indent)
-                if not match.group(2).strip():
-                    warnings.append(("fence-language", f"line {number}: code fence without language tag"))
-                can_start_indented, indented = False, False
-                continue
-            blank = not line.strip()
-            if not blank and indent >= 4 and (can_start_indented or indented) and not in_list:
-                code.append((number, line))
-                indented = True
-                continue
-            if not blank and indent == 0:
-                in_list = bool(LIST_OR_QUOTE.match(line))
-            indented = indented and blank
-            can_start_indented = blank or bool(re.match(r"^ {0,3}#{1,6}(\s|$)", line))
-            prose.append((number, line))
-            continue
-        closing = line.strip()
-        if (indent <= fence[2] + 3 and closing
-                and set(closing) == {fence[0]} and len(closing) >= fence[1]):
-            fence, can_start_indented = None, False
-            continue
-        code.append((number, line))
-    return prose, code, warnings
+
+def parser():
+    # CommonMark plus GitHub's tables and strikethrough; raw HTML stays on, as GitHub renders it.
+    markdown = MarkdownIt("commonmark").enable(["table", "strikethrough"])
+    markdown.core.ruler.after("block", "footnotes", set_aside_footnote_definitions)
+    return markdown
 
 
 def repo_root(directory):
@@ -100,23 +72,6 @@ def repo_root(directory):
         if (candidate / ".git").exists():
             return candidate
     return directory
-
-
-def link_target_exists(base, root, target):
-    if target.startswith("<") and target.endswith(">"):
-        target = target[1:-1]
-    if re.match(r"^([a-z][a-z0-9+.-]*:|#|//)", target, re.I):
-        return True
-    path = unquote(target.split("#")[0].split("?")[0])
-    if not path:
-        return True
-    candidate = (root / path.lstrip("/") if path.startswith("/") else base / path).resolve()
-    root = root.resolve()
-    try:
-        candidate.relative_to(root)  # GitHub cannot serve a path above the repo
-    except ValueError:
-        return False
-    return exists_exactly(candidate, root)
 
 
 def exists_exactly(path, root):
@@ -137,111 +92,158 @@ def exists_exactly(path, root):
     return True
 
 
-def outside_comments(prose):
-    """Drop prose inside HTML comments, which GitHub does not render. Comment markers
-    inside inline code are text, so code spans are masked while looking for them."""
-    kept, in_comment = [], False
-    for number, line in prose:
-        masked = CODE_SPAN.sub(lambda span: " " * len(span.group()), line)
-        position, pieces = 0, []
-        if in_comment:
-            end = masked.find("-->")
-            if end < 0:
-                continue
-            position, in_comment = end + 3, False
-        while True:
-            start = masked.find("<!--", position)
-            if start < 0:
-                pieces.append(line[position:])
-                break
-            pieces.append(line[position:start])
-            end = masked.find("-->", start + 4)
-            if end < 0:
-                in_comment = True
-                break
-            position = end + 3
-        kept.append((number, "".join(pieces)))
-    return kept
+def link_target_exists(base, root, target):
+    if re.match(r"^([a-z][a-z0-9+.-]*:|#|//)", target, re.I):
+        return True
+    path = unquote(target.split("#")[0].split("?")[0])
+    if not path:
+        return True
+    candidate = (root / path.lstrip("/") if path.startswith("/") else base / path).resolve()
+    root = root.resolve()
+    try:
+        candidate.relative_to(root)  # GitHub cannot serve a path above the repo
+    except ValueError:
+        return False
+    return exists_exactly(candidate, root)
 
 
-def find_headings(prose):
-    """ATX (#) and setext (underlined) headings as (line_number, level, title)."""
-    headings, previous = [], None
-    for number, line in prose:
-        # A closing run of # counts only after a space, so "## C#" keeps its "#" (4.2).
-        atx = re.match(r"^ {0,3}(#{1,6})(?:\s+(.*?))?(?:\s+#+)?\s*$", LIST_PREFIX.sub("", line))
-        underline = SETEXT_UNDERLINE.match(line)
-        if atx:
-            headings.append((number, len(atx.group(1)), (atx.group(2) or "").strip()))
-            previous = None
-            continue
-        if (underline and previous and previous[0] == number - 1 and previous[1].strip()
-                and not LIST_OR_QUOTE.match(previous[1])):
-            level = 1 if underline.group(1)[0] == "=" else 2
-            headings.append((previous[0], level, previous[1].strip()))
-            previous = None
-            continue
-        previous = (number, line)
-    return headings
+class Findings:
+    """Errors and warnings as (code, message). A broken target is reported once; any other
+    finding once per distinct message."""
+
+    def __init__(self):
+        self.errors, self.warnings, self.seen = [], [], set()
+
+    def add(self, severity, code, line, message, key=None):
+        key = (code, key if key is not None else (line, message))
+        if key in self.seen:
+            return
+        self.seen.add(key)
+        findings = self.errors if severity == "error" else self.warnings
+        findings.append((code, f"line {line}: {message}" if line else message))
+
+
+def scan_text(findings, text, line, in_code):
+    """Placeholders and absolute paths in one run of rendered text or code."""
+    pattern = CODE_PLACEHOLDER if in_code else PLACEHOLDER
+    if pattern.search(text):
+        findings.add("error", "placeholder", line, f"template placeholder: {' '.join(text.split())[:80]}")
+    if ABS_PATH.search(text):
+        findings.add("warning", "absolute-path", line,
+                     "absolute local path in code block" if in_code else "absolute local path")
+
+
+def scan_html(findings, html, line, check_target):
+    """Rendered HTML, comments removed (an unclosed one hides the rest, as GitHub renders
+    it): its text, a and img targets, img alt, line by line; returns the h1 count."""
+    html = HTML_COMMENT.sub(lambda comment: "\n" * comment.group().count("\n"), html)
+    html = html.split("<!--", 1)[0]
+    in_pre = False
+    for offset, html_line in enumerate(html.split("\n")):
+        opens = len(re.findall(r"<(?:pre|code)\b", html_line, re.I))
+        closes = len(re.findall(r"</(?:pre|code)>", html_line, re.I))
+        scan_text(findings, re.sub(r"<[^>]*>", " ", html_line), line + offset,
+                  in_code=in_pre or opens > 0)
+        in_pre = (in_pre or opens > closes) and not (closes > opens)
+        for match in HTML_TARGET.finditer(html_line):
+            check_target(match.group(1), line + offset)
+        for tag in HTML_IMG.findall(html_line):
+            if not HTML_ALT.search(tag):
+                findings.add("warning", "image-alt", line + offset, "image without alt text")
+    return len(HTML_H1.findall(html))
+
+
+def scan_inline(findings, children, line, check_target):
+    """One paragraph's inline tokens, counting lines from the parser's break tokens and the
+    newlines inside raw HTML. Returns (h1 count, line after the last child)."""
+    h1_count = 0
+    for child in children or []:
+        if child.type in ("softbreak", "hardbreak"):
+            line += 1
+        elif child.type == "text":
+            scan_text(findings, child.content, line, in_code=False)
+        elif child.type == "code_inline":
+            scan_text(findings, child.content, line, in_code=True)
+        elif child.type == "html_inline":
+            h1_count += scan_html(findings, child.content, line, check_target)
+            line += child.content.count("\n")
+        elif child.type == "link_open":
+            check_target(child.attrGet("href") or "", line)
+        elif child.type == "image":
+            check_target(child.attrGet("src") or "", line)
+            if not child.content.strip():
+                findings.add("warning", "image-alt", line, "image without alt text")
+            image_h1, line = scan_inline(findings, child.children, line, check_target)
+            h1_count += image_h1
+    return h1_count, line
+
+
+def scan_tokens(findings, tokens, check_target, line_offset=0):
+    """Every block of a parsed document; returns (headings, h1 count from HTML)."""
+    headings, h1_count, line = [], 0, line_offset + 1
+    for position, token in enumerate(tokens):
+        if token.map:
+            line = line_offset + token.map[0] + 1
+        if token.type == "heading_open":
+            headings.append((line, int(token.tag[1]), tokens[position + 1].content.strip()))
+        elif token.type in ("fence", "code_block"):
+            first = line + (1 if token.type == "fence" else 0)
+            if token.type == "fence" and not token.info.strip():
+                findings.add("warning", "fence-language", line, "code fence without language tag")
+            for offset, code_line in enumerate(token.content.splitlines()):
+                scan_text(findings, code_line, first + offset, in_code=True)
+        elif token.type == "html_block":
+            h1_count += scan_html(findings, token.content, line, check_target)
+        elif token.type == "inline":
+            h1_count += scan_inline(findings, token.children, line, check_target)[0]
+    return headings, h1_count
 
 
 def check(path, root=None):
     """Return (errors, warnings), each a list of (code, message)."""
     raw = path.read_bytes()
-    lines = raw.decode("utf-8-sig", errors="replace").splitlines()  # GitHub ignores a BOM
+    text = raw.decode("utf-8-sig", errors="replace")  # GitHub ignores a byte order mark
+    lines = text.replace("\r\n", "\n").replace("\r", "\n").split("\n")  # as CommonMark splits
+    if lines and lines[-1] == "":
+        lines.pop()
     base = path.resolve().parent
     root = root or repo_root(base)
-    errors, warnings = [], []
+    findings = Findings()
+
+    def check_target(target, line):
+        if not link_target_exists(base, root, target):
+            findings.add("error", "broken-link", line, f"broken relative link '{unquote(target)}'",
+                         key=unquote(target))
 
     if len(raw) > MAX_BYTES:
-        errors.append(("size", f"size {len(raw):,} bytes exceeds 500 KiB"))
+        findings.add("error", "size", None, f"size {len(raw):,} bytes exceeds 500 KiB")
     if len(lines) > WARN_LINES:
-        warnings.append(("length", f"{len(lines)} lines; consider moving sections to docs/"))
+        findings.add("warning", "length", None, f"{len(lines)} lines; consider moving sections to docs/")
 
-    prose, code, fence_warnings = split_fences(lines)
-    warnings.extend(fence_warnings)
-    for number, line in code:
-        if CODE_PLACEHOLDER.search(line):
-            errors.append(("placeholder", f"line {number}: template placeholder: {line.strip()[:80]}"))
-        if ABS_PATH.search(line):
-            warnings.append(("absolute-path", f"line {number}: absolute local path in code block"))
+    env = {}
+    headings, h1_count = scan_tokens(findings, parser().parse(text, env), check_target)
+    for reference in env.get("references", {}).values():
+        check_target(reference["href"], reference["map"][0] + 1 if reference.get("map") else None)
+    for mapped in env.get("footnotes", []):
+        if mapped:  # a footnote's text is Markdown of its own: parse it after its label
+            body = re.sub(r"^\s*\[\^[^\]]*\]:", "", "\n".join(lines[mapped[0]:mapped[1]]), count=1)
+            scan_tokens(findings, parser().parse(body, {}), check_target, line_offset=mapped[0])
 
-    prose = outside_comments(prose)
-    headings = find_headings(prose)
-
-    h1_count = sum(1 for heading in headings if heading[1] == 1)
-    h1_count += sum(len(re.findall(r"<h1[\s>]", CODE_SPAN.sub("", line), re.I)) for _, line in prose)
+    h1_count += sum(1 for heading in headings if heading[1] == 1)
     if h1_count != 1:
-        errors.append(("h1-count", f"expected exactly one H1, found {h1_count}"))
-    previous = 0
-    for number, level, title in headings:
-        if previous and level > previous + 1:
-            warnings.append(("heading-skip", f"line {number}: heading jumps H{previous} -> H{level} ('{title}')"))
-        previous = level
+        findings.add("error", "h1-count", None, f"expected exactly one H1, found {h1_count}")
+    previous_level = 0
+    for line, level, title in headings:
+        if previous_level and level > previous_level + 1:
+            findings.add("warning", "heading-skip", line, f"heading jumps H{previous_level} -> H{level} ('{title}')")
+        previous_level = level
 
     titles = [title.lower() for _, _, title in headings]
     for name, keys in REQUIRED.items():
         if not any(key in title for title in titles for key in keys):
-            errors.append(("missing-section", f"no '{name}' section (looked for: {', '.join(keys)})"))
-
-    for number, line in prose:
-        outside_code = CODE_SPAN.sub("", line)
-        targets = [m.group(1) for m in LINK_DESTINATION.finditer(outside_code)]
-        targets += [m.group(1) for m in HTML_TARGET.finditer(outside_code)]
-        reference = REFERENCE_DEF.match(outside_code)
-        if reference:
-            targets.append(reference.group(1))
-        for target in targets:
-            if not link_target_exists(base, root, target):
-                errors.append(("broken-link", f"line {number}: broken relative link '{target}'"))
-        if re.search(r"!\[\s*\]\(", outside_code) or any(
-                not re.search(r"\balt\s*=\s*[\"'][^\"']+", tag, re.I) for tag in HTML_IMG.findall(outside_code)):
-            warnings.append(("image-alt", f"line {number}: image without alt text"))
-        if PLACEHOLDER.search(line):
-            errors.append(("placeholder", f"line {number}: template placeholder: {line.strip()[:80]}"))
-        if ABS_PATH.search(line):
-            warnings.append(("absolute-path", f"line {number}: absolute local path"))
-    return errors, warnings
+            findings.add("error", "missing-section", None, f"no '{name}' section (looked for: {', '.join(keys)})",
+                         key=name)
+    return findings.errors, findings.warnings
 
 
 def report(errors, warnings):
@@ -260,6 +262,15 @@ def as_declared(findings, declared_codes):
         line = re.match(r"line (\d+)", message)
         shown.append(f"{code}@{line.group(1)}" if code in pinned and line else code)
     return sorted(shown)
+
+
+def imports_of(tree):
+    """Top-level module names an AST imports absolutely."""
+    names = {alias.name.split(".")[0] for node in ast.walk(tree)
+             if isinstance(node, ast.Import) for alias in node.names}
+    names |= {node.module.split(".")[0] for node in ast.walk(tree)
+              if isinstance(node, ast.ImportFrom) and node.module and not node.level}
+    return names
 
 
 def self_test():
@@ -289,9 +300,6 @@ def self_test():
         got = (as_declared(errors, want[0]), as_declared(warnings, want[1]))
         result(got == want, fixture.name, f"expected {want}, got {got}")
 
-    titles = [title for _, _, title in find_headings([(1, "## C#"), (2, "## Done ##")])]
-    result(titles == ["C#", "Done"], "closing # needs a space before it", str(titles))
-
     for fixture, code in (("three-errors.md", 1), ("clean.md", 0)):
         run = subprocess.run([sys.executable, __file__, str(FIXTURES / fixture)],
                              stdout=subprocess.DEVNULL)
@@ -320,30 +328,35 @@ def self_test():
     fields = dict(re.findall(r"^(\w[\w-]*):\s*(.*)$", front.group(1), re.M)) if front else {}
     result(bool(fields.get("description", "").strip()), "frontmatter description", "empty")
 
-    source = Path(__file__).read_text(encoding="utf-8")
-    try:
-        tree = ast.parse(source, feature_version=(3, 8))
-        result(True, "parses with the Python 3.8 grammar")
-    except SyntaxError as error:
-        result(False, "parses with the Python 3.8 grammar", str(error))
-        tree = ast.parse(source)
-    imported = {alias.name.split(".")[0] for node in ast.walk(tree)
-                if isinstance(node, ast.Import) for alias in node.names}
-    imported |= {node.module.split(".")[0] for node in ast.walk(tree)
-                 if isinstance(node, ast.ImportFrom) and node.module}
+    # The checker and everything it vendors must parse as Python 3.8 and import only the
+    # standard library, the vendored packages, or linkify_it, which markdown-it imports
+    # inside a try block and the checker never enables.
+    vendored = {entry.name for entry in VENDOR.iterdir() if entry.is_dir()}
+    sources = [Path(__file__)] + sorted(VENDOR.rglob("*.py"))
+    syntax_errors, imported = [], set()
+    for source in sources:
+        text = source.read_text(encoding="utf-8")
+        try:
+            tree = ast.parse(text, feature_version=(3, 8))
+        except SyntaxError as error:
+            syntax_errors.append(f"{source.name}: {error}")
+            tree = ast.parse(text)
+        imported |= imports_of(tree)
+    result(not syntax_errors, "parses with the Python 3.8 grammar", "; ".join(syntax_errors))
     stdlib = getattr(sys, "stdlib_module_names", None)
     if stdlib is None:
         print("skip stdlib-only imports: needs Python 3.10+ to enumerate the standard library")
     else:
-        result(imported <= stdlib, "stdlib-only imports", str(sorted(imported - stdlib)))
+        foreign = sorted(imported - stdlib - vendored - {"linkify_it"})
+        result(not foreign, "imports only the standard library and _vendor/", str(foreign))
     return 1 if failures else 0
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Static checks for a README.md.")
-    parser.add_argument("path", nargs="?", default="README.md")
-    parser.add_argument("--self-test", action="store_true")
-    args = parser.parse_args()
+    argument_parser = argparse.ArgumentParser(description="Static checks for a README.md.")
+    argument_parser.add_argument("path", nargs="?", default="README.md")
+    argument_parser.add_argument("--self-test", action="store_true")
+    args = argument_parser.parse_args()
     if args.self_test:
         return self_test()
     path = Path(args.path)
