@@ -149,6 +149,27 @@ def scan_text(findings, text, line, in_code):
                      "absolute local path in code block" if in_code else "absolute local path")
 
 
+def srcset_urls(value):
+    """The URLs in a srcset, split as the WHATWG algorithm does: a URL runs to whitespace,
+    so a comma inside it stays; trailing commas end a candidate with no descriptor."""
+    urls, position = [], 0
+    while position < len(value):
+        while position < len(value) and (value[position].isspace() or value[position] == ","):
+            position += 1
+        start = position
+        while position < len(value) and not value[position].isspace():
+            position += 1
+        url = value[start:position]
+        if url.endswith(","):
+            url = url.rstrip(",")
+        else:
+            while position < len(value) and value[position] != ",":  # descriptors
+                position += 1
+        if url:
+            urls.append(url)
+    return urls
+
+
 class RenderedHTML(HTMLParser):
     """What GitHub renders from raw HTML, read with the standard library's HTML parser, so
     attribute values are entity-decoded and may be unquoted or span lines. Comments are
@@ -177,8 +198,7 @@ class RenderedHTML(HTMLParser):
                 self.anchors.append(values[name])
         for attribute in HTML_LINK_ATTRIBUTES.get(tag, ()):
             value = (values.get(attribute) or "").strip()
-            candidates = [entry.split()[0] for entry in value.split(",") if entry.strip()] \
-                if attribute == "srcset" else [value] if value else []
+            candidates = srcset_urls(value) if attribute == "srcset" else [value] if value else []
             self.targets.extend((candidate, self.here()) for candidate in candidates)
         if tag == "img" and not (values.get("alt") or "").strip():
             self.missing_alt.append(self.here())
@@ -318,7 +338,9 @@ def check(path, root=None):
     # A GitHub footnote is its label's paragraph plus the blank or four-space-indented lines
     # after it; CommonMark reads those continuation lines as code, so they are checked here,
     # as the footnote's own Markdown, and skipped in the document pass.
-    code_lines = {index for token in tokens if token.type in ("fence", "code_block") and token.map
+    # Labels inside code, HTML blocks or comments are not footnotes: readers never see them.
+    code_lines = {index for token in tokens
+                  if token.type in ("fence", "code_block", "html_block") and token.map
                   for index in range(*token.map)}
     footnotes, footnote_lines = [], set()
     for start, label_line in enumerate(lines):

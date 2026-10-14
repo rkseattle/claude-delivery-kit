@@ -1,4 +1,4 @@
-<!-- expect errors=broken-link@6,broken-link@9,broken-link@14,broken-link@16,broken-link@21,broken-link@29 warnings= -->
+<!-- expect errors=broken-link@6,broken-link@9,broken-link@14,broken-link@16,broken-link@21,broken-link@22,broken-link@33 warnings= -->
 # widget
 
 Same-page anchors: [install](#install), [numbered](#notes-1), [third](#notes-2),
@@ -19,8 +19,12 @@ Other files: [guide](manual/guide.md#guide), [second guide](manual/guide_(v2).md
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="manual/missing-dark.png 2x, LICENSE 1x">
-  <img src="LICENSE" alt="logo">
+  <img src="LICENSE" alt="logo" srcset="manual/logo,dark.png 1x, manual/missing-srcset.png 2x">
 </picture>
+
+<!--
+[^old]: [a hidden footnote](manual/missing-in-hidden-footnote.md)
+-->
 
 A footnote with a second paragraph.[^long]
 
