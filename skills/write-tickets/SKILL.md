@@ -124,12 +124,12 @@ Look up the project's issue types and link types via the Atlassian MCP first; ne
 a name or ID.
 
 1. Epics first, then the rest in draft order.
-2. Summary, parent, and labels: the `Handoff:` label and, for a non-empty `Priority:`,
-   `moscow-<priority>` in lowercase — `Won't` is `moscow-wont`.
+2. Summary, parent, and labels: every `Labels:` value, the `Handoff:` label, and, for a
+   non-empty `Priority:`, `moscow-<priority>` in lowercase — `Won't` is `moscow-wont`.
 3. Description: `Goal: <sentence>` first when the header has one, then every `##` section
    except Open questions and review output, with each `[verify: …]` and `[children: …]`
-   tag inside a code span. Jira's conversion drops a bare tag's brackets; a code span
-   survives it verbatim.
+   tag inside a code span. The Atlassian connector's read conversion drops a bare tag's
+   brackets; a code span survives it verbatim.
 4. For each Blocked-by entry, a link of the blocking type with the blocker as outward.
 5. After each creation, write the key into its `Jira:` line and replace its local ID with
    the key everywhere in the draft — as a whole ID, never the `S1` in `S10` — before
@@ -152,15 +152,18 @@ a name or ID.
    local ID. Once every ticket exists, update each ticket whose draft text item 5 changed
    after its creation, and give it item 6 again.
 
-For `<TICKET-N ...>` arguments: fetch them into a draft with `Jira:` filled and its
-`moscow-*` label as `Priority:` — `moscow-wont` as `Won't`, the rest title-cased — and a
-description's leading `Goal:` line as the `Goal:` header, and each code span holding a
-whole `[verify: … @ …]` or `[children: …]` tag, or a `\verify: …\` left by an older
-write, as the bare tag. A ticket with no `moscow-*`
-label, or more than one, gets an empty `Priority:` for Step 1 to settle. Run Steps 2–7,
-and update instead of create, replacing the `moscow-*` label rather than adding a second.
-A ticket that must split keeps its key for the ACs it retains; say which new key holds
-the rest.
+For `<TICKET-N ...>` arguments, fetch each into a draft with `Jira:` filled, mapping:
+
+- its `moscow-*` label to `Priority:` — `moscow-wont` as `Won't`, the rest title-cased; no
+  such label, or more than one, leaves `Priority:` empty for Step 1 to settle
+- every other label but the handoff label to `Labels:`
+- a leading `Goal:` description line to the `Goal:` header
+- a code span holding a whole `[verify: … @ …]` or `[children: …]` tag, or the
+  `\verify: …\` an older write left, to the bare tag
+
+Run Steps 2–7, and update instead of create, replacing the `moscow-*` label rather than
+adding a second. A ticket that must split keeps its key for the ACs it retains; say which
+new key holds the rest.
 
 ## Step 9 — Report
 

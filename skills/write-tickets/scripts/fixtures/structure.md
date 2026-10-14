@@ -1,6 +1,7 @@
-<!-- expect errors=25 warnings=0 -->
+<!-- expect errors=26 warnings=0 -->
 # [E1] Contacts export
 Type: Epic
+Priority: High
 Goal: Users can take their contacts elsewhere.
 Blocked by: None
 Jira:

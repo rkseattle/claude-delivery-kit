@@ -72,8 +72,8 @@ GOAL_HEADER = "the Goal header"
 # `<metric> <comparator> <number>`, read at the line's first comparator, the way an OpenSLO
 # threshold pairs an operator with a value: a number anywhere else is not a threshold. The
 # unit is prose, so ticket-adversary checks it, not this.
-# Not the > of an arrow (->, =>) or the = of one.
-COMPARATOR = re.compile(r"(?<![-=])(?:<=|>=|≤|≥|<|>|=)(?!>)")
+# Not the > of an arrow (->, =>), the = of one, or the = of !=.
+COMPARATOR = re.compile(r"(?<![-=!])(?:<=|>=|≤|≥|<|>|=)(?!>)")
 NUMBER = re.compile(r"\s*[-+]?[$€£]?(?:\d[\d,]*(?:\.\d+)?|\.\d+)")
 TOUCH = re.compile(r"^-\s+`?([^`\s]+)`?\s+\((modify|new|delete)\)\s*:?\s*(.*)$")
 MEASURE = re.compile(r"^-\s+SM(\d+):\s+(.+?)\s*\[children:\s*([^\]\s][^\]]*)\]\s*$")
@@ -82,8 +82,9 @@ MEASURE = re.compile(r"^-\s+SM(\d+):\s+(.+?)\s*\[children:\s*([^\]\s][^\]]*)\]\s
 TAG = re.compile(r"\[(?:verify|children):[^\]`]*\]")
 CODE_SPAN = re.compile(r"`[^`]+`")
 LINK = re.compile(r"\[[^\]]*\]\([^)]*\)")
-# What Jira's Markdown round trip damages and a re-push cannot repair, outside a code span or
-# link: any bracket, and a pair of _ or * that it reads as emphasis.
+# What the Atlassian MCP connector's Jira-to-Markdown read (mcp-atlassian 0.21.0, live
+# probe) alters and a re-push cannot repair, outside a code span or link: any bracket,
+# and a pair of _ or * that it reads as emphasis.
 JIRA_UNSAFE = [(re.compile(r"[\[\]]"), 1), (re.compile(r"_"), 2), (re.compile(r"\*"), 2)]
 KEY = re.compile(r"^[A-Z][A-Z0-9]+-\d+$")
 LOCAL = re.compile(r"^[ESTB]\d+$")
@@ -117,6 +118,25 @@ def parse(text):
 
 def body(lines):
     return [l.strip() for l in lines if l.strip() and not l.strip().startswith("<!--")]
+
+
+FENCE = re.compile(r"^(```|~~~)")
+
+
+def unfenced(lines):
+    """(line, fenced) for each body line; a fenced block is literal, like a code span."""
+    fenced, out = False, []
+    for line in body(lines):
+        if FENCE.match(line):
+            out.append((line, True))
+            fenced = not fenced
+        else:
+            out.append((line, fenced))
+    return out
+
+
+def prose_lines(lines):
+    return [l for l, fenced in unfenced(lines) if not fenced]
 
 
 def evidence_missing(repo, evidence):
@@ -204,18 +224,18 @@ def lint(items, repo):
         # The Goal: header reaches Jira as the description's first line, so it is prose too.
         prose = dict(i["sections"], **({GOAL_HEADER: [goal]} if goal else {}))
         for s, lines in prose.items():
-            for line in body(lines):
+            for line in prose_lines(lines):
                 for p in SESSION_REFS:
                     if re.search(p, line, re.I):
                         err(i, "R10", f"refers to the authoring session in {s}: {line[:80]}")
         for s, lines in prose.items():
-            for line in body(lines):
+            for line in prose_lines(lines):
                 c = jira_unsafe(line)
                 if c:
                     err(i, "FORMAT", f"Jira alters '{c}' outside a code span — put the token in "
                                      f"backticks, in {s}: {line[:80]}")
         for s in SPEC_SECTIONS + [GOAL_HEADER]:
-            for line in body(prose.get(s, [])):
+            for line in prose_lines(prose.get(s, [])):
                 text = without_literals(line)
                 for p in UNDECIDED:
                     if re.search(p, text, re.I):
@@ -347,7 +367,7 @@ def readback(item, fetched):
     want = [jira_line(f"Goal: {goal}")] if goal else []
     for s, sec in item["sections"].items():
         if s != "Open questions":
-            want += [f"## {s}"] + [jira_line(l) for l in body(sec)]
+            want += [f"## {s}"] + [l if fenced else jira_line(l) for l, fenced in unfenced(sec)]
     want, got = normalized(want), normalized(fetched.splitlines())
     diff = difflib.SequenceMatcher(None, want, got, autojunk=False)
     missing = []

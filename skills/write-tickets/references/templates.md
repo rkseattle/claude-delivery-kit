@@ -52,8 +52,9 @@ never a word — then a number and its unit: `p95 response < 300 ms at 200 reque
 not `p95 stays low over 24 hours`. Numbers in the metric name or the condition do not
 count. The linter checks the comparator and number; the unit is checked in review.
 
-Jira's Markdown conversion alters a bracket, or a pair of `_` or `*`, outside a code span
-or a link, and a re-push repeats the damage; the linter rejects them. Put identifiers,
+The Atlassian connector's Markdown conversion alters a bracket, or a pair of `_` or `*`,
+outside a code span, a fenced block, or a link, and a re-push repeats the damage; the
+linter rejects them. Put identifiers,
 paths, and value lists in backticks: `snake_case`, `__init__.py`, `[200, 404]`.
 
 Touch points are production files only; tests appear as AC evidence. Dependencies with
