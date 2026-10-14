@@ -52,10 +52,14 @@ never a word — then a number and its unit: `p95 response < 300 ms at 200 reque
 not `p95 stays low over 24 hours`. Numbers in the metric name or the condition do not
 count. The linter checks the comparator and number; the unit is checked in review.
 
-The Atlassian connector's Markdown conversion alters a bracket, or a pair of `_` or `*`,
-outside a code span, a fenced block, or a link, and a re-push repeats the damage; the
-linter rejects them. Put identifiers,
-paths, and value lists in backticks: `snake_case`, `__init__.py`, `[200, 404]`.
+The linter writes each description through the Atlassian connector's own converters and
+reads it back as `jira_get_issue` would; a line that comes back changed is a `JIRA` error.
+Plain text holding a bracket, an emphasis pair, a `+`, `^`, `~`, or `??` pair, `!x!`, `{{`,
+`||`, an HTML-like `<word>` (`List<String>`, an autolink), `~~strike~~`, or a `bq.`, `h1.`,
+`* `, or `---` line comes back changed; so do table rows. One line the read turns into HTML
+gets every `_` and `*` in the description escaped. Put identifiers, paths, and value lists
+in backticks — `snake_case`, `C++`, `[200, 404]` — and a code span cannot hold `}`: name a
+JSON body's fields instead, or quote it in a ``` fenced block (a ~~~ fence is plain text).
 
 Touch points are production files only; tests appear as AC evidence. Dependencies with
 none: `- None`.
@@ -107,7 +111,7 @@ POST /auth/refresh with a valid `rt` cookie returns a new access token, sets a n
 and revokes the old one.
 
 ## Acceptance criteria
-- AC1: POST /auth/refresh with a valid `rt` returns 200 with body `{ accessToken }` [verify: automated @ tests/auth/refresh.test.ts]
+- AC1: POST /auth/refresh with a valid `rt` returns 200 with a body whose only field is `accessToken` [verify: automated @ tests/auth/refresh.test.ts]
 - AC2: The same request sets a new `rt` cookie with attributes `HttpOnly; Secure; SameSite=Strict` [verify: automated @ tests/auth/refresh.test.ts]
 - AC3: The old token's row has `revoked_at` and `replaced_by` set after the request [verify: automated @ tests/auth/refresh.test.ts]
 

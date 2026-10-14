@@ -18,6 +18,8 @@ import shutil
 import sys
 import tempfile
 
+from jira_roundtrip import PROBES, roundtrip
+
 SUMMARY_MAX = 100
 
 # plan-work Step 1 states the handoff limit in prose. Read it from there rather than
@@ -81,11 +83,6 @@ MEASURE = re.compile(r"^-\s+SM(\d+):\s+(.+?)\s*\[children:\s*([^\]\s][^\]]*)\]\s
 # is not one: Step 8 could not wrap it in a code span, so it is checked as bare brackets.
 TAG = re.compile(r"\[(?:verify|children):[^\]`]*\]")
 CODE_SPAN = re.compile(r"`[^`]+`")
-LINK = re.compile(r"\[[^\]]*\]\([^)]*\)")
-# What the Atlassian MCP connector's Jira-to-Markdown read (mcp-atlassian 0.21.0, live
-# probe) alters and a re-push cannot repair, outside a code span or link: any bracket,
-# and a pair of _ or * that it reads as emphasis.
-JIRA_UNSAFE = [(re.compile(r"[\[\]]"), 1), (re.compile(r"_"), 2), (re.compile(r"\*"), 2)]
 KEY = re.compile(r"^[A-Z][A-Z0-9]+-\d+$")
 LOCAL = re.compile(r"^[ESTB]\d+$")
 
@@ -120,7 +117,8 @@ def body(lines):
     return [l.strip() for l in lines if l.strip() and not l.strip().startswith("<!--")]
 
 
-FENCE = re.compile(r"^(```|~~~)")
+# Backtick fences only: a ~~~ fence's tildes are text the read pairs as subscript.
+FENCE = re.compile(r"^```")
 
 
 def unfenced(lines):
@@ -154,16 +152,6 @@ def has_threshold(text):
 def without_literals(line):
     """The line without its tags and code spans, the text the word checks read."""
     return CODE_SPAN.sub("", TAG.sub("", line))
-
-
-def jira_unsafe(line):
-    """The first character in a line that Jira's round trip would alter, or None."""
-    text = without_literals(LINK.sub("", line))
-    for pattern, count in JIRA_UNSAFE:
-        found = pattern.findall(text)
-        if len(found) >= count:
-            return found[0]
-    return None
 
 
 def ids(value):
@@ -228,12 +216,11 @@ def lint(items, repo):
                 for p in SESSION_REFS:
                     if re.search(p, line, re.I):
                         err(i, "R10", f"refers to the authoring session in {s}: {line[:80]}")
-        for s, lines in prose.items():
-            for line in prose_lines(lines):
-                c = jira_unsafe(line)
-                if c:
-                    err(i, "FORMAT", f"Jira alters '{c}' outside a code span — put the token in "
-                                     f"backticks, in {s}: {line[:80]}")
+        # What Step 8 sends must come back from jira_get_issue as sent; templates.md says why.
+        sent = step8_lines(i)
+        for change in line_changes(sent, roundtrip("\n".join(sent))):
+            # The read's own placeholders can surface when a {code} macro swallows text.
+            err(i, "JIRA", f"Jira's round trip changes {change}".replace("\x00", "")[:200])
         for s in SPEC_SECTIONS + [GOAL_HEADER]:
             for line in prose_lines(prose.get(s, [])):
                 text = without_literals(line)
@@ -360,15 +347,32 @@ def normalized(lines):
     return [re.sub(r"^\d+\.\s", "1. ", l) for l in body(lines)]
 
 
-def readback(item, fetched):
-    """Each line Step 8 wrote for this draft item that the description Jira returned lacks
-    or altered: a line diff of the whole normalized description."""
+def step8_lines(item):
+    """The description Step 8 writes for a draft item, one non-blank line per entry."""
     goal = item["meta"].get("Goal")
-    want = [jira_line(f"Goal: {goal}")] if goal else []
+    lines = [jira_line(f"Goal: {goal}")] if goal else []
     for s, sec in item["sections"].items():
         if s != "Open questions":
-            want += [f"## {s}"] + [l if fenced else jira_line(l) for l, fenced in unfenced(sec)]
-    want, got = normalized(want), normalized(fetched.splitlines())
+            lines += [f"## {s}"] + [l if fenced else jira_line(l) for l, fenced in unfenced(sec)]
+    return lines
+
+
+def readback(item, fetched):
+    """Each line Step 8 wrote for this draft item that the description Jira returned lacks
+    or altered."""
+    return line_changes(step8_lines(item), fetched)
+
+
+def changed_lines(sent, fetched):
+    """The sent lines that did not come back unchanged."""
+    want, got = normalized(sent.splitlines()), normalized(fetched.splitlines())
+    diff = difflib.SequenceMatcher(None, want, got, autojunk=False)
+    return {w for op, i1, i2, _, _ in diff.get_opcodes() if op != "equal" for w in want[i1:i2]}
+
+
+def line_changes(sent, fetched):
+    """A line diff of what was sent against what came back, both normalized."""
+    want, got = normalized(sent), normalized(fetched.splitlines())
     diff = difflib.SequenceMatcher(None, want, got, autojunk=False)
     missing = []
     for op, i1, i2, j1, j2 in diff.get_opcodes():
@@ -508,6 +512,12 @@ def self_test():
                 print("\n".join("     " + l for l in got or []))
         failed += readback_cli_test(cases, repo)
         failed += counts_test()
+        # Pins the pieces of the round trip not vendored to what Jira Cloud returned.
+        for n, (sent, live) in enumerate(PROBES, 1):
+            model = roundtrip(sent)
+            ok = changed_lines(sent, model) == changed_lines(sent, live)
+            print(f"{'ok  ' if ok else 'FAIL'} jira round trip agrees with live probe {n} on every line")
+            failed += not ok
         return 1 if failed else 0
     finally:
         shutil.rmtree(repo)

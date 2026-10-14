@@ -63,7 +63,7 @@ Access tokens expire after one hour (`ACCESS_TTL` in src/auth/config.ts).
 POST /auth/refresh with a valid `rt` cookie returns a new access token and replaces the cookie.
 
 ## Acceptance criteria
-- AC1: POST /auth/refresh with a valid `rt` returns 200 with body `{ accessToken }` [verify: automated @ tests/auth/refresh.test.ts]
+- AC1: POST /auth/refresh with a valid `rt` returns 200 with a body whose only field is `accessToken` [verify: automated @ tests/auth/refresh.test.ts]
 - AC2: The old token row has `revoked_at` set after the request [verify: automated @ tests/auth/refresh.test.ts]
 
 ## Touch points
@@ -92,7 +92,7 @@ Rotation makes each refresh token single-use.
 POST /auth/refresh with a revoked token returns 401.
 
 ## Acceptance criteria
-- AC1: POST /auth/refresh with a revoked `rt` returns 401 with body `{ "error": "refresh_reused" }` [verify: automated @ tests/auth/refresh.test.ts]
+- AC1: POST /auth/refresh with a revoked `rt` returns 401 with `error` set to `refresh_reused` [verify: automated @ tests/auth/refresh.test.ts]
 - AC2: A signed-in session on a second device stays usable after AC1 [verify: out-of-band @ two-device sign-in session]
 
 ## Touch points
@@ -116,10 +116,10 @@ Jira:
 Parent branch at the current commit; local dev server.
 
 ## Steps to reproduce
-1. POST /auth/login with body `{ "email": "", "password": "x" }`
+1. POST /auth/login with `email` empty and `password` set to `x`
 
 ## Expected
-400 with body `{ "error": "email_required" }`
+400 with `error` set to `email_required`
 
 ## Actual
 500 with an unhandled exception
@@ -128,7 +128,7 @@ Parent branch at the current commit; local dev server.
 Unhandled rejection in src/auth/routes.ts when `email` is empty.
 
 ## Acceptance criteria
-- AC1: Regression: POST /auth/login with an empty email returns 400 with body `{ "error": "email_required" }` [verify: automated @ tests/auth/login.test.ts]
+- AC1: Regression: POST /auth/login with an empty email returns 400 with `error` set to `email_required` [verify: automated @ tests/auth/login.test.ts]
 
 ## Touch points
 - src/auth/routes.ts (modify): validate `email` before lookup
