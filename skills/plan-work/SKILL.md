@@ -61,17 +61,25 @@ Read linked and blocking tickets too. Cross-story dependencies are often written
 inside descriptions rather than as Jira links, so read the descriptions for sequencing
 constraints rather than relying on link metadata.
 
-## Step 3 — Explore the codebase
+## Step 3 — Survey the problem, then explore the codebase
 
-Now, and only now, survey the code. Delegate breadth to `Explore` subagents so the survey
-does not consume the main context; run several in parallel across distinct questions. Give
-each one ticket-derived scope, not commit-derived scope.
+**First, and before any `Explore` agent launches**, survey the whole problem the tickets
+describe, per `deliver`'s invariant: name two or three real systems that solve it —
+documented standards, framework conventions, well-known implementations — using WebSearch
+and WebFetch in this context, scoped by the tickets alone. The ticket's own design is one
+proposal to check against them, not the answer. Note the survey in chat before reading any
+code, and carry it into `Approach` at Step 4: a survey done after or alongside the code
+reads starts from what the code already does.
+
+Then, and only then, explore the code. Delegate breadth to `Explore` subagents so it does
+not consume the main context; run several in parallel across distinct questions. Give each
+one ticket-derived scope, not commit-derived scope.
 
 Establish:
 
 - Where the affected domain currently lives — which directories and which specific files
-- The established in-repo pattern for the thing being built. If the repo already solves
-  this problem somewhere, the plan follows that solution.
+- The in-repo pattern for the thing being built, if any: a proposal weighed against that
+  survey, never followed by default.
 - Blast radius: every caller, import, config key, script, and build-manifest reference
 - Existing test coverage and where new coverage lands
 - The decisions in `CLAUDE.md` and the project's reference docs that bear on it
@@ -148,20 +156,22 @@ raise the gap with Rob, per `CLAUDE.md`'s rule that every ticket carries them.
 ```markdown
 ## Approach
 
-The chosen approach, and why it is the standard one for this problem — name the pattern.
-**Cite the exemplar it comes from outside this repo**: the documented standard, framework
-convention, or well-known implementation it is an instance of. Where an in-repo precedent
-exists, cite it as `file:line` as well — but a precedent you cannot also name externally is
-local invention, and saying so is the finding. Where no external exemplar applies, say that
-in one line and why. Where this departs from precedent, say so and justify it.
+**The survey first**: two or three real implementations of the whole problem — not one
+citation per component of a design already chosen. Then the chosen approach and which of
+them it follows, or why it departs from all of them. Where an in-repo precedent or the
+ticket's own design exists, cite it (`file:line`) and say how it compares to the survey; one
+matching nothing surveyed is local invention, and saying so is the finding. Where nothing
+external fits, mark it `waived` and raise it as an open question for Rob — never settle it
+in the plan alone.
 
-`implement-phases` copies this citation into `citations[]` in the state file at Step 1, and
-`/ci-green` reports it at the end of delivery alongside every later one — so the standard
-named here is the one the whole run is measured against.
+`implement-phases` copies the survey and the choice into `citations[]` at Step 1, and
+`/ci-green` reports them at the end of delivery alongside every later one — so the
+implementation chosen here is the one the whole run is measured against.
 
 ## Rejected alternatives
 
-Each with the reason it loses. If the simplest approach is rejected, say why.
+Each with the reason it loses — including every surveyed implementation not chosen. If the
+simplest approach is rejected, say why.
 
 ## Phases
 
@@ -241,12 +251,13 @@ count you will get wrong, a guard is one the repo reports. Where a claim genuine
 checked before implementation, mark it unverified in one clause and move on. Do not
 compensate with length.
 
-Do not default to the simplest, quickest, or easiest solution: choose the standard one, and
-where a simpler option loses, reject it in `Rejected alternatives` with the reason. Simple
-and standard are frequently the same answer, and when they are, that is the answer — this
-rule exists to stop expedience, not to buy elaboration. If you catch yourself writing "wait",
-"actually", or "let me look at this differently" more than once, stop and think it through
-rather than iterating in the open.
+Do not default to the simplest, quickest, or easiest solution: choose from the survey or
+justify departing from it, and where a simpler option loses, reject it in `Rejected
+alternatives` with the reason. The simple option and the surveyed one are frequently the
+same answer, and when they are, that is the answer — this rule exists to stop expedience,
+not to buy elaboration. If you catch yourself writing "wait", "actually", or "let me look
+at this differently" more than once, stop and think it through rather than iterating in the
+open.
 
 **Scope exclusions are decided here, with Rob, not later on your own.** If exploration finds
 instances of a root cause the plan otherwise fixes, "What explicitly does not ship" must list
@@ -285,12 +296,12 @@ item below, either fix it or satisfy yourself it holds:
    later phase introduces does not build on its own; either move it or reorder.
 5. **Every "independently committable" claim** — pick the phase you are least sure of and
    ask what `{{build_command}}` does on it alone.
-6. **Every component whose `Approach` cites no external exemplar** — search for the
-   established approach before designing one. An empty prior-art grep means no _local_
-   precedent, not that none exists, and a component with local precedent is the harder
-   case, not the safer one: following a pattern nobody can source is how a non-standard
-   design spreads unremarked. Name the standard in `Approach`, or say in one line why none
-   applies here.
+6. **The whole problem, not each component** — ask what real systems solve the problem
+   this plan solves, and whether `Approach` names two or three of them. A citation for every
+   piece of a design taken from the ticket or the repo does not answer it. Local precedent
+   is the harder case, not the safer one: following a pattern nobody can source is how a
+   non-standard design spreads unremarked. Name the survey in `Approach`, or carry the
+   no-fit to Rob as an open question marked `waived`.
 
 Findings from this pass are edited in place, silently. They never appear in the plan as
 revision history.
@@ -345,7 +356,8 @@ Present in chat, concisely:
 
 - The resolved ticket set, and the label it came from if applicable
 - The phase list with one line each
-- The approach and its justification, with the in-repo precedent cited
+- The approach: the implementations surveyed, the one it follows, how the in-repo precedent
+  compares, and any `waived` no-fit as a decision for Rob
 - **Which ACs need out-of-band verification**, called out separately — that is work Rob has
   to do personally, and he needs to know before approving, not at ship time
 - What the adversarial review found and what changed as a result

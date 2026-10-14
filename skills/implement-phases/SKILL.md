@@ -3,7 +3,7 @@ name: implement-phases
 description: Execute an approved phased plan — create the branch, transition Jira to In Progress, then implement, adversarially review, and commit each phase in turn without pausing between them.
 argument-hint: <path-to-plan.md>
 disable-model-invocation: true
-allowed-tools: Read, Write, Edit, Grep, Glob, Bash, Task
+allowed-tools: Read, Write, Edit, Grep, Glob, Bash, Task, WebSearch, WebFetch
 ---
 
 Implement the approved plan at: $ARGUMENTS
@@ -99,9 +99,9 @@ never reaches one.
 ```
 
 `waived: true` is the honest entry where nothing external applies: `surveyed` still lists
-what was checked, and `standard` holds the reason none fit — never padding. Carry the plan's
-`Approach` citation across at Step 1 so the report is not missing the decision that shaped
-every phase under it.
+what was checked, and `standard` holds the reason none fit — never padding. `/ci-green`'s
+end-of-run report lists every waived entry for Rob. Carry the plan's `Approach` citation
+across at Step 1 so the report is not missing the decision that shaped every phase under it.
 
 Carry the plan's `Ticket gaps` across at Step 1 too, one `friction[]` entry per line with
 `stage: "plan-work"` and `target_file` set to
@@ -206,8 +206,10 @@ Fix every BLOCKER and MAJOR. **Before writing each fix, survey its failure mode*
 follows. In-repo precedent is a proposal weighed against them, never the default; one that
 matches nothing surveyed is local invention, and matching it is how a wrong shape spreads.
 One line per fix in the commit message, naming the implementation followed; the survey
-goes in its `citations[]` entry with this phase's number. A fix you cannot source externally needs the search before the edit, not after the
-next round finds it.
+goes in its `citations[]` entry with this phase's number. A fix you cannot source
+externally needs the search before the edit, not after the next round finds it; where the
+search finds nothing that fits, stop and take it to Rob per `deliver`'s invariant, declaring
+the stop, and record the entry `waived` with his answer.
 
 Address PATTERN SPREAD findings in this same commit unless they are genuinely out of scope,
 in which case say so explicitly and note them for the branch review. Re-run the review on the
