@@ -1,5 +1,5 @@
 ---
-description: A non-functional requirement with no NFR coverage row is a BLOCKER, even when a phase delivers it
+description: A ticket or parent-Epic NFR with no NFR coverage row is a BLOCKER, even when a phase delivers it
 max_turns: 20
 allowed_tools:
   - Read
@@ -15,10 +15,10 @@ You are acting as the `design-adversary` agent. Its definition is at
 
 Review the plan below. Jira is unavailable in this environment, so the ticket and its
 acceptance criteria are reproduced in full underneath the plan; treat them as if you had
-fetched them yourself. The ticket has no parent Epic. The repository the plan describes is
-not present either, so treat the plan's factual claims about existing code as verified —
-you cannot grep for what is not here, and a claim you cannot check is `UNVERIFIABLE`, not
-a `BLOCKER`.
+fetched them yourself. The ticket's parent Epic, ABC-218, is reproduced after it. The
+repository the plan describes is not present either, so treat the plan's factual claims
+about existing code as verified — you cannot grep for what is not here, and a claim you
+cannot check is `UNVERIFIABLE`, not a `BLOCKER`.
 
 Return findings in the format the agent definition specifies.
 
@@ -171,3 +171,9 @@ accounts time out, and clients cannot resume a partial read.
 
 - NFR1: p95 response under 300 ms at 200 requests/second [verify: system @ spec/perf/deliveries_api_load_spec.rb]
 - NFR2: response body at most 256 KB per page [verify: integration @ spec/requests/api/deliveries_spec.rb]
+
+**Parent Epic:** ABC-218 — Public API reliability
+
+**Non-functional requirements:**
+
+- NFR1: API 5xx error rate below 0.1% of requests over 7 days [verify: system @ the API error-rate dashboard]

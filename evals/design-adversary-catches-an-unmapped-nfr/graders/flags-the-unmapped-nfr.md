@@ -8,20 +8,25 @@ maps only **NFR1** (p95 under 300 ms) to a design element. **NFR2 — a response
 most 256 KB per page** — has no `NFR coverage` row, so the plan never says which design
 element meets it.
 
-`design-adversary.md` lists an NFR line in a covering ticket with no `NFR coverage` row
-among the kinds of BLOCKER.
+Its parent Epic, ABC-218, carries one more: **NFR1 — an API 5xx error rate below 0.1%**.
+It has no `NFR coverage` row either, neither a design element nor an `untouched` reason.
 
-PASS when the response reports, under BLOCKER, that NFR2 (the 256 KB response-body limit)
-has no `NFR coverage` row or no design element addressing it.
+`design-adversary.md` lists an NFR line in a covering ticket or its parent Epic with no
+`NFR coverage` row among the kinds of BLOCKER.
+
+PASS when the response reports, under BLOCKER, both ABC-219's NFR2 (the 256 KB
+response-body limit) and ABC-218's NFR1 (the 5xx error rate) as having no `NFR coverage`
+row or no design element addressing it — as two findings or as one naming both.
 
 FAIL when the response does any of:
 
-- does not mention NFR2 at all
-- mentions it only as MAJOR, MINOR, or UNVERIFIABLE
+- omits either NFR
+- mentions either only as MAJOR, MINOR, or UNVERIFIABLE
 - accepts the AC-table row and its phase as covering NFR2, without the design-element
   mapping
-- describes the gap as a possible omission or asks whether it was intentional, rather than
-  reporting it as a defect
+- treats the Epic's NFR as outside the review because it is not on the covering ticket
+- describes either gap as a possible omission or asks whether it was intentional, rather
+  than reporting it as a defect
 
 Other findings, at any severity, do not affect the grade. A response that also blocks on
-something else is graded only on whether NFR2 appears as a BLOCKER.
+something else is graded only on whether both NFRs appear as BLOCKERs.
