@@ -169,14 +169,14 @@ exists, mapping:
   `\verify: …\` an older write left, to the bare tag
 
 Run Steps 2–7, and update instead of create: item 2's labels replace the ticket's
-`moscow-*` and `severity-*` labels, and one item 2 no longer writes is removed. Each
-rewritten ticket carries `## Change impact` (rubric R15). After item 7, when item 5 has
-replaced every local ID, post each note with `jira_add_comment`: a first line
-`Change impact`, then the section's lines, tags in code spans as in item 3. Read it back
-with `jira_get_issue` and check every line arrived. When a post fails, read the issue's
-comments and post again only if the note is absent; a second failure stops and brings Rob
-every note not yet posted. A ticket that must split keeps its key for the ACs it retains;
-say which new key holds the rest.
+`moscow-*` and `severity-*` labels, and a `moscow-*` or `severity-*` label item 2 no
+longer writes is removed. Each rewritten ticket carries `## Change impact` (rubric R15).
+After item 7, when item 5 has replaced every local ID, post each note once with
+`jira_add_comment`: a first line `Change impact`, then the section's lines, tags in code
+spans as in item 3. The comment ID it returns confirms the post; a post that returns none
+is never retried, since it may have landed. Any stop after the first update — item 6's, a
+failed post, any other — brings Rob every note not yet confirmed. A ticket that must split
+keeps its key for the ACs it retains; say which new key holds the rest.
 
 ## Step 9 — Report
 

@@ -214,8 +214,7 @@ def lint(items, repo):
         for label in ids(i["meta"].get("Labels")):
             for prefix, header, code in (("moscow-", "Priority", "R12"), ("severity-", "Severity", "B4")):
                 if label.lower().startswith(prefix):
-                    fix = f"set {header}: instead" if header != "Severity" or t == "Bug" else "remove it"
-                    err(i, code, f"label '{label}' in Labels: is derived from {header}: — {fix}")
+                    err(i, code, f"label '{label}' in Labels: — remove it; Step 8 writes it from {header}:")
         for n in i["stray"]:
             # A header field is one line; a wrapped one would otherwise lose its tail unseen.
             err(i, "FORMAT", f"line {n} in the header is not a 'Field: value' line")
@@ -385,6 +384,11 @@ def normalized(lines):
     return [l if fenced else re.sub(r"^\d+\.\s", "1. ", l) for l, fenced in unfenced(lines)]
 
 
+def section_lines(lines):
+    """A section as Step 8 writes it: prose with its tags in code spans, fenced lines verbatim."""
+    return [l if fenced else jira_line(l) for l, fenced in unfenced(lines)]
+
+
 def step8_lines(item):
     """The description Step 8 writes for a draft item: one entry per prose line, and a
     fenced block's lines verbatim."""
@@ -392,14 +396,14 @@ def step8_lines(item):
     lines = [jira_line(f"Goal: {goal}")] if goal else []
     for s, sec in item["sections"].items():
         if s not in ("Open questions", CHANGE_IMPACT):
-            lines += [f"## {s}"] + [l if fenced else jira_line(l) for l, fenced in unfenced(sec)]
+            lines += [f"## {s}"] + section_lines(sec)
     return lines
 
 
 def comment_lines(item):
     """The change-impact comment Step 8 posts for a rewritten item, written as the
     description is."""
-    return [l if fenced else jira_line(l) for l, fenced in unfenced(item["sections"].get(CHANGE_IMPACT, []))]
+    return section_lines(item["sections"].get(CHANGE_IMPACT, []))
 
 
 def readback(item, fetched):
