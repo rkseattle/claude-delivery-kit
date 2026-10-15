@@ -34,14 +34,12 @@ For each BLOCKER and MAJOR, in order:
    the reported file. Same pattern, not same string. If the finding was a missing ownership
    clause, check every endpoint. If it was a missing cancellation on a replaced task, check
    every place work is assigned.
-3. **Decide the scope of the fix** per `deliver`'s pattern-spread invariant. The reported
-   finding is always fixed here; of the other instances the grep finds, every live instance
-   of the root cause gets fixed in this pass; one in a file no phase's `Files touched`
-   lists waits for Rob's one question at the end of this stage; approved ones are then
-   fixed as their own commit, reviewed by `commit-adversary` outside Step 4's round count.
-   Excluding one otherwise requires `deliver`'s benign-in-context bar. A finding on an
-   instance Rob declined for the same root cause — in `exclusions[]` or the plan's "What
-   explicitly does not ship" — is closed without a fix, citing that entry.
+3. **Decide the scope of the fix** per `deliver`'s pattern-spread invariant, which says
+   which instances wait for Rob's one question at this stage's end; approved ones are fixed
+   as their own commit, reviewed by `commit-adversary` outside Step 4's round count. Any
+   other exclusion needs `deliver`'s benign-in-context bar. A finding, the reported one
+   included, on an instance Rob declined for the same root cause — in `exclusions[]` or the
+   plan's "What explicitly does not ship" — is closed without a fix, citing that entry.
 4. **Survey the failure mode before writing the fix**, per `deliver`'s invariant: two or
    three real implementations that solve it, then the one the fix follows. Not the minimal
    edit that clears the finding. In-repo precedent is a proposal weighed against the survey,

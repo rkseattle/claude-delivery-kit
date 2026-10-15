@@ -250,7 +250,7 @@ Stages record two lists to `.claude/state/current-plan.json` as they go, printin
 process friction to `friction[]`, and the external survey behind each design decision to
 `citations[]`. `ci-green` reports both once, at the end of delivery, before Step 6 deletes
 that file. Two more lists handle pattern spread outside the plan's files: `pending_spread[]`
-queues each instance for Rob's one end-of-stage question, and `exclusions[]` keeps each one
+queues each instance for the stage's one end-of-stage question, and `exclusions[]` keeps each one
 he declined, so later review stages close findings on it rather than reopen them.
 
 A citation names the two or three real implementations of the whole problem surveyed

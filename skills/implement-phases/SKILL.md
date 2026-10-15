@@ -277,11 +277,9 @@ recorded to `friction[]` there, never printed in a phase report.
 ## Step 3 — Report
 
 When all phases are committed and `pending_spread[]` holds anything, first ask Rob its one
-question per `deliver`'s pattern-spread invariant, `"paused": true` set before asking.
-Commit the fixes he approves as one more `phases[]` entry, named `Pattern spread approved
-by Rob`, through 2b–2d like any phase; move each declined instance to `exclusions[]` with
-his answer. Anything that commit's review queues stays for branch-review's question. Then
-report:
+question per `deliver`'s pattern-spread invariant, which says what his answer does. Commit
+the fixes he approves as one more `phases[]` entry, named `Pattern spread approved by Rob`,
+through 2b–2d like any phase. Then report:
 
 1. **The cumulative phase table** — all phases `done`, with per-phase durations and the run
    total.
