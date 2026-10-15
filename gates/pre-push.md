@@ -53,8 +53,8 @@ In order, all green, before every `git push`:
    ships at this size, unless `.claude/state/current-plan.json` names this branch in
    `branch` and records `"pr_size_approved": true` — an approval belongs to the branch it
    was given on, as that file's `branch` scopes both hooks. A yes records that field, and
-   later pushes on the branch do not ask again; a no sets `"paused": true` and stops
-   without pushing — splitting the branch is a plan decision. With no state file for this
+   later pushes on the branch do not ask again; a no stops without pushing, declared per
+   `deliver`'s invariants (`"paused": true`) — splitting the branch is a plan decision. With no state file for this
    branch there is nowhere to record either answer: the question is asked at every push,
    and a no just stops. With `{{pr_review_limit_lines}}` set to `none` the step is skipped
    and named in the one-line announcement `gates/project-config.md` defines.
@@ -104,8 +104,9 @@ In order, all green, before every `git push`:
     The subshell's trap removes the worktree however the build ends short of `SIGKILL`, and
     keeps its `cd` and trap out of the caller's shell; the step fails on a non-zero
     `build_status`, which a tree git failed to build also sets rather than building an
-    empty directory; `rmdir` clears the directory such a failure leaves. With `{{clean_build_command}}` set to `none`, the build is skipped and
-    named in the one-line announcement `gates/project-config.md` defines.
+    empty directory; `rmdir` clears the directory such a failure leaves. With
+    `{{clean_build_command}}` set to `none`, the build is skipped and named in the one-line
+    announcement `gates/project-config.md` defines.
 
 11. **The verification tier the diff needs**, per `{{verification_step_file}}`. Where a push
     hook runs an expensive suite, this is where it happens; where the tier is one no

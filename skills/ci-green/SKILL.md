@@ -77,10 +77,9 @@ For every failing job:
    it depends on a machine detail the two sides resolve differently.
 
 3. **Name or write the failing test, then write the fix**, per the Definition of Done's
-   defect-fix gate,
-   after surveying the failure mode per `deliver`'s invariant: two or three real
-   implementations that solve it, and the one the fix follows — named in one line in the
-   commit message, with survey and choice appended to `citations[]` carrying
+   defect-fix gate, after surveying the failure mode per `deliver`'s invariant: two or
+   three real implementations that solve it, and the one the fix follows — named in one
+   line in the commit message, with survey and choice appended to `citations[]` carrying
    `iteration` as friction entries do. In-repo precedent is a proposal weighed against the
    survey, never the default; where nothing fits, stop and take it to Rob, declaring the
    stop, and record the entry `waived` with his answer. A fix sourced from nothing but the

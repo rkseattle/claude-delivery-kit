@@ -81,18 +81,26 @@ whether each is a live defect or benign in its context and why.
   when its commit message names no test, or names one its diff leaves unchanged that no CI
   run on the fix's parent shows failing; the missing test is the first Required change.
 - Then check the named test is red on the parent and green on the fix, as SWE-bench's
-  FAIL_TO_PASS check does, in exports outside the repo, which leave its state untouched:
+  FAIL_TO_PASS check does, in exports outside the repo, which leave its state untouched.
+  One Bash call does it all, since the trap removes both exports when the call ends:
 
   ```bash
-  parent=$(mktemp -d); fixed=$(mktemp -d); trap 'rm -rf "$parent" "$fixed"' EXIT
-  git archive <ref>^ | tar -x -C "$parent"; git archive <ref> | tar -x -C "$fixed"
-  git archive <ref> -- <the fix's test files> | tar -x -C "$parent"
+  ( parent=$(mktemp -d); fixed=$(mktemp -d); trap 'rm -rf "$parent" "$fixed"' EXIT
+    git archive <ref>^ | tar -x -C "$parent" && git archive <ref> | tar -x -C "$fixed" || exit 2
+    mkdir -p "$parent/$(dirname <test file>)"
+    git show <ref>:<test file> > "$parent/<test file>" || exit 2
+    (cd "$parent" && <run the named test>); echo "parent: exit $?"
+    (cd "$fixed" && <run the named test>); echo "fix: exit $?" )
   ```
 
-  Run the named test in each with the project's test command. Anything but red on
-  `$parent` and green on `$fixed` is `UNVERIFIED`. Where the test cannot run from an
-  export, such as one needing installed dependencies or a live service, say why in one line
-  and rest the verdict on the rule above.
+  `<test file>` holds the named test, copied from the fix so a new or changed test runs
+  against the unfixed code. `<run the named test>` is the project's test runner for that
+  one test — its rules file or mechanics gates name it — or the file's own runner, such as
+  `python3 -m pytest <test file>::<test>`. Read the runner's output: red is the named
+  test failing its assertion, never an import or collection error. Anything but red on
+  the parent and green on the fix is `UNVERIFIED`. Where the test cannot run from an
+  export, such as one needing installed dependencies or a live service, say why in one
+  line and rest the verdict on the rule above.
 - A failure is never dismissed as a known flake, pre-existing, or unrelated. If the fix's
   defense is that the failure predates the branch and so is not its problem, that defense
   is rejected.

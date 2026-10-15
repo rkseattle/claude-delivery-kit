@@ -37,12 +37,13 @@ targets a behavior whose absence produces a *plausible run* rather than an error
 | `stops-on-missing-required-key` | A guessed parent branch that the run then branches from and pushes against | +1.00 |
 | `announces-missing-optional-keys` | An invented registry or rules path, or optional keys that quietly read as nothing | not yet measured since its grader gained `pr_review_limit_lines` |
 | `ci-failure-adversary-requires-a-named-test` | A correct source fix whose commit message names no test passes review, so the defect-fix gate holds only on the author's word | not yet measured |
+| `ci-failure-adversary-passes-a-tested-fix` | Review that returns `UNVERIFIED` for every fix, so ci-green can never close a failure | not yet measured |
 
 Each case should pair a check on the *result* with a check on *how Claude got there*, per
 the official guidance: a `regex` or `llm` grader on the reply, and a `tool_used` grader on
 the transcript. The two missing-key cases, `readme-docs-updates-an-existing-readme` and
-`ci-failure-adversary-requires-a-named-test` do. `write-tickets-stops-without-config` has a `tool_used` grader that cannot fail, since
-Write is not in its allowlist, and `refuses-without-project-json` and all six
+both `ci-failure-adversary-*` cases do. `write-tickets-stops-without-config` has a
+`tool_used` grader that cannot fail, since Write is not in its allowlist, and `refuses-without-project-json` and all six
 `design-adversary-*` cases grade the reply only.
 
 **Δ is the number that matters, not the score.** A case scoring 1.00 in both arms is
