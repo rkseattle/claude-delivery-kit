@@ -76,25 +76,29 @@ For every failing job:
    a test that fails in CI but passes locally is first an environment question: check whether
    it depends on a machine detail the two sides resolve differently.
 
-3. **Write the fix** after surveying the failure mode, per `deliver`'s invariant: two or
-   three real implementations that solve it, and the one the fix follows — named in one line
-   in the commit message, with survey and choice appended to `citations[]` carrying
+3. **Write the failing test, then the fix**, per the Definition of Done's defect-fix gate,
+   after surveying the failure mode per `deliver`'s invariant: two or three real
+   implementations that solve it, and the one the fix follows — named in one line in the
+   commit message, with survey and choice appended to `citations[]` carrying
    `iteration` as friction entries do. In-repo precedent is a proposal weighed against the
    survey, never the default; where nothing fits, stop and take it to Rob, declaring the
    stop, and record the entry `waived` with his answer. A fix sourced from nothing but the
    surrounding code is the shape that comes back as the next red build.
-4. **Verify it in an isolated subagent before committing.** Launch `ci-failure-adversary`
-   with only the failure evidence and the git ref of the fix — no explanation of your
-   reasoning, no argument for why the fix is correct. It decides whether the fix addresses
-   the root cause and whether the same root cause exists elsewhere in the codebase.
-5. **Act on its verdict.** `SYMPTOM ONLY` or `UNVERIFIED` means the fix is not done. Fix
+4. **Run the full Definition of Done, its defect-fix gate included, then commit.**
+5. **Verify the commit in an isolated subagent.** Launch `ci-failure-adversary` with only
+   the failure evidence and the commit's ref — no explanation of your reasoning, no argument
+   for why the fix is correct. It decides whether the fix addresses the root cause and
+   whether the same root cause exists elsewhere in the codebase.
+6. **Act on its verdict.** `SYMPTOM ONLY` or `UNVERIFIED` means the fix is not done. Fix
    every additional site it reports as a live defect, per `deliver`'s pattern-spread
-   invariant: in this same commit when the plan's `Files touched` lists the file. Others
+   invariant: in this same commit when the plan's `Files touched` lists the file. Any change
+   after item 4 — rework or a spread site — re-runs the Definition of Done, folds into that
+   same commit with `git commit --amend` (nothing is pushed before item 7), and is verified
+   again. Others
    wait in `pending_spread[]` for Rob's question before the next R2 request, or at once
    when one blocks a check; approved ones then run one more iteration, and a declined one
    that keeps a check red goes to `deliver`'s deferral procedure or a declared stop. A site
    Rob declined for the same root cause, in `exclusions[]` or the plan, stays closed.
-6. **Run the full Definition of Done, then commit.**
 7. **Push per `${CLAUDE_PLUGIN_ROOT}/gates/pre-push.md`** — including its step 1 rebase onto
    the parent branch. An open PR is exactly where the parent drifts:
    `{{parent_branch_default}}` moves while the run is red, and a fix pushed onto a stale base
@@ -132,12 +136,13 @@ only at his say-so.
 Then, in this order:
 
 1. **Fix the code first.** Never reply to a comment before the fix exists. Each fix goes
-   through `ci-failure-adversary` the same way a CI failure does — root cause, pattern
-   spread per `deliver`'s invariant, then commit. A comment on an instance Rob declined for
-   the same root cause, in `exclusions[]` or the plan, gets no fix: reply citing the entry
-   and his answer. Replying "good catch, filed as <ticket>" is a deferral: it needs the
-   procedure in `deliver`'s invariants first — `commit-adversary` on the benign claim, then
-   Rob's explicit agreement — before any ticket exists to cite.
+   through Step 3's items 2–6 the same way a CI failure does — root cause and pattern
+   spread per `deliver`'s invariant, the Definition of Done and the commit, then
+   `ci-failure-adversary` on the commit's ref, amending until it passes. A comment on an
+   instance Rob declined for the same root cause, in `exclusions[]` or the plan, gets no
+   fix: reply citing the entry and his answer. Replying "good catch, filed as <ticket>" is
+   a deferral: it needs the procedure in `deliver`'s invariants first — `commit-adversary`
+   on the benign claim, then Rob's explicit agreement — before any ticket exists to cite.
 2. **Reply to every inline thread**, naming what changed and in which commit:
    ```bash
    gh api repos/{{repo_slug}}/pulls/<pr>/comments/<id>/replies \

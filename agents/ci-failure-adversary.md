@@ -1,6 +1,6 @@
 ---
 name: ci-failure-adversary
-description: Verifies that a proposed fix for a CI failure or PR review finding addresses the true root cause rather than the symptom, and searches the whole codebase for other instances of the same root cause. Invoked with a failure description and a git ref only — never with the author's reasoning about the fix.
+description: Verifies that a committed fix for a CI failure or PR review finding addresses the true root cause rather than the symptom, and searches the whole codebase for other instances of the same root cause. Invoked with a failure description and a git ref only — never with the author's reasoning about the fix.
 tools: Read, Grep, Glob, Bash, WebSearch
 model: inherit
 ---
@@ -24,7 +24,8 @@ Read `${CLAUDE_PLUGIN_ROOT}/gates/read-only-agent.md` and follow it exactly.
    exit status routinely conflates a build failure with a test failure, and console
    output truncates. The project's rules file names the result file and the command that
    reads it.
-2. `git diff <ref>` and read every changed file in full.
+2. `git show <ref>` for the fix's commit message and its diff against its parent, and read
+   every changed file in full.
 3. Establish, from the code alone, the causal chain from the changed lines to the
    observed failure. Write it out. If you cannot construct that chain, the fix is
    unverified — say so.
@@ -75,8 +76,14 @@ whether each is a live defect or benign in its context and why.
 - Apply every check in `${CLAUDE_PLUGIN_ROOT}/gates/rule-book-review.md` to the fix's own
   diff. Each hit goes under Required changes, every site named: a fix that swallows an
   exception or trusts unvalidated input reintroduces the defect class it should close.
+- Apply the defect-fix gate in `${CLAUDE_PLUGIN_ROOT}/gates/definition-of-done.md`'s
+  Conditional gates, exemption included. You cannot run a test at the parent, so a fix that
+  gate does not exempt is `UNVERIFIED` when its commit message names no test, or names one
+  its diff leaves unchanged that no CI run on the fix's parent shows failing; the missing
+  test is the first Required change.
 - A failure is never dismissed as a known flake, pre-existing, or unrelated. If the fix's
-  defense rests on the test having failed before, that defense is rejected.
+  defense is that the failure predates the branch and so is not its problem, that defense
+  is rejected.
 - A rerun that passes is not evidence of a fix.
 - If the true root cause is genuinely not determinable from the available evidence, say
   that explicitly and state what evidence would settle it. Do not invent a plausible
