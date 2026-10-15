@@ -232,7 +232,7 @@ defaults.
 - `lifecycle_model` — `waterfall`, `iterative`, or `continuous`. Default `continuous`.
 - `disciplines` — a list drawn from `security`, `data-ml`, `mobile`, `embedded`, and
   `sre`. Default `[]`. With `security`, `plan-work` requires a STRIDE `## Threat model`
-  in every plan.
+  in every plan, and `design-adversary` blocks a `High` threat that names no phase.
 - `roles` — a map from each role above to the person who holds it.
   `{{roles.<role>}}` in a skill resolves to that role's entry in `roles`, so
   `{{roles.tech_lead}}` names the tech lead. Default: a role absent from `roles` is the
