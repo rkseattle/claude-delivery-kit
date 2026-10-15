@@ -15,9 +15,10 @@ You are acting as the `design-adversary` agent. Its definition is at
 
 Review the plan below. Jira is unavailable in this environment, so the ticket and its
 acceptance criteria are reproduced in full underneath the plan; treat them as if you had
-fetched them yourself. The repository the plan describes is not present either, so treat
-the plan's factual claims about existing code as verified — you cannot grep for what is
-not here, and a claim you cannot check is `UNVERIFIABLE`, not a `BLOCKER`.
+fetched them yourself. The ticket has no parent Epic. The repository the plan describes is
+not present either, so treat the plan's factual claims about existing code as verified —
+you cannot grep for what is not here, and a claim you cannot check is `UNVERIFIABLE`, not
+a `BLOCKER`.
 
 Return findings in the format the agent definition specifies.
 
@@ -60,6 +61,75 @@ which is exactly the thundering-herd case the full-jitter variant addresses.
 In-repo precedent: `app/services/payment_retry.rb:14` already implements this same
 algorithm for payment-processor calls, with the same `base` and `cap` constants. This plan
 extracts that logic rather than writing a second copy — see Phase 1.
+
+## Components and interfaces
+
+```mermaid
+flowchart LR
+  DeliveryWorker --> Backoff
+  PaymentRetry --> Backoff
+  DeliveryDetailView --> deliveries
+  DeliveryWorker --> deliveries
+```
+
+### Backoff (new, `app/lib/backoff.rb`)
+
+- Responsibility: compute the full-jitter delay for a retry attempt, up to five attempts.
+- Inputs: `attempt` (attempts made so far, from one), `base`, `cap`, from `DeliveryWorker`
+  and `PaymentRetry`.
+- Outputs: a delay in seconds, in `[0, min(cap, base * 2**attempt)]`, or `nil` once
+  `attempt` reaches five.
+- Errors: raises `ArgumentError` on an `attempt` below one; each caller increments first.
+- Versioning: keyword arguments, so a new parameter takes a default and no caller changes.
+
+### DeliveryWorker (`app/workers/delivery_worker.rb`)
+
+- Responsibility: deliver one webhook and decide retry, success, or dead-letter.
+- Inputs: a delivery ID from the job queue.
+- Outputs: a rescheduled job with a `Backoff` delay, or a dead-letter entry.
+- Errors: 5xx and timeout reschedule; 4xx, or `nil` from `Backoff`, routes to dead-letter.
+- Versioning: job arguments unchanged, so jobs enqueued before the deploy still run.
+
+### PaymentRetry (`app/services/payment_retry.rb`)
+
+- Responsibility: retry payment-processor calls with payment-specific logging.
+- Inputs: unchanged — a `PaymentContext` and the call to retry.
+- Outputs: unchanged.
+- Errors: unchanged; payments already stop at five attempts, where `Backoff` returns `nil`.
+- Versioning: public interface unchanged.
+
+### DeliveryDetailView (`app/views/deliveries/show.html.erb`)
+
+- Responsibility: render one delivery's details.
+- Inputs: a delivery record.
+- Outputs: the detail table, now with an attempts row.
+- Errors: none new; `delivery_attempts` defaults to zero and is never nil.
+- Versioning: not an interface other code calls.
+
+## Likely changes
+
+- The backoff algorithm or its constants — hidden behind `Backoff`.
+
+## Data ownership
+
+| Store | Owning module |
+| --- | --- |
+| `deliveries` table, including `delivery_attempts` | `DeliveryWorker` (the view only reads it) |
+
+## Test strategy
+
+| Level | Risks covered |
+| --- | --- |
+| unit | Delay doubling, the cap, and jitter bounds in `spec/backoff_spec.rb` |
+| integration | Retry, no-retry, and dead-letter transitions in `spec/delivery_retry_spec.rb` |
+| system | none — no new external boundary; the worker's queue wiring is unchanged |
+| acceptance | The attempts row in `spec/views/delivery_detail_spec.rb` |
+
+Coverage target: every branch of `Backoff` and of the worker's failure handling.
+
+## NFR coverage
+
+none — ABC-204 has no non-functional requirements and no parent Epic.
 
 ## Rejected alternatives
 

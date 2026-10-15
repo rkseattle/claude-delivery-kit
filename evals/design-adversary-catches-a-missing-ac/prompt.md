@@ -15,9 +15,10 @@ You are acting as the `design-adversary` agent. Its definition is at
 
 Review the plan below. Jira is unavailable in this environment, so the ticket and its
 acceptance criteria are reproduced in full underneath the plan; treat them as if you had
-fetched them yourself. The repository the plan describes is not present either, so treat
-the plan's factual claims about existing code as verified — you cannot grep for what is
-not here, and a claim you cannot check is `UNVERIFIABLE`, not a `BLOCKER`.
+fetched them yourself. The ticket has no parent Epic. The repository the plan describes is
+not present either, so treat the plan's factual claims about existing code as verified —
+you cannot grep for what is not here, and a claim you cannot check is `UNVERIFIABLE`, not
+a `BLOCKER`.
 
 Return findings in the format the agent definition specifies.
 
@@ -51,6 +52,64 @@ body.
 
 In-repo precedent: `app/exports/invoice_export.rb:22` streams CSV the same way for the
 billing area, including the same `Content-Disposition` handling.
+
+## Components and interfaces
+
+```mermaid
+flowchart LR
+  DeliveriesController --> DeliveryExport
+  DeliveryExport --> DeliveryHistoryQuery
+  DeliveryHistoryQuery --> deliveries
+```
+
+### DeliveryHistoryQuery (new, `app/queries/delivery_history_query.rb`)
+
+- Responsibility: select a user's deliveries from the last 90 days in on-screen order.
+- Inputs: a user ID, from `DeliveryExport`.
+- Outputs: an ordered, lazily enumerated relation of deliveries.
+- Errors: none of its own; a database error propagates to the controller.
+- Versioning: a new query object with one caller; keyword arguments for later filters.
+
+### DeliveryExport (new, `app/exports/delivery_export.rb`)
+
+- Responsibility: stream the query's rows as CSV, columns in on-screen order.
+- Inputs: a user ID, from `DeliveriesController#export`.
+- Outputs: an enumerator of CSV lines.
+- Errors: a failure mid-stream ends the response; the client sees a truncated download.
+- Versioning: column order is the contract; a new column is appended, never inserted.
+
+### DeliveriesController#export (`app/controllers/deliveries_controller.rb`)
+
+- Responsibility: serve the export to the signed-in user.
+- Inputs: an authenticated request.
+- Outputs: a streamed `text/csv` response with `Content-Disposition: attachment`.
+- Errors: unauthenticated requests get the controller's existing 401.
+- Versioning: a new route; no existing route changes.
+
+## Likely changes
+
+- The export format (CSV today) — hidden behind `DeliveryExport`.
+
+## Data ownership
+
+| Store | Owning module |
+| --- | --- |
+| `deliveries` table | the `Delivery` model, unchanged; this plan only reads it |
+
+## Test strategy
+
+| Level | Risks covered |
+| --- | --- |
+| unit | The 90-day boundary and ordering in `spec/queries/delivery_history_query_spec.rb` |
+| integration | CSV content and column order in `spec/exports/delivery_export_spec.rb` |
+| system | none — no new external boundary |
+| acceptance | The 90-day window end to end in `spec/exports/delivery_export_spec.rb` |
+
+Coverage target: every branch of the query and the export.
+
+## NFR coverage
+
+none — ABC-207 has no non-functional requirements and no parent Epic.
 
 ## Rejected alternatives
 
