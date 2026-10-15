@@ -82,8 +82,8 @@ together or not at all.**
 
 That case plants one defect — ABC-207's fourth acceptance criterion, rate limiting, is in
 the ticket and in no phase — and requires it back as a BLOCKER, not as a MINOR or a
-question. Narrowing BLOCKER to three things was the largest change made to the reviewer,
-and this is the case that says the narrowing cost nothing.
+question. BLOCKER is now four checkable things, narrowed from an open list — the largest
+change made to the reviewer — and this is the case that says the narrowing cost nothing.
 
 Passing one alone means little in either direction. A reviewer that blocks nothing passes
 the sound-plan case and fails this one; a reviewer that blocks everything does the reverse.

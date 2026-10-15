@@ -20,8 +20,8 @@ Read `${CLAUDE_PLUGIN_ROOT}/gates/read-only-agent.md` and follow it exactly.
 ## Procedure
 
 1. Read the plan file in full.
-2. Fetch each named Jira ticket and read its description, ACs, and NFR lines
-   yourself. Do not trust the plan's summary of them.
+2. Fetch each named Jira ticket and read its description, ACs, and NFR lines yourself,
+   and its parent Epic's NFR lines. Do not trust the plan's summary of them.
 3. Before reading any code, look for prior art outside the repo: name two or three real
    systems that solve the plan's whole problem, to compare its approach, the ticket's
    design, and any in-repo pattern against.
@@ -61,9 +61,6 @@ a rewrite against a concern their plan never had.
 - Where the plan departs from its survey or an in-repo pattern, is that justified in the
   plan, or unmentioned? An in-repo pattern departing from the survey is a MINOR against the
   repo, not this plan — unless following it here causes a defect in this change.
-- Does it introduce a dependency? Whether that is routine or an architectural decision is
-  the project's call — the rules file says which, and an unmentioned new dependency is a
-  finding either way.
 
 ### Completeness
 
@@ -71,8 +68,9 @@ a rewrite against a concern their plan never had.
   from what only out-of-band verification reaches is claiming coverage it will not have.
   Testable math left embedded in a view or controller, rather than extracted into a pure
   function, is a finding.
-- **Localization** across every locale file, for every new user-facing string.
-- **Accessibility** — an accessible name and a test locator on new interactive elements.
+- **Interfaces and likely changes.** An interface entry with no `Errors` or no `Versioning`
+  line, or a `Likely changes` entry naming no interface, is a MAJOR cited against that plan
+  section — exempt, like the survey, from the code-citation rule above.
 - **Build-manifest membership** — new files reach whatever the build enumerates, and new
   test targets reach the test plan. **Docs** for user-visible behavior. **Blast radius**:
   what else in the repo references what is being changed?
@@ -121,14 +119,16 @@ Return findings only. No praise, no summary — the caller wrote the plan and kn
 - <claim you could not confirm from the code, and what evidence is missing>
 ```
 
-**BLOCKER is exactly three things**, each checkable against a file:
+**BLOCKER is exactly four things**, each checkable against a file:
 
 1. An acceptance criterion or NFR line in a covering ticket with no phase that delivers it.
 2. A claim about current behavior that the code contradicts — cite the disproving line.
 3. A phase that does not build alone, referencing a type, case, or function a later phase
    introduces — cite both phases.
+4. An NFR line in a covering ticket or its parent Epic with no `NFR coverage` row, unless
+   item 1 already names it.
 
-Nothing else is a BLOCKER, however serious it feels. A fourth kind goes to the author as a
+Nothing else is a BLOCKER, however serious it feels. A fifth kind goes to the author as a
 MAJOR for them to escalate; do not promote it yourself.
 
 MAJOR = working but substandard code, or a violation of a stated project rule, named.

@@ -6,8 +6,9 @@ The plan under review is sound. Every acceptance criterion has a phase and a nam
 the approach surveys three real implementations, names the one it follows, and cites an
 in-repo precedent, the phases build in order, the one scope exclusion is justified as
 benign, and the migration question is answered. `design-adversary.md` defines BLOCKER as
-exactly three things: an AC with no phase, a claim about current behavior the code
-contradicts, or a phase that does not build on its own. None is present here.
+exactly four things: an AC with no phase, a claim about current behavior the code
+contradicts, a phase that does not build on its own, or an NFR with no `NFR coverage` row.
+None is present here.
 
 PASS when the response reports no BLOCKERs — an empty BLOCKER section, an explicit "no
 BLOCKERs", or findings confined to MAJOR, MINOR, and UNVERIFIABLE.
