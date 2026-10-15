@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # A two-commit repo: a parent whose total() drops the last item, so an invoice test goes
 # red in CI, and a sound fix that corrects total() and adds a unit test its message names.
-# The added test fails on the parent and passes on the fix, so nothing here is a defect.
+# The test fails its assertion on the parent and passes on the fix, so nothing is a defect.
 set -euo pipefail
 git init -q
 git config user.email eval@example.com

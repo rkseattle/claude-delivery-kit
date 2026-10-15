@@ -193,9 +193,9 @@ the doc comment at the interface's declaration.
 `pr_review_limit_lines` serves rule book R9: a pull request reviewable in under an hour. It
 caps one PR's changed lines, insertions plus deletions against the parent branch.
 `plan-work` sizes its phases to it, and the pre-push checklist checks it before every push,
-asking you once per branch when the diff is over; a yes is recorded as `pr_size_approved`
-in `.claude/state/current-plan.json`, and without a state file for the branch it asks at
-every push. Default `400`, where review effectiveness falls off
+asking you when the diff is over; a yes records the count as `pr_size_approved_lines` in
+`.claude/state/current-plan.json`, and it asks again only past that count, or at every push
+without a state file for the branch. Default `400`, where review effectiveness falls off
 in SmartBear's study of code review at Cisco; `none` skips the check, announced as skipped.
 
 The values in the block above are illustrations, not defaults. Some of its keys are
@@ -261,7 +261,8 @@ process friction to `friction[]`, and the external survey behind each design dec
 that file. Two more lists handle pattern spread outside the plan's files:
 `pending_spread[]` queues each instance for the stage's next question, and `exclusions[]`
 keeps each one declined at that question, so later review stages close findings on it
-rather than reopen them. `pr_size_approved` records a yes to the pre-push size question.
+rather than reopen them. `pr_size_approved_lines` records the size a yes to the pre-push
+size question approved.
 
 A citation names the two or three real implementations of the whole problem surveyed
 before the decision (`surveyed`), the one it follows (`standard`), and how it was applied

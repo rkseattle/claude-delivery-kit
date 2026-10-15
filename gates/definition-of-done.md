@@ -112,8 +112,9 @@ between "the math is tested" and "the behavior is correct".
 - **A new test file** — same check, plus confirm the class actually ran. A test the runner
   never discovered reports nothing rather than failing.
 - **A defect fix** is a commit that changes executable code to answer a CI failure, a
-  branch-review finding, or a PR comment. It needs a test that fails on the commit's parent
-  and passes on it, named in the commit message: rule book Phase 5 step 5. Either add or
+  branch-review finding, or a PR comment. Each defect it fixes needs a test that fails on
+  the commit's parent and passes on it, named in the commit message — one test may cover
+  several sites when the message says which: rule book Phase 5 step 5. Either add or
   change one, writing it before the fix and watching it fail on the unfixed code (TDD's red
   step), or name an existing test a CI run on the parent shows failing. A fix changing only
   tests, CI or lint configuration, or markdown is exempt, since no test can fail on its

@@ -78,29 +78,33 @@ whether each is a live defect or benign in its context and why.
   exception or trusts unvalidated input reintroduces the defect class it should close.
 - Apply the defect-fix gate in `${CLAUDE_PLUGIN_ROOT}/gates/definition-of-done.md`'s
   Conditional gates, exemption included. A fix that gate does not exempt is `UNVERIFIED`
-  when its commit message names no test, or names one its diff leaves unchanged that no CI
-  run on the fix's parent shows failing; the missing test is the first Required change.
-- Then check the named test is red on the parent and green on the fix, as SWE-bench's
-  FAIL_TO_PASS check does, in exports outside the repo, which leave its state untouched.
-  One Bash call does it all, since the trap removes both exports when the call ends:
+  when its commit message names no test for a defect it fixes, or names one its diff leaves
+  unchanged that no CI run on the fix's parent shows failing; the missing test is the first
+  Required change.
+- Then run SWE-bench's FAIL_TO_PASS check: apply the fix's test-side patch — every test
+  file, fixture, and helper it adds, changes, or deletes — to an export of the parent, and
+  run each named test there and on an export of the fix. Exports sit outside the repo, so
+  its state is untouched, and one Bash call does it all, since the trap removes them:
 
   ```bash
   ( parent=$(mktemp -d); fixed=$(mktemp -d); trap 'rm -rf "$parent" "$fixed"' EXIT
     git archive <ref>^ | tar -x -C "$parent" && git archive <ref> | tar -x -C "$fixed" || exit 2
-    mkdir -p "$parent/$(dirname <test file>)"
-    git show <ref>:<test file> > "$parent/<test file>" || exit 2
-    (cd "$parent" && <run the named test>); echo "parent: exit $?"
-    (cd "$fixed" && <run the named test>); echo "fix: exit $?" )
+    tests=(<the fix's test-side paths, each quoted, or nothing>)
+    [ "${#tests[@]}" -eq 0 ] || git diff --binary <ref>^ <ref> -- "${tests[@]}" |
+      git -C "$parent" apply || exit 2
+    (cd "$parent" && <run the named tests>); echo "parent: exit $?"
+    (cd "$fixed" && <run the named tests>); echo "fix: exit $?" )
   ```
 
-  `<test file>` holds the named test, copied from the fix so a new or changed test runs
-  against the unfixed code. `<run the named test>` is the project's test runner for that
-  one test — its rules file or mechanics gates name it — or the file's own runner, such as
-  `python3 -m pytest <test file>::<test>`. Read the runner's output: red is the named
-  test failing its assertion, never an import or collection error. Anything but red on
-  the parent and green on the fix is `UNVERIFIED`. Where the test cannot run from an
-  export, such as one needing installed dependencies or a live service, say why in one
-  line and rest the verdict on the rule above.
+  `<run the named tests>` is the runner the project's rules file or mechanics gates name,
+  or the file's own, such as `python3 -m pytest <file>::<test>`. Read its output, not its
+  exit code. Each named test must pass on the fix and fail or error on the parent, as
+  SWE-bench counts an error before the fix as failing — but the author chose this test, so
+  an error counts only when the test's assertion runs through the causal chain from step 3;
+  one that merely imports a new symbol proves nothing. Anything else is `UNVERIFIED`. A
+  test that cannot pass on the fix's export either — missing dependencies, a live service,
+  content `git archive` omits such as `export-ignore` paths, submodules or LFS objects —
+  cannot run here: say why in one line and rest the verdict on the rule above.
 - A failure is never dismissed as a known flake, pre-existing, or unrelated. If the fix's
   defense is that the failure predates the branch and so is not its problem, that defense
   is rejected.

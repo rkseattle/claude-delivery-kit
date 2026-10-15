@@ -46,7 +46,7 @@ than overwrite it.
 }
 ```
 
-Later stages add fields as they reach them: `pr_size_approved` from the pre-push size
+Later stages add fields as they reach them: `pr_size_approved_lines` from the pre-push size
 step, `pr` from `ship-pr`.
 
 `stage` and `stage_step` are what `/deliver`'s Step 0 resumes from. Update `stage_step` at

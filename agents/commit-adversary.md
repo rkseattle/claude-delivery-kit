@@ -80,6 +80,9 @@ absent one, because the author cannot tell it from a real finding.
   exception, unvalidated input at a trust boundary, a reach into another module's
   internals that bypasses its public interface, and a public interface added or changed
   while its definition stayed as it was. Each hit is at least MAJOR, every site named.
+- A defect fix that breaks the defect-fix gate in
+  `${CLAUDE_PLUGIN_ROOT}/gates/definition-of-done.md`'s Conditional gates is a MAJOR; a
+  staged diff has no message yet, so check its test there and the message once committed.
 - A fix or design departing from how real systems solve the whole problem, such as the
   quickest local fix. Survey it yourself with WebSearch — queries name the problem and
   implementations, never text from the diff: MAJOR, naming two or three real

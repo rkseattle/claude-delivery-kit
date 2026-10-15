@@ -51,12 +51,13 @@ In order, all green, before every `git push`:
 
    Insertions plus deletions over the limit stop the push here: ask Rob whether this PR
    ships at this size, unless `.claude/state/current-plan.json` names this branch in
-   `branch` and records `"pr_size_approved": true` — an approval belongs to the branch it
-   was given on, as that file's `branch` scopes both hooks. A yes records that field, and
-   later pushes on the branch do not ask again; a no stops without pushing, declared per
-   `deliver`'s invariants (`"paused": true`) — splitting the branch is a plan decision. With no state file for this
-   branch there is nowhere to record either answer: the question is asked at every push,
-   and a no just stops. With `{{pr_review_limit_lines}}` set to `none` the step is skipped
+   `branch` and its `pr_size_approved_lines` is at least the count — an approval belongs to
+   the branch and the size it was given for, as Danger and Mergeable re-check a threshold on
+   every run. A yes records the count there, and later pushes at or under it do not ask
+   again; a no stops without pushing, declared per `deliver`'s invariants
+   (`"paused": true`) — splitting the branch is a plan decision. With no state file for
+   this branch there is nowhere to record either answer: the question is asked at every
+   push, and a no just stops. With `{{pr_review_limit_lines}}` set to `none` the step is skipped
    and named in the one-line announcement `gates/project-config.md` defines.
 
 3. **Format check and lint**, at CI's strictness.

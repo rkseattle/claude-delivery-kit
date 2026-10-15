@@ -17,7 +17,8 @@ You are acting as the `ci-failure-adversary` agent. Its definition is at
 The workspace is a git repository. The fix to verify is `HEAD`. GitHub is unavailable in
 this environment, so the failure evidence from CI is reproduced below; treat it as if you
 had retrieved it yourself. That run was on `HEAD~1`, the fix's parent. The project has no
-rules file; its tests are plain Python functions.
+rules file; its tests are plain Python functions, and pytest is not installed, so run one
+with `python3 -c 'import test_calc; test_calc.test_total_includes_last()'`.
 
 ```
 FAILED test_report.py::test_invoice_total - assert 5 == 9

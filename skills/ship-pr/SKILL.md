@@ -127,9 +127,9 @@ Body:
   happened yet
 - **Risks** — each entry of `## Risks and open questions` in the plan the state file's
   `plan` field names, one line each, or `none` when that section is empty or absent; with
-  no plan to read, "plan unavailable", never `none`. With `pr_size_approved` recorded, add
-  the diff's changed lines against `{{pr_review_limit_lines}}` and that Rob approved the
-  size. Outstanding out-of-band verification stays under Testing performed, not here
+  no plan to read, "plan unavailable", never `none`. With `pr_size_approved_lines` recorded,
+  add the diff's changed lines, `{{pr_review_limit_lines}}`, and the size Rob approved.
+  Outstanding out-of-band verification stays under Testing performed, not here
 - Migrations, feature flags, persisted-state changes, and anything a user upgrading will
   notice
 - Anything deliberately deferred, with the reason. Every entry here must already have
