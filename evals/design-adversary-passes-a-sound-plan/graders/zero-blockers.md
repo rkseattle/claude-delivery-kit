@@ -7,7 +7,7 @@ the ticket's NFR and its parent Epic's NFR each have an `NFR coverage` row, the 
 surveys three real implementations, names the one it follows, and cites an in-repo
 precedent, the phases build in order, the one scope exclusion is justified as benign, and
 the migration question is answered. `design-adversary.md` defines BLOCKER as exactly four
-things: an AC with no phase, a claim about current behavior the code contradicts, a phase
+things: an AC or NFR line with no phase, a claim about current behavior the code contradicts, a phase
 that does not build on its own, or an NFR with no `NFR coverage` row. None is present
 here.
 

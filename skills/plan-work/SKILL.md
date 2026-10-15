@@ -235,17 +235,18 @@ introduces does not build, and the claim is then false.
 ## Ticket gaps
 ````
 
-The five sections after `Approach` carry the rule book's Phase 3 steps and exit criteria.
-`Components and interfaces` opens with a flowchart of every module the plan changes and
-what each depends on, any new package included, then gives each module all five fields.
-Each `Likely changes` entry names one interface; a decision spread across two is not
-hidden. `Data ownership` names one owning module per store the plan touches. `Test
-strategy` names the risks each level covers, or `none` and a reason in that level's row,
-and a coverage target saying what it counts. `NFR coverage` has one row per ticket and
-`NFR<n>` pair, across the covering tickets and their parent Epic, and each row traces to a
-module in `Components and interfaces` and the mechanism in it that meets the threshold. A
-parent-Epic NFR this branch does not affect reads `untouched — <reason>` instead. The AC
-table says which phase meets a threshold; this one says which design element does.
+The five sections after `Approach` carry rule book Phase 3 steps 1–3, 5 and 7 and its NFR
+exit criterion. `Components and interfaces` opens with a flowchart of every module the plan
+changes, or an NFR row relies on, and what each depends on, any new package included, then
+gives each module all five fields. Each `Likely changes` entry names one interface; a
+decision spread across two is not hidden. `Data ownership` names one owning module per
+store the plan touches. `Test strategy` names the risks each level covers, or `none` and a
+reason in that level's row, and a coverage target saying what it counts. `NFR coverage` has
+one row per ticket and `NFR<n>` pair, across the covering tickets and their parent Epic,
+and each row traces to a module in `Components and interfaces` and the mechanism in it that
+meets the threshold. A parent-Epic NFR this branch does not affect reads `untouched —
+<reason>` instead. The AC table says which phase meets a threshold; this one says which
+design element does.
 
 **Any of these five sections with nothing to list holds `none` and a one-line reason** —
 `none — no data store is touched` — never an empty heading, which reads the same as a
@@ -351,7 +352,7 @@ item below, either fix it or satisfy yourself it holds:
    absence is a claim like any other.
 2. **Every registry the plan edits** — the Step 3 grep was run and its consumers are listed
    in the phase that edits it.
-3. **Every AC clause and NFR line** — has a row, a phase number, and a `Verified by` value.
+3. **Every AC clause and covering-ticket NFR line** — has a row, a phase, and `Verified by`.
 4. **Every cross-phase reference** — a phase naming a function, error code, or type that a
    later phase introduces does not build on its own; either move it or reorder.
 5. **Every "independently committable" claim** — pick the phase you are least sure of and

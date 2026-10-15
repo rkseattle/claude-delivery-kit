@@ -133,7 +133,7 @@ Coverage target: 100% branch coverage of `Backoff` and of the worker's failure h
 | Ticket | NFR | Design element |
 | --- | --- | --- |
 | ABC-204 | NFR1 | `Backoff`: its 120-second `cap` bounds each of the four waits, and `DeliveryWorker`'s existing 30-second request timeout bounds each of the five attempts, so dead-letter lands within 10.5 minutes of the first attempt plus queue latency, which the 15-minute spec measures end to end |
-| ABC-200 | NFR1 | untouched — this branch neither signs nor rotates secrets; retries reuse the existing signing path unchanged |
+| ABC-200 | NFR1 | untouched — this branch changes no code on the webhook settings page |
 
 ## Rejected alternatives
 
@@ -226,4 +226,4 @@ a caller error produces the same error.
 
 **Non-functional requirements:**
 
-- NFR1: a rotated webhook signing secret takes effect within 60 seconds [verify: integration @ spec/signing_secret_rotation_spec.rb]
+- NFR1: the webhook settings page loads in under 2 seconds at p95 [verify: system @ spec/system/webhook_settings_load_spec.rb]
