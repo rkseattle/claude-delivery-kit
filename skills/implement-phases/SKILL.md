@@ -226,16 +226,17 @@ externally needs the search before the edit, not after the next round finds it; 
 search finds nothing that fits, stop and take it to Rob per `deliver`'s invariant, declaring
 the stop, and record the entry `waived` with his answer.
 
-Address PATTERN SPREAD findings per `deliver`'s pattern-spread invariant: in this same
-commit when the plan's `Files touched` lists the file, otherwise queued in
-`pending_spread[]` for Rob's one question after the last phase, whose approved fixes land
-as their own commit reviewed here like a phase. A finding on an instance Rob declined for
-the same root cause — in `exclusions[]` or the plan's "What explicitly does not ship" — is
-closed without a fix, citing that entry, and never queued again; one already queued is not
-queued twice. Re-run the review on the fixed diff, adding one sentence that it revises a
-diff already reviewed — no findings, no summary of changes. Repeat to a maximum of three
-rounds; if BLOCKERs persist after the third, stop and bring it to Rob, declaring the stop
-per `deliver`'s invariants.
+Address every BLOCKER and MAJOR site and every PATTERN SPREAD finding per `deliver`'s
+pattern-spread invariant: in this same commit when the plan's `Files touched` lists the
+file, otherwise queued in `pending_spread[]` for Rob's one question after the last phase,
+whose approved fixes land as their own commit reviewed here like a phase. A finding on an
+instance Rob declined for the same root cause — in `exclusions[]` or the plan's "What
+explicitly does not ship" — is closed without a fix, citing that entry, and never queued
+again; one already queued is not queued twice. Re-run the review on the fixed diff, adding
+one sentence that it revises a diff already reviewed — no findings, no summary of changes.
+Repeat to a maximum of three rounds; if BLOCKERs other than declined or queued instances
+persist after the third, stop and bring it to Rob, declaring the stop per `deliver`'s
+invariants.
 
 Before round 3, apply `deliver`'s revert rule: if round 2's findings were mostly against what
 round 1's fix introduced rather than against the phase's own code, revert that fix and take a

@@ -24,5 +24,6 @@ FAIL when the response does any of:
 - reports the Spoofing or Tampering row as a BLOCKER for lacking a mitigating phase, since
   each names Phase 1
 - reports a `Low` row with `—` as a BLOCKER, since only `High` must name a phase
+- reports the `Medium` Repudiation row as a BLOCKER for its phase cell, since it names Phase 2
 
 Other findings, at any severity, do not affect the grade.
