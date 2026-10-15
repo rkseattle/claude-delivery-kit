@@ -34,9 +34,16 @@ For each BLOCKER and MAJOR, in order:
    the reported file. Same pattern, not same string. If the finding was a missing ownership
    clause, check every endpoint. If it was a missing cancellation on a replaced task, check
    every place work is assigned.
-3. **Decide the scope of the fix.** Every live instance of the root cause gets fixed in this
-   pass; excluding one requires `deliver`'s benign-in-context bar. State the exclusion in
-   those terms or fix it.
+3. **Decide the scope of the fix** per `deliver`'s pattern-spread invariant, which says
+   which instances wait for Rob's question at this stage's end, or sooner when one blocks a
+   gate; approved ones are fixed as their own commit, reviewed by `commit-adversary`
+   outside Step 4's round count. Asked early because one blocks a gate, the approved fix
+   commits before the commit it blocked, and a declined one that keeps the gate red goes to
+   `deliver`'s deferral procedure or a declared stop, never closed by its `exclusions[]`
+   entry alone. Any other exclusion needs `deliver`'s benign-in-context bar. A finding, the
+   reported one included, on an instance Rob declined for the same root cause — in
+   `exclusions[]` or the plan's "What explicitly does not ship" — is closed without a fix,
+   citing that entry.
 4. **Survey the failure mode before writing the fix**, per `deliver`'s invariant: two or
    three real implementations that solve it, then the one the fix follows. Not the minimal
    edit that clears the finding. In-repo precedent is a proposal weighed against the survey,
@@ -50,7 +57,8 @@ For each BLOCKER and MAJOR, in order:
 MINOR findings: fix them. Defer only when the fix needs a decision you cannot make — a
 product choice, a migration, a superseding ADR. Branch size is not such a decision: if the
 branch has grown too large to review, that is a signal to have split it at plan time, not a
-licence to leave a live defect in place now.
+licence to leave a live defect in place now. An instance Rob declined is not such a defect:
+it stays closed under its `exclusions[]` or plan entry.
 
 **Before deferring anything, and before creating any work item, follow the deferral
 procedure in `deliver`'s invariants**: test the benign claim with `commit-adversary` (refs
@@ -72,10 +80,14 @@ produces.
 
 ## Step 4 — Re-review
 
-Once fixes are committed, re-run `greptile-reviewer` against the same base ref with the same
-minimal prompt. Continue until the verdict is APPROVE, to a maximum of three rounds. If it
-still requests changes after the third round, stop and bring the specific disagreement to
-Rob rather than iterating further, declaring the stop per `deliver`'s invariants.
+Once fixes are committed, re-run `greptile-reviewer` against the same base ref with the
+same minimal prompt. Continue until the verdict is APPROVE, to a maximum of three rounds. A
+REQUEST CHANGES whose only open findings are instances Rob declined, in `exclusions[]` or
+the plan, or instances already queued in `pending_spread[]` for this stage's question,
+counts as APPROVE; ask that question after the last round unless a gate forced it sooner.
+If it still requests changes after the third round, stop and bring the specific
+disagreement to Rob rather than iterating further, declaring the stop per `deliver`'s
+invariants.
 
 **Check what each round is about before starting the next**, per `deliver`'s revert rule.
 Findings against code a previous round wrote — rather than against the branch's own work —

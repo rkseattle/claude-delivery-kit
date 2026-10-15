@@ -100,6 +100,9 @@ big diff", "it deserves its own review surface" are _not_ benign — they descri
 pattern-spread fix ever made. Neither is "the automated suite cannot reach it". State the
 exclusion in benign terms or fix it.
 
+Rob's decline is the exception, per rule book R6: build only what a current, accepted
+requirement needs. Approval accepted the plan's files, so only Rob can widen the branch.
+
 ## Never create a Jira work item without asking
 
 Filing a ticket feels like handling the problem and is not; a ticket you file when you
@@ -130,10 +133,6 @@ unreviewable: the information exists only while the phase is fresh, and reconstr
 afterward from `git log` loses the timing and the friction entirely.
 
 ## Friction and citations: recorded as they happen, reported once
-
-Every stage appends friction to `friction[]` and citations to `citations[]` in
-`.claude/state/current-plan.json`, and prints nothing; `ci-green` reports both lists
-before it deletes that file.
 
 One list at the end dedupes across every stage, which four separate per-stage reports
 could never do, and it stops a config conversation interrupting a run mid-flight.
@@ -167,8 +166,6 @@ exists to control, while the raw total rose. A cap that punished that split woul
 measuring the wrong quantity. The agent and `status-report.md` caps moved 130 → 140 for
 the citations work, which named no displacement when it landed.
 
-A project may tighten a cap in `project.json`; it may not raise one without Rob.
-
 The caps sit just above today's sizes deliberately: the next addition to a near-full file
 has to displace something. **A proposal that would breach a cap must name what comes out**
 — the rule it replaces, narrows, or makes redundant — and that removal is part of the same
@@ -182,9 +179,8 @@ only when the file genuinely covers more ground than it used to.
 
 ## Shared before project
 
-A rule that would hold in any project belongs in this plugin, not in a project file. A
-copy made project-side is a copy free to drift, and the drift is invisible until two
-projects disagree. Propose it here and name the project copies it replaces.
+A rule that holds in any project belongs here: a copy made project-side is free to drift,
+and the drift is invisible until two projects disagree.
 
 ## Reversibility decides whether to ask
 

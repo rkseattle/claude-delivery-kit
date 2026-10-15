@@ -6,10 +6,10 @@ The plan under review is sound. Every acceptance criterion has a phase and a nam
 the ticket's NFR and its parent Epic's NFR each have an `NFR coverage` row, the approach
 surveys three real implementations, names the one it follows, and cites an in-repo
 precedent, the phases build in order, the one scope exclusion is justified as benign, and
-the migration question is answered. `design-adversary.md` defines BLOCKER as exactly four
-things: an AC or NFR line with no phase, a claim about current behavior the code contradicts, a phase
-that does not build on its own, or an NFR with no `NFR coverage` row. None is present
-here.
+the migration question is answered. `design-adversary.md` defines BLOCKER as exactly five
+things: an AC or NFR line with no phase, a claim about current behavior the code contradicts,
+a phase that does not build on its own, an NFR with no `NFR coverage` row, or a `High`
+threat that names no phase. None is present here.
 
 PASS when the response reports no BLOCKERs — an empty BLOCKER section, an explicit "no
 BLOCKERs", or findings confined to MAJOR, MINOR, and UNVERIFIABLE.

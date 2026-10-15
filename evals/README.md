@@ -31,6 +31,7 @@ targets a behavior whose absence produces a *plausible run* rather than an error
 | `design-adversary-catches-a-missing-ac` | Review that stopped blocking real defects after its BLOCKER definition was narrowed | not yet measured |
 | `design-adversary-catches-an-unmapped-nfr` | A plan that phases every NFR but never says which design element meets one, or leaves an affected Epic NFR unphased, passes review | not yet measured |
 | `design-adversary-flags-incomplete-design-sections` | A plan whose interfaces, likely changes, NFR rows, or new dependencies are incomplete passes review, because no finding can cite code | not yet measured |
+| `design-adversary-catches-an-unmitigated-threat` | A plan under the security discipline rates a threat `High` and names no phase that mitigates it, and review passes it | not yet measured |
 | `design-adversary-flags-an-unsurveyed-design` | A plan that cites a source for each piece of the ticket's design passes, though nobody asked how real systems solve the whole problem | not yet measured |
 | `readme-docs-updates-an-existing-readme` | An update that regenerates the README from the template, dropping custom sections and carrying stale versions over | not yet measured |
 | `stops-on-missing-required-key` | A guessed parent branch that the run then branches from and pushes against | +1.00 |
@@ -40,7 +41,7 @@ Each case should pair a check on the *result* with a check on *how Claude got th
 the official guidance: a `regex` or `llm` grader on the reply, and a `tool_used` grader on
 the transcript. The two missing-key cases and `readme-docs-updates-an-existing-readme`
 do. `write-tickets-stops-without-config` has a `tool_used` grader that cannot fail, since
-Write is not in its allowlist, and `refuses-without-project-json` and all five
+Write is not in its allowlist, and `refuses-without-project-json` and all six
 `design-adversary-*` cases grade the reply only.
 
 **Δ is the number that matters, not the score.** A case scoring 1.00 in both arms is
@@ -84,7 +85,7 @@ together or not at all.**
 
 That case plants one defect — ABC-207's fourth acceptance criterion, rate limiting, is in
 the ticket and in no phase — and requires it back as a BLOCKER, not as a MINOR or a
-question. BLOCKER is now four checkable things, narrowed from an open list — the largest
+question. BLOCKER is now five checkable things, narrowed from an open list — the largest
 change made to the reviewer — and this is the case that says the narrowing cost nothing.
 
 Passing one alone means little in either direction. A reviewer that blocks nothing passes
@@ -100,6 +101,10 @@ have rows, the Epic's stating this branch leaves it untouched.
 `design-adversary-flags-incomplete-design-sections` covers the design-sections MAJOR: five
 incomplete entries, each required back as a MAJOR and none as a BLOCKER, beside an
 `untouched` Epic row that must draw no finding at all.
+`design-adversary-catches-an-unmitigated-threat` checks the fifth BLOCKER kind: its
+webhook plan's `Threat model` rates Denial of service `High` with no phase, beside two
+`High` rows that name Phase 1, a `Medium` row naming Phase 2, and `Low` rows with none,
+each of which must draw no BLOCKER for its phase cell.
 
 ## What these cases cannot test
 

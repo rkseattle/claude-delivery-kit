@@ -120,9 +120,14 @@ implementations of the whole problem (for a fix, its failure mode) before weighi
 repo's or the ticket's design, which are proposals, never defaults. Name the one the choice
 follows and justify departures; take a no-fit to Rob. Log survey and choice to `citations[]`.
 
-**Root cause, then pattern spread.** Every fix — plan finding, review finding, test
-failure, CI failure, PR comment — gets root-caused, and the codebase gets grepped for
-other instances of that same cause. Fix all live instances in the same pass.
+**Root cause, then pattern spread.** Every fix — plan finding, review finding, test failure,
+CI failure, PR comment — gets root-caused, and the codebase grepped for that same cause. Fix
+all live instances in the same pass. After approval, another instance in a file no phase's
+`Files touched` lists is queued in `pending_spread[]`. At the stage's end, before each R2
+request in `ci-green`, or at once if one blocks a gate, set `"paused": true` and ask Rob.
+His answer empties the queue: approved ones get their own reviewed commit, their files added
+to the plan's `Files touched`; declined ones go to `exclusions[]` with `file:line` and his
+answer. Spread the fixes reveal waits for the next question.
 
 **Enforcement machinery is planned before it is written.** A hook, check script, CI filter,
 lint rule, or self-test harness may ship on a feature branch, but never from inside the
@@ -133,8 +138,9 @@ looks.
 
 **Fixing is the default; deferring is the exception that needs permission.** An instance is
 excluded only when it is **benign in its context** — it cannot produce a wrong result for
-any user or any test. A different feature, view, workspace, or review surface is not
-benign; neither is a large diff, nor "the automated suite cannot reach it".
+any user or any test. A different feature, view, workspace, or review surface is not benign;
+neither is a large diff, nor "the automated suite cannot reach it". The one exception is an
+instance Rob declined, in `exclusions[]` or "What explicitly does not ship".
 
 **Never create a Jira work item without asking first**, and never delete or close someone
 else's. The three-step deferral procedure — `commit-adversary` on the benign claim, then

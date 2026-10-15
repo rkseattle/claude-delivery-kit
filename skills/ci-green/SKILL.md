@@ -88,7 +88,12 @@ For every failing job:
    reasoning, no argument for why the fix is correct. It decides whether the fix addresses
    the root cause and whether the same root cause exists elsewhere in the codebase.
 5. **Act on its verdict.** `SYMPTOM ONLY` or `UNVERIFIED` means the fix is not done. Fix
-   every additional site it reports as a live defect in this same commit.
+   every additional site it reports as a live defect, per `deliver`'s pattern-spread
+   invariant: in this same commit when the plan's `Files touched` lists the file. Others
+   wait in `pending_spread[]` for Rob's question before the next R2 request, or at once
+   when one blocks a check; approved ones then run one more iteration, and a declined one
+   that keeps a check red goes to `deliver`'s deferral procedure or a declared stop. A site
+   Rob declined for the same root cause, in `exclusions[]` or the plan, stays closed.
 6. **Run the full Definition of Done, then commit.**
 7. **Push per `${CLAUDE_PLUGIN_ROOT}/gates/pre-push.md`** — including its step 1 rebase onto
    the parent branch. An open PR is exactly where the parent drifts:
@@ -128,7 +133,9 @@ Then, in this order:
 
 1. **Fix the code first.** Never reply to a comment before the fix exists. Each fix goes
    through `ci-failure-adversary` the same way a CI failure does — root cause, pattern
-   spread, then commit. Replying "good catch, filed as <ticket>" is a deferral: it needs the
+   spread per `deliver`'s invariant, then commit. A comment on an instance Rob declined for
+   the same root cause, in `exclusions[]` or the plan, gets no fix: reply citing the entry
+   and his answer. Replying "good catch, filed as <ticket>" is a deferral: it needs the
    procedure in `deliver`'s invariants first — `commit-adversary` on the benign claim, then
    Rob's explicit agreement — before any ticket exists to cite.
 2. **Reply to every inline thread**, naming what changed and in which commit:
@@ -138,18 +145,19 @@ Then, in this order:
    ```
    Replies to Greptile comments start with `@greptile:` followed by a space.
 3. **Reply to the main PR summary comment** with a summary of all changes made, via the
-   `issues/<pr>/comments` endpoint. Skip it only when every finding was handled inline and a
-   summary would restate them verbatim. A review body with findings no inline thread
+   `issues/<pr>/comments` endpoint. Skip it only when every finding was handled inline and
+   a summary would restate them verbatim. A review body with findings no inline thread
    carries — a `CHANGES_REQUESTED` written as prose — is answered the same way, naming the
-   reviewer and the commits that address it.
+   reviewer and the commits that address it — or, for a declined or deferred finding, the
+   entry or ticket and Rob's answer.
 
 Never run a fresh `/code-review` when asked to address existing feedback.
 
 ## Step 5 — Loop
 
 Push, re-arm the monitor, stay silent. Repeat steps 2–4 until every check passes, no
-comment is unaddressed, and the PR has the approval rule book R2 requires — or, with no
-reviewer set, the R2 exception below.
+comment is unaddressed, `pending_spread[]` is empty, and the PR has the approval rule book
+R2 requires — or, with no reviewer set, the R2 exception below.
 
 **The approval.** Resolve the reviewer set as `/ship-pr` Step 4 does. When it names anyone,
 the loop exits only when `review_gate.py approval` prints `approved <login>`: an approving
@@ -180,14 +188,16 @@ required-review rule. `blocked <login>` is feedback to address under Step 4.
 invariants. Read the head again after an `approved`: if it moved between the two calls, the
 verdict judged a superseded commit, so run both again.
 
-With every check green and every comment addressed, and the verdict `outstanding` — or
-`blocked` with each blocking review answered by a fix commit and a reply — re-request the
-reviewer set plus every login `blocked` named — `review_gate.py reviewer-set` over both,
-with `--author`, dedupes them — with the `gh pr edit <pr> --add-reviewer` call `/ship-pr`
-Step 4 makes, failure handled the same way. GitHub clears a request once it is answered, so after a push nobody is asked for the
-new head, and a reviewer who requested changes is never asked again, unless this asks.
-Then declare the stop per `deliver`'s invariants (`"paused": true`), say in one line who was
-asked and that `/deliver` or `/ci-green` resumes once a review lands, and end the turn.
+With every check green, every comment addressed, `pending_spread[]` asked and empty, and
+the verdict `outstanding` — or `blocked` with each finding of each blocking review answered
+by a fix commit and a reply, a reply citing an instance Rob declined, or a reply citing a
+deferral cleared under `deliver`'s procedure — re-request the reviewer set plus every login
+`blocked` named — `review_gate.py reviewer-set` over both, with `--author`, dedupes them —
+with the `gh pr edit <pr> --add-reviewer` call `/ship-pr` Step 4 makes, failure handled the
+same way. GitHub clears a request once it is answered, so after a push nobody is asked for
+the new head, and a reviewer who requested changes is never asked again, unless this asks.
+Then declare the stop per `deliver`'s invariants (`"paused": true`), say in one line who
+was asked and that `/deliver` or `/ci-green` resumes once a review lands, and end the turn.
 Waiting on a person is not a monitor's job: no poll, no `sleep`.
 
 With the reviewer set `none`, skip that wait and say so in one line. The wait is this

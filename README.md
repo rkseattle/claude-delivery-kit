@@ -231,7 +231,8 @@ defaults.
 - `project_size` — `small`, `medium`, or `large`. Default `small`.
 - `lifecycle_model` — `waterfall`, `iterative`, or `continuous`. Default `continuous`.
 - `disciplines` — a list drawn from `security`, `data-ml`, `mobile`, `embedded`, and
-  `sre`. Default `[]`.
+  `sre`. Default `[]`. With `security`, `plan-work` requires a STRIDE `## Threat model`
+  in every plan, and `design-adversary` blocks a `High` threat that names no phase.
 - `roles` — a map from each role above to the person who holds it.
   `{{roles.<role>}}` in a skill resolves to that role's entry in `roles`, so
   `{{roles.tech_lead}}` names the tech lead. Default: a role absent from `roles` is the
@@ -248,7 +249,10 @@ defaults.
 Stages record two lists to `.claude/state/current-plan.json` as they go, printing nothing:
 process friction to `friction[]`, and the external survey behind each design decision to
 `citations[]`. `ci-green` reports both once, at the end of delivery, before Step 6 deletes
-that file.
+that file. Two more lists handle pattern spread outside the plan's files:
+`pending_spread[]` queues each instance for the stage's next question, and `exclusions[]`
+keeps each one declined at that question, so later review stages close findings on it
+rather than reopen them.
 
 A citation names the two or three real implementations of the whole problem surveyed
 before the decision (`surveyed`), the one it follows (`standard`), and how it was applied

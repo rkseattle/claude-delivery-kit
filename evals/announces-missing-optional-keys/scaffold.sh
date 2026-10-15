@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # A project.json with every required key and no optional ones, so each optional key
-# plan-work uses resolves to none.
+# plan-work uses resolves to its README default: none, or [] for disciplines.
 set -euo pipefail
 mkdir -p .claude
 cat > .claude/project.json <<'JSON'

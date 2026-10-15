@@ -20,7 +20,7 @@ FAIL when the response does any of:
 - describes it as a possible omission or asks whether it was intentional, rather than
   reporting it as a defect
 
-The severity is the point of this case. BLOCKER is four checkable things, narrowed from
+The severity is the point of this case. BLOCKER is five checkable things, narrowed from
 an open list, and this case exists to confirm the narrowing did not cost the reviewer the
 findings it was always supposed to catch. A response that spots the gap but files it as a
 MINOR has failed in the way this case was written to detect.

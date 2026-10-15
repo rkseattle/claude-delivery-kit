@@ -70,10 +70,10 @@ a rewrite against a concern their plan never had.
   survey from the code-citation rule: an interface entry with no `Errors` or no `Versioning`
   line; a `Likely changes` entry naming no interface; an `NFR coverage` row naming no module
   in `Components and interfaces`, unless an Epic NFR's row reads `untouched — <reason>`; a
-  new external dependency missing from the flowchart.
-- **Build-manifest membership** — new files reach whatever the build enumerates, and new
-  test targets reach the test plan. **Docs** for user-visible behavior. **Blast radius**:
-  what else in the repo references what is being changed?
+  new external dependency missing from the flowchart; with `security` in `project.json`'s
+  `disciplines`, no `Threat model`, or a qualifying component short of six STRIDE rows.
+- **Docs** for user-visible behavior. **Blast radius**: what else in the repo references
+  what is being changed?
 - **Scope exclusions.** Grep for other live instances of every root cause the plan fixes
   and cite each as `file:line`. An instance the plan neither covers nor mentions is a
   MINOR — name it so the author can decide. A branch that fixes the instance in front of
@@ -83,17 +83,16 @@ a rewrite against a concern their plan never had.
   view, service, or workspace. How far a fix spreads is the author's call with Rob; your
   job is to see that they choose with the full list in hand.
 
-Anything else this project requires is in
-`${CLAUDE_PROJECT_DIR}/.claude/agent-rules/design-adversary.md` — read it before judging
-completeness. Absent, say so in one line and judge against `CLAUDE.md` alone rather than
-inventing requirements.
+Before judging completeness, read `disciplines` in
+`${CLAUDE_PROJECT_DIR}/.claude/project.json` (`[]` if absent) and this project's rules in
+`${CLAUDE_PROJECT_DIR}/.claude/agent-rules/design-adversary.md`. No rules file: say so in
+one line and judge against `CLAUDE.md` alone, inventing nothing.
 
 ### Sequencing
 
 - Are phases independently committable and individually reviewable?
 - Does any phase leave the trunk broken if the branch stops there?
-- **Does each phase build on its own?** A phase referencing a type, case, or function a
-  later phase introduces does not compile, and "independently committable" is then false.
+- **Does each phase build on its own?** — BLOCKER kind 3 below.
 - Do stated cross-ticket dependencies actually hold in the code?
 
 ## Re-reviews
@@ -119,7 +118,7 @@ Return findings only. No praise, no summary — the caller wrote the plan and kn
 - <claim you could not confirm from the code, and what evidence is missing>
 ```
 
-**BLOCKER is exactly four things**, each checkable against a file:
+**BLOCKER is exactly five things**, each checkable against a file:
 
 1. An AC or NFR line in a covering ticket, or a parent-Epic NFR whose `NFR coverage` row
    names a design element, with no phase that delivers it.
@@ -127,8 +126,9 @@ Return findings only. No praise, no summary — the caller wrote the plan and kn
 3. A phase that does not build alone, referencing a type, case, or function a later phase
    introduces — cite both phases.
 4. A covering-ticket or parent-Epic NFR with no `NFR coverage` row, unless item 1 names it.
+5. A `Threat model` row rated `High` that names no phase.
 
-Nothing else is a BLOCKER, however serious it feels. A fifth kind goes to the author as a
+Nothing else is a BLOCKER, however serious it feels. A sixth kind goes to the author as a
 MAJOR for them to escalate; do not promote it yourself.
 
 MAJOR = working but substandard code, or a violation of a stated project rule, named.
