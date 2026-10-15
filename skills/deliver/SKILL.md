@@ -120,9 +120,12 @@ implementations of the whole problem (for a fix, its failure mode) before weighi
 repo's or the ticket's design, which are proposals, never defaults. Name the one the choice
 follows and justify departures; take a no-fit to Rob. Log survey and choice to `citations[]`.
 
-**Root cause, then pattern spread.** Every fix — plan finding, review finding, test
-failure, CI failure, PR comment — gets root-caused, and the codebase gets grepped for
-other instances of that same cause. Fix all live instances in the same pass.
+**Root cause, then pattern spread.** Every fix — plan finding, review finding, test failure,
+CI failure, PR comment — gets root-caused, and the codebase gets grepped for other instances
+of that same cause. Fix all live instances in the same pass. After approval, one in a file
+no phase's `Files touched` lists is queued in `pending_spread[]` instead. At the stage's
+end, set `"paused": true`, ask Rob once, fix approved ones then as their own reviewed
+commit, and append each declined one to `exclusions[]` with its `file:line` and his answer.
 
 **Enforcement machinery is planned before it is written.** A hook, check script, CI filter,
 lint rule, or self-test harness may ship on a feature branch, but never from inside the
@@ -133,8 +136,9 @@ looks.
 
 **Fixing is the default; deferring is the exception that needs permission.** An instance is
 excluded only when it is **benign in its context** — it cannot produce a wrong result for
-any user or any test. A different feature, view, workspace, or review surface is not
-benign; neither is a large diff, nor "the automated suite cannot reach it".
+any user or any test. A different feature, view, workspace, or review surface is not benign;
+neither is a large diff, nor "the automated suite cannot reach it". The one exception is an
+instance Rob declined, in `exclusions[]` or "What explicitly does not ship".
 
 **Never create a Jira work item without asking first**, and never delete or close someone
 else's. The three-step deferral procedure — `commit-adversary` on the benign claim, then
