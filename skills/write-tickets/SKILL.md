@@ -155,7 +155,8 @@ a name or ID.
    after its creation, and give it item 6 again.
 
 For `<TICKET-N ...>` arguments, fetch each into a draft with its key as the header ID and
-on its `Jira:` line, so no local ID stands for an issue that already exists, mapping:
+on its `Baseline:` and `Jira:` lines, so no local ID stands for an issue that already
+exists, mapping:
 
 - its `moscow-*` label to `Priority:` — `moscow-wont` as `Won't`, the rest title-cased; no
   such label, or more than one, leaves `Priority:` empty for Step 1 to settle

@@ -82,11 +82,11 @@ naming the outcome it serves, held to R6, R7, and R10 like the sections. Bugs ar
 and an Epic states its goal in `## Goal`; neither carries the header.
 Prevents: work that serves no goal reaching a plan unchallenged.
 
-**R15 Change impact recorded.** A ticket whose `Jira:` line is filled is a rewrite of a
-baselined ticket, and carries `## Change impact`: each AC added, removed, or changed, and
-each other ticket whose scope moves; or, when neither moves, one line on what changed. A
-ticket being created carries none. Prevents: a
-baselined ticket changing under a plan with no record of what moved.
+**R15 Change impact recorded.** A ticket whose `Baseline:` line is filled is a rewrite of
+a baselined ticket. It carries `## Change impact`: each AC added,
+removed, or changed, and each other ticket whose scope moves; or, when neither moves, one
+line on what changed. Any other ticket carries none. Prevents: a baselined ticket changing
+under a plan with no record of what moved.
 
 ## Bug, in addition
 

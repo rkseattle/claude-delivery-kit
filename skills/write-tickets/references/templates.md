@@ -14,6 +14,7 @@ Handoff: auth-refresh-pr-01
 Priority: Must
 Goal:
 Labels:
+Baseline:
 Jira:
 ```
 
@@ -34,6 +35,8 @@ Jira:
 - **Goal** — one sentence, on one line, naming the outcome the ticket serves. Required on
   a Story or Task with no `Parent:`; a child serves its epic's goal, and a Bug restores
   behavior a goal already justified.
+- **Baseline** — empty; filled only by rewrite mode, with the key of the issue it fetched,
+  which the header ID and `Jira:` hold too.
 - **Jira** — empty; filled on creation, or by rewrite mode with the key being rewritten.
   **Open questions** — must be empty before review.
 
@@ -97,11 +100,11 @@ decision.
 - **Out of scope** — each item with where it lives: a ticket, or `(not planned)`. An
   excluded instance of a root cause states why it is benign in context.
 
-A ticket whose `Jira:` line is filled is a rewrite of a baselined ticket, and carries
+A ticket whose `Baseline:` line is filled is a rewrite of a baselined ticket, and carries
 **Change impact**: one line per AC — on an Epic, per success measure or child — `added`,
 `removed`, or `changed`, and per other ticket whose scope moves, in the formats above; a
 rewrite that moves neither says in one line what changed. Step 8 posts it as a comment on
-the issue, never in the description. A ticket being created carries none. The linter checks
+the issue, never in the description. Any other ticket carries none. The linter checks
 the section is present, non-empty, and Jira-safe; its lines are checked in review.
 
 A spike Task has one AC: a decision record committed at a named path, stating the option

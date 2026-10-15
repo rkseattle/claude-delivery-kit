@@ -65,7 +65,7 @@ SESSION_REFS = [r"\bas discussed\b", r"\bas mentioned\b", r"\bper (the )?above\b
 
 # A local ID while drafting; Step 8 replaces it with the Jira key once the ticket exists.
 HEADER = re.compile(r"^# \[(?P<id>[ESTB]\d+|[A-Z][A-Z0-9]+-\d+)\]\s+(?P<summary>.+?)\s*$")
-META = re.compile(r"^(Type|Parent|Blocked by|Handoff|Labels|Priority|Severity|Goal|Jira):\s*(.*)$")
+META = re.compile(r"^(Type|Parent|Blocked by|Handoff|Labels|Priority|Severity|Goal|Baseline|Jira):\s*(.*)$")
 SECTION = re.compile(r"^## (.+?)\s*$")
 VERIFY_TAG = r"\[verify:\s*([^@\]\s][^@\]]*?)\s*@\s*([^\]\s][^\]]*?)\s*\]"
 AC = re.compile(r"^-\s+AC(\d+):\s+(.+?)\s*" + VERIFY_TAG + r"\s*$")
@@ -223,14 +223,18 @@ def lint(items, repo):
                 err(i, "FORMAT", f"'## {s}' is empty")
         if body(i["sections"].get("Open questions", [])):
             err(i, "R6", "Open questions has content — settle it before review")
-        # A filled Jira: line means rewrite mode fetched a baselined ticket.
-        jira_key = i["meta"].get("Jira", "")
-        if jira_key and not body(i["sections"].get(CHANGE_IMPACT, [])):
+        # Only rewrite mode fills Baseline:; Step 8 fills Jira: on creation too, so Jira: alone
+        # cannot tell a baselined ticket from one this run created.
+        baseline = i["meta"].get("Baseline", "")
+        if baseline and not body(i["sections"].get(CHANGE_IMPACT, [])):
             state = "empty" if CHANGE_IMPACT in i["sections"] else "missing"
-            err(i, "R15", f"Jira: {jira_key} is filled and '## {CHANGE_IMPACT}' is {state} — "
+            err(i, "R15", f"Baseline: {baseline} is filled and '## {CHANGE_IMPACT}' is {state} — "
                           "record what this rewrite changes")
-        elif CHANGE_IMPACT in i["sections"] and not jira_key:
-            err(i, "R15", f"'## {CHANGE_IMPACT}' belongs on a ticket whose Jira: line is filled")
+        elif CHANGE_IMPACT in i["sections"] and not baseline:
+            err(i, "R15", f"'## {CHANGE_IMPACT}' belongs on a ticket whose Baseline: line is filled")
+        if baseline and not baseline == i["id"] == i["meta"].get("Jira", ""):
+            err(i, "FORMAT", f"Baseline: {baseline} must match the header ID and Jira: — "
+                             "a rewrite updates the issue it fetched")
         goal = i["meta"].get("Goal", "")
         if goal and t not in GOAL_TYPES:
             err(i, "R14", f"Goal: belongs on a Story or Task, not on this {t}")
@@ -430,7 +434,7 @@ def readback_cli_test(cases, scratch):
         f.write(draft_text.replace("[S1]", "[AB-2]").replace("[E1]", "[AB-1]"))
     rewritten = os.path.join(scratch, "rewritten.md")
     with open(rewritten, "w", encoding="utf8") as f:
-        f.write(re.sub(r"(# \[S1\].*\n(?:.+\n)*?)Jira:\n", r"\1Jira: AB-2\n", draft_text, count=1)
+        f.write(re.sub(r"(# \[S1\].*\n(?:.+\n)*?)Jira:\n", r"\1Baseline: AB-2\nJira: AB-2\n", draft_text, count=1)
                 .replace("[S1]", "[AB-2]")
                 .replace("## Open questions\n", "## Change impact\n- AC1 changed: returned 201; now returns 200\n\n"
                          "## Open questions\n", 1))

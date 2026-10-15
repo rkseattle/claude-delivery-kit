@@ -1,7 +1,8 @@
-<!-- expect JIRA=1 R15=4 -->
+<!-- expect FORMAT=2 JIRA=1 R15=4 -->
 # [AB-15] Keep signed-in users signed in for 30 days
 Type: Epic
 Blocked by: None
+Baseline: AB-15
 Jira: AB-15
 
 ## Goal
@@ -26,6 +27,7 @@ Priority: Must
 Parent: AB-15
 Blocked by: None
 Handoff: rewrite-pr-01
+Baseline: AB-12
 Jira: AB-12
 
 ## Context
@@ -57,6 +59,7 @@ Priority: Should
 Parent: AB-15
 Blocked by: None
 Handoff: rewrite-pr-01
+Baseline: AB-13
 Jira: AB-13
 
 ## Context
@@ -83,6 +86,7 @@ Priority: Must
 Parent: AB-15
 Blocked by: None
 Handoff: rewrite-pr-02
+Baseline: AB-14
 Jira: AB-14
 
 ## Context
@@ -137,13 +141,14 @@ POST /auth/signout-all revokes every refresh token the user holds.
 # [AB-16] Let users see where they are signed in
 Type: Epic
 Blocked by: None
+Baseline: AB-16
 Jira: AB-16
 
 ## Goal
 Users can see each device where they are signed in.
 
 ## Success measures
-- SM1: A user lists the devices holding a refresh token [children: AB-13]
+- SM1: A user lists the devices holding a refresh token [children: AB-17, AB-19, S5]
 
 ## In scope
 - The web client
@@ -152,8 +157,95 @@ Users can see each device where they are signed in.
 - Mobile clients (not planned)
 
 ## Children
-- AB-13
+- AB-17, AB-19, S5
 
 ## Change impact
+- SM1 changed: listed `AB-13`; now lists `AB-17`, `AB-19`, `S5`
 - SM2 removed: a user signs out one device; now part of sign-out
 - SM3 removed: the List<String> of devices signed out
+
+# [AB-17] List the devices a user is signed in on
+Type: Story
+Priority: Could
+Parent: AB-16
+Blocked by: None
+Handoff: rewrite-pr-03
+Jira: AB-17
+
+## Context
+Step 8 created this ticket in this run, so it has a key and no baseline.
+
+## Behavior
+GET /auth/devices returns each device holding a refresh token.
+
+## Acceptance criteria
+- AC1: GET /auth/devices returns 200 [verify: automated @ tests/auth/signin.test.ts]
+
+## Touch points
+- src/auth/routes.ts (modify): devices route
+
+## Out of scope
+- Mobile clients (not planned)
+
+## Dependencies
+- None
+
+# [AB-19] Name each signed-in device
+Type: Story
+Priority: Could
+Parent: AB-16
+Blocked by: None
+Handoff: rewrite-pr-03
+Baseline: AB-18
+Jira: AB-19
+
+## Context
+A rewrite whose Baseline: names a different issue than its Jira: line.
+
+## Behavior
+GET /auth/devices returns a name for each device.
+
+## Acceptance criteria
+- AC1: GET /auth/devices returns 200 [verify: automated @ tests/auth/signin.test.ts]
+
+## Touch points
+- src/auth/routes.ts (modify): devices route
+
+## Out of scope
+- Mobile clients (not planned)
+
+## Dependencies
+- None
+
+## Change impact
+- AC1 changed: returned 204; now returns 200
+
+# [S5] Rename a signed-in device
+Type: Story
+Priority: Could
+Parent: AB-16
+Blocked by: None
+Handoff: rewrite-pr-04
+Baseline: AB-20
+Jira:
+
+## Context
+A rewrite whose Baseline: is filled and whose Jira: line is empty.
+
+## Behavior
+PATCH /auth/devices/1 sets the device name.
+
+## Acceptance criteria
+- AC1: PATCH /auth/devices/1 returns 200 [verify: automated @ tests/auth/signin.test.ts]
+
+## Touch points
+- src/auth/routes.ts (modify): rename route
+
+## Out of scope
+- Mobile clients (not planned)
+
+## Dependencies
+- None
+
+## Change impact
+- AC1 added: renaming returns 200
