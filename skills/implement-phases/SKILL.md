@@ -105,9 +105,9 @@ across at Step 1 so the report is not missing the decision that shaped every pha
 
 `exclusions[]` holds each pattern-spread instance Rob declined, per `deliver`'s
 pattern-spread invariant; later stages close a finding on a listed instance by citing it.
-`pending_spread[]` holds the instances awaiting his one question, in the same shape without
-`answer`, so the queue survives a compaction. `stage` is whichever of `implement-phases`,
-`branch-review`, or `ci-green` found the instance.
+`pending_spread[]` holds the instances awaiting his next question, in the same shape
+without `answer`, so the queue survives a compaction. `stage` is whichever of
+`implement-phases`, `branch-review`, or `ci-green` found the instance.
 
 ```json
 "exclusions": [
@@ -194,10 +194,10 @@ Any time you rename a symbol, change a signature, add a user-facing string, or a
 
 When a grep reveals a class of problem rather than a single instance, fix every instance in
 that pass, per `deliver`'s pattern-spread invariant — an instance in a file no phase's
-`Files touched` lists waits for Rob's one question after the last phase. "Only this one is
-failing" is not the same as "only this one is a bug." Excluding an instance, deferring
-anything, or creating any work item all go through `deliver`'s benign-in-context bar and
-deferral procedure.
+`Files touched` lists waits for Rob's question after the last phase, or sooner when it
+blocks a gate. "Only this one is failing" is not the same as "only this one is a bug."
+Excluding an instance, deferring anything, or creating any work item all go through
+`deliver`'s benign-in-context bar and deferral procedure.
 
 ### 2b. Read the diff before staging
 
@@ -228,15 +228,17 @@ the stop, and record the entry `waived` with his answer.
 
 Address every BLOCKER and MAJOR site and every PATTERN SPREAD finding per `deliver`'s
 pattern-spread invariant: in this same commit when the plan's `Files touched` lists the
-file, otherwise queued in `pending_spread[]` for Rob's one question after the last phase,
-whose approved fixes land as their own commit reviewed here like a phase. A finding on an
-instance Rob declined for the same root cause — in `exclusions[]` or the plan's "What
-explicitly does not ship" — is closed without a fix, citing that entry, and never queued
-again; one already queued is not queued twice. Re-run the review on the fixed diff, adding
-one sentence that it revises a diff already reviewed — no findings, no summary of changes.
-Repeat to a maximum of three rounds; if BLOCKERs other than declined or queued instances
-persist after the third, stop and bring it to Rob, declaring the stop per `deliver`'s
-invariants.
+file, otherwise queued in `pending_spread[]` for Rob's question after the last phase
+(sooner when it blocks a gate), whose approved fixes land as their own commit reviewed here
+like a phase. Asked early because an instance blocks a gate, the approved fix commits
+first, before the commit it blocked; a declined one that keeps the gate red goes to
+`deliver`'s deferral procedure or a declared stop. A finding on an instance Rob declined
+for the same root cause — in `exclusions[]` or the plan's "What explicitly does not ship" —
+is closed without a fix, citing that entry, and never queued again; one already queued is
+not queued twice. Re-run the review on the fixed diff, adding one sentence that it revises
+a diff already reviewed — no findings, no summary of changes. Repeat to a maximum of three
+rounds; if BLOCKERs other than declined or queued instances persist after the third, stop
+and bring it to Rob, declaring the stop per `deliver`'s invariants.
 
 Before round 3, apply `deliver`'s revert rule: if round 2's findings were mostly against what
 round 1's fix introduced rather than against the phase's own code, revert that fix and take a

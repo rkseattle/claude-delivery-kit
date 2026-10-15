@@ -121,13 +121,13 @@ repo's or the ticket's design, which are proposals, never defaults. Name the one
 follows and justify departures; take a no-fit to Rob. Log survey and choice to `citations[]`.
 
 **Root cause, then pattern spread.** Every fix — plan finding, review finding, test failure,
-CI failure, PR comment — gets root-caused, and the codebase gets grepped for other instances
-of that same cause. Fix all live instances in the same pass. After approval, another
-instance in a file no phase's `Files touched` lists is queued in `pending_spread[]`. At the
-stage's end, or in `ci-green` before each R2 request, set `"paused": true` and ask Rob once.
-His answer empties the queue: approved ones are fixed as their own reviewed commit, their
-files added to the plan's `Files touched`; each declined one goes to `exclusions[]` with its
-`file:line` and his answer. Spread those fixes reveal waits for the next question.
+CI failure, PR comment — gets root-caused, and the codebase grepped for that same cause. Fix
+all live instances in the same pass. After approval, another instance in a file no phase's
+`Files touched` lists is queued in `pending_spread[]`. At the stage's end, before each R2
+request in `ci-green`, or at once if one blocks a gate, set `"paused": true` and ask Rob.
+His answer empties the queue: approved ones get their own reviewed commit, their files added
+to the plan's `Files touched`; declined ones go to `exclusions[]` with `file:line` and his
+answer. Spread the fixes reveal waits for the next question.
 
 **Enforcement machinery is planned before it is written.** A hook, check script, CI filter,
 lint rule, or self-test harness may ship on a feature branch, but never from inside the

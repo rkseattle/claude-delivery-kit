@@ -90,9 +90,10 @@ For every failing job:
 5. **Act on its verdict.** `SYMPTOM ONLY` or `UNVERIFIED` means the fix is not done. Fix
    every additional site it reports as a live defect, per `deliver`'s pattern-spread
    invariant: in this same commit when the plan's `Files touched` lists the file. Others
-   wait in `pending_spread[]` for Rob's question before the next R2 request, asked once
-   everything else is green; approved ones then run one more iteration. A site Rob declined
-   for the same root cause, in `exclusions[]` or the plan, stays closed.
+   wait in `pending_spread[]` for Rob's question before the next R2 request, or at once
+   when one blocks a check; approved ones then run one more iteration, and a declined one
+   that keeps a check red goes to `deliver`'s deferral procedure or a declared stop. A site
+   Rob declined for the same root cause, in `exclusions[]` or the plan, stays closed.
 6. **Run the full Definition of Done, then commit.**
 7. **Push per `${CLAUDE_PLUGIN_ROOT}/gates/pre-push.md`** — including its step 1 rebase onto
    the parent branch. An open PR is exactly where the parent drifts:
