@@ -131,6 +131,7 @@ The stage skills carry the procedure; the commands, paths and thresholds come fr
   "sast_command": "<static analyzer writing SARIF 2.1.0 to stdout, or none>",
   "clean_build_command": "<build from a fresh checkout, dependencies included, or none>",
   "interface_docs": "<directory holding interface definitions, e.g. docs/api, or none>",
+  "pr_review_limit_lines": 400,
   "unit_test_scope": "<the whole target, or the changed workspaces — and why>",
   "post_fix_verification_scope": "<what a fix commit must re-run before the gate passes>",
   "results_file": "<path the local gate writes its verdict to>",
@@ -188,6 +189,14 @@ in this command. Default `none`, announced as skipped.
 OpenAPI specs, schemas, CLI references. Check 7 in `gates/rule-book-review.md` says when a
 definition must change with its interface. Default `none`, under which every definition is
 the doc comment at the interface's declaration.
+
+`pr_review_limit_lines` serves rule book R9: a pull request reviewable in under an hour. It
+caps one PR's changed lines, insertions plus deletions against the parent branch.
+`plan-work` sizes its phases to it, and the pre-push checklist checks it before every push,
+asking you once per branch when the diff is over; a yes is recorded as `pr_size_approved`
+in `.claude/state/current-plan.json`, and without a state file for the branch it asks at
+every push. Default `400`, where review effectiveness falls off
+in SmartBear's study of code review at Cisco; `none` skips the check, announced as skipped.
 
 The values in the block above are illustrations, not defaults. Some of its keys are
 required and have no default; one that is missing, empty, `none`, or a `<placeholder>`
@@ -252,7 +261,7 @@ process friction to `friction[]`, and the external survey behind each design dec
 that file. Two more lists handle pattern spread outside the plan's files:
 `pending_spread[]` queues each instance for the stage's next question, and `exclusions[]`
 keeps each one declined at that question, so later review stages close findings on it
-rather than reopen them.
+rather than reopen them. `pr_size_approved` records a yes to the pre-push size question.
 
 A citation names the two or three real implementations of the whole problem surveyed
 before the decision (`surveyed`), the one it follows (`standard`), and how it was applied

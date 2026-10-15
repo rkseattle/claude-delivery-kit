@@ -39,9 +39,29 @@ In order, all green, before every `git push`:
    moved under you, which is precisely the case where a blind force destroys someone else's
    commits.
 
-2. **Format check and lint**, at CI's strictness.
-3. **Typecheck or compile**, where the project has a step distinct from its tests.
-4. **The unit suite**, at the scope `{{unit_test_scope}}` names. That key is the project's
+2. **Diff size against `{{pr_review_limit_lines}}`** — rule book R9's one-hour review, and
+   first after the rebase so no expensive step runs on a push a "no" cancels:
+
+   ```bash
+   ( set -o pipefail; git diff --shortstat origin/<parent>...HEAD |
+     awk '{for (i = 2; i <= NF; i++) if ($i ~ /^(insertion|deletion)/) n += $(i-1)} END {print n + 0}' )
+   ```
+
+   A non-zero exit is a failed count, never zero lines.
+
+   Insertions plus deletions over the limit stop the push here: ask Rob whether this PR
+   ships at this size, unless `.claude/state/current-plan.json` names this branch in
+   `branch` and records `"pr_size_approved": true` — an approval belongs to the branch it
+   was given on, as that file's `branch` scopes both hooks. A yes records that field, and
+   later pushes on the branch do not ask again; a no sets `"paused": true` and stops
+   without pushing — splitting the branch is a plan decision. With no state file for this
+   branch there is nowhere to record either answer: the question is asked at every push,
+   and a no just stops. With `{{pr_review_limit_lines}}` set to `none` the step is skipped
+   and named in the one-line announcement `gates/project-config.md` defines.
+
+3. **Format check and lint**, at CI's strictness.
+4. **Typecheck or compile**, where the project has a step distinct from its tests.
+5. **The unit suite**, at the scope `{{unit_test_scope}}` names. That key is the project's
    answer to a real trade: running the whole target matches what CI runs and cannot be
    wrong about which subset mattered, while a scoped run is cheaper on a slow suite. The
    project states which it takes and why.
@@ -50,44 +70,44 @@ In order, all green, before every `git push`:
    executed is not a pass of an eight-hundred-test suite — it is a run that died early.
    Compare the total against the previous run's before believing a green verdict.
 
-5. **Dependency audit**, where the project has dependencies — always, never conditional on
+6. **Dependency audit**, where the project has dependencies — always, never conditional on
    whether they changed. Advisories are published against versions you already have: a
    lockfile clean yesterday fails today because the advisory database moved, not because
    anything in the repo did. The bar is zero, with no allowlist.
-6. **Secret scan of every commit being pushed** — the Definition of Done's secret-scan step,
+7. **Secret scan of every commit being pushed** — the Definition of Done's secret-scan step,
    with `python3 "$gate" patch --commits origin/<parent>..HEAD` in place of
    `patch --staged`: every commit's message and added lines, not the branch's net diff,
    since a secret added in one commit and deleted in a later one is still pushed.
-7. **Static analysis, new findings only** — the Definition of Done's static-analysis step,
+8. **Static analysis, new findings only** — the Definition of Done's static-analysis step,
    with `tree "$staged" --ref HEAD` in place of `tree "$staged" --staged`, so staged
    changes not yet committed are not scanned as what is pushed, and with
    `renames "$merge_base" --head` in place of `renames "$merge_base" --staged`.
 
-   Steps 6 and 7 take those Definition of Done steps whole, with the paragraph after them:
+   Steps 7 and 8 take those Definition of Done steps whole, with the paragraph after them:
    the same script and verdicts, suppressions counted, and a scan whose key is `none` named
    in the one line `gates/project-config.md` defines.
 
-8. **A production-configuration build**, where the project has one distinct from its test
+9. **A production-configuration build**, where the project has one distinct from its test
    build. Optimization and stripped debug-only paths mean a production-only break is
    invisible until this point.
-9. **A clean-checkout build** — `{{clean_build_command}}` in a fresh checkout of HEAD, so an
-   ignored or untracked local file cannot make the build pass:
+10. **A clean-checkout build** — `{{clean_build_command}}` in a fresh checkout of HEAD, so an
+    ignored or untracked local file cannot make the build pass:
 
-   ```bash
-   clean=$(mktemp -d); repo=$PWD; git worktree prune
-   python3 "${CLAUDE_PLUGIN_ROOT}/gates/scripts/sarif_gate.py" tree "$clean" --ref HEAD \
-     && ( trap 'cd "$repo" && git worktree remove --force "$clean"' EXIT
-          cd "$clean" && {{clean_build_command}} ); build_status=$?
-   rmdir "$clean" 2>/dev/null; echo "clean build exited $build_status"
-   ```
+    ```bash
+    clean=$(mktemp -d); repo=$PWD; git worktree prune
+    python3 "${CLAUDE_PLUGIN_ROOT}/gates/scripts/sarif_gate.py" tree "$clean" --ref HEAD \
+      && ( trap 'cd "$repo" && git worktree remove --force "$clean"' EXIT
+           cd "$clean" && {{clean_build_command}} ); build_status=$?
+    rmdir "$clean" 2>/dev/null; echo "clean build exited $build_status"
+    ```
 
-   The subshell's trap removes the worktree however the build ends short of `SIGKILL`, and
-   keeps its `cd` and trap out of the caller's shell; the step fails on a non-zero
-   `build_status`, which a tree git failed to build also sets rather than building an
-   empty directory; `rmdir` clears the directory such a failure leaves. With `{{clean_build_command}}` set to `none`, the build is skipped and
-   named in the one-line announcement `gates/project-config.md` defines.
+    The subshell's trap removes the worktree however the build ends short of `SIGKILL`, and
+    keeps its `cd` and trap out of the caller's shell; the step fails on a non-zero
+    `build_status`, which a tree git failed to build also sets rather than building an
+    empty directory; `rmdir` clears the directory such a failure leaves. With `{{clean_build_command}}` set to `none`, the build is skipped and
+    named in the one-line announcement `gates/project-config.md` defines.
 
-10. **The verification tier the diff needs**, per `{{verification_step_file}}`. Where a push
+11. **The verification tier the diff needs**, per `{{verification_step_file}}`. Where a push
     hook runs an expensive suite, this is where it happens; where the tier is one no
     automation can reach, this is where the charter is handed over. Answer it explicitly —
     do not skip past it because everything else is green.
@@ -96,7 +116,7 @@ In order, all green, before every `git push`:
     tool timeout and a session-scoped background task dies with the session; both kill the
     run mid-suite and leave no result file.
 
-11. **`git status`** — scan for tracked files with local modifications that are **not**
+12. **`git status`** — scan for tracked files with local modifications that are **not**
     part of the intended commit set. Restore stray artifacts and generated outputs. When
     unsure whether a change was intentional, ask — never silently include or silently drop
     it.
@@ -104,7 +124,7 @@ In order, all green, before every `git push`:
 Lint and typecheck are separate gates from tests: a branch that fails either fails CI even
 when every test passes locally.
 
-Steps 2–11 all describe the post-rebase tree. If anything sends you back to step 1 — a late
+Steps 2–12 all describe the post-rebase tree. If anything sends you back to step 1 — a late
 conflict, a parent that moved while the suite was running — the steps after it are stale and
 run again.
 
