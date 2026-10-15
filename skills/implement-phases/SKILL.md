@@ -103,6 +103,19 @@ what was checked, and `standard` holds the reason none fit — never padding. `/
 end-of-run report lists every waived entry for Rob. Carry the plan's `Approach` citation
 across at Step 1 so the report is not missing the decision that shaped every phase under it.
 
+`exclusions[]` holds each pattern-spread instance Rob declined, per `deliver`'s
+pattern-spread invariant; later stages close a finding on a listed instance by citing it.
+`pending_spread[]` holds the instances awaiting his one question, in the same shape without
+`answer`, so the queue survives a compaction. `stage` is whichever of `implement-phases`,
+`branch-review`, or `ci-green` found the instance.
+
+```json
+"exclusions": [
+  { "file_line": "<path:line>", "root_cause": "<the cause it is an instance of>",
+    "stage": "implement-phases", "answer": "<Rob's words>" }
+]
+```
+
 Carry the plan's `Ticket gaps` across at Step 1 too, one `friction[]` entry per line with
 `stage: "plan-work"` and `target_file` set to
 `skills/write-tickets/references/rubric.md` — each is a ticket `write-tickets` or
@@ -180,9 +193,11 @@ Any time you rename a symbol, change a signature, add a user-facing string, or a
 `{{mechanics_gate_dod}}`; each entry fails quietly rather than loudly.
 
 When a grep reveals a class of problem rather than a single instance, fix every instance in
-that pass. "Only this one is failing" is not the same as "only this one is a bug." Excluding
-an instance, deferring anything, or creating any work item all go through `deliver`'s
-benign-in-context bar and deferral procedure.
+that pass, per `deliver`'s pattern-spread invariant — an instance in a file no phase's
+`Files touched` lists waits for Rob's one question after the last phase. "Only this one is
+failing" is not the same as "only this one is a bug." Excluding an instance, deferring
+anything, or creating any work item all go through `deliver`'s benign-in-context bar and
+deferral procedure.
 
 ### 2b. Read the diff before staging
 
@@ -211,11 +226,16 @@ externally needs the search before the edit, not after the next round finds it; 
 search finds nothing that fits, stop and take it to Rob per `deliver`'s invariant, declaring
 the stop, and record the entry `waived` with his answer.
 
-Address PATTERN SPREAD findings in this same commit unless they are genuinely out of scope,
-in which case say so explicitly and note them for the branch review. Re-run the review on the
-fixed diff, adding one sentence that it revises a diff already reviewed — no findings, no
-summary of changes. Repeat to a maximum of three rounds; if BLOCKERs persist after the third, stop
-and bring it to Rob, declaring the stop per `deliver`'s invariants.
+Address PATTERN SPREAD findings per `deliver`'s pattern-spread invariant: in this same
+commit when the plan's `Files touched` lists the file, otherwise queued in
+`pending_spread[]` for Rob's one question after the last phase, whose approved fixes land
+as their own commit reviewed here like a phase. A finding on an instance Rob declined for
+the same root cause — in `exclusions[]` or the plan's "What explicitly does not ship" — is
+closed without a fix, citing that entry, and never queued again; one already queued is not
+queued twice. Re-run the review on the fixed diff, adding one sentence that it revises a
+diff already reviewed — no findings, no summary of changes. Repeat to a maximum of three
+rounds; if BLOCKERs persist after the third, stop and bring it to Rob, declaring the stop
+per `deliver`'s invariants.
 
 Before round 3, apply `deliver`'s revert rule: if round 2's findings were mostly against what
 round 1's fix introduced rather than against the phase's own code, revert that fix and take a
@@ -256,7 +276,12 @@ recorded to `friction[]` there, never printed in a phase report.
 
 ## Step 3 — Report
 
-When all phases are committed, report:
+When all phases are committed and `pending_spread[]` holds anything, first ask Rob its one
+question per `deliver`'s pattern-spread invariant, `"paused": true` set before asking.
+Commit the fixes he approves as one more `phases[]` entry, named `Pattern spread approved
+by Rob`, through 2b–2d like any phase; move each declined instance to `exclusions[]` with
+his answer. Anything that commit's review queues stays for branch-review's question. Then
+report:
 
 1. **The cumulative phase table** — all phases `done`, with per-phase durations and the run
    total.

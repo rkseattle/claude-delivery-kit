@@ -88,7 +88,12 @@ For every failing job:
    reasoning, no argument for why the fix is correct. It decides whether the fix addresses
    the root cause and whether the same root cause exists elsewhere in the codebase.
 5. **Act on its verdict.** `SYMPTOM ONLY` or `UNVERIFIED` means the fix is not done. Fix
-   every additional site it reports as a live defect in this same commit.
+   every additional site it reports as a live defect, per `deliver`'s pattern-spread
+   invariant: in this same commit when the plan's `Files touched` lists the file. Others
+   wait in `pending_spread[]` across iterations for Rob's one question, asked once
+   everything else is green and before requesting the R2 review; approved ones then run one
+   more iteration. A site Rob declined for the same root cause, in `exclusions[]` or the
+   plan, stays closed.
 6. **Run the full Definition of Done, then commit.**
 7. **Push per `${CLAUDE_PLUGIN_ROOT}/gates/pre-push.md`** — including its step 1 rebase onto
    the parent branch. An open PR is exactly where the parent drifts:
@@ -128,7 +133,9 @@ Then, in this order:
 
 1. **Fix the code first.** Never reply to a comment before the fix exists. Each fix goes
    through `ci-failure-adversary` the same way a CI failure does — root cause, pattern
-   spread, then commit. Replying "good catch, filed as <ticket>" is a deferral: it needs the
+   spread per `deliver`'s invariant, then commit. A comment on an instance Rob declined for
+   the same root cause, in `exclusions[]` or the plan, gets no fix: reply citing the entry
+   and his answer. Replying "good catch, filed as <ticket>" is a deferral: it needs the
    procedure in `deliver`'s invariants first — `commit-adversary` on the benign claim, then
    Rob's explicit agreement — before any ticket exists to cite.
 2. **Reply to every inline thread**, naming what changed and in which commit:
@@ -148,8 +155,8 @@ Never run a fresh `/code-review` when asked to address existing feedback.
 ## Step 5 — Loop
 
 Push, re-arm the monitor, stay silent. Repeat steps 2–4 until every check passes, no
-comment is unaddressed, and the PR has the approval rule book R2 requires — or, with no
-reviewer set, the R2 exception below.
+comment is unaddressed, `pending_spread[]` is empty, and the PR has the approval rule book
+R2 requires — or, with no reviewer set, the R2 exception below.
 
 **The approval.** Resolve the reviewer set as `/ship-pr` Step 4 does. When it names anyone,
 the loop exits only when `review_gate.py approval` prints `approved <login>`: an approving
