@@ -238,6 +238,10 @@ def lint(items, repo):
                           "record what this rewrite changes")
         elif CHANGE_IMPACT in i["sections"] and not baseline:
             err(i, "R15", f"'## {CHANGE_IMPACT}' belongs on a ticket whose Baseline: line is filled")
+        for field in ("Baseline", "Jira"):
+            value = i["meta"].get(field, "")
+            if value and not KEY.match(value):
+                err(i, "FORMAT", f"{field}: '{value}' is not a Jira key")
         if baseline and not baseline == i["id"] == i["meta"].get("Jira", ""):
             err(i, "FORMAT", f"Baseline: {baseline} must match the header ID and Jira: — "
                              "a rewrite updates the issue it fetched")

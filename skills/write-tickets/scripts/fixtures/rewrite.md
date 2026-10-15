@@ -1,4 +1,4 @@
-<!-- expect FORMAT=2 JIRA=1 R15=4 -->
+<!-- expect FORMAT=4 JIRA=1 R15=4 -->
 # [AB-15] Keep signed-in users signed in for 30 days
 Type: Epic
 Blocked by: None
@@ -148,7 +148,7 @@ Jira: AB-16
 Users can see each device where they are signed in.
 
 ## Success measures
-- SM1: A user lists the devices holding a refresh token [children: AB-17, AB-19, S5]
+- SM1: A user lists the devices holding a refresh token [children: AB-17, AB-19, S5, S6]
 
 ## In scope
 - The web client
@@ -157,7 +157,7 @@ Users can see each device where they are signed in.
 - Mobile clients (not planned)
 
 ## Children
-- AB-17, AB-19, S5
+- AB-17, AB-19, S5, S6
 
 ## Change impact
 - SM1 changed: listed `AB-13`; now lists `AB-17`, `AB-19`, `S5`
@@ -249,3 +249,33 @@ PATCH /auth/devices/1 sets the device name.
 
 ## Change impact
 - AC1 added: renaming returns 200
+
+# [S6] Forget a signed-in device
+Type: Story
+Priority: Could
+Parent: AB-16
+Blocked by: None
+Handoff: rewrite-pr-04
+Baseline: S6
+Jira: S6
+
+## Context
+A rewrite whose Baseline:, Jira:, and header agree on a local ID, which names no issue.
+
+## Behavior
+DELETE /auth/devices/1 forgets the device.
+
+## Acceptance criteria
+- AC1: DELETE /auth/devices/1 returns 204 [verify: automated @ tests/auth/signin.test.ts]
+
+## Touch points
+- src/auth/routes.ts (modify): forget route
+
+## Out of scope
+- Mobile clients (not planned)
+
+## Dependencies
+- None
+
+## Change impact
+- AC1 added: forgetting returns 204
