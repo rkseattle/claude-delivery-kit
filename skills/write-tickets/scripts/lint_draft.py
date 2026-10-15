@@ -420,21 +420,27 @@ def line_changes(sent, fetched):
 
 
 def readback_cli_test(cases, scratch):
-    """Step 8 runs --readback on a draft whose headers already hold Jira keys, and on a
-    rewritten one whose header keeps its local ID, whose `Jira:` line holds the key, and
-    whose `## Change impact` Step 8 posts as a comment rather than in the description."""
+    """Step 8 runs --readback on a draft whose headers already hold Jira keys; on a
+    rewritten one, keyed the same, whose `## Change impact` Step 8 posts as a comment rather
+    than in the description; and on one whose header still holds a local ID, found by its
+    `Jira:` line."""
     draft_text = open(os.path.join(cases, "_draft.md"), encoding="utf8").read()
     keyed = os.path.join(scratch, "keyed.md")
     with open(keyed, "w", encoding="utf8") as f:
         f.write(draft_text.replace("[S1]", "[AB-2]").replace("[E1]", "[AB-1]"))
     rewritten = os.path.join(scratch, "rewritten.md")
     with open(rewritten, "w", encoding="utf8") as f:
-        f.write(re.sub(r"(# \[S1\].*\n(?:.+\n)*?)Jira:\n", r"\1Jira: AB-3\n", draft_text, count=1)
+        f.write(re.sub(r"(# \[S1\].*\n(?:.+\n)*?)Jira:\n", r"\1Jira: AB-2\n", draft_text, count=1)
+                .replace("[S1]", "[AB-2]")
                 .replace("## Open questions\n", "## Change impact\n- AC1 changed: returned 201; now returns 200\n\n"
                          "## Open questions\n", 1))
+    local = os.path.join(scratch, "local.md")
+    with open(local, "w", encoding="utf8") as f:
+        f.write(re.sub(r"(# \[S1\].*\n(?:.+\n)*?)Jira:\n", r"\1Jira: AB-3\n", draft_text, count=1))
     failed = 0
     for draft, key, case, want in ((keyed, "AB-2", "faithful.md", 0), (keyed, "AB-2", "lost-span.md", 1),
-                                   (rewritten, "AB-3", "faithful.md", 0), (keyed, "AB-9", "faithful.md", 2),
+                                   (rewritten, "AB-2", "faithful.md", 0),
+                                   (local, "AB-3", "faithful.md", 0), (keyed, "AB-9", "faithful.md", 2),
                                    (keyed, "AB-2", "absent.md", 2)):
         with contextlib.redirect_stdout(io.StringIO()):
             got = main([draft, "--readback", key, os.path.join(cases, case)])

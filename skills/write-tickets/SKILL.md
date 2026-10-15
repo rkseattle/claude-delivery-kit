@@ -161,7 +161,8 @@ on its `Jira:` line, so no local ID stands for an issue that already exists, map
   such label, or more than one, leaves `Priority:` empty for Step 1 to settle
 - on a Bug, its `severity-*` label to `Severity:`, title-cased; no such label, or more
   than one, leaves `Severity:` empty for Step 1 to settle; on any other type, none
-- every other label but the handoff label to `Labels:`
+- every other label but the handoff label to `Labels:` — never a `moscow-*` or
+  `severity-*` label, which only the two headers above carry
 - a leading `Goal:` description line to the `Goal:` header
 - a code span holding a whole `[verify: … @ …]` or `[children: …]` tag, or the
   `\verify: …\` an older write left, to the bare tag

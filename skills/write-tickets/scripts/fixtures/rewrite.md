@@ -133,7 +133,6 @@ POST /auth/signout-all revokes every refresh token the user holds.
 
 ## Change impact
 - AC1 added: sign-out returns 204
-- AC2 removed: the List<String> of devices signed out
 
 # [AB-16] Let users see where they are signed in
 Type: Epic
@@ -157,3 +156,4 @@ Users can see each device where they are signed in.
 
 ## Change impact
 - SM2 removed: a user signs out one device; now part of sign-out
+- SM3 removed: the List<String> of devices signed out
