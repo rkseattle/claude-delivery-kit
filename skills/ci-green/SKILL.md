@@ -145,10 +145,11 @@ Then, in this order:
    ```
    Replies to Greptile comments start with `@greptile:` followed by a space.
 3. **Reply to the main PR summary comment** with a summary of all changes made, via the
-   `issues/<pr>/comments` endpoint. Skip it only when every finding was handled inline and a
-   summary would restate them verbatim. A review body with findings no inline thread
+   `issues/<pr>/comments` endpoint. Skip it only when every finding was handled inline and
+   a summary would restate them verbatim. A review body with findings no inline thread
    carries — a `CHANGES_REQUESTED` written as prose — is answered the same way, naming the
-   reviewer and the commits that address it.
+   reviewer and the commits that address it — or, for a declined or deferred finding, the
+   entry or ticket and Rob's answer.
 
 Never run a fresh `/code-review` when asked to address existing feedback.
 
@@ -188,14 +189,15 @@ invariants. Read the head again after an `approved`: if it moved between the two
 verdict judged a superseded commit, so run both again.
 
 With every check green, every comment addressed, `pending_spread[]` asked and empty, and
-the verdict `outstanding` — or `blocked` with each blocking review answered by a fix commit
-and a reply — re-request the reviewer set plus every login `blocked` named —
-`review_gate.py reviewer-set` over both, with `--author`, dedupes them — with the `gh pr
-edit <pr> --add-reviewer` call `/ship-pr` Step 4 makes, failure handled the same way.
-GitHub clears a request once it is answered, so after a push nobody is asked for the new
-head, and a reviewer who requested changes is never asked again, unless this asks. Then
-declare the stop per `deliver`'s invariants (`"paused": true`), say in one line who was
-asked and that `/deliver` or `/ci-green` resumes once a review lands, and end the turn.
+the verdict `outstanding` — or `blocked` with each finding of each blocking review answered
+by a fix commit and a reply, a reply citing an instance Rob declined, or a reply citing a
+deferral cleared under `deliver`'s procedure — re-request the reviewer set plus every login
+`blocked` named — `review_gate.py reviewer-set` over both, with `--author`, dedupes them —
+with the `gh pr edit <pr> --add-reviewer` call `/ship-pr` Step 4 makes, failure handled the
+same way. GitHub clears a request once it is answered, so after a push nobody is asked for
+the new head, and a reviewer who requested changes is never asked again, unless this asks.
+Then declare the stop per `deliver`'s invariants (`"paused": true`), say in one line who
+was asked and that `/deliver` or `/ci-green` resumes once a review lands, and end the turn.
 Waiting on a person is not a monitor's job: no poll, no `sleep`.
 
 With the reviewer set `none`, skip that wait and say so in one line. The wait is this
