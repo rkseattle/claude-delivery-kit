@@ -142,7 +142,8 @@ in the table.
 **Each NFR line is a row too.** The `## Non-functional requirements` lines of a covering
 Epic or Story are criteria like its ACs: each takes the next `AC<n>` ID, with
 `NFR<n>: <text>` in the `AC` column and its `[verify:]` tag's tier in `Verified by`, as
-for an AC. A threshold no phase meets is the same gap.
+for an AC. So is a parent-Epic NFR this branch affects — any whose `NFR coverage` row is
+not `untouched`. A threshold no phase meets is the same gap.
 
 **`Verified by` is mandatory** and names which tier covers the clause. The project's tiers
 are in `{{verification_tiers}}` — typically a named test, and, where the automated suite
@@ -352,7 +353,7 @@ item below, either fix it or satisfy yourself it holds:
    absence is a claim like any other.
 2. **Every registry the plan edits** — the Step 3 grep was run and its consumers are listed
    in the phase that edits it.
-3. **Every AC clause and covering-ticket NFR line** — has a row, a phase, and `Verified by`.
+3. **Every AC clause and NFR line the AC table takes** — has a row, a phase, and `Verified by`.
 4. **Every cross-phase reference** — a phase naming a function, error code, or type that a
    later phase introduces does not build on its own; either move it or reorder.
 5. **Every "independently committable" claim** — pick the phase you are least sure of and
@@ -366,6 +367,7 @@ item below, either fix it or satisfy yourself it holds:
 7. **Every NFR in the covering tickets and their parent Epic** — has an `NFR coverage` row
    naming a module from `Components and interfaces`, or for an Epic NFR this branch does
    not affect, `untouched — <reason>`.
+8. **All five design sections are present** — each filled, or `none — <reason>`.
 
 Findings from this pass are edited in place, silently. They never appear in the plan as
 revision history.
