@@ -187,13 +187,14 @@ required-review rule. `blocked <login>` is feedback to address under Step 4.
 invariants. Read the head again after an `approved`: if it moved between the two calls, the
 verdict judged a superseded commit, so run both again.
 
-With every check green and every comment addressed, and the verdict `outstanding` — or
-`blocked` with each blocking review answered by a fix commit and a reply — re-request the
-reviewer set plus every login `blocked` named — `review_gate.py reviewer-set` over both,
-with `--author`, dedupes them — with the `gh pr edit <pr> --add-reviewer` call `/ship-pr`
-Step 4 makes, failure handled the same way. GitHub clears a request once it is answered, so after a push nobody is asked for the
-new head, and a reviewer who requested changes is never asked again, unless this asks.
-Then declare the stop per `deliver`'s invariants (`"paused": true`), say in one line who was
+With every check green, every comment addressed, `pending_spread[]` asked and empty, and
+the verdict `outstanding` — or `blocked` with each blocking review answered by a fix commit
+and a reply — re-request the reviewer set plus every login `blocked` named —
+`review_gate.py reviewer-set` over both, with `--author`, dedupes them — with the `gh pr
+edit <pr> --add-reviewer` call `/ship-pr` Step 4 makes, failure handled the same way.
+GitHub clears a request once it is answered, so after a push nobody is asked for the new
+head, and a reviewer who requested changes is never asked again, unless this asks. Then
+declare the stop per `deliver`'s invariants (`"paused": true`), say in one line who was
 asked and that `/deliver` or `/ci-green` resumes once a review lands, and end the turn.
 Waiting on a person is not a monitor's job: no poll, no `sleep`.
 

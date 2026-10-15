@@ -125,8 +125,9 @@ CI failure, PR comment — gets root-caused, and the codebase gets grepped for o
 of that same cause. Fix all live instances in the same pass. After approval, another
 instance in a file no phase's `Files touched` lists is queued in `pending_spread[]` instead.
 At the stage's end, set `"paused": true` and ask Rob once. His answer empties the queue:
-approved ones are fixed as their own reviewed commit, their files joining the plan's; each
-declined one goes to `exclusions[]` with its `file:line` and his answer.
+approved ones are fixed as their own reviewed commit, their files added to the plan's `Files
+touched`; each declined one goes to `exclusions[]` with its `file:line` and his answer.
+Spread those fixes reveal waits for the next stage's question.
 
 **Enforcement machinery is planned before it is written.** A hook, check script, CI filter,
 lint rule, or self-test harness may ship on a feature branch, but never from inside the
