@@ -1,0 +1,4 @@
+schema_version: "1.1"
+name: ci-failure-adversary-passes-a-tested-fix
+context:
+  scaffold_script: scaffold.sh

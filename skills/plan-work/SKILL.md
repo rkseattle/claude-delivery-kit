@@ -275,7 +275,7 @@ under. Omit the section when there are none. `implement-phases` copies it into `
 The architecture rules the plan must respect are in `CLAUDE.md` and
 `{{plan_rules_file}}`. Read them rather than working from memory.
 
-### Size: at most 6 phases, 500 lines outside the AC, NFR coverage and threat tables
+### Size: at most 6 phases and `{{pr_review_limit_lines}}` changed lines; 500 plan lines outside the AC, NFR coverage and threat tables
 
 **The phase count is the real limit.** A branch needs at most six phases; more than that is
 a branch too large to review in one sitting, and the fix is splitting the work across PRs,
@@ -283,6 +283,12 @@ not writing tighter. Propose the split to Rob and let him choose — his answer 
 one PR anyway, and then the justification goes in `Rejected alternatives`. Do not silently
 compress seven phases into six. Unlike a line count this cannot be satisfied by compressing
 prose, which is why it comes first.
+
+**`{{pr_review_limit_lines}}` changed lines per PR** — insertions plus deletions, the size
+rule book R9 says reviews in under an hour; the pre-push checklist checks it. Where the
+phases will exceed it, propose the split here: sequenced PRs, or shipping unfinished
+behavior dark behind a feature flag so each PR merges on its own. Under `none` there is no
+line limit, and self-check item 10 is skipped.
 
 **500 lines for the document, counting everything except the acceptance-criteria, `NFR
 coverage` and `Threat model` tables.** Each is one row per clause, NFR line or STRIDE
@@ -386,6 +392,7 @@ item below, either fix it or satisfy yourself it holds:
 8. **All five design sections are present** — each filled, or `none — <reason>`.
 9. **`Threat model` matches `{{disciplines}}`** — present with six rated rows per qualifying
    component and a phase on every `High` when it contains `security`, absent when it does not.
+10. **The phases fit `{{pr_review_limit_lines}}`** — or the plan proposes the split.
 
 Findings from this pass are edited in place, silently. They never appear in the plan as
 revision history.

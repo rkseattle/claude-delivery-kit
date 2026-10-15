@@ -46,6 +46,9 @@ than overwrite it.
 }
 ```
 
+Later stages add fields as they reach them: `pr_size_approved_lines` from the pre-push size
+step, `pr` from `ship-pr`.
+
 `stage` and `stage_step` are what `/deliver`'s Step 0 resumes from. Update `stage_step` at
 the top of each step below — 2a, 2c, 2d — before doing the step, naming the phase it
 belongs to. A session killed without warning leaves behind whatever was written last, so a

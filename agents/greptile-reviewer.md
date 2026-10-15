@@ -71,7 +71,8 @@ Work through all of these. Report per dimension so gaps in your own coverage are
 11. **Dead code** — unused imports, properties, localization keys, orphaned helpers.
 
 The rule-book checks are defined in `${CLAUDE_PLUGIN_ROOT}/gates/rule-book-review.md`; read
-it before you start. Each hit is at least MAJOR.
+it before you start. Each hit is at least MAJOR. So is a commit on the branch that breaks the
+defect-fix gate in `${CLAUDE_PLUGIN_ROOT}/gates/definition-of-done.md`'s Conditional gates.
 
 Read `${CLAUDE_PROJECT_DIR}/.claude/agent-rules/greptile-reviewer.md` before you start and
 apply it alongside these dimensions. It carries the per-dimension specifics and names the

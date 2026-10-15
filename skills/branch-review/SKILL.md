@@ -44,15 +44,18 @@ For each BLOCKER and MAJOR, in order:
    reported one included, on an instance Rob declined for the same root cause — in
    `exclusions[]` or the plan's "What explicitly does not ship" — is closed without a fix,
    citing that entry.
-4. **Survey the failure mode before writing the fix**, per `deliver`'s invariant: two or
-   three real implementations that solve it, then the one the fix follows. Not the minimal
-   edit that clears the finding. In-repo precedent is a proposal weighed against the survey,
-   never the default; one matching nothing surveyed is local invention, and a fix that
-   matches it entrenches the thing the next round will find. Where nothing fits, stop and
+4. **Survey the failure mode, then write the failing test and the fix in that order.** The
+   survey, per `deliver`'s invariant: two or three real implementations that solve it,
+   then the one the fix follows. Not the minimal edit that clears the finding. In-repo
+   precedent is a proposal weighed against the survey, never the default; one matching
+   nothing surveyed is local invention, and a fix that matches it entrenches the thing the
+   next round will find. Where nothing fits, stop and
    take it to Rob, declaring the stop, and record the entry `waived` with his answer. Name
    the implementation followed in the commit message and append survey
    and choice to `citations[]` in `.claude/state/current-plan.json`, per
    `${CLAUDE_PLUGIN_ROOT}/gates/status-report.md`.
+
+Each fix commit meets the defect-fix gate in the Definition of Done's Conditional gates.
 
 MINOR findings: fix them. Defer only when the fix needs a decision you cannot make — a
 product choice, a migration, a superseding ADR. Branch size is not such a decision: if the

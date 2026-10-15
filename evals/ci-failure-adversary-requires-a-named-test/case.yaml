@@ -1,0 +1,4 @@
+schema_version: "1.1"
+name: ci-failure-adversary-requires-a-named-test
+context:
+  scaffold_script: scaffold.sh
