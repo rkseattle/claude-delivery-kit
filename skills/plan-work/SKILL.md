@@ -177,7 +177,7 @@ implementation chosen here is the one the whole run is measured against.
 
 ```mermaid
 flowchart LR
-  <module> --> <module or new package it depends on>
+  <module> --> <module it depends on>
 ```
 
 ### <module>
@@ -236,14 +236,13 @@ introduces does not build, and the claim is then false.
 
 The five sections after `Approach` carry the rule book's Phase 3 steps and exit criteria.
 `Components and interfaces` opens with a flowchart of every module the plan changes and
-what each depends on, any new package included, then gives each module all five fields.
-Each `Likely changes` entry names one interface; a decision spread across two is not
-hidden. `Data ownership` names one owning module per store the plan touches. `Test
-strategy` names the risks each level covers, or `none` and a reason in that level's row,
-and a coverage target saying what it counts. `NFR coverage` has one row per ticket and
+what each depends on, then gives each module all five fields. Each `Likely changes` entry names one
+interface; a decision spread across two is not hidden. `Data ownership` names one owning
+module per store the plan touches. `Test strategy` names the risks each level covers and
+a coverage target saying what it counts. `NFR coverage` has one row per ticket and
 `NFR<n>` pair, across the covering tickets and their parent Epic: the AC table says which
-phase meets a covering ticket's threshold, this one says which design element meets each —
-or, for an Epic NFR this branch leaves untouched, says so.
+phase meets a covering ticket's threshold, this one says which design element meets each
+— or, for an Epic NFR this branch leaves untouched, says so.
 
 **Any of these five sections with nothing to list holds `none` and a one-line reason** —
 `none — no data store is touched` — never an empty heading, which reads the same as a
@@ -361,7 +360,7 @@ item below, either fix it or satisfy yourself it holds:
    non-standard design spreads unremarked. Name the survey in `Approach`, or carry the
    no-fit to Rob as an open question marked `waived`.
 7. **Every NFR in the covering tickets and their parent Epic** — has an `NFR coverage` row
-   naming a design element that moves its metric. An Epic NFR this branch leaves untouched
+   naming the design element that meets it. An Epic NFR this branch leaves untouched
    still gets a row saying so.
 
 Findings from this pass are edited in place, silently. They never appear in the plan as
