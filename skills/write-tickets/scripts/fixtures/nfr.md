@@ -57,6 +57,7 @@ POST /auth/login answers within the budget below at peak traffic.
 - NFR18: `GET /a?x=1` latency stays low [verify: out-of-band @ load test report]
 - NFR19: Export of `contacts-<date>.csv` takes < 2 s at 10 requests/second [verify: out-of-band @ load test report]
 - NFR20: Error count != 0 per day [verify: out-of-band @ load test report]
+- NFR21: `cache_hit_ratio` >= 99.9% at 200 requests/second [verify: out-of-band @ load test report]
 
 ## Acceptance criteria
 - AC1: POST /auth/login with valid credentials returns 200 [verify: automated @ tests/auth/login.test.ts]

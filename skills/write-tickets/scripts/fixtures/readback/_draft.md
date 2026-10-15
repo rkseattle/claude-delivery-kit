@@ -68,3 +68,15 @@ A hard-wrapped paragraph whose first line ends here
 and whose second line continues it.
 1. Numbered one
 2. Numbered two
+
+# [T8] Ship the refresh helper
+Type: Task
+Jira:
+
+## Context
+1. Run the helper
+```python
+def refresh():
+    return 1
+2. not a list item
+```

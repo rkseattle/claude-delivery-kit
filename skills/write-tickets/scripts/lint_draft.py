@@ -122,14 +122,18 @@ FENCE = re.compile(r"^```")
 
 
 def unfenced(lines):
-    """(line, fenced) for each body line; a fenced block is literal, like a code span."""
+    """(line, fenced) for each line: prose as body() keeps it, and a fenced block's lines
+    verbatim, blank and indented ones included, since a fenced block is literal."""
     fenced, out = False, []
-    for line in body(lines):
-        if FENCE.match(line):
-            out.append((line, True))
+    for line in lines:
+        line = line.rstrip("\r\n")
+        if FENCE.match(line.strip()):
+            out.append((line.strip(), True))
             fenced = not fenced
+        elif fenced:
+            out.append((line, True))
         else:
-            out.append((line, fenced))
+            out += [(l, False) for l in body([line])]
     return out
 
 
@@ -144,7 +148,9 @@ def evidence_missing(repo, evidence):
 
 
 def has_threshold(text):
-    text = CODE_SPAN.sub(lambda m: " " * len(m[0]), text)
+    # Mask, not blank, each code span: a backticked metric still counts as a metric, and an
+    # operator inside a span still does not count as the comparator.
+    text = CODE_SPAN.sub(lambda m: "x" * len(m[0]), text)
     cmp = COMPARATOR.search(text)
     return bool(cmp and text[:cmp.start()].strip() and NUMBER.match(text, cmp.end()))
 
@@ -343,12 +349,14 @@ def jira_line(line):
 
 
 def normalized(lines):
-    """Lines as Jira's round trip leaves them unchanged: no blanks, every ordered item `1.`."""
-    return [re.sub(r"^\d+\.\s", "1. ", l) for l in body(lines)]
+    """Lines as Jira's round trip leaves them unchanged: prose without blanks and with every
+    ordered item `1.`; fenced code exactly as written."""
+    return [l if fenced else re.sub(r"^\d+\.\s", "1. ", l) for l, fenced in unfenced(lines)]
 
 
 def step8_lines(item):
-    """The description Step 8 writes for a draft item, one non-blank line per entry."""
+    """The description Step 8 writes for a draft item: one entry per prose line, and a
+    fenced block's lines verbatim."""
     goal = item["meta"].get("Goal")
     lines = [jira_line(f"Goal: {goal}")] if goal else []
     for s, sec in item["sections"].items():
