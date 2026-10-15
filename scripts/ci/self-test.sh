@@ -101,6 +101,8 @@ expect_saying "a cap table with two Any agent rows" line-budget.sh "UNPARSEABLE 
 fresh_copy; sed -i.bak -E 's/^(\| Any agent[^|]*\| *)[0-9]+/\1x/' "$tmp/repo/$caps"
 expect_saying "a cap table whose Any agent cap is not a number" line-budget.sh "UNPARSEABLE cap table"
 fresh_copy; printf '%s\n' '' '## Elsewhere' '' '| Any agent | 1 |' >> "$tmp/repo/$caps"
+# The appended lines count against deliver's own skill cap; lift it so only the agent row is tested.
+sed -i.bak -E 's/^(\| Any skill[^|]*\| *)[0-9]+/\19999/' "$tmp/repo/$caps"
 expect pass "an Any agent row outside the line budget section" line-budget.sh
 expect_saying "a root with no skills" line-budget.sh "no skills/*/SKILL.md" "$tmp/empty"
 fresh_copy; rm "$tmp/repo/$caps"
