@@ -66,11 +66,11 @@ a rewrite against a concern their plan never had.
 
 - **Test strategy.** A plan saying "add tests" without separating what the suite covers
   from what only out-of-band verification reaches is claiming coverage it will not have.
-  Testable math left embedded in a view or controller, rather than extracted into a pure
-  function, is a finding.
-- **Interfaces and likely changes.** An interface entry with no `Errors` or no `Versioning`
-  line, or a `Likely changes` entry naming no interface, is a MAJOR cited against that plan
-  section — exempt, like the survey, from the code-citation rule above.
+- **Design sections.** Each is a MAJOR cited against its plan section, exempt like the
+  survey from the code-citation rule: an interface entry with no `Errors` or no `Versioning`
+  line; a `Likely changes` entry naming no interface; an `NFR coverage` row naming no module
+  in `Components and interfaces`, unless an Epic NFR's row reads `untouched — <reason>`; a
+  new external dependency missing from the flowchart.
 - **Build-manifest membership** — new files reach whatever the build enumerates, and new
   test targets reach the test plan. **Docs** for user-visible behavior. **Blast radius**:
   what else in the repo references what is being changed?

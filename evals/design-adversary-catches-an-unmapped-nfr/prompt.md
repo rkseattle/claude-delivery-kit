@@ -110,7 +110,7 @@ Coverage target: 100% branch coverage of the query and the controller action.
 
 | Ticket | NFR | Design element |
 | --- | --- | --- |
-| ABC-219 | NFR1 | Keyset query on the existing `deliveries(user_id, created_at, id)` index, so a page reads at most `limit` rows from the index |
+| ABC-219 | NFR1 | `DeliveryPageQuery`: a keyset query on the existing `deliveries(user_id, created_at, id)` index, so a page reads at most `limit` rows from the index |
 
 ## Rejected alternatives
 

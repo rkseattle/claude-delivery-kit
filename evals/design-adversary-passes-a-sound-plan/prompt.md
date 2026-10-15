@@ -15,10 +15,10 @@ You are acting as the `design-adversary` agent. Its definition is at
 
 Review the plan below. Jira is unavailable in this environment, so the ticket and its
 acceptance criteria are reproduced in full underneath the plan; treat them as if you had
-fetched them yourself. The ticket's parent Epic, ABC-200, is reproduced after it. The repository the plan describes is
-not present either, so treat the plan's factual claims about existing code as verified —
-you cannot grep for what is not here, and a claim you cannot check is `UNVERIFIABLE`, not
-a `BLOCKER`.
+fetched them yourself. The ticket's parent Epic, ABC-200, is reproduced after it. The
+repository the plan describes is not present either, so treat the plan's factual claims
+about existing code as verified — you cannot grep for what is not here, and a claim you
+cannot check is `UNVERIFIABLE`, not a `BLOCKER`.
 
 Return findings in the format the agent definition specifies.
 
@@ -132,8 +132,8 @@ Coverage target: 100% branch coverage of `Backoff` and of the worker's failure h
 
 | Ticket | NFR | Design element |
 | --- | --- | --- |
-| ABC-204 | NFR1 | `Backoff`'s `cap` of 120 seconds bounds each of the four waits between five attempts, so dead-letter lands at most 8 minutes after the first |
-| ABC-200 | NFR1 | Untouched by this branch: the success-rate measurement is sibling ABC-206's work; these retries raise the rate but do not measure it |
+| ABC-204 | NFR1 | `Backoff`: its 120-second `cap` bounds each of the four waits, and `DeliveryWorker`'s existing 30-second request timeout bounds each of the five attempts, so dead-letter lands within 10.5 minutes of the first attempt plus queue latency, which the 15-minute spec measures end to end |
+| ABC-200 | NFR1 | untouched — this branch neither signs nor rotates secrets; retries reuse the existing signing path unchanged |
 
 ## Rejected alternatives
 
@@ -226,4 +226,4 @@ a caller error produces the same error.
 
 **Non-functional requirements:**
 
-- NFR1: webhook delivery success rate at least 99.5% over 30 days [verify: system @ the delivery success dashboard]
+- NFR1: a rotated webhook signing secret takes effect within 60 seconds [verify: integration @ spec/signing_secret_rotation_spec.rb]
