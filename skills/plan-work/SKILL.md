@@ -12,8 +12,7 @@ This skill produces a plan and stops. **No file in the repo is created, edited, 
 during this skill**, other than the plan document itself. No branch, no Jira transition,
 no commit. The approval gate at the end is real.
 
-Read `${CLAUDE_PROJECT_DIR}/.claude/project.json` first: `{{ticket_prefix}}`,
-`{{jira_project}}`, `{{registry_file}}`, and the build command below all come from it.
+Read `${CLAUDE_PROJECT_DIR}/.claude/project.json` first: every `{{key}}` below comes from it.
 Read `${CLAUDE_PLUGIN_ROOT}/gates/project-config.md` and follow it exactly.
 
 ## Step 1 — Resolve the arguments to a ticket set
@@ -213,6 +212,12 @@ Coverage target: <the number, and what it measures>
 | <TICKET-N> | NFR1 | <module>: <the mechanism in it that meets the threshold> |
 | <EPIC-N> | NFR1 | untouched — <why this branch leaves its metric alone> |
 
+## Threat model
+
+| Component | Category | Rating | Mitigating phase |
+| <module> | Spoofing | High | <N> |
+| <module> | Tampering | Low | — |
+
 ## Rejected alternatives
 
 Each with the reason it loses — including every surveyed implementation not chosen. If the
@@ -236,22 +241,31 @@ introduces does not build, and the claim is then false.
 ## Ticket gaps
 ````
 
-The five sections after `Approach` carry rule book Phase 3 steps 1–3, 5 and 7 and its NFR
-exit criterion. `Components and interfaces` opens with a flowchart of every module the plan
-changes, or an NFR row relies on, and what each depends on, any new package included, then
-gives each module all five fields. Each `Likely changes` entry names one interface; a
-decision spread across two is not hidden. `Data ownership` names one owning module per
-store the plan touches. `Test strategy` names the risks each level covers, or `none` and a
-reason in that level's row, and a coverage target saying what it counts. `NFR coverage` has
-one row per ticket and `NFR<n>` pair, across the covering tickets and their parent Epic,
-and each row traces to a module in `Components and interfaces` and the mechanism in it that
-meets the threshold. A parent-Epic NFR this branch does not affect reads `untouched —
-<reason>` instead. The AC table says which phase meets a threshold; this one says which
-design element does.
+The five sections from `Components and interfaces` to `NFR coverage` carry rule book Phase
+3 steps 1–3, 5 and 7 and its NFR exit criterion. `Components and interfaces` opens with a
+flowchart of every module the plan changes, or an NFR row relies on, and what each depends
+on, any new package included, then gives each module all five fields. Each `Likely changes`
+entry names one interface; a decision spread across two is not hidden. `Data ownership`
+names one owning module per store the plan touches. `Test strategy` names the risks each
+level covers, or `none` and a reason in that level's row, and a coverage target saying what
+it counts. `NFR coverage` has one row per ticket and `NFR<n>` pair, across the covering
+tickets and their parent Epic, and each row traces to a module in `Components and
+interfaces` and the mechanism in it that meets the threshold. A parent-Epic NFR this branch
+does not affect reads `untouched — <reason>` instead. The AC table says which phase meets a
+threshold; this one says which design element does.
 
 **Any of these five sections with nothing to list holds `none` and a one-line reason** —
 `none — no data store is touched` — never an empty heading, which reads the same as a
 forgotten one. `Ticket gaps` keeps its own rule below.
+
+**`Threat model` is required when `{{disciplines}}` contains `security`, and omitted
+otherwise** — rule book Appendix B1. For each component in `Components and interfaces` that
+handles external input, credentials, or personal data, it has six rows, one per STRIDE
+category: `Spoofing`, `Tampering`, `Repudiation`, `Information disclosure`, `Denial of
+service`, `Elevation of privilege`. Each is rated `High`, `Medium` or `Low`, and each `High`
+row names the number of the phase that mitigates it. One line above the table names each
+other component and why it handles none of those; with no qualifying component the section
+holds `none — <reason>`.
 
 `Ticket gaps` lists each place a covering ticket, as written, made this plan propose a
 split, add a `Deviation` row, or hold an AC clause or NFR line with no fillable phase —
@@ -261,7 +275,7 @@ under. Omit the section when there are none. `implement-phases` copies it into `
 The architecture rules the plan must respect are in `CLAUDE.md` and
 `{{plan_rules_file}}`. Read them rather than working from memory.
 
-### Size: at most 6 phases, 500 lines outside the AC and NFR coverage tables
+### Size: at most 6 phases, 500 lines outside the AC, NFR coverage and threat tables
 
 **The phase count is the real limit.** A branch needs at most six phases; more than that is
 a branch too large to review in one sitting, and the fix is splitting the work across PRs,
@@ -270,10 +284,12 @@ one PR anyway, and then the justification goes in `Rejected alternatives`. Do no
 compress seven phases into six. Unlike a line count this cannot be satisfied by compressing
 prose, which is why it comes first.
 
-**500 lines for the document, counting everything except the acceptance-criteria and
-`NFR coverage` tables.** Each is one row per clause or NFR line by design, and a plan
-covering several tickets can carry thirty rows before a single phase is written — counting
-them would penalize the splitting rule above. Everything else counts.
+**500 lines for the document, counting everything except the acceptance-criteria, `NFR
+coverage` and `Threat model` tables.** Each is one row per clause, NFR line or STRIDE
+category by design. A plan covering several tickets can carry thirty AC rows before a
+single phase is written, and a security plan six threat rows per component — counting them
+would penalize the splitting rule and the threat model's completeness. Everything else
+counts.
 
 **5 lines for `Change summary`.** This is the field that actually overflows, so it is the
 field with the limit. What changes, and why, in five lines or fewer. If a claim needs three
@@ -368,6 +384,8 @@ item below, either fix it or satisfy yourself it holds:
    naming a module from `Components and interfaces`, or for an Epic NFR this branch does
    not affect, `untouched — <reason>`.
 8. **All five design sections are present** — each filled, or `none — <reason>`.
+9. **`Threat model` matches `{{disciplines}}`** — present with six rated rows per qualifying
+   component and a phase on every `High` when it contains `security`, absent when it does not.
 
 Findings from this pass are edited in place, silently. They never appear in the plan as
 revision history.

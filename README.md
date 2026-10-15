@@ -231,7 +231,8 @@ defaults.
 - `project_size` — `small`, `medium`, or `large`. Default `small`.
 - `lifecycle_model` — `waterfall`, `iterative`, or `continuous`. Default `continuous`.
 - `disciplines` — a list drawn from `security`, `data-ml`, `mobile`, `embedded`, and
-  `sre`. Default `[]`.
+  `sre`. Default `[]`. With `security`, `plan-work` requires a STRIDE `## Threat model`
+  in every plan.
 - `roles` — a map from each role above to the person who holds it.
   `{{roles.<role>}}` in a skill resolves to that role's entry in `roles`, so
   `{{roles.tech_lead}}` names the tech lead. Default: a role absent from `roles` is the

@@ -1,5 +1,5 @@
 ---
-description: Optional project.json keys left out are announced as none in one line, never invented
+description: Optional project.json keys left out are announced with their defaults in one line, never invented
 max_turns: 15
 allowed_tools:
   - Read
