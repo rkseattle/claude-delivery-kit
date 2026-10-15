@@ -1,4 +1,4 @@
-<!-- expect B2=1 E2=2 E3=3 E4=1 FORMAT=6 R12=6 R14=3 R2=1 R3=2 R6=1 -->
+<!-- expect B2=1 B4=3 E2=2 E3=3 E4=1 FORMAT=6 R12=6 R14=3 R2=1 R3=2 R6=1 -->
 # [E1] Contacts export
 Type: Epic
 Priority: High
@@ -93,6 +93,7 @@ x
 # [B1] Fix crash on empty export
 Type: Bug
 Handoff: contacts-pr-02
+Severity: Severe
 Jira:
 ## Environment
 x
@@ -119,6 +120,7 @@ Parent: None
 Blocked by: None
 Handoff: contacts-pr-02
 Priority: Should
+Severity: High
 Jira:
 ## Context
 x
@@ -146,6 +148,31 @@ x
 - AC1: The file is named `contacts-<date>.csv` [verify: automated @ tests/auth/export.test.ts]
 ## Touch points
 - src/auth/routes.ts (modify): file name
+## Out of scope
+- Import (not planned)
+## Dependencies
+- None
+
+# [B2] Fix the export of an unnamed contact
+Type: Bug
+Priority: Should
+Blocked by: None
+Handoff: contacts-pr-03
+Jira:
+## Environment
+x
+## Steps to reproduce
+1. x
+## Expected
+x
+## Actual
+x
+## Evidence
+x
+## Acceptance criteria
+- AC1: Regression: An unnamed contact exports with an empty name [verify: automated @ tests/auth/export.test.ts]
+## Touch points
+- src/auth/routes.ts (modify): guard
 ## Out of scope
 - Import (not planned)
 ## Dependencies

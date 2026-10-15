@@ -100,6 +100,9 @@ the current code and passes after the fix.
 B2 holds. Otherwise a diagnosis Task comes first — AC: a committed failing test and a
 root-cause note — and the Bug is Blocked by it.
 
+**B4 Rated.** `Severity:` is one of `Critical`, `High`, `Medium`, or `Low`, as templates.md
+defines them, on a Bug and nowhere else. Prevents: a defect no release gate can count.
+
 ## Epic
 
 **E1** Goal is an outcome; each success measure is observable.
@@ -114,7 +117,7 @@ child added, removed, or changed.
 
 ## Severity
 
-`ticket-adversary` uses the kit's scale:
+`ticket-adversary` rates its findings on the kit's scale; a Bug's `Severity:` header is B4.
 
 - **BLOCKER** — `plan-work` would propose a split, write a `Deviation`, or leave a clause
   unphased; or a claim about the code is false (R1–R5, R7, R11, B2).

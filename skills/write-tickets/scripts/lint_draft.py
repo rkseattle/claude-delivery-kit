@@ -49,6 +49,8 @@ REQUIRED = {
 }
 # MoSCoW as the DSDM Agile Project Framework defines it. The apostrophe is straight.
 PRIORITIES = ["Must", "Should", "Could", "Won't"]
+# Defect severity as the rule book's Phase 5 rates it, most severe first.
+SEVERITIES = ["Critical", "High", "Medium", "Low"]
 NFR_SECTION = "Non-functional requirements"
 CHANGE_IMPACT = "Change impact"
 SPEC_SECTIONS = ["Goal", "Behavior", "Change", "Acceptance criteria", "Expected", "Success measures", NFR_SECTION]
@@ -63,7 +65,7 @@ SESSION_REFS = [r"\bas discussed\b", r"\bas mentioned\b", r"\bper (the )?above\b
 
 # A local ID while drafting; Step 8 replaces it with the Jira key once the ticket exists.
 HEADER = re.compile(r"^# \[(?P<id>[ESTB]\d+|[A-Z][A-Z0-9]+-\d+)\]\s+(?P<summary>.+?)\s*$")
-META = re.compile(r"^(Type|Parent|Blocked by|Handoff|Labels|Priority|Goal|Jira):\s*(.*)$")
+META = re.compile(r"^(Type|Parent|Blocked by|Handoff|Labels|Priority|Severity|Goal|Jira):\s*(.*)$")
 SECTION = re.compile(r"^## (.+?)\s*$")
 VERIFY_TAG = r"\[verify:\s*([^@\]\s][^@\]]*?)\s*@\s*([^\]\s][^\]]*?)\s*\]"
 AC = re.compile(r"^-\s+AC(\d+):\s+(.+?)\s*" + VERIFY_TAG + r"\s*$")
@@ -199,6 +201,14 @@ def lint(items, repo):
                 err(i, "R12", f"missing Priority: — one of {', '.join(PRIORITIES)}")
         elif priority not in PRIORITIES:
             err(i, "R12", f"Priority must be one of {', '.join(PRIORITIES)}, got '{priority}'")
+        severity = i["meta"].get("Severity") or None
+        if t != "Bug":
+            if severity:
+                err(i, "B4", f"Severity: belongs on a Bug, not on this {t}")
+        elif severity is None:
+            err(i, "B4", f"missing Severity: — one of {', '.join(SEVERITIES)}")
+        elif severity not in SEVERITIES:
+            err(i, "B4", f"Severity must be one of {', '.join(SEVERITIES)}, got '{severity}'")
         for n in i["stray"]:
             # A header field is one line; a wrapped one would otherwise lose its tail unseen.
             err(i, "FORMAT", f"line {n} in the header is not a 'Field: value' line")

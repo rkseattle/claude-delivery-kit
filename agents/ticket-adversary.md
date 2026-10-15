@@ -54,7 +54,7 @@ Read `${CLAUDE_PLUGIN_ROOT}/gates/read-only-agent.md` and follow it exactly.
 - **Deviation.** Anywhere you would ship something other than the clause's literal text,
   name it: that is a `Deviation` row waiting to happen.
 - **Decisions.** Any choice left open, any "or", any instruction to investigate.
-- The remaining rubric criteria, including B1–B3 for bugs.
+- The remaining rubric criteria, including B1–B4 for bugs.
 
 ## Across the draft
 

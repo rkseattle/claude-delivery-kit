@@ -108,8 +108,8 @@ never reaches Jira.
 
 ## Step 7 — Present for approval
 
-In chat, one table — ID, type, summary, priority, handoff, AC clauses, touch points,
-blocked by — followed by:
+In chat, one table — ID, type, summary, priority, severity, handoff, AC clauses, touch
+points, blocked by — followed by:
 
 - clauses that need out-of-band verification, called out separately
 - any sequenced split from Step 3, and every DECISION from the review
@@ -124,8 +124,9 @@ Look up the project's issue types and link types via the Atlassian MCP first; ne
 a name or ID.
 
 1. Epics first, then the rest in draft order.
-2. Summary, parent, and labels: every `Labels:` value, the `Handoff:` label, and, for a
-   non-empty `Priority:`, `moscow-<priority>` in lowercase — `Won't` is `moscow-wont`.
+2. Summary, parent, and labels: every `Labels:` value, the `Handoff:` label, for a
+   non-empty `Priority:`, `moscow-<priority>` in lowercase — `Won't` is `moscow-wont` —
+   and for a Bug, `severity-<severity>` in lowercase.
 3. Description: `Goal: <sentence>` first when the header has one, then every `##` section
    except Open questions, Change impact, and review output, with each `[verify: …]` and
    `[children: …]` tag inside a code span. The Atlassian connector's read conversion drops
@@ -156,17 +157,20 @@ For `<TICKET-N ...>` arguments, fetch each into a draft with `Jira:` filled, map
 
 - its `moscow-*` label to `Priority:` — `moscow-wont` as `Won't`, the rest title-cased; no
   such label, or more than one, leaves `Priority:` empty for Step 1 to settle
+- on a Bug, its `severity-*` label to `Severity:`, title-cased; no such label, or more
+  than one, leaves `Severity:` empty for Step 1 to settle; on any other type, none
 - every other label but the handoff label to `Labels:`
 - a leading `Goal:` description line to the `Goal:` header
 - a code span holding a whole `[verify: … @ …]` or `[children: …]` tag, or the
   `\verify: …\` an older write left, to the bare tag
 
-Run Steps 2–7, and update instead of create, replacing the `moscow-*` label rather than
-adding a second. Each rewritten ticket carries `## Change impact` (rubric R15). After item
-7, when item 5 has replaced every local ID, post each one's lines, tags in code spans as in
-item 3, once with `jira_add_comment`, headed `Change impact`. A failed post is retried once;
-a second failure stops and brings Rob the unposted note. A ticket that must split keeps its
-key for the ACs it retains; say which new key holds the rest.
+Run Steps 2–7, and update instead of create: item 2's labels replace the ticket's
+`moscow-*` and `severity-*` labels, and one item 2 no longer writes is removed. Each
+rewritten ticket carries `## Change impact` (rubric R15). After item 7, when item 5 has
+replaced every local ID, post each one's lines, tags in code spans as in item 3, once with
+`jira_add_comment`, headed `Change impact`. A failed post is retried once; a second
+failure stops and brings Rob the unposted note. A ticket that must split keeps its key for
+the ACs it retains; say which new key holds the rest.
 
 ## Step 9 — Report
 

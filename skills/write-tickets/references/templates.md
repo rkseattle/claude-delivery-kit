@@ -27,6 +27,10 @@ Jira:
 - **Priority** — `Must`, `Should`, `Could`, or `Won't`, with a straight apostrophe
   (MoSCoW). Required on Story, Task, and Bug; optional on an Epic. `Won't` records work
   deliberately left out.
+- **Severity** — a Bug header line, required there and nowhere else: `Critical` (data
+  loss, security breach, outage), `High` (core function broken, no workaround), `Medium`
+  (workaround exists), or `Low` (cosmetic). It rates the defect; BLOCKER to MINOR rate
+  review findings.
 - **Goal** — one sentence, on one line, naming the outcome the ticket serves. Required on
   a Story or Task with no `Parent:`; a child serves its epic's goal, and a Bug restores
   behavior a goal already justified.

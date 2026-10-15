@@ -185,6 +185,7 @@ POST /contacts/export returns the file.
 Type: Bug
 Handoff: jira-pr-01
 Priority: Should
+Severity: High
 Jira:
 
 ## Environment
