@@ -1,5 +1,5 @@
 <!-- expect JIRA=1 R15=4 -->
-# [E1] Keep signed-in users signed in for 30 days
+# [AB-15] Keep signed-in users signed in for 30 days
 Type: Epic
 Blocked by: None
 Jira: AB-15
@@ -8,8 +8,8 @@ Jira: AB-15
 Users who choose "Keep me signed in" stay signed in on that device for 30 days.
 
 ## Success measures
-- SM1: A user who signed in 29 days ago gets a new access token without credentials [children: S1, S2]
-- SM2: A revoked refresh token is rejected with 401 [children: S3, S4]
+- SM1: A user who signed in 29 days ago gets a new access token without credentials [children: AB-12, AB-13]
+- SM2: A revoked refresh token is rejected with 401 [children: AB-14, S4]
 
 ## In scope
 - Refresh-token rotation for the web client
@@ -18,12 +18,12 @@ Users who choose "Keep me signed in" stay signed in on that device for 30 days.
 - Mobile clients (not planned)
 
 ## Children
-- S1, S2, S3, S4
+- AB-12, AB-13, AB-14, S4
 
-# [S1] Rotate the refresh token on the refresh endpoint
+# [AB-12] Rotate the refresh token on the refresh endpoint
 Type: Story
 Priority: Must
-Parent: E1
+Parent: AB-15
 Blocked by: None
 Handoff: rewrite-pr-01
 Jira: AB-12
@@ -42,7 +42,7 @@ POST /auth/refresh with a valid `rt` cookie returns a new access token and sets 
 - src/auth/routes.ts (modify): register the refresh route
 
 ## Out of scope
-- Reuse detection for revoked tokens (S3)
+- Reuse detection for revoked tokens (AB-14)
 
 ## Dependencies
 - None
@@ -51,10 +51,10 @@ POST /auth/refresh with a valid `rt` cookie returns a new access token and sets 
 - AC2 changed: the cookie needed no attributes; now it is `HttpOnly`
 - AB-13 scope: takes the 30-day expiry this ticket no longer covers
 
-# [S2] Expire the session after 30 days
+# [AB-13] Expire the session after 30 days
 Type: Story
 Priority: Should
-Parent: E1
+Parent: AB-15
 Blocked by: None
 Handoff: rewrite-pr-01
 Jira: AB-13
@@ -77,10 +77,10 @@ POST /auth/refresh with a 31-day-old `rt` returns 401.
 ## Dependencies
 - None
 
-# [S3] Reject a revoked refresh token
+# [AB-14] Reject a revoked refresh token
 Type: Story
 Priority: Must
-Parent: E1
+Parent: AB-15
 Blocked by: None
 Handoff: rewrite-pr-02
 Jira: AB-14
@@ -108,7 +108,7 @@ POST /auth/refresh with a revoked `rt` returns 401.
 # [S4] Sign out every device
 Type: Story
 Priority: Could
-Parent: E1
+Parent: AB-15
 Blocked by: None
 Handoff: rewrite-pr-02
 Jira:
@@ -134,3 +134,26 @@ POST /auth/signout-all revokes every refresh token the user holds.
 ## Change impact
 - AC1 added: sign-out returns 204
 - AC2 removed: the List<String> of devices signed out
+
+# [AB-16] Let users see where they are signed in
+Type: Epic
+Blocked by: None
+Jira: AB-16
+
+## Goal
+Users can see each device where they are signed in.
+
+## Success measures
+- SM1: A user lists the devices holding a refresh token [children: AB-13]
+
+## In scope
+- The web client
+
+## Out of scope
+- Mobile clients (not planned)
+
+## Children
+- AB-13
+
+## Change impact
+- SM2 removed: a user signs out one device; now part of sign-out

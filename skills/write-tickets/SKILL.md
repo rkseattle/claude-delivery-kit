@@ -136,7 +136,8 @@ a name or ID.
    the key everywhere in the draft — as a whole ID, never the `S1` in `S10` — before
    creating the next ticket.
 6. Read each ticket back with `jira_get_issue`, which returns Markdown. Check it carries
-   every label item 2 names, save its description verbatim to
+   every label item 2 names and no other `moscow-*` or `severity-*` label, save its
+   description verbatim to
    `docs/tickets/<slug>.<key>.md`, and run:
 
    ```bash
@@ -153,7 +154,8 @@ a name or ID.
    local ID. Once every ticket exists, update each ticket whose draft text item 5 changed
    after its creation, and give it item 6 again.
 
-For `<TICKET-N ...>` arguments, fetch each into a draft with `Jira:` filled, mapping:
+For `<TICKET-N ...>` arguments, fetch each into a draft with its key as the header ID and
+on its `Jira:` line, so no local ID stands for an issue that already exists, mapping:
 
 - its `moscow-*` label to `Priority:` — `moscow-wont` as `Won't`, the rest title-cased; no
   such label, or more than one, leaves `Priority:` empty for Step 1 to settle
@@ -167,10 +169,12 @@ For `<TICKET-N ...>` arguments, fetch each into a draft with `Jira:` filled, map
 Run Steps 2–7, and update instead of create: item 2's labels replace the ticket's
 `moscow-*` and `severity-*` labels, and one item 2 no longer writes is removed. Each
 rewritten ticket carries `## Change impact` (rubric R15). After item 7, when item 5 has
-replaced every local ID, post each one's lines, tags in code spans as in item 3, once with
-`jira_add_comment`, headed `Change impact`. A failed post is retried once; a second
-failure stops and brings Rob the unposted note. A ticket that must split keeps its key for
-the ACs it retains; say which new key holds the rest.
+replaced every local ID, post each note with `jira_add_comment`: a first line
+`Change impact`, then the section's lines, tags in code spans as in item 3. Read it back
+with `jira_get_issue` and check every line arrived. When a post fails, read the issue's
+comments and post again only if the note is absent; a second failure stops and brings Rob
+every note not yet posted. A ticket that must split keeps its key for the ACs it retains;
+say which new key holds the rest.
 
 ## Step 9 — Report
 

@@ -430,7 +430,7 @@ def readback_cli_test(cases, scratch):
     rewritten = os.path.join(scratch, "rewritten.md")
     with open(rewritten, "w", encoding="utf8") as f:
         f.write(re.sub(r"(# \[S1\].*\n(?:.+\n)*?)Jira:\n", r"\1Jira: AB-3\n", draft_text, count=1)
-                .replace("## Open questions\n", "## Change impact\n- AC1 changed: now returns 200\n\n"
+                .replace("## Open questions\n", "## Change impact\n- AC1 changed: returned 201; now returns 200\n\n"
                          "## Open questions\n", 1))
     failed = 0
     for draft, key, case, want in ((keyed, "AB-2", "faithful.md", 0), (keyed, "AB-2", "lost-span.md", 1),
@@ -581,8 +581,8 @@ def main(argv=None):
         print("UNPARSEABLE: no tickets found — headers look like '# [S1] Summary' or '# [AB-1] Summary'")
         return 2
     if a.readback:
-        # The header holds the key once Step 8 has created the ticket; a rewritten ticket keeps
-        # its local header, and its `Jira:` line holds the key.
+        # The header holds the key once Step 8 has created or fetched the ticket; a header that
+        # still holds a local ID is found by its `Jira:` line.
         item = next((i for i in items if a.readback[0] in (i["id"], i["meta"].get("Jira"))), None)
         if item is None:
             print(f"UNPARSEABLE: no header or Jira: line names {a.readback[0]} in {a.draft}")

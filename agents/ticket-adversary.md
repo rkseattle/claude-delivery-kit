@@ -54,6 +54,10 @@ Read `${CLAUDE_PLUGIN_ROOT}/gates/read-only-agent.md` and follow it exactly.
 - **Deviation.** Anywhere you would ship something other than the clause's literal text,
   name it: that is a `Deviation` row waiting to happen.
 - **Decisions.** Any choice left open, any "or", any instruction to investigate.
+- **Change impact.** For a ticket whose `Jira:` line is filled, fetch that issue: each AC
+  — on an Epic, each success measure or child — that differs between it and the draft, and
+  each other ticket whose scope moves, has its line in `## Change impact` (R15). A missing
+  line is a MAJOR.
 - The remaining rubric criteria, including B1–B4 for bugs.
 
 ## Across the draft

@@ -47,8 +47,10 @@ Jira:
 - Code: `symbol()` in path/to/file (exists on the parent branch)
 - SM1: <observable measure> [children: S1, S2]    (Epic success measures)
 - NFR1: <metric> <comparator> <number><unit> <condition> [verify: <tier> @ <evidence>]
-- AC2 changed: <what it said>; now <what it says>  (Change impact; SM2 or a child on an Epic)
-- <key or ID> scope: <what moves to or from it>    (Change impact)
+- AC3 added: <what it says>                       (Change impact)
+- AC1 removed: <what it said>                     (Change impact)
+- AC2 changed: <what it said>; now <what it says> (Change impact)
+- <key or ID> scope: <what moves to or from it>   (Change impact)
 ```
 
 Commas and semicolons inside an AC make separate `plan-work` rows. Use them only between
