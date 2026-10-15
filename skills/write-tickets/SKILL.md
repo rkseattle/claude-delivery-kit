@@ -127,9 +127,9 @@ a name or ID.
 2. Summary, parent, and labels: every `Labels:` value, the `Handoff:` label, and, for a
    non-empty `Priority:`, `moscow-<priority>` in lowercase — `Won't` is `moscow-wont`.
 3. Description: `Goal: <sentence>` first when the header has one, then every `##` section
-   except Open questions and review output, with each `[verify: …]` and `[children: …]`
-   tag inside a code span. The Atlassian connector's read conversion drops a bare tag's
-   brackets; a code span survives it verbatim.
+   except Open questions, Change impact, and review output, with each `[verify: …]` and
+   `[children: …]` tag inside a code span. The Atlassian connector's read conversion drops
+   a bare tag's brackets; a code span survives it verbatim.
 4. For each Blocked-by entry, a link of the blocking type with the blocker as outward.
 5. After each creation, write the key into its `Jira:` line and replace its local ID with
    the key everywhere in the draft — as a whole ID, never the `S1` in `S10` — before
@@ -162,8 +162,11 @@ For `<TICKET-N ...>` arguments, fetch each into a draft with `Jira:` filled, map
   `\verify: …\` an older write left, to the bare tag
 
 Run Steps 2–7, and update instead of create, replacing the `moscow-*` label rather than
-adding a second. A ticket that must split keeps its key for the ACs it retains; say which
-new key holds the rest.
+adding a second. Each rewritten ticket carries `## Change impact` (rubric R15). After item
+7, when item 5 has replaced every local ID, post each one's lines, tags in code spans as in
+item 3, once with `jira_add_comment`, headed `Change impact`. A failed post is retried once;
+a second failure stops and brings Rob the unposted note. A ticket that must split keeps its
+key for the ACs it retains; say which new key holds the rest.
 
 ## Step 9 — Report
 

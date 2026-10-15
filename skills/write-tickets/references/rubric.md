@@ -82,6 +82,12 @@ naming the outcome it serves, held to R6, R7, and R10 like the sections. Bugs ar
 and an Epic states its goal in `## Goal`; neither carries the header.
 Prevents: work that serves no goal reaching a plan unchallenged.
 
+**R15 Change impact recorded.** A ticket whose `Jira:` line is filled is a rewrite of a
+baselined ticket, and carries `## Change impact`: each AC added, removed, or changed, and
+each other ticket whose scope moves; or, when neither moves, one line on what changed. A
+ticket being created carries none. Prevents: a
+baselined ticket changing under a plan with no record of what moved.
+
 ## Bug, in addition
 
 **B1 Reproducible.** Steps use specific inputs; Environment names the commit or build;
@@ -103,6 +109,8 @@ demonstrate it.
 **E4** Blocked-by links form no cycle; Children is in build order.
 **E5** Out of scope is present and non-empty.
 **R13** applies to an Epic's `## Non-functional requirements` as to a Story's.
+**R15** applies to a rewritten Epic, its `## Change impact` listing each success measure or
+child added, removed, or changed.
 
 ## Severity
 

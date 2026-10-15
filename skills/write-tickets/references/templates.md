@@ -30,7 +30,8 @@ Jira:
 - **Goal** — one sentence, on one line, naming the outcome the ticket serves. Required on
   a Story or Task with no `Parent:`; a child serves its epic's goal, and a Bug restores
   behavior a goal already justified.
-- **Jira** — empty; filled on creation. **Open questions** — must be empty before review.
+- **Jira** — empty; filled on creation, or by rewrite mode with the key being rewritten.
+  **Open questions** — must be empty before review.
 
 ## Line formats
 
@@ -42,6 +43,8 @@ Jira:
 - Code: `symbol()` in path/to/file (exists on the parent branch)
 - SM1: <observable measure> [children: S1, S2]    (Epic success measures)
 - NFR1: <metric> <comparator> <number><unit> <condition> [verify: <tier> @ <evidence>]
+- AC2 changed: <what it said>; now <what it says>  (Change impact; SM2 or a child on an Epic)
+- <key or ID> scope: <what moves to or from it>    (Change impact)
 ```
 
 Commas and semicolons inside an AC make separate `plan-work` rows. Use them only between
@@ -87,6 +90,13 @@ decision.
   when known.
 - **Out of scope** — each item with where it lives: a ticket, or `(not planned)`. An
   excluded instance of a root cause states why it is benign in context.
+
+A ticket whose `Jira:` line is filled is a rewrite of a baselined ticket, and carries
+**Change impact**: one line per AC — on an Epic, per success measure or child — `added`,
+`removed`, or `changed`, and per other ticket whose scope moves, in the formats above; a
+rewrite that moves neither says in one line what changed. Step 8 posts it as a comment on
+the issue, never in the description. A ticket being created carries none. The linter checks
+the section is present, non-empty, and Jira-safe; its lines are checked in review.
 
 A spike Task has one AC: a decision record committed at a named path, stating the option
 chosen and why.

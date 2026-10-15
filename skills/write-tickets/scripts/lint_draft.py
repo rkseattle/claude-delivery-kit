@@ -50,6 +50,7 @@ REQUIRED = {
 # MoSCoW as the DSDM Agile Project Framework defines it. The apostrophe is straight.
 PRIORITIES = ["Must", "Should", "Could", "Won't"]
 NFR_SECTION = "Non-functional requirements"
+CHANGE_IMPACT = "Change impact"
 SPEC_SECTIONS = ["Goal", "Behavior", "Change", "Acceptance criteria", "Expected", "Success measures", NFR_SECTION]
 UNDECIDED = [r"\bTBD\b", r"\bTBC\b", r"\bTODO\b", r"\?\?", r"\betc\b", r"\be\.g\.", r"\band/or\b",
              r"\bas needed\b", r"\bas appropriate\b", r"\bif possible\b", r"\bwhere applicable\b",
@@ -212,6 +213,14 @@ def lint(items, repo):
                 err(i, "FORMAT", f"'## {s}' is empty")
         if body(i["sections"].get("Open questions", [])):
             err(i, "R6", "Open questions has content — settle it before review")
+        # A filled Jira: line means rewrite mode fetched a baselined ticket.
+        jira_key = i["meta"].get("Jira", "")
+        if jira_key and not body(i["sections"].get(CHANGE_IMPACT, [])):
+            state = "empty" if CHANGE_IMPACT in i["sections"] else "missing"
+            err(i, "R15", f"Jira: {jira_key} is filled and '## {CHANGE_IMPACT}' is {state} — "
+                          "record what this rewrite changes")
+        elif CHANGE_IMPACT in i["sections"] and not jira_key:
+            err(i, "R15", f"'## {CHANGE_IMPACT}' belongs on a ticket whose Jira: line is filled")
         goal = i["meta"].get("Goal", "")
         if goal and t not in GOAL_TYPES:
             err(i, "R14", f"Goal: belongs on a Story or Task, not on this {t}")
@@ -223,10 +232,11 @@ def lint(items, repo):
                     if re.search(p, line, re.I):
                         err(i, "R10", f"refers to the authoring session in {s}: {line[:80]}")
         # What Step 8 sends must come back from jira_get_issue as sent; templates.md says why.
-        sent = step8_lines(i)
-        for change in line_changes(sent, roundtrip("\n".join(sent))):
-            # The read's own placeholders can surface when a {code} macro swallows text.
-            err(i, "JIRA", f"Jira's round trip changes {change}".replace("\x00", "")[:200])
+        # The change-impact comment goes through the same connector write.
+        for sent in (step8_lines(i), comment_lines(i)):
+            for change in line_changes(sent, roundtrip("\n".join(sent))):
+                # The read's own placeholders can surface when a {code} macro swallows text.
+                err(i, "JIRA", f"Jira's round trip changes {change}".replace("\x00", "")[:200])
         for s in SPEC_SECTIONS + [GOAL_HEADER]:
             for line in prose_lines(prose.get(s, [])):
                 text = without_literals(line)
@@ -360,9 +370,15 @@ def step8_lines(item):
     goal = item["meta"].get("Goal")
     lines = [jira_line(f"Goal: {goal}")] if goal else []
     for s, sec in item["sections"].items():
-        if s != "Open questions":
+        if s not in ("Open questions", CHANGE_IMPACT):
             lines += [f"## {s}"] + [l if fenced else jira_line(l) for l, fenced in unfenced(sec)]
     return lines
+
+
+def comment_lines(item):
+    """The change-impact comment Step 8 posts for a rewritten item, written as the
+    description is."""
+    return [l if fenced else jira_line(l) for l, fenced in unfenced(item["sections"].get(CHANGE_IMPACT, []))]
 
 
 def readback(item, fetched):
@@ -395,14 +411,17 @@ def line_changes(sent, fetched):
 
 def readback_cli_test(cases, scratch):
     """Step 8 runs --readback on a draft whose headers already hold Jira keys, and on a
-    rewritten one whose header keeps its local ID and whose `Jira:` line holds the key."""
+    rewritten one whose header keeps its local ID, whose `Jira:` line holds the key, and
+    whose `## Change impact` Step 8 posts as a comment rather than in the description."""
     draft_text = open(os.path.join(cases, "_draft.md"), encoding="utf8").read()
     keyed = os.path.join(scratch, "keyed.md")
     with open(keyed, "w", encoding="utf8") as f:
         f.write(draft_text.replace("[S1]", "[AB-2]").replace("[E1]", "[AB-1]"))
     rewritten = os.path.join(scratch, "rewritten.md")
     with open(rewritten, "w", encoding="utf8") as f:
-        f.write(re.sub(r"(# \[S1\].*\n(?:.+\n)*?)Jira:\n", r"\1Jira: AB-3\n", draft_text, count=1))
+        f.write(re.sub(r"(# \[S1\].*\n(?:.+\n)*?)Jira:\n", r"\1Jira: AB-3\n", draft_text, count=1)
+                .replace("## Open questions\n", "## Change impact\n- AC1 changed: now returns 200\n\n"
+                         "## Open questions\n", 1))
     failed = 0
     for draft, key, case, want in ((keyed, "AB-2", "faithful.md", 0), (keyed, "AB-2", "lost-span.md", 1),
                                    (rewritten, "AB-3", "faithful.md", 0), (keyed, "AB-9", "faithful.md", 2),
