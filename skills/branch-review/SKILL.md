@@ -44,10 +44,10 @@ For each BLOCKER and MAJOR, in order:
    reported one included, on an instance Rob declined for the same root cause — in
    `exclusions[]` or the plan's "What explicitly does not ship" — is closed without a fix,
    citing that entry.
-4. **Survey the failure mode before writing the failing test and then the fix** — the test
-   first, per the Definition of Done's defect-fix gate below — per `deliver`'s invariant:
-   two or three real implementations that solve it, then the one the fix follows. Not the minimal
-   edit that clears the finding. In-repo precedent is a proposal weighed against the survey,
+4. **Survey the failure mode, then write the failing test and the fix in that order**, the
+   test per the Definition of Done's defect-fix gate below. The survey, per `deliver`'s
+   invariant: two or three real implementations that solve it, then the one the fix
+   follows. Not the minimal edit that clears the finding. In-repo precedent is a proposal weighed against the survey,
    never the default; one matching nothing surveyed is local invention, and a fix that
    matches it entrenches the thing the next round will find. Where nothing fits, stop and
    take it to Rob, declaring the stop, and record the entry `waived` with his answer. Name

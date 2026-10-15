@@ -43,11 +43,11 @@ In order, all green, before every `git push`:
    first after the rebase so no expensive step runs on a push a "no" cancels:
 
    ```bash
-   ( set -o pipefail; git diff --shortstat origin/<parent>...HEAD |
-     awk '{for (i = 2; i <= NF; i++) if ($i ~ /^(insertion|deletion)/) n += $(i-1)} END {print n + 0}' )
+   stat=$(git diff --shortstat origin/<parent>...HEAD) &&
+     awk '{for (i = 2; i <= NF; i++) if ($i ~ /^(insertion|deletion)/) n += $(i-1)} END {print n + 0}' <<< "$stat"
    ```
 
-   A non-zero exit is a failed count, never zero lines.
+   No number printed is a failed count, never zero lines.
 
    Insertions plus deletions over the limit stop the push here: ask Rob whether this PR
    ships at this size, unless `.claude/state/current-plan.json` names this branch in

@@ -111,13 +111,13 @@ between "the math is tested" and "the behavior is correct".
   run, and the branch looks green because the code does not exist.
 - **A new test file** — same check, plus confirm the class actually ran. A test the runner
   never discovered reports nothing rather than failing.
-- **A defect fix** is a commit answering a CI failure, a branch-review finding, or a PR
-  comment that changes executable code. It needs a test that fails on the commit's parent
+- **A defect fix** is a commit that changes executable code to answer a CI failure, a
+  branch-review finding, or a PR comment. It needs a test that fails on the commit's parent
   and passes on it, named in the commit message: rule book Phase 5 step 5. Either add or
   change one, writing it before the fix and watching it fail on the unfixed code (TDD's red
-  step), or name an existing test a CI run on the parent shows failing. A fix
-  changing only tests, CI or lint configuration, or markdown is exempt, since no test can
-  fail on its parent.
+  step), or name an existing test a CI run on the parent shows failing. A fix changing only
+  tests, CI or lint configuration, or markdown is exempt, since no test can fail on its
+  parent.
 - **A user-facing string** — it goes through the localization API and reaches every locale.
   Parity is not optional: a key present in one locale and missing elsewhere renders the raw
   key to that user, and usually nothing fails when it does.

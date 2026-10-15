@@ -76,7 +76,8 @@ For every failing job:
    a test that fails in CI but passes locally is first an environment question: check whether
    it depends on a machine detail the two sides resolve differently.
 
-3. **Write the failing test, then the fix**, per the Definition of Done's defect-fix gate,
+3. **Name or write the failing test, then write the fix**, per the Definition of Done's
+   defect-fix gate,
    after surveying the failure mode per `deliver`'s invariant: two or three real
    implementations that solve it, and the one the fix follows — named in one line in the
    commit message, with survey and choice appended to `citations[]` carrying
@@ -91,14 +92,15 @@ For every failing job:
    whether the same root cause exists elsewhere in the codebase.
 6. **Act on its verdict.** `SYMPTOM ONLY` or `UNVERIFIED` means the fix is not done. Fix
    every additional site it reports as a live defect, per `deliver`'s pattern-spread
-   invariant: in this same commit when the plan's `Files touched` lists the file. Any change
-   after item 4 — rework or a spread site — re-runs the Definition of Done, folds into that
-   same commit with `git commit --amend` (nothing is pushed before item 7), and is verified
-   again. Others
+   invariant: in this same commit when the plan's `Files touched` lists the file. Others
    wait in `pending_spread[]` for Rob's question before the next R2 request, or at once
    when one blocks a check; approved ones then run one more iteration, and a declined one
    that keeps a check red goes to `deliver`'s deferral procedure or a declared stop. A site
    Rob declined for the same root cause, in `exclusions[]` or the plan, stays closed.
+
+   Any change after item 4 — rework or a spread site — re-runs the Definition of Done and
+   folds into that same commit with `git commit --amend`, its message updated to name the
+   test it now carries, then is verified again. Nothing is pushed before item 7.
 7. **Push per `${CLAUDE_PLUGIN_ROOT}/gates/pre-push.md`** — including its step 1 rebase onto
    the parent branch. An open PR is exactly where the parent drifts:
    `{{parent_branch_default}}` moves while the run is red, and a fix pushed onto a stale base
