@@ -29,6 +29,7 @@ targets a behavior whose absence produces a *plausible run* rather than an error
 | `write-tickets-stops-without-config` | Tickets drafted against verification tiers and source roots the project never declared | +0.50 |
 | `design-adversary-passes-a-sound-plan` | Review that always finds a blocker, so planning always ends in deferred work | not yet measured |
 | `design-adversary-catches-a-missing-ac` | Review that stopped blocking real defects after its BLOCKER definition was narrowed | not yet measured |
+| `design-adversary-catches-an-unmapped-nfr` | A plan that phases every NFR but never says which design element meets one passes review | not yet measured |
 | `design-adversary-flags-an-unsurveyed-design` | A plan that cites a source for each piece of the ticket's design passes, though nobody asked how real systems solve the whole problem | not yet measured |
 | `readme-docs-updates-an-existing-readme` | An update that regenerates the README from the template, dropping custom sections and carrying stale versions over | not yet measured |
 | `stops-on-missing-required-key` | A guessed parent branch that the run then branches from and pushes against | +1.00 |
@@ -38,7 +39,7 @@ Each case should pair a check on the *result* with a check on *how Claude got th
 the official guidance: a `regex` or `llm` grader on the reply, and a `tool_used` grader on
 the transcript. The two missing-key cases and `readme-docs-updates-an-existing-readme`
 do. `write-tickets-stops-without-config` has a `tool_used` grader that cannot fail, since
-Write is not in its allowlist, and `refuses-without-project-json` and all three
+Write is not in its allowlist, and `refuses-without-project-json` and all four
 `design-adversary-*` cases grade the reply only.
 
 **Δ is the number that matters, not the score.** A case scoring 1.00 in both arms is
@@ -88,6 +89,9 @@ change made to the reviewer — and this is the case that says the narrowing cos
 Passing one alone means little in either direction. A reviewer that blocks nothing passes
 the sound-plan case and fails this one; a reviewer that blocks everything does the reverse.
 Only both passing says the severity line sits where it was meant to.
+
+`design-adversary-catches-an-unmapped-nfr` checks the fourth BLOCKER kind the same way: its
+NFR2 has a phase but no `NFR coverage` row, so only that kind can block it.
 
 ## What these cases cannot test
 
