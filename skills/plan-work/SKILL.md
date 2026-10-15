@@ -57,9 +57,9 @@ lines **before launching anything else**. Do not parallelize the fetch with expl
 The session context contains recent git commits, and launching an exploration agent before
 the ticket content is known anchors it on the wrong domain — this has happened.
 
-Read linked and blocking tickets too. Cross-story dependencies are often written in prose
-inside descriptions rather than as Jira links, so read the descriptions for sequencing
-constraints rather than relying on link metadata.
+Read linked and blocking tickets too, and the parent Epic's NFR lines. Cross-story
+dependencies are often written in prose inside descriptions rather than as Jira links, so
+read the descriptions for sequencing constraints rather than relying on link metadata.
 
 ## Step 3 — Survey the problem, then explore the codebase
 
@@ -158,7 +158,7 @@ If a covering ticket has no Acceptance Criteria at all, say so here rather than 
 criteria for it. Inventing ACs produces a run that reports green against a bar nobody set —
 raise the gap with Rob, per `CLAUDE.md`'s rule that every ticket carries them.
 
-```markdown
+````markdown
 ## Approach
 
 **The survey first**: two or three real implementations of the whole problem — not one
@@ -172,6 +172,44 @@ in the plan alone.
 `implement-phases` copies the survey and the choice into `citations[]` at Step 1, and
 `/ci-green` reports them at the end of delivery alongside every later one — so the
 implementation chosen here is the one the whole run is measured against.
+
+## Components and interfaces
+
+```mermaid
+flowchart LR
+  <module> --> <module it depends on>
+```
+
+### <module>
+
+- Responsibility: <one sentence>
+- Inputs: <what it accepts, and from whom>
+- Outputs: <what it returns or emits>
+- Errors: <each failure, and how a caller sees it>
+- Versioning: <how the interface changes without breaking its callers>
+
+## Likely changes
+
+- <decision likely to change> — hidden behind <one interface>
+
+## Data ownership
+
+| Store | Owning module |
+
+## Test strategy
+
+| Level | Risks covered |
+| unit | |
+| integration | |
+| system | |
+| acceptance | |
+
+Coverage target: <the number, and what it measures>
+
+## NFR coverage
+
+| Ticket | NFR | Design element |
+| <TICKET-N> | NFR1 | <the module, interface, or mechanism that meets it> |
 
 ## Rejected alternatives
 
@@ -194,7 +232,21 @@ introduces does not build, and the claim is then false.
 ## Risks and open questions
 
 ## Ticket gaps
-```
+````
+
+The five sections after `Approach` carry the rule book's Phase 3 steps and exit criteria.
+`Components and interfaces` opens with a flowchart of every module the plan changes and
+what each depends on, then gives each module all five fields. Each `Likely changes` entry names one
+interface; a decision spread across two is not hidden. `Data ownership` names one owning
+module per store the plan touches. `Test strategy` names the risks each level covers and
+a coverage target saying what it counts. `NFR coverage` has one row per ticket and
+`NFR<n>` pair, across the covering tickets and their parent Epic: the AC table says which
+phase meets a covering ticket's threshold, this one says which design element meets each
+— or, for an Epic NFR this branch leaves untouched, says so.
+
+**Any of these five sections with nothing to list holds `none` and a one-line reason** —
+`none — no data store is touched` — never an empty heading, which reads the same as a
+forgotten one. `Ticket gaps` keeps its own rule below.
 
 `Ticket gaps` lists each place a covering ticket, as written, made this plan propose a
 split, add a `Deviation` row, or hold an AC clause or NFR line with no fillable phase —
@@ -204,7 +256,7 @@ under. Omit the section when there are none. `implement-phases` copies it into `
 The architecture rules the plan must respect are in `CLAUDE.md` and
 `{{plan_rules_file}}`. Read them rather than working from memory.
 
-### Size: at most 6 phases, 500 lines outside the AC table
+### Size: at most 6 phases, 500 lines outside the AC and NFR coverage tables
 
 **The phase count is the real limit.** A branch needs at most six phases; more than that is
 a branch too large to review in one sitting, and the fix is splitting the work across PRs,
@@ -213,10 +265,10 @@ one PR anyway, and then the justification goes in `Rejected alternatives`. Do no
 compress seven phases into six. Unlike a line count this cannot be satisfied by compressing
 prose, which is why it comes first.
 
-**500 lines for the document, counting everything except the acceptance-criteria table.**
-That table is one row per AC clause and NFR line by design, and a plan covering several
-tickets can carry thirty rows before a single phase is written — counting it would penalize
-the splitting rule above it. Everything else counts.
+**500 lines for the document, counting everything except the acceptance-criteria and
+`NFR coverage` tables.** Each is one row per clause or NFR line by design, and a plan
+covering several tickets can carry thirty rows before a single phase is written — counting
+them would penalize the splitting rule above. Everything else counts.
 
 **5 lines for `Change summary`.** This is the field that actually overflows, so it is the
 field with the limit. What changes, and why, in five lines or fewer. If a claim needs three
@@ -307,6 +359,9 @@ item below, either fix it or satisfy yourself it holds:
    is the harder case, not the safer one: following a pattern nobody can source is how a
    non-standard design spreads unremarked. Name the survey in `Approach`, or carry the
    no-fit to Rob as an open question marked `waived`.
+7. **Every NFR in the covering tickets and their parent Epic** — has an `NFR coverage` row
+   naming the design element that meets it. An Epic NFR this branch leaves untouched
+   still gets a row saying so.
 
 Findings from this pass are edited in place, silently. They never appear in the plan as
 revision history.
