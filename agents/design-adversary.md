@@ -39,7 +39,7 @@ a rewrite against a concern their plan never had.
 
 ### Correctness gaps
 
-- Acceptance criteria or NFR lines in the tickets with no corresponding phase in the plan.
+- Acceptance criteria or NFR lines with no corresponding phase — BLOCKER kind 1 below.
 - Claims about existing behavior that the code contradicts.
 - **Concurrency left unspecified**, where the plan adds or changes code that runs
   concurrently. What does it run on? What happens when two overlap? Where is superseded
@@ -121,12 +121,12 @@ Return findings only. No praise, no summary — the caller wrote the plan and kn
 
 **BLOCKER is exactly four things**, each checkable against a file:
 
-1. An acceptance criterion or NFR line in a covering ticket with no phase that delivers it.
+1. An AC or NFR line in a covering ticket, or a parent-Epic NFR whose `NFR coverage` row
+   names a design element, with no phase that delivers it.
 2. A claim about current behavior that the code contradicts — cite the disproving line.
 3. A phase that does not build alone, referencing a type, case, or function a later phase
    introduces — cite both phases.
-4. An NFR line in a covering ticket or its parent Epic with no `NFR coverage` row, unless
-   item 1 already names it.
+4. A covering-ticket or parent-Epic NFR with no `NFR coverage` row, unless item 1 names it.
 
 Nothing else is a BLOCKER, however serious it feels. A fifth kind goes to the author as a
 MAJOR for them to escalate; do not promote it yourself.

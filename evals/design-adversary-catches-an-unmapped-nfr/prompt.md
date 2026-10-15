@@ -1,5 +1,5 @@
 ---
-description: A ticket or parent-Epic NFR with no NFR coverage row is a BLOCKER, even when a phase delivers it
+description: An NFR with no NFR coverage row is a BLOCKER even when a phase delivers it, and so is an affected Epic NFR with no phase
 max_turns: 20
 allowed_tools:
   - Read
@@ -111,6 +111,7 @@ Coverage target: 100% branch coverage of the query and the controller action.
 | Ticket | NFR | Design element |
 | --- | --- | --- |
 | ABC-219 | NFR1 | `DeliveryPageQuery`: a keyset query on the existing `deliveries(user_id, created_at, id)` index, so a page reads at most `limit` rows from the index |
+| ABC-218 | NFR2 | `Api::DeliveriesController#index`: clamping `limit` to 100 caps the rows serialized per request |
 
 ## Rejected alternatives
 
@@ -177,3 +178,4 @@ accounts time out, and clients cannot resume a partial read.
 **Non-functional requirements:**
 
 - NFR1: API 5xx error rate below 0.1% of requests over 7 days [verify: system @ the API error-rate dashboard]
+- NFR2: API p99 response under 1 second for any list endpoint [verify: system @ spec/perf/api_list_endpoints_spec.rb]
