@@ -64,6 +64,24 @@ behind a link. Prevents: a misread plan.
 behavior, unless the ticket states the change to that behavior. No two tickets change the
 same behavior. Prevents: a `Deviation` row.
 
+**R12 Prioritized.** `Priority:` is one of `Must`, `Should`, `Could`, or `Won't` (MoSCoW);
+optional on an Epic, where an empty one is the same as none. `Won't` is written down, not
+left out, so excluded work is visible as excluded. Prevents: a release with no Must set to
+check "All Must acceptance tests pass" against.
+
+**R13 Measurable non-functional requirements.** Epic and Story only; a Task or Bug carries
+no NFR section. Each line of `## Non-functional requirements` is `- NFR<n>:` with a symbol
+comparator, number, and unit before a `[verify: <tier> @ <evidence>]` tag, as R7 requires
+of an AC — "p95 < 300 ms at 200 requests/second", not "fast". `plan-work` gives each line a
+coverage row of its own. The linter checks the comparator and number; the unit is this
+review's to check. Prevents: a non-functional requirement no design element or test can be
+checked against.
+
+**R14 Traceable to a goal.** A Story or Task with no `Parent:` carries `Goal:`, one sentence
+naming the outcome it serves, held to R6, R7, and R10 like the sections. Bugs are exempt,
+and an Epic states its goal in `## Goal`; neither carries the header.
+Prevents: work that serves no goal reaching a plan unchallenged.
+
 ## Bug, in addition
 
 **B1 Reproducible.** Steps use specific inputs; Environment names the commit or build;
@@ -84,6 +102,7 @@ demonstrate it.
 **E3** Every child maps to a success measure or carries the `enabling` label.
 **E4** Blocked-by links form no cycle; Children is in build order.
 **E5** Out of scope is present and non-empty.
+**R13** applies to an Epic's `## Non-functional requirements` as to a Story's.
 
 ## Severity
 

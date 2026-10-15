@@ -1,14 +1,17 @@
-<!-- expect errors=15 warnings=0 -->
+<!-- expect B2=1 E2=2 E3=3 E4=1 FORMAT=6 R12=6 R14=3 R2=1 R3=2 R6=1 -->
 # [E1] Contacts export
 Type: Epic
+Priority: High
+Goal: Users can take their contacts elsewhere.
 Blocked by: None
 Jira:
 
 ## Goal
-Users can take their contacts elsewhere.
+Users can take their contacts elsewhere TBD.
 
 ## Success measures
 - SM1: A user downloads their contacts [children: S1, S9]
+- SM2: A user sees the export size [children:  ]
 
 ## In scope
 - Export
@@ -40,6 +43,7 @@ x
 
 # [S2] Show a download button
 Type: Story
+Priority: Must-have
 Parent: E1
 Blocked by: None
 Handoff: contacts-pr-01
@@ -59,6 +63,7 @@ x
 
 # [S3] Log exports
 Type: Story
+Priority: Won’t
 Parent: E1
 Handoff: contacts-pr-01
 Jira:
@@ -67,6 +72,7 @@ x
 
 # [S4] Rate-limit exports
 Type: Story
+Priority: Must
 Parent: E1
 Blocked by: S1, bogus
 Handoff: contacts-pr-01
@@ -104,5 +110,43 @@ x
 - src/auth/routes.ts (modify): guard
 ## Out of scope
 - None (not planned)
+## Dependencies
+- None
+
+# [S5] Name the export file by date
+Type: Story
+Parent: None
+Blocked by: None
+Handoff: contacts-pr-02
+Priority: Should
+Jira:
+## Context
+x
+## Behavior
+x
+## Acceptance criteria
+- AC1: The file is named `contacts-<date>.csv` [verify: automated @ tests/auth/export.test.ts]
+## Touch points
+- src/auth/routes.ts (modify): file name
+## Out of scope
+- Import (not planned)
+## Dependencies
+- None
+
+# [T1] Name the export file by date
+Type: Task
+Blocked by: None
+Handoff: contacts-pr-02
+Jira:
+## Context
+x
+## Change
+x
+## Acceptance criteria
+- AC1: The file is named `contacts-<date>.csv` [verify: automated @ tests/auth/export.test.ts]
+## Touch points
+- src/auth/routes.ts (modify): file name
+## Out of scope
+- Import (not planned)
 ## Dependencies
 - None

@@ -11,6 +11,8 @@ Type: Story
 Parent: E1
 Blocked by: T1
 Handoff: auth-refresh-pr-01
+Priority: Must
+Goal:
 Labels:
 Jira:
 ```
@@ -22,6 +24,12 @@ Jira:
 - **Parent** — an epic's local ID or key. **Blocked by** — IDs or keys, or `None`.
 - **Handoff** — the label `plan-work` will be run with. Required on Story, Task, and Bug;
   a handoff group stays within `plan-work`'s handoff limit, in build order.
+- **Priority** — `Must`, `Should`, `Could`, or `Won't`, with a straight apostrophe
+  (MoSCoW). Required on Story, Task, and Bug; optional on an Epic. `Won't` records work
+  deliberately left out.
+- **Goal** — one sentence, on one line, naming the outcome the ticket serves. Required on
+  a Story or Task with no `Parent:`; a child serves its epic's goal, and a Bug restores
+  behavior a goal already justified.
 - **Jira** — empty; filled on creation. **Open questions** — must be empty before review.
 
 ## Line formats
@@ -33,10 +41,25 @@ Jira:
 - <key> (Done): <what it provides>                (Dependencies)
 - Code: `symbol()` in path/to/file (exists on the parent branch)
 - SM1: <observable measure> [children: S1, S2]    (Epic success measures)
+- NFR1: <metric> <comparator> <number><unit> <condition> [verify: <tier> @ <evidence>]
 ```
 
 Commas and semicolons inside an AC make separate `plan-work` rows. Use them only between
 clauses that are each verifiable; keep lists of values inside backticks.
+
+An NFR line's threshold is its first comparator — `<`, `<=`, `>`, `>=`, `=`, `≤`, or `≥`,
+never a word — then a number and its unit: `p95 response < 300 ms at 200 requests/second`,
+not `p95 stays low over 24 hours`. Numbers in the metric name or the condition do not
+count. The linter checks the comparator and number; the unit is checked in review.
+
+The linter writes each description through the Atlassian connector's own converters and
+reads it back as `jira_get_issue` would; a line that comes back changed is a `JIRA` error.
+Plain text holding a bracket, an emphasis pair, a `+`, `^`, `~`, or `??` pair, `!x!`, `{{`,
+`||`, an HTML-like `<word>` (`List<String>`, an autolink), `~~strike~~`, or a `bq.`, `h1.`,
+`* `, or `---` line comes back changed; so do table rows. One line the read turns into HTML
+gets every `_` and `*` in the description escaped. Put identifiers, paths, and value lists
+in backticks — `snake_case`, `C++`, `[200, 404]` — and a code span cannot hold `}`: name a
+JSON body's fields instead, or quote it in a ``` fenced block (a ~~~ fence is plain text).
 
 Touch points are production files only; tests appear as AC evidence. Dependencies with
 none: `- None`.
@@ -49,6 +72,9 @@ none: `- None`.
 | Story | Context, Behavior, Acceptance criteria, Touch points, Out of scope, Dependencies |
 | Task  | Context, Change, Acceptance criteria, Touch points, Out of scope, Dependencies |
 | Bug   | Environment, Steps to reproduce, Expected, Actual, Evidence, Acceptance criteria, Touch points, Out of scope, Dependencies |
+
+An Epic or a Story may add **Non-functional requirements**, after Success measures or
+Behavior: one NFR line per quality threshold, in the format above.
 
 Every type may add **Implementation notes** — constraints with a reason, never steps. A
 design written there is a proposal `plan-work` checks against real implementations, not a
@@ -73,6 +99,7 @@ Type: Story
 Parent: E1
 Blocked by: T1
 Handoff: auth-refresh-pr-01
+Priority: Must
 Jira:
 
 ## Context
@@ -84,7 +111,7 @@ POST /auth/refresh with a valid `rt` cookie returns a new access token, sets a n
 and revokes the old one.
 
 ## Acceptance criteria
-- AC1: POST /auth/refresh with a valid `rt` returns 200 with body `{ accessToken }` [verify: automated @ tests/auth/refresh.test.ts]
+- AC1: POST /auth/refresh with a valid `rt` returns 200 with a body whose only field is `accessToken` [verify: automated @ tests/auth/refresh.test.ts]
 - AC2: The same request sets a new `rt` cookie with attributes `HttpOnly; Secure; SameSite=Strict` [verify: automated @ tests/auth/refresh.test.ts]
 - AC3: The old token's row has `revoked_at` and `replaced_by` set after the request [verify: automated @ tests/auth/refresh.test.ts]
 

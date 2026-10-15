@@ -1,6 +1,8 @@
-<!-- expect errors=7 warnings=3 -->
+<!-- expect FORMAT=1 R10=2 R3=1 R6=4 R7=1 warn:R1=1 warn:R7=3 -->
 # [S1] Export and import contacts
 Type: Story
+Priority: Must
+Goal: Users can move contacts as discussed, TBD, fast.
 Handoff: contacts-pr-01
 Jira:
 

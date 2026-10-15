@@ -42,8 +42,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # Each fixture declares its exact error and warning counts, so a check that stops
-      # firing fails here instead of passing every draft it was meant to stop.
+      # Each fixture declares its exact count per finding code, and each readback case its
+      # count of lines Jira lost, so a check that stops firing, or fires under the wrong
+      # code, fails here instead of passing every draft it was meant to stop.
       - name: Linter fixtures produce their declared counts
         run: python3 skills/write-tickets/scripts/lint_draft.py --self-test
 

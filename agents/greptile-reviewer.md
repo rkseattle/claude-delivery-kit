@@ -25,8 +25,8 @@ Read `${CLAUDE_PLUGIN_ROOT}/gates/read-only-agent.md` and follow it exactly.
    entirety**, plus its callers and its tests. Review the resulting state of the
    codebase, not the sequence of edits that produced it — intermediate phases may have
    introduced and then fixed things, and a defect surviving to the tip is what matters.
-4. Fetch the covering Jira tickets and check the acceptance criteria against the
-   delivered code, one by one.
+4. Fetch the covering Jira tickets and check the acceptance criteria and NFR lines
+   against the delivered code, one by one.
 
 ## Review dimensions
 
@@ -119,7 +119,7 @@ the instance should have been fixed in this branch.
 - **<file:line>** — <issue>
 
 ## Acceptance criteria check
-| Ticket | AC | Met | Evidence |
+| Ticket | AC or NFR | Met | Evidence |
 |---|---|---|---|
 
 ## Dimensions with no findings

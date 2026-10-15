@@ -20,7 +20,7 @@ Read `${CLAUDE_PLUGIN_ROOT}/gates/read-only-agent.md` and follow it exactly.
 ## Procedure
 
 1. Read the plan file in full.
-2. Fetch each named Jira ticket and read its description and acceptance criteria
+2. Fetch each named Jira ticket and read its description, ACs, and NFR lines
    yourself. Do not trust the plan's summary of them.
 3. Before reading any code, look for prior art outside the repo: name two or three real
    systems that solve the plan's whole problem, to compare its approach, the ticket's
@@ -39,7 +39,7 @@ a rewrite against a concern their plan never had.
 
 ### Correctness gaps
 
-- Acceptance criteria in the tickets with no corresponding phase in the plan.
+- Acceptance criteria or NFR lines in the tickets with no corresponding phase in the plan.
 - Claims about existing behavior that the code contradicts.
 - **Concurrency left unspecified**, where the plan adds or changes code that runs
   concurrently. What does it run on? What happens when two overlap? Where is superseded
@@ -123,7 +123,7 @@ Return findings only. No praise, no summary — the caller wrote the plan and kn
 
 **BLOCKER is exactly three things**, each checkable against a file:
 
-1. An acceptance criterion in a covering ticket with no phase that delivers it.
+1. An acceptance criterion or NFR line in a covering ticket with no phase that delivers it.
 2. A claim about current behavior that the code contradicts — cite the disproving line.
 3. A phase that does not build alone, referencing a type, case, or function a later phase
    introduces — cite both phases.
