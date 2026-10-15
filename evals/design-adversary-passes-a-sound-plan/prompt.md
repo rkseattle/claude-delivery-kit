@@ -15,7 +15,7 @@ You are acting as the `design-adversary` agent. Its definition is at
 
 Review the plan below. Jira is unavailable in this environment, so the ticket and its
 acceptance criteria are reproduced in full underneath the plan; treat them as if you had
-fetched them yourself. The ticket has no parent Epic. The repository the plan describes is
+fetched them yourself. The ticket's parent Epic, ABC-200, is reproduced after it. The repository the plan describes is
 not present either, so treat the plan's factual claims about existing code as verified —
 you cannot grep for what is not here, and a claim you cannot check is `UNVERIFIABLE`, not
 a `BLOCKER`.
@@ -47,6 +47,7 @@ Covering ticket: ABC-204.
 | AC3 | ABC-204 | Retries back off exponentially | 1 | `spec/backoff_spec.rb:doubles_each_attempt` | — |
 | AC4 | ABC-204 | No more than 5 attempts are made | 1 | `spec/backoff_spec.rb:caps_at_five` | — |
 | AC5 | ABC-204 | Attempt count is visible on the delivery detail view | 3 | `spec/views/delivery_detail_spec.rb:shows_attempts` | — |
+| AC6 | ABC-204 | NFR1: a failing delivery reaches dead-letter within 15 minutes of its first attempt | 2 | `spec/delivery_retry_spec.rb:dead_letters_within_15_minutes` | — |
 
 ## Approach
 
@@ -108,7 +109,7 @@ flowchart LR
 
 ## Likely changes
 
-- The backoff algorithm or its constants — hidden behind `Backoff`.
+- The backoff algorithm — hidden behind `Backoff`.
 
 ## Data ownership
 
@@ -125,11 +126,14 @@ flowchart LR
 | system | none — no new external boundary; the worker's queue wiring is unchanged |
 | acceptance | The attempts row in `spec/views/delivery_detail_spec.rb` |
 
-Coverage target: every branch of `Backoff` and of the worker's failure handling.
+Coverage target: 100% branch coverage of `Backoff` and of the worker's failure handling.
 
 ## NFR coverage
 
-none — ABC-204 has no non-functional requirements and no parent Epic.
+| Ticket | NFR | Design element |
+| --- | --- | --- |
+| ABC-204 | NFR1 | `Backoff`'s `cap` of 120 seconds bounds each of the four waits between five attempts, so dead-letter lands at most 8 minutes after the first |
+| ABC-200 | NFR1 | Untouched by this branch: the success-rate measurement is sibling ABC-206's work; these retries raise the rate but do not measure it |
 
 ## Rejected alternatives
 
@@ -164,7 +168,8 @@ lines of logic the repo already has an implementation of.
   from `Backoff` and increments `delivery_attempts`. At five attempts it routes to the
   existing dead-letter path rather than retrying further. The 4xx branch is untouched.
 - Tests added: `spec/delivery_retry_spec.rb` covering retry on 5xx, retry on timeout, no
-  retry on 4xx, and the dead-letter transition at attempt five.
+  retry on 4xx, the dead-letter transition at attempt five, and that it lands within 15
+  minutes of the first attempt with the 120-second cap.
 - Commit message: `ABC-204 - Retry failed webhook deliveries with backoff`
 
 ### Phase 3 — Surface the attempt count on the delivery detail view
@@ -212,3 +217,13 @@ a caller error produces the same error.
 - Retries back off exponentially between attempts
 - No more than 5 attempts are made for a single delivery
 - The number of attempts made is visible on the delivery detail view
+
+**Non-functional requirements:**
+
+- NFR1: a failing delivery reaches the dead-letter path at most 15 minutes after its first attempt [verify: integration @ spec/delivery_retry_spec.rb]
+
+**Parent Epic:** ABC-200 — Reliable webhook delivery
+
+**Non-functional requirements:**
+
+- NFR1: webhook delivery success rate at least 99.5% over 30 days [verify: system @ the delivery success dashboard]

@@ -82,8 +82,8 @@ flowchart LR
 - Inputs: an authenticated request with optional `cursor` and `limit`.
 - Outputs: `{ "deliveries": [...], "next_cursor": "..." }`.
 - Errors: `InvalidCursor` becomes a 400; a `limit` above 100 is clamped to 100.
-- Versioning: a request with no `cursor` returns the newest page, so existing clients get
-  page one rather than an error; documented in the API changelog.
+- Versioning: breaking for clients that read the whole history in one response; the API
+  changelog announces it, and those clients follow `next_cursor` to read the rest.
 
 ## Likely changes
 
@@ -104,7 +104,7 @@ flowchart LR
 | system | p95 latency at 200 requests/second in `spec/perf/deliveries_api_load_spec.rb` |
 | acceptance | The five ACs, each named in the coverage table |
 
-Coverage target: every branch of the query and the controller action.
+Coverage target: 100% branch coverage of the query and the controller action.
 
 ## NFR coverage
 

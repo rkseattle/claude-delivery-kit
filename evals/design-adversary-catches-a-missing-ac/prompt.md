@@ -105,7 +105,7 @@ flowchart LR
 | system | none — no new external boundary |
 | acceptance | The 90-day window end to end in `spec/exports/delivery_export_spec.rb` |
 
-Coverage target: every branch of the query and the export.
+Coverage target: 100% branch coverage of the query and the export.
 
 ## NFR coverage
 

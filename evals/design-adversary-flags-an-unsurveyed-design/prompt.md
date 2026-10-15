@@ -113,7 +113,7 @@ to change.
 | system | none — GitHub is stubbed at the HTTP boundary |
 | acceptance | The three ACs, each named in the coverage table |
 
-Coverage target: every branch of the three sync classes.
+Coverage target: 100% branch coverage of the three sync classes.
 
 ## NFR coverage
 

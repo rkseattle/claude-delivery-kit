@@ -91,7 +91,9 @@ the sound-plan case and fails this one; a reviewer that blocks everything does t
 Only both passing says the severity line sits where it was meant to.
 
 `design-adversary-catches-an-unmapped-nfr` checks the fourth BLOCKER kind the same way: its
-NFR2 has a phase but no `NFR coverage` row, so only that kind can block it.
+NFR2 has a phase but no `NFR coverage` row, so only that kind can block it. Its
+false-positive partner is again the sound plan, whose ticket NFR and parent Epic NFR both
+have rows, the Epic's stating this branch leaves it untouched.
 
 ## What these cases cannot test
 
