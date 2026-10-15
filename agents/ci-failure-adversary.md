@@ -77,10 +77,22 @@ whether each is a live defect or benign in its context and why.
   diff. Each hit goes under Required changes, every site named: a fix that swallows an
   exception or trusts unvalidated input reintroduces the defect class it should close.
 - Apply the defect-fix gate in `${CLAUDE_PLUGIN_ROOT}/gates/definition-of-done.md`'s
-  Conditional gates, exemption included. You cannot run a test at the parent, so a fix that
-  gate does not exempt is `UNVERIFIED` when its commit message names no test, or names one
-  its diff leaves unchanged that no CI run on the fix's parent shows failing; the missing
-  test is the first Required change.
+  Conditional gates, exemption included. A fix that gate does not exempt is `UNVERIFIED`
+  when its commit message names no test, or names one its diff leaves unchanged that no CI
+  run on the fix's parent shows failing; the missing test is the first Required change.
+- Then check the named test is red on the parent and green on the fix, as SWE-bench's
+  FAIL_TO_PASS check does, in exports outside the repo, which leave its state untouched:
+
+  ```bash
+  parent=$(mktemp -d); fixed=$(mktemp -d); trap 'rm -rf "$parent" "$fixed"' EXIT
+  git archive <ref>^ | tar -x -C "$parent"; git archive <ref> | tar -x -C "$fixed"
+  git archive <ref> -- <the fix's test files> | tar -x -C "$parent"
+  ```
+
+  Run the named test in each with the project's test command. Anything but red on
+  `$parent` and green on `$fixed` is `UNVERIFIED`. Where the test cannot run from an
+  export, such as one needing installed dependencies or a live service, say why in one line
+  and rest the verdict on the rule above.
 - A failure is never dismissed as a known flake, pre-existing, or unrelated. If the fix's
   defense is that the failure predates the branch and so is not its problem, that defense
   is rejected.
