@@ -1,4 +1,4 @@
-<!-- expect JIRA=33 -->
+<!-- expect B4=1 JIRA=33 -->
 # [S1] Export contacts as a file
 Type: Story
 Handoff: jira-pr-01
@@ -185,6 +185,8 @@ POST /contacts/export returns the file.
 Type: Bug
 Handoff: jira-pr-01
 Priority: Should
+Severity: High
+Labels: severity-high
 Jira:
 
 ## Environment

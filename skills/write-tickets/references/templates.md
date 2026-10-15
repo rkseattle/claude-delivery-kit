@@ -14,6 +14,7 @@ Handoff: auth-refresh-pr-01
 Priority: Must
 Goal:
 Labels:
+Baseline:
 Jira:
 ```
 
@@ -27,10 +28,19 @@ Jira:
 - **Priority** — `Must`, `Should`, `Could`, or `Won't`, with a straight apostrophe
   (MoSCoW). Required on Story, Task, and Bug; optional on an Epic. `Won't` records work
   deliberately left out.
+- **Severity** — a Bug header line, required there and nowhere else: `Critical` (data
+  loss, security breach, outage), `High` (core function broken, no workaround), `Medium`
+  (workaround exists), or `Low` (cosmetic). It rates the defect; BLOCKER to MINOR rate
+  review findings.
 - **Goal** — one sentence, on one line, naming the outcome the ticket serves. Required on
   a Story or Task with no `Parent:`; a child serves its epic's goal, and a Bug restores
   behavior a goal already justified.
-- **Jira** — empty; filled on creation. **Open questions** — must be empty before review.
+- **Labels** — comma-separated; never a `moscow-*` or `severity-*` label, which Step 8
+  derives from `Priority:` and `Severity:`.
+- **Baseline** — empty; filled only by rewrite mode, with the key of the issue it fetched,
+  which the header ID and `Jira:` hold too.
+- **Jira** — empty; filled on creation, or by rewrite mode with the key being rewritten.
+  **Open questions** — must be empty before review.
 
 ## Line formats
 
@@ -42,6 +52,10 @@ Jira:
 - Code: `symbol()` in path/to/file (exists on the parent branch)
 - SM1: <observable measure> [children: S1, S2]    (Epic success measures)
 - NFR1: <metric> <comparator> <number><unit> <condition> [verify: <tier> @ <evidence>]
+- AC3 added: <what it says>                       (Change impact)
+- AC1 removed: <what it said>                     (Change impact)
+- AC2 changed: <what it said>; now <what it says> (Change impact)
+- <key or ID> scope: <what moves to or from it>   (Change impact)
 ```
 
 Commas and semicolons inside an AC make separate `plan-work` rows. Use them only between
@@ -87,6 +101,13 @@ decision.
   when known.
 - **Out of scope** — each item with where it lives: a ticket, or `(not planned)`. An
   excluded instance of a root cause states why it is benign in context.
+
+A ticket whose `Baseline:` line is filled is a rewrite of a baselined ticket, and carries
+**Change impact**: one line per AC — on an Epic, per success measure or child — `added`,
+`removed`, or `changed`, and per other ticket whose scope moves, in the formats above; a
+rewrite that moves neither says in one line what changed. Step 8 posts it as a comment on
+the issue, never in the description. Any other ticket carries none. The linter checks
+the section is present, non-empty, and Jira-safe; its lines are checked in review.
 
 A spike Task has one AC: a decision record committed at a named path, stating the option
 chosen and why.

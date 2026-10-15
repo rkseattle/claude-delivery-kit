@@ -108,8 +108,8 @@ never reaches Jira.
 
 ## Step 7 — Present for approval
 
-In chat, one table — ID, type, summary, priority, handoff, AC clauses, touch points,
-blocked by — followed by:
+In chat, one table — ID, type, summary, priority, severity, handoff, AC clauses, touch
+points, blocked by — followed by:
 
 - clauses that need out-of-band verification, called out separately
 - any sequenced split from Step 3, and every DECISION from the review
@@ -124,18 +124,20 @@ Look up the project's issue types and link types via the Atlassian MCP first; ne
 a name or ID.
 
 1. Epics first, then the rest in draft order.
-2. Summary, parent, and labels: every `Labels:` value, the `Handoff:` label, and, for a
-   non-empty `Priority:`, `moscow-<priority>` in lowercase — `Won't` is `moscow-wont`.
+2. Summary, parent, and labels: every `Labels:` value, the `Handoff:` label, for a
+   non-empty `Priority:`, `moscow-<priority>` in lowercase — `Won't` is `moscow-wont` —
+   and for a Bug, `severity-<severity>` in lowercase.
 3. Description: `Goal: <sentence>` first when the header has one, then every `##` section
-   except Open questions and review output, with each `[verify: …]` and `[children: …]`
-   tag inside a code span. The Atlassian connector's read conversion drops a bare tag's
-   brackets; a code span survives it verbatim.
+   except Open questions, Change impact, and review output, with each `[verify: …]` and
+   `[children: …]` tag inside a code span. The Atlassian connector's read conversion drops
+   a bare tag's brackets; a code span survives it verbatim.
 4. For each Blocked-by entry, a link of the blocking type with the blocker as outward.
 5. After each creation, write the key into its `Jira:` line and replace its local ID with
    the key everywhere in the draft — as a whole ID, never the `S1` in `S10` — before
    creating the next ticket.
 6. Read each ticket back with `jira_get_issue`, which returns Markdown. Check it carries
-   every label item 2 names, save its description verbatim to
+   every label item 2 names and no other `moscow-*` or `severity-*` label, save its
+   description verbatim to
    `docs/tickets/<slug>.<key>.md`, and run:
 
    ```bash
@@ -152,18 +154,29 @@ a name or ID.
    local ID. Once every ticket exists, update each ticket whose draft text item 5 changed
    after its creation, and give it item 6 again.
 
-For `<TICKET-N ...>` arguments, fetch each into a draft with `Jira:` filled, mapping:
+For `<TICKET-N ...>` arguments, fetch each into a draft with its key as the header ID and
+on its `Baseline:` and `Jira:` lines, so no local ID stands for an issue that already
+exists, mapping:
 
 - its `moscow-*` label to `Priority:` — `moscow-wont` as `Won't`, the rest title-cased; no
   such label, or more than one, leaves `Priority:` empty for Step 1 to settle
-- every other label but the handoff label to `Labels:`
+- on a Bug, its `severity-*` label to `Severity:`, title-cased; no such label, or more
+  than one, leaves `Severity:` empty for Step 1 to settle; on any other type, none
+- every other label but the handoff label to `Labels:` — never a `moscow-*` or
+  `severity-*` label, which only the two headers above carry
 - a leading `Goal:` description line to the `Goal:` header
 - a code span holding a whole `[verify: … @ …]` or `[children: …]` tag, or the
   `\verify: …\` an older write left, to the bare tag
 
-Run Steps 2–7, and update instead of create, replacing the `moscow-*` label rather than
-adding a second. A ticket that must split keeps its key for the ACs it retains; say which
-new key holds the rest.
+Run Steps 2–7, and update instead of create: item 2's labels replace the ticket's
+`moscow-*` and `severity-*` labels, and a `moscow-*` or `severity-*` label item 2 no
+longer writes is removed. Each rewritten ticket carries `## Change impact` (rubric R15).
+After item 7, when item 5 has replaced every local ID, post each note once with
+`jira_add_comment`: a first line `Change impact`, then the section's lines, tags in code
+spans as in item 3. The comment ID it returns confirms the post; a post that returns none
+is never retried, since it may have landed. Any stop after the first update — item 6's, a
+failed post, any other — brings Rob every note not yet confirmed. A ticket that must split
+keeps its key for the ACs it retains; say which new key holds the rest.
 
 ## Step 9 — Report
 

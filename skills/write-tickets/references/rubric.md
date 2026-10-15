@@ -66,8 +66,8 @@ same behavior. Prevents: a `Deviation` row.
 
 **R12 Prioritized.** `Priority:` is one of `Must`, `Should`, `Could`, or `Won't` (MoSCoW);
 optional on an Epic, where an empty one is the same as none. `Won't` is written down, not
-left out, so excluded work is visible as excluded. Prevents: a release with no Must set to
-check "All Must acceptance tests pass" against.
+left out, so excluded work is visible as excluded. `Labels:` holds no `moscow-*` label.
+Prevents: a release with no Must set to check "All Must acceptance tests pass" against.
 
 **R13 Measurable non-functional requirements.** Epic and Story only; a Task or Bug carries
 no NFR section. Each line of `## Non-functional requirements` is `- NFR<n>:` with a symbol
@@ -82,6 +82,12 @@ naming the outcome it serves, held to R6, R7, and R10 like the sections. Bugs ar
 and an Epic states its goal in `## Goal`; neither carries the header.
 Prevents: work that serves no goal reaching a plan unchallenged.
 
+**R15 Change impact recorded.** A ticket whose `Baseline:` line is filled is a rewrite of
+a baselined ticket. It carries `## Change impact`: each AC added,
+removed, or changed, and each other ticket whose scope moves; or, when neither moves, one
+line on what changed. Any other ticket carries none. Prevents: a baselined ticket changing
+under a plan with no record of what moved.
+
 ## Bug, in addition
 
 **B1 Reproducible.** Steps use specific inputs; Environment names the commit or build;
@@ -94,6 +100,10 @@ the current code and passes after the fix.
 B2 holds. Otherwise a diagnosis Task comes first — AC: a committed failing test and a
 root-cause note — and the Bug is Blocked by it.
 
+**B4 Rated.** `Severity:` is one of `Critical`, `High`, `Medium`, or `Low`, as
+templates.md defines them, on a Bug and nowhere else; `Labels:` holds no `severity-*`
+label. Prevents: a defect no release gate can count.
+
 ## Epic
 
 **E1** Goal is an outcome; each success measure is observable.
@@ -103,10 +113,12 @@ demonstrate it.
 **E4** Blocked-by links form no cycle; Children is in build order.
 **E5** Out of scope is present and non-empty.
 **R13** applies to an Epic's `## Non-functional requirements` as to a Story's.
+**R15** applies to a rewritten Epic, its `## Change impact` listing each success measure or
+child added, removed, or changed.
 
 ## Severity
 
-`ticket-adversary` uses the kit's scale:
+`ticket-adversary` rates its findings on the kit's scale; a Bug's `Severity:` header is B4.
 
 - **BLOCKER** — `plan-work` would propose a split, write a `Deviation`, or leave a clause
   unphased; or a claim about the code is false (R1–R5, R7, R11, B2).

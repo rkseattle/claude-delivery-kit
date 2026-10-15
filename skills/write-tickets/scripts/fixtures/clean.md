@@ -107,6 +107,7 @@ POST /auth/refresh with a revoked token returns 401.
 # [B1] Return 400 when the login email is empty
 Type: Bug
 Priority: Won't
+Severity: Low
 Goal:
 Blocked by: None
 Handoff: auth-refresh-pr-02

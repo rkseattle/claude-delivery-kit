@@ -49,7 +49,10 @@ REQUIRED = {
 }
 # MoSCoW as the DSDM Agile Project Framework defines it. The apostrophe is straight.
 PRIORITIES = ["Must", "Should", "Could", "Won't"]
+# Defect severity as the rule book's Phase 5 rates it, most severe first.
+SEVERITIES = ["Critical", "High", "Medium", "Low"]
 NFR_SECTION = "Non-functional requirements"
+CHANGE_IMPACT = "Change impact"
 SPEC_SECTIONS = ["Goal", "Behavior", "Change", "Acceptance criteria", "Expected", "Success measures", NFR_SECTION]
 UNDECIDED = [r"\bTBD\b", r"\bTBC\b", r"\bTODO\b", r"\?\?", r"\betc\b", r"\be\.g\.", r"\band/or\b",
              r"\bas needed\b", r"\bas appropriate\b", r"\bif possible\b", r"\bwhere applicable\b",
@@ -62,7 +65,7 @@ SESSION_REFS = [r"\bas discussed\b", r"\bas mentioned\b", r"\bper (the )?above\b
 
 # A local ID while drafting; Step 8 replaces it with the Jira key once the ticket exists.
 HEADER = re.compile(r"^# \[(?P<id>[ESTB]\d+|[A-Z][A-Z0-9]+-\d+)\]\s+(?P<summary>.+?)\s*$")
-META = re.compile(r"^(Type|Parent|Blocked by|Handoff|Labels|Priority|Goal|Jira):\s*(.*)$")
+META = re.compile(r"^(Type|Parent|Blocked by|Handoff|Labels|Priority|Severity|Goal|Baseline|Jira):\s*(.*)$")
 SECTION = re.compile(r"^## (.+?)\s*$")
 VERIFY_TAG = r"\[verify:\s*([^@\]\s][^@\]]*?)\s*@\s*([^\]\s][^\]]*?)\s*\]"
 AC = re.compile(r"^-\s+AC(\d+):\s+(.+?)\s*" + VERIFY_TAG + r"\s*$")
@@ -198,6 +201,20 @@ def lint(items, repo):
                 err(i, "R12", f"missing Priority: — one of {', '.join(PRIORITIES)}")
         elif priority not in PRIORITIES:
             err(i, "R12", f"Priority must be one of {', '.join(PRIORITIES)}, got '{priority}'")
+        severity = i["meta"].get("Severity") or None
+        if t != "Bug":
+            if severity:
+                err(i, "B4", f"Severity: belongs on a Bug, not on this {t}")
+        elif severity is None:
+            err(i, "B4", f"missing Severity: — one of {', '.join(SEVERITIES)}")
+        elif severity not in SEVERITIES:
+            err(i, "B4", f"Severity must be one of {', '.join(SEVERITIES)}, got '{severity}'")
+        # Step 8 derives these label families from their headers; one in Labels: would be
+        # written beside, or instead of, the header's.
+        for label in ids(i["meta"].get("Labels")):
+            for prefix, header, code in (("moscow-", "Priority", "R12"), ("severity-", "Severity", "B4")):
+                if label.lower().startswith(prefix):
+                    err(i, code, f"label '{label}' in Labels: — remove it; Step 8 writes it from {header}:")
         for n in i["stray"]:
             # A header field is one line; a wrapped one would otherwise lose its tail unseen.
             err(i, "FORMAT", f"line {n} in the header is not a 'Field: value' line")
@@ -212,6 +229,22 @@ def lint(items, repo):
                 err(i, "FORMAT", f"'## {s}' is empty")
         if body(i["sections"].get("Open questions", [])):
             err(i, "R6", "Open questions has content — settle it before review")
+        # Only rewrite mode fills Baseline:; Step 8 fills Jira: on creation too, so Jira: alone
+        # cannot tell a baselined ticket from one this run created.
+        baseline = i["meta"].get("Baseline", "")
+        if baseline and not body(i["sections"].get(CHANGE_IMPACT, [])):
+            state = "empty" if CHANGE_IMPACT in i["sections"] else "missing"
+            err(i, "R15", f"Baseline: {baseline} is filled and '## {CHANGE_IMPACT}' is {state} — "
+                          "record what this rewrite changes")
+        elif CHANGE_IMPACT in i["sections"] and not baseline:
+            err(i, "R15", f"'## {CHANGE_IMPACT}' belongs on a ticket whose Baseline: line is filled")
+        for field in ("Baseline", "Jira"):
+            value = i["meta"].get(field, "")
+            if value and not KEY.match(value):
+                err(i, "FORMAT", f"{field}: '{value}' is not a Jira key")
+        if baseline and not baseline == i["id"] == i["meta"].get("Jira", ""):
+            err(i, "FORMAT", f"Baseline: {baseline} must match the header ID and Jira: — "
+                             "a rewrite updates the issue it fetched")
         goal = i["meta"].get("Goal", "")
         if goal and t not in GOAL_TYPES:
             err(i, "R14", f"Goal: belongs on a Story or Task, not on this {t}")
@@ -223,10 +256,11 @@ def lint(items, repo):
                     if re.search(p, line, re.I):
                         err(i, "R10", f"refers to the authoring session in {s}: {line[:80]}")
         # What Step 8 sends must come back from jira_get_issue as sent; templates.md says why.
-        sent = step8_lines(i)
-        for change in line_changes(sent, roundtrip("\n".join(sent))):
-            # The read's own placeholders can surface when a {code} macro swallows text.
-            err(i, "JIRA", f"Jira's round trip changes {change}".replace("\x00", "")[:200])
+        # The change-impact comment goes through the same connector write.
+        for sent in (step8_lines(i), comment_lines(i)):
+            for change in line_changes(sent, roundtrip("\n".join(sent))):
+                # The read's own placeholders can surface when a {code} macro swallows text.
+                err(i, "JIRA", f"Jira's round trip changes {change}".replace("\x00", "")[:200])
         for s in SPEC_SECTIONS + [GOAL_HEADER]:
             for line in prose_lines(prose.get(s, [])):
                 text = without_literals(line)
@@ -354,15 +388,26 @@ def normalized(lines):
     return [l if fenced else re.sub(r"^\d+\.\s", "1. ", l) for l, fenced in unfenced(lines)]
 
 
+def section_lines(lines):
+    """A section as Step 8 writes it: prose with its tags in code spans, fenced lines verbatim."""
+    return [l if fenced else jira_line(l) for l, fenced in unfenced(lines)]
+
+
 def step8_lines(item):
     """The description Step 8 writes for a draft item: one entry per prose line, and a
     fenced block's lines verbatim."""
     goal = item["meta"].get("Goal")
     lines = [jira_line(f"Goal: {goal}")] if goal else []
     for s, sec in item["sections"].items():
-        if s != "Open questions":
-            lines += [f"## {s}"] + [l if fenced else jira_line(l) for l, fenced in unfenced(sec)]
+        if s not in ("Open questions", CHANGE_IMPACT):
+            lines += [f"## {s}"] + section_lines(sec)
     return lines
+
+
+def comment_lines(item):
+    """The change-impact comment Step 8 posts for a rewritten item, written as the
+    description is."""
+    return section_lines(item["sections"].get(CHANGE_IMPACT, []))
 
 
 def readback(item, fetched):
@@ -394,18 +439,27 @@ def line_changes(sent, fetched):
 
 
 def readback_cli_test(cases, scratch):
-    """Step 8 runs --readback on a draft whose headers already hold Jira keys, and on a
-    rewritten one whose header keeps its local ID and whose `Jira:` line holds the key."""
+    """Step 8 runs --readback on a draft whose headers already hold Jira keys; on a
+    rewritten one, keyed the same, whose `## Change impact` Step 8 posts as a comment rather
+    than in the description; and on one whose header still holds a local ID, found by its
+    `Jira:` line."""
     draft_text = open(os.path.join(cases, "_draft.md"), encoding="utf8").read()
     keyed = os.path.join(scratch, "keyed.md")
     with open(keyed, "w", encoding="utf8") as f:
         f.write(draft_text.replace("[S1]", "[AB-2]").replace("[E1]", "[AB-1]"))
     rewritten = os.path.join(scratch, "rewritten.md")
     with open(rewritten, "w", encoding="utf8") as f:
+        f.write(re.sub(r"(# \[S1\].*\n(?:.+\n)*?)Jira:\n", r"\1Baseline: AB-2\nJira: AB-2\n", draft_text, count=1)
+                .replace("[S1]", "[AB-2]")
+                .replace("## Open questions\n", "## Change impact\n- AC1 changed: returned 201; now returns 200\n\n"
+                         "## Open questions\n", 1))
+    local = os.path.join(scratch, "local.md")
+    with open(local, "w", encoding="utf8") as f:
         f.write(re.sub(r"(# \[S1\].*\n(?:.+\n)*?)Jira:\n", r"\1Jira: AB-3\n", draft_text, count=1))
     failed = 0
     for draft, key, case, want in ((keyed, "AB-2", "faithful.md", 0), (keyed, "AB-2", "lost-span.md", 1),
-                                   (rewritten, "AB-3", "faithful.md", 0), (keyed, "AB-9", "faithful.md", 2),
+                                   (rewritten, "AB-2", "faithful.md", 0),
+                                   (local, "AB-3", "faithful.md", 0), (keyed, "AB-9", "faithful.md", 2),
                                    (keyed, "AB-2", "absent.md", 2)):
         with contextlib.redirect_stdout(io.StringIO()):
             got = main([draft, "--readback", key, os.path.join(cases, case)])
@@ -552,8 +606,8 @@ def main(argv=None):
         print("UNPARSEABLE: no tickets found — headers look like '# [S1] Summary' or '# [AB-1] Summary'")
         return 2
     if a.readback:
-        # The header holds the key once Step 8 has created the ticket; a rewritten ticket keeps
-        # its local header, and its `Jira:` line holds the key.
+        # The header holds the key once Step 8 has created or fetched the ticket; a header that
+        # still holds a local ID is found by its `Jira:` line.
         item = next((i for i in items if a.readback[0] in (i["id"], i["meta"].get("Jira"))), None)
         if item is None:
             print(f"UNPARSEABLE: no header or Jira: line names {a.readback[0]} in {a.draft}")
