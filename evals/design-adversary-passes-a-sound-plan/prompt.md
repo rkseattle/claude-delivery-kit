@@ -15,9 +15,10 @@ You are acting as the `design-adversary` agent. Its definition is at
 
 Review the plan below. Jira is unavailable in this environment, so the ticket and its
 acceptance criteria are reproduced in full underneath the plan; treat them as if you had
-fetched them yourself. The repository the plan describes is not present either, so treat
-the plan's factual claims about existing code as verified — you cannot grep for what is
-not here, and a claim you cannot check is `UNVERIFIABLE`, not a `BLOCKER`.
+fetched them yourself. The ticket's parent Epic, ABC-200, is reproduced after it. The
+repository the plan describes is not present either, so treat the plan's factual claims
+about existing code as verified — you cannot grep for what is not here, and a claim you
+cannot check is `UNVERIFIABLE`, not a `BLOCKER`.
 
 Return findings in the format the agent definition specifies.
 
@@ -46,6 +47,7 @@ Covering ticket: ABC-204.
 | AC3 | ABC-204 | Retries back off exponentially | 1 | `spec/backoff_spec.rb:doubles_each_attempt` | — |
 | AC4 | ABC-204 | No more than 5 attempts are made | 1 | `spec/backoff_spec.rb:caps_at_five` | — |
 | AC5 | ABC-204 | Attempt count is visible on the delivery detail view | 3 | `spec/views/delivery_detail_spec.rb:shows_attempts` | — |
+| AC6 | ABC-204 | NFR1: a failing delivery reaches dead-letter within 15 minutes of its first attempt | 2 | `spec/delivery_retry_spec.rb:dead_letters_within_15_minutes` | — |
 
 ## Approach
 
@@ -60,6 +62,78 @@ which is exactly the thundering-herd case the full-jitter variant addresses.
 In-repo precedent: `app/services/payment_retry.rb:14` already implements this same
 algorithm for payment-processor calls, with the same `base` and `cap` constants. This plan
 extracts that logic rather than writing a second copy — see Phase 1.
+
+## Components and interfaces
+
+```mermaid
+flowchart LR
+  DeliveryWorker --> Backoff
+  PaymentRetry --> Backoff
+  DeliveryDetailView --> deliveries
+  DeliveryWorker --> deliveries
+```
+
+### Backoff (new, `app/lib/backoff.rb`)
+
+- Responsibility: compute the full-jitter delay for a retry attempt, up to five attempts.
+- Inputs: `attempt` (attempts made so far, from one), `base`, `cap`, from `DeliveryWorker`
+  and `PaymentRetry`.
+- Outputs: a delay in seconds, in `[0, min(cap, base * 2**attempt)]`, or `nil` once
+  `attempt` reaches five.
+- Errors: raises `ArgumentError` on an `attempt` below one; each caller increments first.
+- Versioning: keyword arguments, so a new parameter takes a default and no caller changes.
+
+### DeliveryWorker (`app/workers/delivery_worker.rb`)
+
+- Responsibility: deliver one webhook and decide retry, success, or dead-letter.
+- Inputs: a delivery ID from the job queue.
+- Outputs: a rescheduled job with a `Backoff` delay, or a dead-letter entry.
+- Errors: 5xx and timeout reschedule; 4xx, or `nil` from `Backoff`, routes to dead-letter.
+- Versioning: job arguments unchanged, so jobs enqueued before the deploy still run.
+
+### PaymentRetry (`app/services/payment_retry.rb`)
+
+- Responsibility: retry payment-processor calls with payment-specific logging.
+- Inputs: unchanged — a `PaymentContext` and the call to retry.
+- Outputs: unchanged.
+- Errors: unchanged; payments already stop at five attempts, where `Backoff` returns `nil`.
+- Versioning: public interface unchanged.
+
+### DeliveryDetailView (`app/views/deliveries/show.html.erb`)
+
+- Responsibility: render one delivery's details.
+- Inputs: a delivery record.
+- Outputs: the detail table, now with an attempts row.
+- Errors: none new; `delivery_attempts` defaults to zero and is never nil.
+- Versioning: not an interface other code calls.
+
+## Likely changes
+
+- The backoff algorithm — hidden behind `Backoff`.
+
+## Data ownership
+
+| Store | Owning module |
+| --- | --- |
+| `deliveries` table, including `delivery_attempts` | `DeliveryWorker` (the view only reads it) |
+
+## Test strategy
+
+| Level | Risks covered |
+| --- | --- |
+| unit | Delay doubling, the cap, and jitter bounds in `spec/backoff_spec.rb` |
+| integration | Retry, no-retry, and dead-letter transitions in `spec/delivery_retry_spec.rb` |
+| system | none — no new external boundary; the worker's queue wiring is unchanged |
+| acceptance | The attempts row in `spec/views/delivery_detail_spec.rb` |
+
+Coverage target: 100% branch coverage of `Backoff` and of the worker's failure handling.
+
+## NFR coverage
+
+| Ticket | NFR | Design element |
+| --- | --- | --- |
+| ABC-204 | NFR1 | `Backoff`: its 120-second `cap` bounds each of the four waits, and `DeliveryWorker`'s existing 30-second request timeout bounds each of the five attempts, so dead-letter lands within 10.5 minutes of the first attempt plus queue latency, which the 15-minute spec measures end to end |
+| ABC-200 | NFR1 | untouched — this branch changes no code on the webhook settings page |
 
 ## Rejected alternatives
 
@@ -94,7 +168,8 @@ lines of logic the repo already has an implementation of.
   from `Backoff` and increments `delivery_attempts`. At five attempts it routes to the
   existing dead-letter path rather than retrying further. The 4xx branch is untouched.
 - Tests added: `spec/delivery_retry_spec.rb` covering retry on 5xx, retry on timeout, no
-  retry on 4xx, and the dead-letter transition at attempt five.
+  retry on 4xx, the dead-letter transition at attempt five, and that it lands within 15
+  minutes of the first attempt with the 120-second cap.
 - Commit message: `ABC-204 - Retry failed webhook deliveries with backoff`
 
 ### Phase 3 — Surface the attempt count on the delivery detail view
@@ -142,3 +217,13 @@ a caller error produces the same error.
 - Retries back off exponentially between attempts
 - No more than 5 attempts are made for a single delivery
 - The number of attempts made is visible on the delivery detail view
+
+**Non-functional requirements:**
+
+- NFR1: a failing delivery reaches the dead-letter path at most 15 minutes after its first attempt [verify: integration @ spec/delivery_retry_spec.rb]
+
+**Parent Epic:** ABC-200 — Reliable webhook delivery
+
+**Non-functional requirements:**
+
+- NFR1: the webhook settings page loads in under 2 seconds at p95 [verify: system @ spec/system/webhook_settings_load_spec.rb]

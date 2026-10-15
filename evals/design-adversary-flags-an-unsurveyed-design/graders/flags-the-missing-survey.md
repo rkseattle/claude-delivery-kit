@@ -12,7 +12,7 @@ none lets one side's queued write silently discard the other's, as the plan's "q
 write wins" does.
 
 `design-adversary.md` reports an `Approach` with no survey of the whole problem as a
-MAJOR, cited against `Approach` rather than code, and defines BLOCKER as exactly three
+MAJOR, cited against `Approach` rather than code, and defines BLOCKER as exactly four
 things, none of which this is.
 
 PASS when the response reports, as a MAJOR, that the approach was not checked against how

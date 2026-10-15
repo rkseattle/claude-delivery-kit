@@ -15,11 +15,11 @@ You are acting as the `design-adversary` agent. Its definition is at
 
 Review the plan below. Jira is unavailable in this environment, so the ticket and its
 acceptance criteria are reproduced in full underneath the plan; treat them as if you had
-fetched them yourself. The repository the plan describes is not present either, so treat
-the plan's factual claims about existing code as verified — you cannot grep for what is
-not here, and a claim about code you cannot check is `UNVERIFIABLE`, not a `BLOCKER`. Web
-search is unavailable too: name the real systems for your prior-art survey from your own
-knowledge.
+fetched them yourself. The ticket has no parent Epic. The repository the plan describes is
+not present either, so treat the plan's factual claims about existing code as verified —
+you cannot grep for what is not here, and a claim about code you cannot check is
+`UNVERIFIABLE`, not a `BLOCKER`. Web search is unavailable too: name the real systems for
+your prior-art survey from your own knowledge.
 
 Return findings in the format the agent definition specifies.
 
@@ -58,6 +58,66 @@ returned sha for the next write.
 
 In-repo precedent: `app/sync/drive_sync.rb:30` keeps a per-file revision map the same way
 for the Google Drive integration.
+
+## Components and interfaces
+
+```mermaid
+flowchart LR
+  GithubPush --> GithubTree
+  GithubPull --> GithubTree
+  GithubTree --> sync_shas
+```
+
+### GithubTree (new, `app/sync/github_tree.rb`)
+
+- Responsibility: list the repository tree and record each path's blob sha.
+- Inputs: a repository and branch, from `GithubPush` and `GithubPull`.
+- Outputs: a map of path to blob sha.
+- Errors: a GitHub API error raises `SyncError` to the calling push or pull.
+- Versioning: a new internal class; keyword arguments for later options.
+
+### GithubPush (new, `app/sync/github_push.rb`)
+
+- Responsibility: write an edited note with `putFile` and store the returned sha.
+- Inputs: a note edit, or a queued offline edit on reconnect.
+- Outputs: the new blob sha, recorded in `sync_shas` through `GithubTree`.
+- Errors: a network failure queues the edit locally; an API error raises `SyncError`.
+- Versioning: a new internal class.
+
+### GithubPull (new, `app/sync/github_pull.rb`)
+
+- Responsibility: on focus, fetch every path whose blob sha differs from `sync_shas`.
+- Inputs: the app's focus event.
+- Outputs: updated notes in the app.
+- Errors: an API error raises `SyncError`; the pull runs again on next focus.
+- Versioning: a new internal class.
+
+## Likely changes
+
+none — the ticket fixes GitHub as the remote, and no other decision here is expected
+to change.
+
+## Data ownership
+
+| Store | Owning module |
+| --- | --- |
+| `sync_shas` table | `GithubTree` |
+| `notes` table | the existing `Note` model; `GithubPull` writes through it |
+
+## Test strategy
+
+| Level | Risks covered |
+| --- | --- |
+| unit | Tree listing and sha storage in `spec/sync/github_tree_spec.rb` |
+| integration | Push, offline flush, and pull in `spec/sync/push_spec.rb` and `spec/sync/pull_spec.rb` |
+| system | none — GitHub is stubbed at the HTTP boundary |
+| acceptance | The three ACs, each named in the coverage table |
+
+Coverage target: 100% branch coverage of the three sync classes.
+
+## NFR coverage
+
+none — ABC-311 has no non-functional requirements and no parent Epic.
 
 ## Rejected alternatives
 
