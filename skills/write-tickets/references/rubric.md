@@ -66,8 +66,8 @@ same behavior. Prevents: a `Deviation` row.
 
 **R12 Prioritized.** `Priority:` is one of `Must`, `Should`, `Could`, or `Won't` (MoSCoW);
 optional on an Epic, where an empty one is the same as none. `Won't` is written down, not
-left out, so excluded work is visible as excluded. Prevents: a release with no Must set to
-check "All Must acceptance tests pass" against.
+left out, so excluded work is visible as excluded. `Labels:` holds no `moscow-*` label.
+Prevents: a release with no Must set to check "All Must acceptance tests pass" against.
 
 **R13 Measurable non-functional requirements.** Epic and Story only; a Task or Bug carries
 no NFR section. Each line of `## Non-functional requirements` is `- NFR<n>:` with a symbol
@@ -100,8 +100,9 @@ the current code and passes after the fix.
 B2 holds. Otherwise a diagnosis Task comes first — AC: a committed failing test and a
 root-cause note — and the Bug is Blocked by it.
 
-**B4 Rated.** `Severity:` is one of `Critical`, `High`, `Medium`, or `Low`, as templates.md
-defines them, on a Bug and nowhere else. Prevents: a defect no release gate can count.
+**B4 Rated.** `Severity:` is one of `Critical`, `High`, `Medium`, or `Low`, as
+templates.md defines them, on a Bug and nowhere else; `Labels:` holds no `severity-*`
+label. Prevents: a defect no release gate can count.
 
 ## Epic
 

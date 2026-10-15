@@ -35,6 +35,8 @@ Jira:
 - **Goal** — one sentence, on one line, naming the outcome the ticket serves. Required on
   a Story or Task with no `Parent:`; a child serves its epic's goal, and a Bug restores
   behavior a goal already justified.
+- **Labels** — comma-separated; never a `moscow-*` or `severity-*` label, which Step 8
+  derives from `Priority:` and `Severity:`.
 - **Baseline** — empty; filled only by rewrite mode, with the key of the issue it fetched,
   which the header ID and `Jira:` hold too.
 - **Jira** — empty; filled on creation, or by rewrite mode with the key being rewritten.

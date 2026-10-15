@@ -209,6 +209,13 @@ def lint(items, repo):
             err(i, "B4", f"missing Severity: — one of {', '.join(SEVERITIES)}")
         elif severity not in SEVERITIES:
             err(i, "B4", f"Severity must be one of {', '.join(SEVERITIES)}, got '{severity}'")
+        # Step 8 derives these label families from their headers; one in Labels: would be
+        # written beside, or instead of, the header's.
+        for label in ids(i["meta"].get("Labels")):
+            for prefix, header, code in (("moscow-", "Priority", "R12"), ("severity-", "Severity", "B4")):
+                if label.lower().startswith(prefix):
+                    fix = f"set {header}: instead" if header != "Severity" or t == "Bug" else "remove it"
+                    err(i, code, f"label '{label}' in Labels: is derived from {header}: — {fix}")
         for n in i["stray"]:
             # A header field is one line; a wrapped one would otherwise lose its tail unseen.
             err(i, "FORMAT", f"line {n} in the header is not a 'Field: value' line")

@@ -1,4 +1,4 @@
-<!-- expect B2=1 B4=3 E2=2 E3=3 E4=1 FORMAT=6 R12=6 R14=3 R2=1 R3=2 R6=1 -->
+<!-- expect B2=1 B4=4 E2=2 E3=3 E4=1 FORMAT=6 R12=7 R14=3 R2=1 R3=2 R6=1 -->
 # [E1] Contacts export
 Type: Epic
 Priority: High
@@ -73,6 +73,7 @@ x
 # [S4] Rate-limit exports
 Type: Story
 Priority: Must
+Labels: moscow-must, Severity-Low
 Parent: E1
 Blocked by: S1, bogus
 Handoff: contacts-pr-01
