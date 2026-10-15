@@ -43,9 +43,9 @@ targets a behavior whose absence produces a *plausible run* rather than an error
 Each case should pair a check on the *result* with a check on *how Claude got there*, per
 the official guidance: a `regex` or `llm` grader on the reply, and a `tool_used` grader on
 the transcript. The two missing-key cases, `readme-docs-updates-an-existing-readme` and
-both `ci-failure-adversary-*` cases do. `write-tickets-stops-without-config` has a
-`tool_used` grader that cannot fail, since Write is not in its allowlist, and `refuses-without-project-json` and all six
-`design-adversary-*` cases grade the reply only.
+all three `ci-failure-adversary-*` cases do. `write-tickets-stops-without-config` has a
+`tool_used` grader that cannot fail, since Write is not in its allowlist, and
+`refuses-without-project-json` and all six `design-adversary-*` cases grade the reply only.
 
 **Δ is the number that matters, not the score.** A case scoring 1.00 in both arms is
 measuring what the model already knew. The deltas above are from the run of
