@@ -21,12 +21,20 @@ Before any suite runs, a `{{system_test_command}}`, `{{system_results_file}}`, o
 `{{system_results_file}}` equal to `{{results_file}}` or `{{integration_results_file}}`.
 With any of those, there is no system verdict of this suite's own to read, as pre-push
 step 6 stops for the integration suite. The release scope is the tickets `release-readiness`
-Step 2 names: every `{{ticket_prefix}}` key in commit messages since the latest `v*` tag.
+Step 2 names: every `{{ticket_prefix}}` key in a commit subject since the latest `v*` tag
+reachable from HEAD.
+Descriptions are read in Markdown, with `jira_get_issue`, since a heading or `- NFR<n>:`
+line searched for in stripped text is never found.
 
-Every fact below is read by this run. A read that fails — a Jira search that errors or
-returns only part of its results, or an in-scope key Jira cannot return — fails each
-criterion that depends on it. It never counts as an empty list, since a list nobody could
-read would otherwise pass every check it feeds.
+Every fact below is read by this run. A read that fails — a Jira call that errors or returns
+only part of its results — fails each criterion that depends on it. A failed read never
+counts as an empty list, since a list nobody could read would otherwise pass every check it
+feeds. Jira answers "not found" both for a key that does not exist and for one the caller
+may not see, so a scope key it reports as not found leaves the scope, listed under
+`Known risks`, only when at least one other scope key read succeeded. That read shows
+access, and the missing key is then a mistyped or deleted key in a subject nobody can
+rewrite. With no scope key read, every not-found key is a failed read, and a scope left
+empty after removals stops the run.
 
 1. **All Must acceptance tests pass** — fails on any of:
    - `{{system_test_command}}` exits non-zero;
@@ -40,7 +48,8 @@ read would otherwise pass every check it feeds.
      category is not `Done`.
 
    An executed count below the one in the previous release's summary, where
-   `{{release_dir}}` holds it, is a risk the summary names, as pre-push step 5 asks. It does not fail the criterion: tests are removed for good reasons too.
+   `{{release_dir}}` holds it, is a risk the summary names, as pre-push step 5 asks. It
+   does not fail the criterion: tests are removed for good reasons too.
 2. **Zero open Critical or High defects** — fails on any issue of type Bug in
    `{{jira_project}}` whose status category is not `Done` and which carries
    `severity-critical` or `severity-high`. The type is Bug because it is the type
@@ -63,11 +72,11 @@ read would otherwise pass every check it feeds.
      With `{{exceptions_log}}` `none`, no `fail` line is excepted.
 4. **Test summary reviewed by product owner** — the summary's line before `Gate:` reads
    `Reviewed-by: product_owner <name> <YYYY-MM-DD>`, written only on
-   `{{roles.product_owner}}`'s explicit answer. An answer relayed by the person running the
-   session, per `${CLAUDE_PLUGIN_ROOT}/gates/project-config.md`, appends
-   ` (relayed by <login or git user.name>)` after the date. A `Gate: FAIL` summary is reviewed the same
-   way: the line records that the product owner saw the result, and it does not change the
-   result. Anything but an explicit review writes nothing.
+   `{{roles.product_owner}}`'s explicit answer. A relayed answer, as
+   `${CLAUDE_PLUGIN_ROOT}/gates/project-config.md` defines one, names the person it came
+   from and appends `, relayed by <git user.name>` after the date. A `Gate: FAIL` summary is
+   reviewed the same way: the line records that the product owner saw the result, and it
+   does not change the result. Anything but an explicit review writes nothing.
 
 ## The verdict
 
