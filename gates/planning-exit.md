@@ -31,10 +31,12 @@ what was written. With `{{brief_file}}` `none` there is no brief, and the gate c
    `origin/{{parent_branch_default}}`, and `git status --porcelain --untracked-files=all`
    listing nothing but `{{brief_file}}`:
    - `{{build_command}}` passes;
+   - `git fetch` succeeds first, and the HEAD and tree conditions above hold after it;
    - `gh run list --branch {{parent_branch_default}} --limit 1 --json conclusion` reports
-     `success`;
+     `success`; an empty conclusion is a run in progress, waited on through the next check,
+     which covers it, since HEAD is `origin/{{parent_branch_default}}`;
    - the HEAD commit has at least one run, and every run on it,
-     `gh run list --commit "$(git rev-parse HEAD)" --json databaseId,workflowName,status,conclusion`,
+     `gh run list --commit "$(git rev-parse HEAD)" --limit 100 --json databaseId,workflowName,status,conclusion`,
      concluded `success` or `skipped` — GitHub's rule for a commit's combined check status,
      under which a skipped run passes and a commit with no checks is pending, not passing.
 

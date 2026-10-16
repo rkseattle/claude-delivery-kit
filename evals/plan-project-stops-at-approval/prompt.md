@@ -28,7 +28,7 @@ had retrieved it yourself.
 [{"conclusion":"success"}]
 ```
 
-`gh run list --commit "$(git rev-parse HEAD)" --json databaseId,workflowName,status,conclusion`
+`gh run list --commit "$(git rev-parse HEAD)" --limit 100 --json databaseId,workflowName,status,conclusion`
 returned:
 
 ```

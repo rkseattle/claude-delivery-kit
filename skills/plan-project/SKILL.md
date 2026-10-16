@@ -86,7 +86,8 @@ Pending — <sponsor>.
 `roles` the sponsor is the person running the session, per `gates/project-config.md`: use
 their git `user.name`, or ask for a name when it is unset — a name, never the word "you".
 
-Fill it from $ARGUMENTS and the repository. A value neither supplies is a proposal: write
+Fill it from $ARGUMENTS and the repository; with $ARGUMENTS empty, ask what the project is
+for before writing anything. A value neither supplies is a proposal: write
 it, mark it `(proposed)`, and list it at Step 4 for the sponsor to confirm or change — a
 stated assumption rather than a blocking question. Never leave a placeholder in the file.
 
@@ -96,12 +97,13 @@ Then check the file against each rule, and fix what fails before going on:
    — the text between `:` and ` by ` — holds no digit is rejected: rewrite it with a numeric
    target, or remove it. The target runs from the first `:` to the last ` by `, so a digit
    in the date does not count, and a line not in `<Measure>: <target> by <date>` form is
-   rejected too. "Faster checkout by
-   2027-03-01" is not a measure; "Checkout time: under 2 s at p95 by 2027-03-01" is.
-2. **`## Risks` has exactly five rows**, the rule book's top five, each with a
-   `Likelihood` of `low`, `medium`, or `high`, an `Impact`, a `Mitigation`, and an `Owner`
-   naming a person or a role from `roles`.
-3. **`## Lifecycle`** names `{{lifecycle_model}}` and an iteration length in weeks.
+   rejected too. "Faster checkout by 2027-03-01" is not a measure; "Checkout time: under
+   2 s at p95 by 2027-03-01" is.
+2. **`## Risks` passes criterion 3** of `${CLAUDE_PLUGIN_ROOT}/gates/planning-exit.md`, the
+   rule book's top five, each `Owner` a person or a role from `roles`.
+3. **`## Lifecycle`** names `{{lifecycle_model}}` and an iteration length in weeks. Under
+   `waterfall` or `continuous`, which have no iterations, it is the cadence at which the
+   brief is reviewed again.
 4. **`## Estimate`** is a range in weeks, low before high, never a single number or date.
 5. **With `{{project_size}}` `small`, the file is at most 60 lines** — the rule book lets a
    small project's brief fit one page. Count with `wc -l < {{brief_file}}`; over 60, cut
@@ -109,27 +111,16 @@ Then check the file against each rule, and fix what fails before going on:
 
 ## Step 3 — Confirm the repository and CI
 
-This is the rule book's step 6, checked rather than performed: criterion 4 of
-`${CLAUDE_PLUGIN_ROOT}/gates/planning-exit.md` defines what passes. With
-`{{parent_branch_default}}` checked out per Step 1, run `git fetch` and stop unless HEAD
-equals `origin/{{parent_branch_default}}` and `git status --porcelain --untracked-files=all`
-lists nothing but `{{brief_file}}`; a failed fetch is named as that. Stop, too, when
-`brief/<slug>` or `origin/brief/<slug>` already exists — `<slug>` the project name in
-lowercase kebab-case — and ask rather than reuse it. Then run
-`{{build_command}}`. When `{{results_file}}` is not `none`, read the verdict from it with
-`{{results_read_command}}` rather than from the console; otherwise the exit status is the
-verdict. **On failure, stop**: name the command and its first error.
+This is the rule book's step 6, checked rather than performed. Criterion 4 of
+`${CLAUDE_PLUGIN_ROOT}/gates/planning-exit.md` is the one definition of what passes: its
+preconditions, `{{build_command}}`, and the two `gh run list` commands, starting with
+`gh run list --branch {{parent_branch_default}} --limit 1 --json conclusion`. Run them as
+it states, and **stop unless each passes**, naming what was reported; a failed fetch or a
+`gh` error is named as that. When `{{results_file}}` is not `none`, the build's verdict is
+read from it with `{{results_read_command}}` rather than from the console.
 
-Then the pipeline:
-
-```bash
-gh run list --branch {{parent_branch_default}} --limit 1 --json conclusion
-gh run list --commit "$(git rev-parse HEAD)" --json databaseId,workflowName,status,conclusion
-```
-
-**Stop unless the first reports `success`, and the second lists at least one run, every one
-concluded `success` or `skipped`.** An empty list fails. A run in progress, a cancelled
-run, and a `gh` error are each handled as criterion 4 says. Name what was reported.
+Stop, too, when `brief/<slug>` or `origin/brief/<slug>` already exists — `<slug>` the
+project name in lowercase kebab-case — and ask rather than reuse it.
 
 A failure here is not repaired by this skill: setting up or fixing the build and pipeline
 is the project's step 6 work. The brief stays in place, and a re-run presents it once both
@@ -151,8 +142,7 @@ Then stop and wait. The answer is one of Stage-Gate's four:
 - **Rework** (Recycle) — changes asked for, which is not a decision. Revise the brief,
   re-run Step 2's checks, then `git fetch`, the slug, and its branch check from Step 3, and
   present again; the rest of Step 3 re-runs only if `origin/{{parent_branch_default}}`
-  moved. Revision happens here, never after a
-  rejection.
+  moved. Revision happens here, never after a rejection.
 - **Hold** — the sponsor defers the decision. Record nothing and commit nothing: the brief
   stays `Pending` in the working tree, and a later run presents it again.
 
@@ -175,11 +165,12 @@ An approval confirms every `(proposed)` value as written, so remove those marks 
 `Rejected` takes the same form, with the reason in one more line. A rejected brief is
 committed too: it is the record that the project was stopped at the gate.
 
-Cut the branch from `{{parent_branch_default}}`, with the `<slug>` Step 3 checked, and
-commit the brief alone:
+Run `git fetch` first; if `origin/{{parent_branch_default}}` moved since Step 3, re-run
+Step 3 and present again before recording anything. Then cut the branch, with the `<slug>`
+Step 3 checked, and commit the brief alone:
 
 ```bash
-git switch -c brief/<slug> {{parent_branch_default}}
+git switch -c brief/<slug> origin/{{parent_branch_default}}
 git add {{brief_file}}
 git commit -m "Record the project brief and the sponsor's decision" -- {{brief_file}}
 ```
