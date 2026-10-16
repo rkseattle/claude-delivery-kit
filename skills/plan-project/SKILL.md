@@ -20,15 +20,7 @@ Read `${CLAUDE_PLUGIN_ROOT}/gates/project-config.md` and follow it exactly; this
 optional keys are `brief_file`, `project_size`, `lifecycle_model`, `roles`,
 `results_file`, and `results_read_command`.
 
-**An interrupted Step 5 resumes before anything else.** When `{{brief_file}}` reads
-`Approved` or `Rejected` but is uncommitted, and HEAD is `{{parent_branch_default}}` or a
-`brief/<slug>` with no commits beyond `origin/{{parent_branch_default}}`, the decision was
-recorded and its commit failed. Keep the decision as written: switch to `brief/<slug>` if
-it exists, otherwise cut it per Step 5, then run Step 5's `git add` and `git commit`. If
-`origin/{{parent_branch_default}}` has moved past HEAD, stop and report rather than present
-again.
-
-Otherwise, stop, and say why in one line, when:
+Stop, and say why in one line, when:
 
 - **`{{brief_file}}` is `none`** — absent or set so. Name the key: the brief has nowhere to
   live, and a path this skill chose would be a guess about the project's layout.
@@ -189,6 +181,13 @@ git switch -c brief/<slug> origin/{{parent_branch_default}}
 git add {{brief_file}}
 git commit -m "Record the project brief and the sponsor's decision" -- {{brief_file}}
 ```
+
+Recording and committing the decision succeed together or not at all. When the commit
+fails — a hook rejects it, say — fix what it names and commit again in this run; the
+sponsor's answer stands. When that cannot be done in this run, roll back: return the
+brief to what Step 4 presented, `Pending` with its `(proposed)` marks, switch back to
+`{{parent_branch_default}}`, delete the empty `brief/<slug>`, and report the error and the sponsor's answer, so a later run finds
+a draft, not a decided brief it would refuse.
 
 Do not push: report the branch, the commit, and the decision, and leave publishing it to the
 person running the session. An approved brief reaches `{{parent_branch_default}}`, where
