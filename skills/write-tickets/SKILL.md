@@ -120,9 +120,10 @@ Ask `{{roles.qa}}` to confirm the ACs of every `Priority: Must` ticket are testa
 any QA finds untestable. Then stop and wait for `{{roles.product_owner}}`, the gate's one
 accountable role in RACI terms, whose approval counts only once QA has confirmed; one person
 holding both roles gives both in one answer. Print both per `gates/project-config.md`. A
-ticket QA's answer changes goes back through Steps 5 and 6 first, as a new commit dismisses
-a stale approval. Approval is an explicit "approved", "create them", or equivalent; a
-clarifying question is not approval.
+ticket QA's answer changes re-runs Step 5 and one Step 6 round, outside its three-round
+count since it reviews new text; a BLOCKER from it goes to Rob, and QA re-confirms the
+changed ticket, as a new commit dismisses a stale approval. Approval is an explicit
+"approved", "create them", or equivalent; a clarifying question is not approval.
 
 ## Step 8 — Create
 

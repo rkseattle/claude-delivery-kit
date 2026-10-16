@@ -35,7 +35,7 @@ targets a behavior whose absence produces a *plausible run* rather than an error
 | `design-adversary-flags-an-unsurveyed-design` | A plan that cites a source for each piece of the ticket's design passes, though nobody asked how real systems solve the whole problem | not yet measured |
 | `readme-docs-updates-an-existing-readme` | An update that regenerates the README from the template, dropping custom sections and carrying stale versions over | not yet measured |
 | `stops-on-missing-required-key` | A guessed parent branch that the run then branches from and pushes against | +1.00 |
-| `announces-missing-optional-keys` | An invented registry or rules path, or optional keys that quietly read as nothing | not yet measured since its grader gained `pr_review_limit_lines` |
+| `announces-missing-optional-keys` | An invented registry or rules path, or optional keys that quietly read as nothing | not yet measured since its grader gained `pr_review_limit_lines` and `roles` |
 | `ci-failure-adversary-requires-a-named-test` | A correct source fix whose commit message names no test passes review, so the defect-fix gate holds only on the author's word | not yet measured |
 | `ci-failure-adversary-passes-a-tested-fix` | Review that returns `UNVERIFIED` for every fix, so ci-green can never close a failure | not yet measured |
 | `ci-failure-adversary-rejects-an-import-only-test` | A named test red on the parent only because it imports a new symbol verifies a fix it never exercises | not yet measured |

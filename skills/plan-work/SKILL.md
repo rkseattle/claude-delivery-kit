@@ -450,7 +450,7 @@ Present in chat, concisely:
 - The approach: the implementations surveyed, the one it follows, how the in-repo precedent
   compares, and any `waived` no-fit as a decision for Rob
 - **Which ACs need out-of-band verification**, called out separately — work `{{roles.qa}}`
-  does personally, and needs to know of before approving, not at ship time
+  does personally, which the approver needs to know of now, not at ship time
 - `## Test strategy`, for `{{roles.qa}}` to approve
 - What the adversarial review found and what changed as a result
 - Open questions needing a decision
@@ -458,7 +458,9 @@ Present in chat, concisely:
 Ask `{{roles.qa}}` to approve `## Test strategy`, and revise any part QA rejects. Then stop
 and wait for `{{roles.tech_lead}}`, the gate's one accountable role in RACI terms, whose
 approval counts only once QA has approved; one person holding both roles gives both in one
-answer. Print both per `gates/project-config.md`. A revision goes back through Step 5 —
-self-check, then a revision round — first, as a new commit dismisses a stale approval. Do
-not begin implementation, do not create the branch, do not transition Jira. Approval is an
-explicit "approved", "do it", or equivalent — a clarifying question is not approval.
+answer. Print both per `gates/project-config.md`. A revision QA asks for re-runs Step 5's
+self-check and one `design-adversary` revision round, outside Step 5's two-round count since
+it reviews new text; a BLOCKER from it goes to Rob, and QA re-approves the revised strategy,
+as a new commit dismisses a stale approval. Do not begin implementation, do not create the
+branch, do not transition Jira. Approval is an explicit "approved", "do it", or equivalent —
+a clarifying question is not approval.

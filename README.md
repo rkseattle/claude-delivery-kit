@@ -135,9 +135,10 @@ The stage skills carry the procedure; the commands, paths and thresholds come fr
   "unit_test_scope": "<the whole target, or the changed workspaces — and why>",
   "post_fix_verification_scope": "<what a fix commit must re-run before the gate passes>",
   "results_file": "<path the local gate writes its verdict to>",
-  "results_read_command": "<command that reads counts out of it; {} for another file's path>",
+  "results_read_command": "<command that reads counts out of it>",
   "integration_test_command": "<command that runs the integration suite, or none>",
   "integration_results_file": "<path that suite writes its verdict to, or none>",
+  "integration_results_read_command": "<command that reads counts out of it, or none>",
   "ci_results_artifact": "<name of the uploaded CI result artifact>",
   "verification_tiers": "<the tiers an AC can be verified by>",
   "verification_step_file": ".claude/gates/<what ship-pr must resolve>.md",
@@ -202,16 +203,13 @@ in SmartBear's study of code review at Cisco; `none` skips the check, announced 
 
 `integration_test_command` serves rule book Phase 5 step 1: integration tests across module
 interfaces and external services, run on every pull request. The pre-push checklist runs it
-after the unit suite and reads its counts from `integration_results_file` — a file of its
-own, as Maven's Failsafe writes integration results apart from Surefire's unit results, so
-neither suite overwrites the other's verdict. The Definition of Done never runs it, so a
-third party being down never blocks a commit. Both default to `none`, announced as no
-integration tier. To read a second file, `results_read_command` holds `{}` as a whole
-argument where the path goes, the form POSIX `find -exec` guarantees, and every gate running
-it replaces that argument with the file it reads; a `{}` inside a larger argument, such as
-`jq '.stats // {}'`, is left alone. A reader with no `{}` argument reads its one fixed file,
-so with the command set the push stops before running it, as it does when the two results
-files share a path.
+after the unit suite, writing `integration_results_file` and reading its counts with
+`integration_results_read_command` — a file and a reader of its own, as Maven's Failsafe
+writes and reports integration results apart from Surefire's unit results, so neither suite
+overwrites or misreads the other's verdict. The Definition of Done never runs it, so a third
+party being down never blocks a commit. All three default to `none`, announced as no
+integration tier; with the command set, the push stops before running it while either of
+the other two is `none` or the results file is `results_file`.
 
 The values in the block above are illustrations, not defaults. Some of its keys are
 required and have no default; one that is missing, empty, `none`, or a `<placeholder>`
@@ -262,7 +260,8 @@ defaults.
   `{{roles.tech_lead}}` names the tech lead. `write-tickets` waits on the product owner after
   QA confirms each `Must` ticket's ACs are testable, `plan-work` on the tech lead after QA
   approves the test strategy, and `ship-pr` hands QA the verification charter. Default: a
-  role absent from `roles` is the person running the session, and the skill addresses that person directly. That is the
+  role absent from `roles` is the person running the session, and the skill addresses that
+  person directly. That is the
   absent-key rule above applied per role, so a missing role never resolves to `none`,
   and a project with no `roles` key at all has the person running the session in every
   role.
