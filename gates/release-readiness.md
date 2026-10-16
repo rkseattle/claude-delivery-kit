@@ -83,7 +83,9 @@ empty after removals stops the run.
    is project-wide, not limited to the release scope: a severe defect is open whether or not
    this release's commits name it.
 3. **Non-functional thresholds met or exception recorded** — fails on any in-scope NFR not
-   met and not excepted.
+   met and not excepted, as
+   `${CLAUDE_PLUGIN_ROOT}/skills/release-readiness/scripts/readiness_check.py` `nfrs` and
+   `settle` read it.
    - **In scope** — each `- NFR<n>:` line under the `## Non-functional requirements`
      heading of an in-scope ticket or of its parent Epic, keyed `<KEY> NFR<n>` with that
      ticket's or Epic's key. Commits name Stories more often than Epics, and an Epic's

@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """The release gates' deterministic checks, so no skill applies them by eye. Standard library only.
 
-Called by skills/release-readiness/SKILL.md (Steps 2, 4, 7) and skills/release/SKILL.md (Step 1).
+Called by skills/release-readiness/SKILL.md (Steps 1, 2, 4, 7) and skills/release/SKILL.md
+(Steps 1 to 5).
 
     readiness_check.py version --new X.Y.Z [--last vA.B.C]
         `ok` when X.Y.Z is MAJOR.MINOR.PATCH and, with --last, greater in SemVer precedence
@@ -13,6 +14,18 @@ Called by skills/release-readiness/SKILL.md (Steps 2, 4, 7) and skills/release/S
         prints the readiness note for that summary: version, SHA-256, last two lines
     readiness_check.py verify --summary PATH --version vX.Y.Z [--require-pass] < NOTE
         `ok` when the note on stdin is exactly the one `note` builds for the summary now
+    readiness_check.py nfrs --key KEY < DESCRIPTION
+        one `<KEY> NFR<n>` line per `- NFR<n>:` under `## Non-functional requirements`
+    readiness_check.py settle --nfrs-file PATH [--exceptions PATH] --today YYYY-MM-DD < OUTPUT
+        one tab-separated `<KEY> NFR<n>`, `pass|excepted|fail`, `<why>` line per NFR, reading the
+        nfr_test_command output on stdin; exit 1 when any NFR is fail
+    readiness_check.py scope --summary PATH --range RANGE --keys K1,K2
+    readiness_check.py commit --summary PATH --head SHA
+    readiness_check.py hash PATH                      prints the file's SHA-256
+    readiness_check.py artifact --path PATH --sha256-file PATH
+    readiness_check.py notes-headings --notes PATH
+    readiness_check.py release-dir --value VALUE
+        each but hash prints `ok`, or INVALID/MISMATCH and exits 1
     readiness_check.py --self-test     runs every case below; exit 0 only if each one matches
 
 Exit 1 is a failed check, printed to standard error as `INVALID: <what>` or `MISMATCH: <what>`,
@@ -33,7 +46,7 @@ import tempfile
 sys.dont_write_bytecode = True
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)),
                                 "..", "..", "write-tickets", "scripts"))
-from lint_draft import VERIFY_TAG  # noqa: E402  the tag form write-tickets writes
+from lint_draft import NFR_SECTION, VERIFY_TAG  # noqa: E402  what write-tickets writes
 
 SEMVER = re.compile(r"^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$")
 # A criterion's tag ends its line, as lint_draft.py's AC pattern requires, so a tag quoted in
@@ -42,9 +55,6 @@ BRACKET_TAG = re.compile(VERIFY_TAG + r"`?\s*$")
 # Jira's Markdown conversion turns a tag written outside a code span into \verify: ... \.
 # Its evidence may hold Jira's own escapes, such as \_ in a path; they are undone below.
 ESCAPED_TAG = re.compile(r"\\verify:\s*([^@\\\s][^@\\]*?)\s*@\s*(\S.*?)\s*\\\s*$")
-AC_LINE = re.compile(r"^-\s+(AC\d+):")
-# A criterion in another list form, indented or marked with * or 1., is still a criterion.
-STRAY_AC = re.compile(r"^\s*(?:[-*]|\d+\.)\s+(AC\d+):")
 REVIEW = re.compile(r"^Reviewed-by: product_owner .+ \d{4}-\d{2}-\d{2}(, relayed by .+)?$")
 GATE = re.compile(r"^Gate: (PASS|FAIL)$")
 
@@ -81,9 +91,13 @@ def declared_tiers(config_path):
     return tiers
 
 
-def criteria(description, tiers):
-    """[(ac, tier, evidence, status)] for the acceptance-criteria section, or no-criteria."""
-    rows, inside, fence = [], False, None
+def section_lines(description, heading, kind):
+    """("item", id, line) for each `- <kind><n>:` line under `## <heading>`, ("stray", id) for
+    one in another list form, and a final ("unclosed",) when a code fence never closes.
+    Fenced lines are skipped; a fence closes only on a marker at least as long (CommonMark)."""
+    inside, fence = False, None
+    item = re.compile(rf"^-\s+({kind}\d+):")
+    stray = re.compile(rf"^\s*(?:[-*]|\d+\.)\s+({kind}\d+):")
     for line in description.splitlines():
         marker = re.match(r"^\s*(`{3,}|~{3,})", line)
         if marker and (fence is None or (marker.group(1)[0] == fence[0]
@@ -93,26 +107,39 @@ def criteria(description, tiers):
         if fence:
             continue
         if re.match(r"^#{1,6}\s", line):
-            inside = re.match(r"^##\s+Acceptance criteria\s*$", line) is not None
+            inside = re.match(rf"^##\s+{heading}\s*$", line) is not None
             continue
-        ac = AC_LINE.match(line) if inside else None
-        if not ac:
-            stray = STRAY_AC.match(line) if inside else None
-            if stray:
-                rows.append((stray.group(1), "-", "-", "not-in-the-ac-form"))
+        if not inside:
+            continue
+        found = item.match(line)
+        if found:
+            yield ("item", found.group(1), line)
+        elif stray.match(line):
+            yield ("stray", stray.match(line).group(1))
+    if fence:
+        yield ("unclosed",)
+
+
+def criteria(description, tiers):
+    """[(ac, tier, evidence, status)] for the acceptance-criteria section, or no-criteria."""
+    rows = []
+    for entry in section_lines(description, "Acceptance criteria", "AC"):
+        if entry[0] == "unclosed":
+            rows.append(("-", "-", "-", "unclosed-fence"))
+            continue
+        if entry[0] == "stray":
+            rows.append((entry[1], "-", "-", "not-in-the-ac-form"))
             continue
         # Jira may also escape a bracket tag's brackets as \[ and \].
-        line = line.replace("\\[", "[").replace("\\]", "]")
+        line = entry[2].replace("\\[", "[").replace("\\]", "]")
         tag = BRACKET_TAG.search(line) or ESCAPED_TAG.search(line)
         if not tag:
-            rows.append((ac.group(1), "-", "-", "no-tag"))
+            rows.append((entry[1], "-", "-", "no-tag"))
             continue
         tier = " ".join(tag.group(1).split())
         evidence = re.sub(r"\\(.)", r"\1", tag.group(2).strip())
-        rows.append((ac.group(1), tier, evidence,
+        rows.append((entry[1], tier, evidence,
                      "ok" if tier.lower() in tiers else "undeclared-tier"))
-    if fence:
-        rows.append(("-", "-", "-", "unclosed-fence"))
     return rows or [("-", "-", "-", "no-criteria")]
 
 
@@ -142,6 +169,117 @@ def verify_note(summary_path, version, note, require_pass=False):
         raise ValueError("the note does not match the summary as it is now")
     if require_pass and not expected.rstrip().endswith("Gate: PASS"):
         raise ValueError("the summary's verdict is not Gate: PASS")
+
+
+NOTES_HEADINGS = ("## Changes", "## Migrations", "## Known issues", "## Rollback")
+SCOPE = re.compile(r"^Scope: (\S+) — (\d+) tickets?: (.*)$")
+RELEASE_DIR = re.compile(r"^[A-Za-z0-9_][A-Za-z0-9._/-]*$")
+
+
+def nfrs(description, key):
+    """(`<KEY> NFR<n>` lines, problems) for the non-functional requirements section. A
+    problem — an NFR in another list form, or an unclosed fence — means an NFR may be lost."""
+    found, problems = [], []
+    for entry in section_lines(description, NFR_SECTION, "NFR"):
+        if entry[0] == "item":
+            found.append(f"{key} {entry[1]}")
+        elif entry[0] == "stray":
+            problems.append(f"{key} {entry[1]} is not in the `- NFR<n>:` form")
+        else:
+            problems.append(f"{key}'s description has an unclosed code fence")
+    return found, problems
+
+
+def exceptions(path, today):
+    """{Rule: Expiry} for every unexpired row in a register table."""
+    if not path:
+        return {}
+    with open(path, encoding="utf-8") as handle:
+        rows = [[cell.strip() for cell in line.strip().strip("|").split("|")]
+                for line in handle if line.lstrip().startswith("|")]
+    if not rows or "Rule" not in rows[0] or "Expiry" not in rows[0]:
+        raise ValueError("the exceptions register has no Rule and Expiry header row")
+    rule, expiry = rows[0].index("Rule"), rows[0].index("Expiry")
+    return {row[rule]: row[expiry] for row in rows[1:]
+            if len(row) > max(rule, expiry) and re.match(r"^\d{4}-\d{2}-\d{2}$", row[expiry])
+            and row[expiry] >= today}
+
+
+def settle(in_scope, output, excepted_rules):
+    """[(nfr, status, why)]: pass only on exactly one `<nfr> pass` line and no other line."""
+    lines = [line.strip() for line in output.splitlines() if line.strip()]
+    settled = []
+    # Two Stories under one Epic name its NFRs twice; each is settled once.
+    for nfr in dict.fromkeys(in_scope):
+        own = [line for line in lines if line == nfr or line.startswith(nfr + " ")]
+        if own == [f"{nfr} pass"]:
+            settled.append((nfr, "pass", "one pass line"))
+            continue
+        why = ("no result" if not own else "a fail line" if own == [f"{nfr} fail"]
+               else "lines in another form or more than one")
+        if nfr in excepted_rules:
+            settled.append((nfr, "excepted", f"{why}; excepted until {excepted_rules[nfr]}"))
+        else:
+            settled.append((nfr, "fail", why))
+    return settled
+
+
+def header(summary_path):
+    """The summary's lines before its first `## ` section: what it quotes from PRs comes
+    later, so a quoted `Commit:` or `Scope:` line is never read as its own."""
+    with open(summary_path, encoding="utf-8") as handle:
+        lines = handle.read().splitlines()
+    end = next((n for n, line in enumerate(lines) if line.startswith("## ")), len(lines))
+    return lines[:end]
+
+
+def check_scope(summary_path, scope_range, keys):
+    lines = [SCOPE.match(line.rstrip()) for line in header(summary_path)]
+    found = [match for match in lines if match]
+    if len(found) != 1:
+        raise ValueError("the summary has no single Scope: line")
+    recorded = [key.strip() for key in found[0].group(3).split(",") if key.strip()]
+    count = int(found[0].group(2))
+    keys = [key.strip() for key in keys if key.strip()]
+    if count != len(recorded):
+        raise ValueError("the summary's Scope: count does not match its keys")
+    if found[0].group(1) != scope_range or sorted(recorded) != sorted(keys):
+        raise ValueError("the scope differs from the summary's Scope: line")
+
+
+def check_commit(summary_path, head):
+    commits = [line.rstrip()[len("Commit: "):] for line in header(summary_path)
+               if line.startswith("Commit: ")]
+    if commits != [head]:
+        raise ValueError("the summary's Commit: is not HEAD")
+
+
+def sha256(path):
+    with open(path, "rb") as handle:
+        return hashlib.sha256(handle.read()).hexdigest()
+
+
+def check_artifact(path, recorded_path):
+    with open(recorded_path, encoding="utf-8") as handle:
+        recorded = handle.read().strip()
+    if sha256(path) != recorded:
+        raise ValueError("the artifact's SHA-256 is not the one recorded at build time")
+
+
+def check_notes(notes_path):
+    with open(notes_path, encoding="utf-8") as handle:
+        lines = {line.rstrip() for line in handle}
+    missing = [heading for heading in NOTES_HEADINGS if heading not in lines]
+    if missing:
+        raise ValueError(f"the notes lack {', '.join(missing)}")
+
+
+def check_release_dir(value):
+    if (not value or value == "none" or not RELEASE_DIR.match(value) or os.path.isabs(value)
+            or os.path.normpath(value).split(os.sep)[0] in ("..", ".", ".git")):
+        raise ValueError(f"release_dir {value!r} is not a relative path inside the repository "
+                         "outside .git, starting with a letter, digit, or '_', and made only "
+                         "of letters, digits, '.', '_', '-', and '/'")
 
 
 def scaffold_builder_output(scaffold, summary, version):
@@ -299,6 +437,7 @@ def self_test():
         failures += report("verify", "a FAIL summary when PASS is required",
                            _error(verify_note, failing, "v1.0.0",
                                   build_note(failing, "v1.0.0"), True), "ValueError")
+        failures += release_checks_cases(directory, summary_file, good)
         scaffold = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "..",
                                 "evals", "release-asks-before-staging", "scaffold.sh")
         failures += report("note", "the release eval's scaffold builds the same note",
@@ -332,6 +471,33 @@ def self_test():
                  note, "MISMATCH: the note does not match", 1),
                 ("note prints the note", ["note", "--summary", good, "--version", "v1.0.0"], "",
                  "Release-readiness: v1.0.0", 0),
+                ("settle exits 1 on a fail", ["settle", "--nfrs-file",
+                                             summary_file("AB-1 NFR1\n", "inscope.txt"),
+                                             "--today", "2026-10-16"],
+                 "AB-1 NFR1 fail\n", "AB-1 NFR1\tfail", 1),
+                ("settle exits 0 on a pass", ["settle", "--nfrs-file",
+                                             os.path.join(directory, "inscope.txt"),
+                                             "--today", "2026-10-16"],
+                 "AB-1 NFR1 pass\n", "AB-1 NFR1\tpass", 0),
+                ("scope mismatch", ["scope", "--summary", good, "--range", "HEAD", "--keys",
+                                    "AB-1"], "", "MISMATCH: the summary has no single", 1),
+                ("release-dir ok", ["release-dir", "--value", "docs/releases"], "", "ok", 0),
+                ("release-dir fail", ["release-dir", "--value", "/abs"], "", "MISMATCH:", 1),
+                ("hash prints the digest", ["hash", good], "", sha256(good), 0),
+                ("commit mismatch", ["commit", "--summary", good, "--head", "abd"], "",
+                 "MISMATCH: the summary's Commit:", 1),
+                ("artifact ok", ["artifact", "--path", good, "--sha256-file",
+                                 summary_file(sha256(good), "good.sha256")], "", "ok", 0),
+                ("notes-headings fail", ["notes-headings", "--notes", good], "",
+                 "MISMATCH: the notes lack", 1),
+                ("settle with a register excepts", ["settle", "--nfrs-file",
+                                                    summary_file("AB-1 NFR2\n", "two.txt"),
+                                                    "--exceptions",
+                                                    os.path.join(directory, "register.md"),
+                                                    "--today", "2026-10-16"],
+                 "AB-1 NFR2 fail\n", "AB-1 NFR2\texcepted", 0),
+                ("nfrs exits 1 on a problem", ["nfrs", "--key", "AB-1"],
+                 "## Non-functional requirements\n* NFR1: a\n", "INVALID:", 1),
                 ("no subcommand is usage", [], "", "", 2)]:
             run = subprocess.run([sys.executable, script, *arguments], input=stdin,
                                  capture_output=True, text=True, check=False)
@@ -342,6 +508,102 @@ def self_test():
             failures += report("cli", name, (shown, run.returncode),
                                (expected_output, expected_exit))
     return 1 if failures else 0
+
+
+def release_checks_cases(directory, summary_file, good):
+    failures = 0
+    description = ("## Non-functional requirements\n\n- NFR1: p95 < 300 ms [verify: ci @ x]\n"
+                   "```\n- NFR9: fenced\n```\n- NFR2: size < 1 MB\n## Acceptance criteria\n"
+                   "- NFR3: not here\n")
+    failures += report("nfrs", "NFR lines under their heading only",
+                       nfrs(description, "AB-1"), (["AB-1 NFR1", "AB-1 NFR2"], []))
+    failures += report("nfrs", "no heading", nfrs("## Behavior\n- NFR1: x\n", "AB-1"), ([], []))
+    failures += report("nfrs", "an unclosed fence is a problem",
+                       len(nfrs("## Non-functional requirements\n- NFR1: a\n```\n- NFR2: b\n",
+                                "AB-1")[1]), 1)
+    failures += report("nfrs", "NFRs in other list forms are problems",
+                       len(nfrs("## Non-functional requirements\n* NFR1: a\n  - NFR2: b\n",
+                                "AB-1")[1]), 2)
+    register = summary_file("| Rule | Reason | Risk | Expiry | Remediation |\n| --- | --- | --- | "
+                            "--- | --- |\n| AB-1 NFR2 | r | r | 2026-12-31 | t |\n"
+                            "| AB-1 NFR3 | r | r | 2026-01-01 | t |\n", "register.md")
+    rules = exceptions(register, "2026-10-16")
+    failures += report("settle", "only unexpired rows count", rules, {"AB-1 NFR2": "2026-12-31"})
+    failures += report("settle", "a row expiring today still counts",
+                       exceptions(register, "2026-12-31"), {"AB-1 NFR2": "2026-12-31"})
+    in_scope = ["AB-1 NFR1", "AB-1 NFR2", "AB-1 NFR3", "AB-1 NFR4", "AB-1 NFR5"]
+    output = ("AB-1 NFR1 pass\nAB-1 NFR2 fail\nAB-1 NFR3 pass\nAB-1 NFR3 fail\n"
+              "AB-1 NFR5 maybe\nAB-9 NFR1 fail\nAB-1 NFR10 pass\n")
+    failures += report("settle", "pass, excepted, both lines, no result, other form",
+                       [row[:2] for row in settle(in_scope, output, rules)],
+                       [("AB-1 NFR1", "pass"), ("AB-1 NFR2", "excepted"), ("AB-1 NFR3", "fail"),
+                        ("AB-1 NFR4", "fail"), ("AB-1 NFR5", "fail")])
+    failures += report("settle", "an NFR named twice is settled once",
+                       len(settle(["AB-1 NFR1", "AB-1 NFR1"], "AB-1 NFR1 pass\n", set())), 1)
+    failures += report("settle", "no result, excepted by a register row",
+                       [row[1:] for row in settle(["AB-1 NFR2"], "", rules)],
+                       [("excepted", "no result; excepted until 2026-12-31")])
+    failures += report("settle", "no output: every NFR has no result",
+                       [row[1:] for row in settle(["AB-1 NFR1"], "", set())],
+                       [("fail", "no result")])
+    failures += report("settle", "a register with no header", _error(
+        exceptions, summary_file("| a | b |\n", "noheader.md"), "2026-10-16"), "ValueError")
+    scoped = summary_file("# x\nCommit: abc123\nScope: v1.0.0..HEAD — 2 tickets: AB-1, AB-2\n",
+                          "scoped.md")
+    failures += report("scope", "the same range and keys",
+                       _error(check_scope, scoped, "v1.0.0..HEAD", ["AB-2", "AB-1"]), "ok")
+    failures += report("scope", "a different range",
+                       _error(check_scope, scoped, "v1.1.0..HEAD", ["AB-1", "AB-2"]), "ValueError")
+    failures += report("scope", "an extra key",
+                       _error(check_scope, scoped, "v1.0.0..HEAD", ["AB-1", "AB-2", "AB-3"]),
+                       "ValueError")
+    failures += report("scope", "keys with spaces around them",
+                       _error(check_scope, scoped, "v1.0.0..HEAD", [" AB-1", "AB-2 "]), "ok")
+    failures += report("scope", "a count that disagrees with the keys",
+                       _error(check_scope, summary_file("Scope: HEAD — 3 tickets: AB-1, AB-2\n",
+                                                        "count.md"), "HEAD", ["AB-1", "AB-2"]),
+                       "ValueError")
+    failures += report("scope", "one ticket, singular",
+                       _error(check_scope, summary_file("Scope: HEAD — 1 ticket: AB-1\n", "one.md"),
+                              "HEAD", ["AB-1"]), "ok")
+    failures += report("commit", "HEAD matches", _error(check_commit, scoped, "abc123"), "ok")
+    quoting = summary_file("# x\nCommit: abc123\nScope: HEAD — 1 ticket: AB-1\n\n## Known risks\n"
+                           "Commit: def456\nScope: v9..HEAD — 1 ticket: AB-9\n", "quoting.md")
+    failures += report("commit", "a quoted Commit: line in a later section is not read",
+                       _error(check_commit, quoting, "abc123"), "ok")
+    failures += report("scope", "a quoted Scope: line in a later section is not read",
+                       _error(check_scope, quoting, "HEAD", ["AB-1"]), "ok")
+    failures += report("commit", "another commit", _error(check_commit, scoped, "abc124"),
+                       "ValueError")
+    failures += report("commit", "a prefix is not HEAD", _error(check_commit, scoped, "abc"),
+                       "ValueError")
+    artifact = summary_file("bytes", "app.tar")
+    recorded = summary_file(sha256(artifact) + "\n", "app.sha256")
+    failures += report("artifact", "the recorded hash", _error(check_artifact, artifact, recorded),
+                       "ok")
+    summary_file("changed", "app.tar")
+    failures += report("artifact", "a changed artifact",
+                       _error(check_artifact, artifact, recorded), "ValueError")
+    full = summary_file("# v1\n\n## Changes\n## Migrations\n## Known issues\n## Rollback\n",
+                        "notes.md")
+    failures += report("notes", "all four headings", _error(check_notes, full), "ok")
+    failures += report("notes", "a heading missing",
+                       _error(check_notes, summary_file("## Changes\n## Migrations\n## Rollback\n",
+                                                        "short.md")), "ValueError")
+    for name, value, expected in [("relative", "docs/releases", "ok"),
+                                  ("absolute", "/tmp/releases", "ValueError"),
+                                  ("whitespace", "docs/my releases", "ValueError"),
+                                  ("outside the repo", "../releases", "ValueError"),
+                                  ("the repo root", ".", "ValueError"),
+                                  ("a nested escape", "a/../..", "ValueError"),
+                                  ("a command substitution", "docs/$(id)", "ValueError"),
+                                  ("a glob", "docs/*", "ValueError"),
+                                  ("a separator", "docs;x", "ValueError"),
+                                  ("git's own directory", ".git/releases", "ValueError"),
+                                  ("an option", "-n", "ValueError"),
+                                  ("none", "none", "ValueError")]:
+        failures += report("release-dir", name, _error(check_release_dir, value), expected)
+    return failures
 
 
 def _result(function, *arguments):
@@ -383,6 +645,28 @@ def main():
     verify.add_argument("--summary", required=True)
     verify.add_argument("--version", required=True)
     verify.add_argument("--require-pass", action="store_true")
+    extract = commands.add_parser("nfrs")
+    extract.add_argument("--key", required=True)
+    settling = commands.add_parser("settle")
+    settling.add_argument("--nfrs-file", required=True)
+    settling.add_argument("--exceptions")
+    settling.add_argument("--today", required=True)
+    scope = commands.add_parser("scope")
+    scope.add_argument("--summary", required=True)
+    scope.add_argument("--range", required=True)
+    scope.add_argument("--keys", required=True)
+    commit = commands.add_parser("commit")
+    commit.add_argument("--summary", required=True)
+    commit.add_argument("--head", required=True)
+    hashing = commands.add_parser("hash")
+    hashing.add_argument("path")
+    artifact = commands.add_parser("artifact")
+    artifact.add_argument("--path", required=True)
+    artifact.add_argument("--sha256-file", required=True)
+    headings = commands.add_parser("notes-headings")
+    headings.add_argument("--notes", required=True)
+    directory = commands.add_parser("release-dir")
+    directory.add_argument("--value", required=True)
     args = parser.parse_args()
     if args.self_test:
         return self_test()
@@ -399,9 +683,34 @@ def main():
         if args.command == "note":
             print(build_note(args.summary, args.version), end="")
             return 0
-        if args.command == "verify":
+        if args.command == "nfrs":
+            found, problems = nfrs(sys.stdin.read(), args.key)
+            for line in found:
+                print(line)
+            for problem in problems:
+                print(f"INVALID: {problem}", file=sys.stderr)
+            return 1 if problems else 0
+        if args.command == "settle":
+            with open(args.nfrs_file, encoding="utf-8") as handle:
+                in_scope = [line.strip() for line in handle if line.strip()]
+            rows = settle(in_scope, sys.stdin.read(), exceptions(args.exceptions, args.today))
+            for row in rows:
+                print("\t".join(row))
+            return 1 if any(row[1] == "fail" for row in rows) else 0
+        if args.command == "hash":
+            print(sha256(args.path))
+            return 0
+        checks = {"verify": lambda: verify_note(args.summary, args.version, sys.stdin.read(),
+                                                args.require_pass),
+                  "scope": lambda: check_scope(args.summary, args.range,
+                                               [k for k in args.keys.split(",") if k]),
+                  "commit": lambda: check_commit(args.summary, args.head),
+                  "artifact": lambda: check_artifact(args.path, args.sha256_file),
+                  "notes-headings": lambda: check_notes(args.notes),
+                  "release-dir": lambda: check_release_dir(args.value)}
+        if args.command in checks:
             try:
-                verify_note(args.summary, args.version, sys.stdin.read(), args.require_pass)
+                checks[args.command]()
             except ValueError as error:
                 print(f"MISMATCH: {error}", file=sys.stderr)
                 return 1

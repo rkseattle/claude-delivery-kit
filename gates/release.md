@@ -47,7 +47,7 @@ version can run again.
    file that exists. Before the staging deploy, `{{release_dir}}/<version>-notes.md` has
    the headings `## Changes`, `## Migrations`, `## Known issues`, and `## Rollback`, since
    the rule book writes the notes before staging; a file missing one stops the release
-   there. Then `{{deploy_command}} staging <artifact-path>` succeeded,
+   there. Then `{{deploy_command}} staging "<artifact-path>"` succeeded,
    `{{smoke_test_command}} staging` passed, `{{rollback_command}} staging` succeeded, and
    `{{smoke_test_command}} staging` passed again after it. The second smoke run is what
    makes the rollback tested: a rollback that exits zero and leaves staging broken is not a

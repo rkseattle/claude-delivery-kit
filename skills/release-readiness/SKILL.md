@@ -10,11 +10,12 @@ Check release readiness for: $ARGUMENTS
 
 This skill is the rule book's Phase 5 step 7 and its exit gate: it writes the test summary
 for one release candidate and stops for `{{roles.product_owner}}`. In `{{release_dir}}` it
-writes `<version>-test-summary.md`, its `<version>-note.txt`, and a `<version>-<KEY>.md`
-copy of each Must ticket's description. After the review it adds a git note on the tested
-commit under `refs/notes/release-readiness`. No commit to any
-branch, no tag, and no push: a note does not move HEAD, and `release` reads both the file
-from the working tree and the note, then pushes the note with the tag.
+writes `<version>-test-summary.md` and its `<version>-note.txt`, a `<version>-<KEY>.md` copy
+of each scope ticket's and Epic's description it reads, and the `<version>-nfr-output.txt`
+and `<version>-nfrs.txt` the NFR check reads. After the review it adds a git note on the
+tested commit under `refs/notes/release-readiness`. No commit to any branch, no tag, and no
+push: a note does not move HEAD, and `release` reads both the file from the working tree and
+the note, then pushes the note with the tag.
 
 ## Step 1 — Read the configuration
 
@@ -44,11 +45,18 @@ Stop, and say why in one line, when:
   build-once-from-the-mainline both require; a feature branch or an unpushed local commit
   was never merged through review.
 - **`git status --porcelain --untracked-files=all -- . ':(exclude){{release_dir}}'` prints
-  anything, or `{{release_dir}}` is outside the repository, absolute, or holds whitespace.**
-  The commands below write it unquoted and relative to the project root. The suites run
-  against the working tree, and the summary records HEAD: a modified or untracked file, a
-  fixture or a config the suites pick up, would be tested and not recorded. Ignored files
-  and `{{release_dir}}`, which this kit writes to and never commits, do not count.
+  anything, or the `release_dir` check below prints anything but `ok`.** `release_dir` must
+  be relative, inside the repository, and free of whitespace: the commands below write it
+  unquoted and relative to the project root.
+
+  ```bash
+  python3 "${CLAUDE_PLUGIN_ROOT}/skills/release-readiness/scripts/readiness_check.py" release-dir --value "{{release_dir}}"
+  ```
+
+  The suites run against the working tree, and the summary records HEAD: a modified or
+  untracked file, a fixture or a config the suites pick up, would be tested and not
+  recorded. Ignored files and `{{release_dir}}`, which this kit
+  writes to and never commits, do not count.
 
 With `{{integration_test_command}}` `none`, the one line `gates/project-config.md` defines
 says the project has no integration tier. With `{{nfr_test_command}}` `none`, it says every
@@ -107,10 +115,16 @@ suites run, so a crashed run cannot leave the previous verdict to be read as thi
    non-zero exit, a failed test, a results file missing or unreadable afterward, or an
    executed count of zero is a failing integration run. Its row says which, and so does
    `Known risks`.
-3. **Non-functional** — `{{nfr_test_command}}`, unless `none`, run with no arguments. It
-   prints one line per NFR, `<KEY> NFR<n> pass` or `<KEY> NFR<n> fail`. Keep every line,
-   and settle each in-scope NFR from them as the gate's criterion 3 says. A line in any
-   other form is listed under `Known risks` as unreadable, never guessed at.
+3. **Non-functional** — create the directory and empty the output file, so no earlier
+   run's lines are read as this one's, then, unless `{{nfr_test_command}}` is `none`, run
+   it with no arguments. It prints one line per NFR, `<KEY> NFR<n> pass` or
+   `<KEY> NFR<n> fail`; Step 4 settles them. With the command `none`, run only the first
+   line, and the file stays empty, so every in-scope NFR has no result.
+
+   ```bash
+   mkdir -p {{release_dir}} && : > {{release_dir}}/<version>-nfr-output.txt
+   {{nfr_test_command}} >> {{release_dir}}/<version>-nfr-output.txt
+   ```
 
 Read counts from the results files, never from the console or an exit code. An executed
 count of zero is a run that died early, not a pass.
@@ -144,7 +158,24 @@ and fails the gate criteria that depend on it. It is named in the summary under
   evidence may hold spaces. A status other than `ok`, such as `no-criteria` or
   `unclosed-fence`, is a criterion 1 failure.
 - **In-scope NFRs** — as the gate's criterion 3 defines them. Reach a ticket's Epic by
-  following `parent` with `jira_get_issue` until an issue of type Epic, or none.
+  following `parent` with `jira_get_issue` until an issue of type Epic, or none. Write each
+  scope ticket's and Epic's description to `{{release_dir}}/<version>-<KEY>.md` with the
+  Write tool, as for the Must criteria, then extract and settle them with the tested check,
+  running the first `settle` line when `{{exceptions_log}}` is set and exists, and the
+  second, with no register, otherwise. Empty the list
+  first, with `: > {{release_dir}}/<version>-nfrs.txt`, then run `nfrs` once per key:
+
+  ```bash
+  python3 "${CLAUDE_PLUGIN_ROOT}/skills/release-readiness/scripts/readiness_check.py" nfrs --key <KEY> < {{release_dir}}/<version>-<KEY>.md >> {{release_dir}}/<version>-nfrs.txt
+  python3 "${CLAUDE_PLUGIN_ROOT}/skills/release-readiness/scripts/readiness_check.py" settle --nfrs-file {{release_dir}}/<version>-nfrs.txt --exceptions {{exceptions_log}} --today "$(date +%F)" < {{release_dir}}/<version>-nfr-output.txt
+  python3 "${CLAUDE_PLUGIN_ROOT}/skills/release-readiness/scripts/readiness_check.py" settle --nfrs-file {{release_dir}}/<version>-nfrs.txt --today "$(date +%F)" < {{release_dir}}/<version>-nfr-output.txt
+  ```
+
+  Each `settle` line is the NFR, `pass`, `excepted`, or `fail`, and why, separated by tabs;
+  the `Non-functional results` table takes them as written. Lines naming NFRs outside the
+  scope are ignored, as the gate says. An `INVALID:` line from either command — an NFR
+  `nfrs` could not read, or a register `settle` could not — is a failed read, and fails
+  criterion 3 named as that, never as an NFR result.
 - **Open defects** — `jira_search`, paging until every result is read, for
   `project = {{jira_project}} AND issuetype = Bug AND statusCategory != Done`, grouped by
   `severity-critical`, `severity-high`, `severity-medium`, and `severity-low`. An open Bug
@@ -202,7 +233,7 @@ Scope: <range> — <n> tickets: <KEY>, <KEY>, …
 
 | NFR | Result | Exception |
 | --- | --- | --- |
-| <KEY> NFR<n> | pass, fail, or no result | <the matching register row's Rule and Expiry, or none> |
+| <KEY> NFR<n> | pass, excepted, or fail | <settle's reason, with the exception's expiry when excepted> |
 
 ## Open defects by severity
 
@@ -226,21 +257,20 @@ Gate: PASS
 ```
 
 The integration row reads `not run — no integration tier` when
-`{{integration_test_command}}` is `none`. A row whose suite left no counts to read reads
-`no result — <exit status, or the file missing or unreadable>`, never `0 / 0`. A
-Non-functional row lists each in-scope NFR, and one with no result line reads
-`no result — see Untested requirements`. `Untested requirements` lists what the gate's
-criterion 1 says, a row per criterion or NFR with its tier, or `no tag`: rule book Phase 5
-step 7's untested requirements, the rows of a traceability matrix no test covers. An NFR
-that ran and failed, or printed a line in another form, belongs under
-`Non-functional results` only, as `fail`.
-Under a defect heading, each Bug is one line of key, summary, and status. An empty section
-says `none`. `Known risks` lists each PR's `Risks` section under its number and title,
-then the unreadable lines and scope keys Jira does not know, then a system executed count
-below the previous release's.
-`Upgrade notes` lists each PR's migration section the same way, and `release` copies it
-into its notes' `Migrations`. The last line is `Gate: PASS` or `Gate: FAIL`, per the gate's
-verdict.
+`{{integration_test_command}}` is `none`. A row whose suite left no counts to read reads `no
+result — <exit status, or the file missing or unreadable>`, never `0 / 0`. A Non-functional
+row lists each in-scope NFR as `settle` printed it; one whose reason is `no result`, failed
+or excepted, also appears under `Untested requirements`, as the gate says. `Untested
+requirements` lists what the gate's criterion 1 says, a row per criterion or NFR with its
+tier, or `no tag`: rule book Phase 5 step 7's untested requirements, the rows of a
+traceability matrix no test covers. An NFR that ran and failed, or printed a line in another
+form, belongs under `Non-functional results` only, as `settle` printed it: `fail`, or
+`excepted` with its register row. Under a defect heading, each Bug is one line of key,
+summary, and status. An empty section says `none`. `Known risks` lists each PR's `Risks`
+section under its number and title, then the scope keys Jira does not know, then a system
+executed count below the previous release's. `Upgrade notes` lists each PR's migration
+section the same way, and `release` copies it into its notes' `Migrations`. The last line is
+`Gate: PASS` or `Gate: FAIL`, per the gate's verdict.
 
 ## Step 6 — Stop for the product owner
 

@@ -30,7 +30,14 @@ optional keys are `release_dir`, `release_artifact_command`, `deploy_command`,
 `smoke_test_command`, `rollback_command`, `rollout_stages`, `halt_criteria`,
 `monitoring_window_minutes`, `released_status`, `project_size`, and `roles`.
 
-Every stop below comes before the tag, and says why in one line:
+Every stop below comes before the tag, and says why in one line.
+
+- **The `release_dir` check prints anything but `ok`.** It runs first, since the commands
+  after it write the path unquoted.
+
+  ```bash
+  python3 "${CLAUDE_PLUGIN_ROOT}/skills/release-readiness/scripts/readiness_check.py" release-dir --value "{{release_dir}}"
+  ```
 
 - **`{{deploy_command}}` or `{{rollback_command}}` is `none`** — name the key. A release
   with no automated deploy is not repeatable, and one with no rollback is not reversible:
@@ -68,12 +75,13 @@ Every stop below comes before the tag, and says why in one line:
   build-once-from-the-mainline both require; a feature branch or an unpushed local commit
   was never merged through review.
 - **`git status --porcelain --untracked-files=all -- . ':(exclude){{release_dir}}'` prints
-  anything, or `{{release_dir}}` is outside the repository, absolute, or holds
-  whitespace.** The deploy, smoke, rollback,
-  and halt commands run from this checkout, so an untracked or modified file there would
-  produce evidence for a tree nobody recorded.
-- **The summary's `Commit:` is not `git rev-parse HEAD`.** The summary tested another
-  commit; name both SHAs.
+  anything.** The deploy, smoke, rollback, and halt commands run from this checkout, so an
+  untracked or modified file there would produce evidence for a tree nobody recorded.
+- **The summary's `Commit:` is not HEAD**, by the tested check:
+
+  ```bash
+  python3 "${CLAUDE_PLUGIN_ROOT}/skills/release-readiness/scripts/readiness_check.py" commit --summary {{release_dir}}/<version>-test-summary.md --head "$(git rev-parse HEAD)"
+  ```
 - **`v<version>` already exists**, locally (`git rev-parse -q --verify refs/tags/v<version>`
   prints a SHA) or on origin (`git ls-remote --exit-code --tags origin refs/tags/v<version>`
   exits 0). Any exit status other than 0 or 2 from `ls-remote` is a failed lookup, named as
@@ -98,8 +106,13 @@ Compute the release scope exactly as `release-readiness` Step 2 does, and print 
 and keys as literal values, now, before the tag exists. After Step 3, `git describe` would
 return the new tag and the scope would be empty. A range or key list that differs from the
 summary's `Scope:` line stops the release: a tag fetched since, or a commit, changed what
-would be released from what was tested. Reuse this list of keys and this range for the
-rest of the run.
+would be released from what was tested. The tested check decides it:
+
+```bash
+python3 "${CLAUDE_PLUGIN_ROOT}/skills/release-readiness/scripts/readiness_check.py" scope --summary {{release_dir}}/<version>-test-summary.md --range <range> --keys <KEY>,<KEY>
+```
+
+Reuse this list of keys and this range for the rest of the run.
 
 ## Step 3 — Tag, then build once
 
@@ -118,20 +131,26 @@ git worktree add --detach "$build" v<version> && (
   cd "$build" && {{release_artifact_command}} | tee "$out/<version>-build.log" &&
     artifact=$(tail -n 1 "$out/<version>-build.log") && [ -f "$artifact" ] &&
     cp "$artifact" "$out/<version>-$(basename "$artifact")" &&
-    python3 -c 'import hashlib,sys; print(hashlib.sha256(open(sys.argv[1],"rb").read()).hexdigest())' \
-      "$out/<version>-$(basename "$artifact")" > "$out/<version>-artifact.sha256"
+    python3 "${CLAUDE_PLUGIN_ROOT}/skills/release-readiness/scripts/readiness_check.py" hash "$out/<version>-$(basename "$artifact")" > "$out/<version>-artifact.sha256"
 ); echo "build exited $?"
 ```
 
 The build reads the tagged commit and nothing else in this checkout. Its last line of
 standard output is the artifact's path, relative to the worktree unless absolute. Any exit
 but `build exited 0` stops the release. The copy in `{{release_dir}}` is `<artifact-path>`,
-written out as an absolute path from here on; it outlives the worktree, so the artifact
+written out as an absolute path from here on, and in double quotes wherever a command takes
+it, since the build chose its file name; it outlives the worktree, so the artifact
 production runs is never lost with it. Its SHA-256 is recorded beside it, and before every
-deploy the copy is hashed again: a mismatch stops the release before staging and is a halt
-after it, since a changed file is not the artifact that was tested. The build command never
-runs again in this release — a rebuild is a different artifact than the one about to be
-tested.
+deploy, staging's and each production stage's, this check runs; a mismatch stops the
+release before staging and is a halt after it, since a changed file is not the artifact
+that was tested:
+
+```bash
+python3 "${CLAUDE_PLUGIN_ROOT}/skills/release-readiness/scripts/readiness_check.py" artifact --path "<artifact-path>" --sha256-file {{release_dir}}/<version>-artifact.sha256
+```
+
+The build command never runs again in this release — a rebuild is a different artifact
+than the one about to be tested.
 
 ## Step 4 — Write the release notes
 
@@ -155,8 +174,12 @@ nothing between here and the staging ask needs the network:
   for the gate; the published notes name only this release's tickets.
 - **Rollback** — `{{rollback_command}} <stage>` for each production stage, newest first.
 
-Then read the file back: all four headings present, or the release stops here, per
-`gates/release.md` criterion 1.
+Then check the file: anything but `ok` stops the release here, per `gates/release.md`
+criterion 1.
+
+```bash
+python3 "${CLAUDE_PLUGIN_ROOT}/skills/release-readiness/scripts/readiness_check.py" notes-headings --notes {{release_dir}}/<version>-notes.md
+```
 
 ## Step 5 — Staging, then each production stage
 
@@ -164,7 +187,7 @@ Then read the file back: all four headings present, or the release stops here, p
 `gates/project-config.md`. The question names:
 
 - the artifact path;
-- `{{deploy_command}} staging <artifact-path>`, then `{{smoke_test_command}} staging`, then
+- `{{deploy_command}} staging "<artifact-path>"`, then `{{smoke_test_command}} staging`, then
   `{{rollback_command}} staging`, then `{{smoke_test_command}} staging` again;
 - the rollback of staging that any failure triggers;
 - the release notes, in full, since Step 6 publishes them.
@@ -173,7 +196,8 @@ Then stop and wait. Run no `{{deploy_command}}` before an answer. A clarifying q
 not an answer, and only the release manager's answer counts; one relayed by the person
 running the session is printed as relayed.
 
-On approval, run the four commands in that order from the project root. A failure stops the
+On approval, run Step 3's artifact check, then the four commands in that order from the
+project root. A failure stops the
 release: if staging was deployed and not yet rolled back, run `{{rollback_command}} staging`
 first, then report which command failed. A failed `{{deploy_command}} staging` counts as
 deployed, since it may have changed staging part-way. A failed rollback is reported as
@@ -192,7 +216,8 @@ command from here to the end of Step 6 runs from the project root, never the bui
    does, minus the halt itself: roll back every production stage already deployed, newest
    first, under their own approvals. That is Argo Rollouts' abort, which returns a rollout
    to its stable version, never one left part-way.
-2. `{{deploy_command}} <stage> <artifact-path>`, then `{{smoke_test_command}} <stage>`.
+2. Step 3's artifact check, then `{{deploy_command}} <stage> "<artifact-path>"`, then
+   `{{smoke_test_command}} <stage>`.
 3. Watch the halt criteria for the window with the command below. Run it as one background
    command and wait for it to finish. It keeps no state the session must poll, and nothing
    else runs meanwhile.
@@ -212,15 +237,18 @@ Only an exit of 0 with a last line of `window clean` settles `gates/release.md` 
 Any other ending is a halt: a `HALT` line, a traceback, a missing `python3`, a killed or
 interrupted task.
 
-**On a halt — a fired criterion, a watch that did not end clean, a failed production deploy,
-or a failed production smoke test — roll back first.** Before reading logs, reporting, or
-anything else, run `{{rollback_command}} <stage>` for every production stage deployed, the
-failed one included, newest first. Each stage's own approval already authorized its
-rollback. Then report the criterion or smoke output, each rollback's result, and the stage
-the release stopped at. Delete the local tag and stop, unless a rollback failed: then
-production still runs the tagged artifact, so the tag stays and is named in the report. A
-rollback that itself fails does not stop the older stages' rollbacks, and is reported first,
-in one line, as the emergency it is.
+**On a halt — a fired criterion, a watch that did not end clean, a failed artifact check
+before a production stage, a failed production deploy, or a failed production smoke test —
+roll back first.** Before reading logs, reporting, or anything else, run
+`{{rollback_command}} <stage>` for every production stage deployed, newest first: the failed
+one included when its deploy ran, as after a failed deploy, smoke test, or watch, and left
+out when its artifact check failed, since that stage was never deployed and still runs the
+previous release. Each stage's own approval already authorized its rollback. Then report the
+criterion or smoke output, each rollback's result, and the stage the release stopped at.
+Delete the local tag and stop, unless a rollback failed: then production still runs the
+tagged artifact, so the tag stays and is named in the report. A rollback that itself fails
+does not stop the older stages' rollbacks, and is reported first, in one line, as the
+emergency it is.
 
 ## Step 6 — Publish and update the tickets
 
