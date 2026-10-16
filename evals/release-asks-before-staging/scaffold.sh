@@ -33,7 +33,7 @@ cat > .claude/project.json <<'JSON'
   "monitoring_window_minutes": 1,
   "released_status": "none",
   "project_size": "small",
-  "roles": { "release_manager": "dana" }
+  "roles": { "release_manager": "dana", "product_owner": "pat" }
 }
 JSON
 echo 'echo "hello"' > src/app.sh
@@ -111,7 +111,7 @@ none
 - All Must acceptance tests pass — holds: system 12 / 12, no Must ticket open
 - Zero open Critical or High defects — holds: none open
 - Non-functional thresholds met or exception recorded — holds: no in-scope NFRs
-- Test summary reviewed by product owner — holds: reviewed below
+- Test summary reviewed by product owner — open: awaiting the product owner's review
 
 Reviewed-by: product_owner pat 2026-10-16
 Gate: PASS
