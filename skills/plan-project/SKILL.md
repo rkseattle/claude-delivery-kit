@@ -154,6 +154,10 @@ the person running the session is printed as relayed.
 
 ## Step 5 — Record the decision and commit
 
+Run `git fetch` first; if `origin/{{parent_branch_default}}` moved since Step 3, or
+`origin/brief/<slug>` now exists, re-run Step 3 and present again before recording
+anything.
+
 Replace the `Pending — <sponsor>.` line under `## Decision` with the decision, the
 sponsor, and today's date from `date +%F`:
 
@@ -171,10 +175,7 @@ An approval confirms every `(proposed)` value as written, so remove those marks 
 `Rejected` takes the same form, with the reason in one more line. A rejected brief is
 committed too: it is the record that the project was stopped at the gate.
 
-Run `git fetch` first; if `origin/{{parent_branch_default}}` moved since Step 3, or
-`origin/brief/<slug>` now exists, re-run Step 3 and present again before recording
-anything. Then cut the branch, with the `<slug>`
-Step 3 checked, and commit the brief alone:
+Then cut the branch, with the `<slug>` Step 3 checked, and commit the brief alone:
 
 ```bash
 git switch -c brief/<slug> origin/{{parent_branch_default}}
