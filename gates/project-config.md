@@ -29,5 +29,5 @@ announced like `none`: a project that omitted `project_size` is told it is runni
 
 Wherever a skill names `{{roles.<role>}}` to someone, print the role beside its person —
 `tech lead: <person>` — or `tech lead: you` for a role `roles` leaves out.
-A session has one typist, so an answer for a role someone else holds is relayed: name it as
-`QA: <person>, relayed`.
+A session has one typist, so an answer the person running the session says came from someone
+else is relayed: print it as `QA: <person>, relayed`.

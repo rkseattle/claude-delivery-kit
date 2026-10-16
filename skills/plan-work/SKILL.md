@@ -458,9 +458,9 @@ Present in chat, concisely:
 Ask `{{roles.qa}}` to approve `## Test strategy`, and revise any part QA rejects. Then stop
 and wait for `{{roles.tech_lead}}`, the gate's one accountable role in RACI terms, whose
 approval counts only once QA has approved; one person holding both roles gives both in one
-answer. Print both per `gates/project-config.md`. A revision QA asks for re-runs Step 5's
-self-check and one `design-adversary` revision round, outside Step 5's two-round count since
-it reviews new text; a BLOCKER from it goes to Rob, and QA re-approves the revised strategy,
-as a new commit dismisses a stale approval. Do not begin implementation, do not create the
-branch, do not transition Jira. Approval is an explicit "approved", "do it", or equivalent —
-a clarifying question is not approval.
+answer. Print both per `gates/project-config.md`. Any edit after Step 5, whoever asks for
+it, re-runs Step 5's self-check and one `design-adversary` revision round outside its
+two-round count; a BLOCKER from it goes to `{{roles.tech_lead}}`, and an edit to
+`## Test strategy` goes back to QA, as a new commit dismisses a stale approval. Do not begin
+implementation, do not create the branch, do not transition Jira. Approval is an explicit
+"approved", "do it", or equivalent — a clarifying question is not approval.

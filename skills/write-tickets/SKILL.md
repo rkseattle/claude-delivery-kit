@@ -119,11 +119,11 @@ points, blocked by — followed by:
 Ask `{{roles.qa}}` to confirm the ACs of every `Priority: Must` ticket are testable, and fix
 any QA finds untestable. Then stop and wait for `{{roles.product_owner}}`, the gate's one
 accountable role in RACI terms, whose approval counts only once QA has confirmed; one person
-holding both roles gives both in one answer. Print both per `gates/project-config.md`. A
-ticket QA's answer changes re-runs Step 5 and one Step 6 round, outside its three-round
-count since it reviews new text; a BLOCKER from it goes to Rob, and QA re-confirms the
-changed ticket, as a new commit dismisses a stale approval. Approval is an explicit
-"approved", "create them", or equivalent; a clarifying question is not approval.
+holding both roles gives both in one answer. Print both per `gates/project-config.md`. Any
+edit after Step 6, whoever asks for it, re-runs Step 5 and one Step 6 round outside its
+three-round count; a BLOCKER from it goes to `{{roles.product_owner}}`, and an edit to a
+`Must` ticket's ACs goes back to QA, as a new commit dismisses a stale approval. Approval is
+an explicit "approved", "create them", or equivalent; a clarifying question is not approval.
 
 ## Step 8 — Create
 
