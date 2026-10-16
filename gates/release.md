@@ -19,10 +19,11 @@ Before the release is tagged, each of these stops it and names the key:
 
 - `{{release_artifact_command}}`, `{{deploy_command}}`, `{{smoke_test_command}}`,
   `{{rollback_command}}`, or `{{release_dir}}` of `none`;
-- `{{halt_criteria}}` of `none`, an empty list, or an entry that is empty or only spaces;
+- `{{halt_criteria}}` of `none`, anything but a JSON list of strings, an empty list, or an
+  entry that is empty or only spaces;
 - `{{monitoring_window_minutes}}` that is not a positive whole number;
-- `{{rollout_stages}}` as an empty list, or with an entry named `staging`, which would
-  count staging as production.
+- `{{rollout_stages}}` that is neither `none` nor a JSON list of strings, an empty list, or
+  a list with an entry named `staging`, which would count staging as production.
 
 Each of those would let a criterion pass with nothing checked. The production stages are
 `{{rollout_stages}}` in order. With it `none`, a `{{project_size}}` of `small` gets the
