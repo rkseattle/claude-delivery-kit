@@ -123,8 +123,8 @@ permission; creating a work item does.
 **Deleting or closing someone else's work item needs permission too**, and for the
 opposite reason: it is not reversible from here, and a ticket you delete is a decision
 someone else can no longer see. Ask, and say what happens to the work it tracked. Moving a
-ticket through its normal workflow states — In Progress, In Review — is routine and needs
-no permission.
+ticket through its normal workflow states — In Progress, In Review, and Done after a merge
+the tech lead approved — is routine and needs no permission.
 
 ## Report full status at every boundary
 
@@ -203,8 +203,8 @@ before committing to `{{parent_branch_default}}`.
 **Authorization already given is not asked for twice.** This rule governs an external
 write nobody has approved yet — the ad-hoc request, the "while you're in there". It does
 not re-gate the stages of an approved run: stage 1's approval covers the push, the PR, and
-the Jira transitions that stages 2 through 5 exist to perform. Stopping at `ship-pr` to
-ask permission to push would deadlock the workflow at its final stage.
+the Jira transitions to In Progress and In Review; the tech lead's merge yes covers Done.
+Stopping at `ship-pr` to ask permission to push would deadlock the workflow at its end.
 
 The test is whether _this specific operation_ was authorized, not whether it is
 irreversible. An approved plan authorizes its own delivery; it does not authorize an
@@ -236,7 +236,8 @@ action of the turn that resumes.
 
 The `Stop` hook cannot tell a question from a stall, by design: distinguishing them would
 mean classifying prose. Declaring the stop is what separates them. The branch guard reads
-the same field.
+the same field. A run resumed at `merge` reads its PR's state before clearing it, since the
+merge may have deleted the branch the guard would restore (reconcile-on-restart).
 
 That hook only guards stops _inside_ a plan, and most turns are not inside one. So it is a
 backstop for a control that has to be behavioral: nothing catches a false pause taken

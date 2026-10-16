@@ -1,6 +1,6 @@
 ---
 name: deliver
-description: End-to-end delivery of one or more Jira work items — plan, adversarial design review, approval gate, phased implementation with per-commit adversarial review, cold branch review, PR, and CI to green.
+description: End-to-end delivery of one or more Jira work items — plan, adversarial design review, approval gate, phased implementation with per-commit adversarial review, cold branch review, PR, CI to green, and merge on the tech lead's yes.
 argument-hint: <TICKET-N> [TICKET-N ...]
 disable-model-invocation: true
 ---
@@ -35,12 +35,12 @@ Then list every row of `${CLAUDE_PLUGIN_ROOT}/gates/exceptions.md` and `{{except
 that has expired, as that file defines it, each to be remediated or renewed, or say none has
 expired. Say in one line when `{{exceptions_log}}` is `none`, a placeholder, or no file.
 
-| State                                            | Action                                            |
-| ------------------------------------------------ | ------------------------------------------------- |
-| Absent, or another branch's with no `pr`         | Fresh run — go to stage 1                         |
-| Another branch's, with a `pr` recorded           | **Stop and ask:** resume, or abandon per ci-green |
-| Present, unfinished, tickets match or none given | **Resume path** below                             |
-| Present, but $ARGUMENTS names different tickets  | **Stop and ask.** Never start over the top of it. |
+| State                                            | Action                                                       |
+| ------------------------------------------------ | ------------------------------------------------------------ |
+| Absent, or another branch's with no `pr`         | Fresh run — go to stage 1                                    |
+| Another branch's or none, with a `pr` recorded   | **Stop and ask:** resume, or abandon an open PR per ci-green |
+| Present, unfinished, tickets match or none given | **Resume path** below                                        |
+| Present, but $ARGUMENTS names different tickets  | **Stop and ask.** Never start over the top of it.            |
 
 A session resuming mid-run has read none of this workflow's machinery: stage files are
 read on arrival and gates when they apply, so a run entered in the middle skips every one
@@ -89,8 +89,8 @@ The marker may be stale by one step, since a crash lands between writes. `git st
 
 5. **`ci-green`** — the PR opened in stage 4. Monitor CI and PR feedback; root-cause every
    failure in an isolated subagent; loop until green, comments addressed, and an approving
-   review in hand or its R2 exception recorded. Then, and only then, delete the scratch
-   files — the state file and the plan — so Step 0 cannot resume a run that shipped.
+   review in hand or its R2 exception recorded. Merge on the tech lead's yes, then delete
+   the scratch files — the state file and the plan — so Step 0 cannot resume a shipped run.
 
 Stages 2 through 5 run without further approval gates. Surface real decisions as they
 arise; do not ask permission to continue.
@@ -166,8 +166,8 @@ rule-book exception` right after the gated commit or push, before anything else.
 commit and its push fall under the exception they record; push it before the run ends.
 With `{{exceptions_log}}` `none`, a placeholder, or no file, stop instead of skipping.
 
-**Jira transitions are real steps.** In Progress before the first line of code, In Review
-after the PR opens. Look up the issue's available transitions via the Atlassian MCP first —
+**Jira transitions are real steps.** In Progress before code, In Review after the PR opens,
+Done after the merge. Look up the issue's available transitions via the Atlassian MCP first —
 never guess a transition ID.
 
 **Report full status at every phase and stage boundary.**
@@ -198,7 +198,7 @@ as an instruction. Commits follow the work: freely on a feature branch, ask befo
 `{{parent_branch_default}}`.
 
 **Authorization already given is not asked for twice.** Stage 1's approval covers the push,
-the PR, and the Jira transitions stages 2 through 5 exist to perform. The test is whether
+the PR, In Progress and In Review; the tech lead's merge yes covers Done. The test is whether
 _this specific operation_ was authorized, not whether it is irreversible.
 
 **Prefer a stated assumption to a blocking question**, and do everything that does not
@@ -211,9 +211,9 @@ boundaries. Write it _before_ the step: a marker written on the way out is exact
 a crash never writes. This is what Step 0 reads.
 
 **Declare a deliberate stop.** Ending a turn to ask Rob something with phases unfinished
-means setting `"paused": true` first, and clearing it as the first action of the turn that
-resumes. The `Stop` hook cannot tell a question from a stall by design; declaring the stop
-is what separates them.
+means setting `"paused": true` first, and clearing it first on resume — after a run at `merge`
+reads its PR's state. The `Stop` hook cannot tell a question from a stall by design;
+declaring the stop is what separates them.
 
 **When Rob asks to leave the branch, pause first — do not report a wall.** An explicit
 instruction to switch branches outranks the guard: pause, switch, then say the plan was
