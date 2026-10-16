@@ -307,12 +307,14 @@ branch, where it would move the head off `<sha>`; ask Rob where it goes instead.
 
 - **No:** the PR stays open. Go to Step 6.
 - **Yes:** the answer may come turns later, so first re-run the `review_gate.py approval`
-  call above — or confirm the R2 row still covers the run — and `gh pr checks <pr>`. Then
+  call above — or confirm the R2 row still covers the run — `gh pr view <pr> --json
+  headRefOid`, which must still be `<sha>`, and `gh pr checks <pr>`: exit 0 is all green, 8
+  is still pending and waits like a red one, anything else is red. Then
   GitHub's "require branches to be up to date" check, against the PR's own base: read
   `gh pr view <pr> --json baseRefName`, `git fetch origin <base>`, and
   `git merge-base --is-ancestor origin/<base> <sha>` — exit 0 is up to date, 1 is a moved
   base, and a failed fetch or any other exit is no answer: report it and stop. A verdict
-  other than `approved` (or a lapsed R2 row), a check not green on `<sha>`, or a moved base
+  other than `approved` (or a lapsed R2 row), a moved head, a check not green, or a moved base
   returns the run to the loop — `stage_step` back to Step 5, a moved base rebased onto
   `origin/<base>` and pushed per Step 3 item 7 — and asks again once green. Then set
   `"paused": true` — the merge deletes the branch the guard would restore — and run
@@ -321,8 +323,10 @@ branch, where it would move the head off `<sha>`; ask Rob where it goes instead.
 The PR's state is the verdict, not the exit code: `gh pr view <pr> --json state`. `MERGED`
 is a merge even when the command then failed — deleting the local branch, say — so report
 that error and go on. Anything else is a failed merge: report the error, clear `paused`, and
-end the turn with the PR open, no Jira transition and no Step 6; the run is unfinished, and
-`/deliver` or `/ci-green` resumes it at `merge`.
+end the turn with the PR open, no Jira transition and no Step 6, declared per `deliver`'s
+invariants. A refusal can repeat — a required approval the R2 path never has, a conflict —
+so the stop asks the tech lead to retry at `merge`, merge outside the run and resume at
+`jira`, or abandon the run below, with the refused merge in its comment's list.
 
 Once `MERGED`, before any Jira call, write `"stage_step": "jira"` and `"branch": null`: the
 branch is gone, and with no `branch` the guard has nothing to restore. A run found at `jira`
@@ -375,7 +379,7 @@ Not Step 6: Step 6 runs only on a finished run. This is what ending a run means 
 `deliver`'s Step 0 stops on an unfinished run that has a `pr` recorded — on this branch or
 another, red, unaddressed, or waiting on a review — and Rob chooses to end it.
 Write Step 5's report with both lists, comment on the PR naming what was still outstanding
-— failing checks, open comments, the R2 approval — then delete the same files Step 6 does.
+— failing checks, open comments, the R2 approval, a refused merge — then delete the same files Step 6 does.
 If the comment cannot be posted, delete nothing: report the failure, since the PR comment
 is the only record left once the state file is gone. The tickets stay In Review: the PR is
 still open, and moving them is Rob's call. A run whose PR is merged is never abandoned: it

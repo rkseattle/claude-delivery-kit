@@ -179,7 +179,8 @@ branch. `merge_method` is `merge`, `squash`, or `rebase`, default `squash` — t
 `gh pr merge` flag `ci-green` uses once the tech lead says yes; any other value stops the
 run. `done_transition` names the Jira transition that then moves each covered ticket to
 done, default `Done`. The checks before the merge, and the decline and failure paths, are in
-`skills/ci-green/SKILL.md` Step 5.
+`skills/ci-green/SKILL.md` Step 5. A rule requiring an approval refuses the merge on the R2
+exception path, which has none; the tech lead then merges outside the run.
 
 `secret_scan_command` and `sast_command` serve rule book R12 and Appendix B1's scans. Each
 writes SARIF 2.1.0 to standard output, redacted, with inline suppression comments ignored;
@@ -280,8 +281,9 @@ defaults.
   `{{roles.tech_lead}}` names the tech lead. `write-tickets` waits on the product owner after
   QA confirms each `Must` ticket's ACs are testable, `plan-work` on the tech lead after QA
   approves the test strategy, `ship-pr` hands QA the verification charter, and `ci-green`
-  and `deliver` send rule-book exceptions to the tech lead. Default: a role absent from
-  `roles` is the person running the session, and the skill addresses that person directly.
+  and `deliver` send rule-book exceptions to the tech lead, as `ci-green` does the merge
+  question. Default: a role absent from `roles` is the person running the session, and the
+  skill addresses that person directly.
   That is the absent-key rule above applied per role, so a missing role never resolves to
   `none`, and a project with no `roles` key at all has the person running the session in
   every role.
