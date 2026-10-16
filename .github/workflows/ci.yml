@@ -64,6 +64,11 @@ jobs:
       - name: SARIF gate self-test
         run: python3 gates/scripts/sarif_gate.py --self-test
 
+      # One case per way a halt criterion could fail to fire, or a bad config could watch
+      # nothing; release calls this script rather than running criteria by hand.
+      - name: Halt watch self-test
+        run: python3 skills/release/scripts/halt_watch.py --self-test
+
   manifest:
     name: Plugin manifest
     runs-on: ubuntu-latest

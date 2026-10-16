@@ -13,6 +13,7 @@ python3 skills/write-tickets/scripts/lint_draft.py --self-test
 python3 skills/ci-green/scripts/review_gate.py --self-test
 python3 skills/readme-docs/scripts/check_readme.py --self-test
 python3 gates/scripts/sarif_gate.py --self-test
+python3 skills/release/scripts/halt_watch.py --self-test
 bash scripts/ci/json-parses.sh
 bash scripts/ci/frontmatter-names.sh
 bash scripts/ci/line-budget.sh

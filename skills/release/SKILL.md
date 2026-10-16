@@ -36,9 +36,15 @@ Every stop below comes before the tag, and says why in one line:
   with no automated deploy is not repeatable, and one with no rollback is not reversible:
   the Phase 6 policy is unmet before anything starts.
 - **Any other stop `gates/release.md` lists before the tag** — a `none` artifact, smoke, or
-  `release_dir` key; a `halt_criteria` or `rollout_stages` that is not a JSON list of
-  strings, is empty, or holds a blank entry, or a stage name the gate rejects; a window that
-  is not a positive whole number. Name the key: each would let a criterion pass with nothing checked.
+  `release_dir` key, or any non-zero exit from the tested check of `halt_criteria`,
+  `monitoring_window_minutes`, and `rollout_stages`, whose `INVALID:` line names the key:
+
+  ```bash
+  python3 "${CLAUDE_PLUGIN_ROOT}/skills/release/scripts/halt_watch.py" --check --config "<project root>/.claude/project.json"
+  ```
+
+  Write the project root as its absolute path: `CLAUDE_PROJECT_DIR` is not set in the
+  session's shell. Each would let a criterion pass with nothing checked.
 - **`$ARGUMENTS` is not `MAJOR.MINOR.PATCH`**, as `release-readiness` requires.
 - **`{{release_dir}}/<version>-test-summary.md` is missing, its last line is not
   `Gate: PASS`, or the line directly before that does not match
@@ -173,54 +179,20 @@ command from here to the end of Step 6 runs from the project root, never the bui
    command and wait for it to finish. It keeps no state the session must poll, and nothing
    else runs meanwhile.
 
-Write `{{halt_criteria}}` in as its JSON list and `{{monitoring_window_minutes}}` as its
-number: shell variables, `CLAUDE_PROJECT_DIR` among them, are not set in the session's
-shell. The list reaches Python on file descriptor 3, so no quoting inside a command can
-break it, and both heredoc terminators stay at the start of their lines.
-
 ```bash
-python3 - {{monitoring_window_minutes}} <<'PY' 3<<'JSON'
-import json, os, subprocess, sys, time
-window = int(sys.argv[1])
-try:
-    criteria = json.loads(os.fdopen(3).read())
-except Exception:
-    criteria = None
-if not (isinstance(criteria, list) and criteria
-        and all(isinstance(c, str) and c.strip() for c in criteria)):
-    print("HALT: halt_criteria could not be read as a non-empty list of commands")
-    sys.exit(1)
-start = time.monotonic()
-for minute in range(window + 1):
-    round_start = start + 60 * minute
-    time.sleep(max(0, round_start - time.monotonic()))
-    procs = [subprocess.Popen(["bash", "-c", c], stdin=subprocess.DEVNULL, start_new_session=True)
-             for c in criteria]
-    for criterion, proc in zip(criteria, procs):
-        try:
-            code = proc.wait(timeout=max(0, round_start + 55 - time.monotonic()))
-        except subprocess.TimeoutExpired:
-            code = "no exit within 55 seconds"
-        if code != 0:
-            for other in procs:
-                try:
-                    os.killpg(other.pid, 9)
-                except ProcessLookupError:
-                    pass
-            print(f"HALT at minute {minute}: {criterion} ({code})")
-            sys.exit(1)
-print("window clean")
-PY
-{{halt_criteria}}
-JSON
+python3 "${CLAUDE_PLUGIN_ROOT}/skills/release/scripts/halt_watch.py" --config "<project root>/.claude/project.json"
 ```
 
-Each round starts on the minute, from minute 0 through the window's end, and runs every
-criterion at once. A criterion fires when it exits non-zero or has not exited 55 seconds
-into its round, and the watch ends there. A list it cannot read is a halt too: a watch with
-nothing to check would pass. Only an exit of 0 with a last line of `window clean` settles
-`gates/release.md` criterion 3. Any other ending is a halt: a `HALT` line, a traceback, a
-missing `python3`, a killed or interrupted task.
+`${CLAUDE_PLUGIN_ROOT}` is filled in when this skill loads. Write the project root's
+absolute path in full: other shell variables, `CLAUDE_PROJECT_DIR` among them, are not set
+in the session's shell, and the script runs each criterion from that root. The script reads
+`{{halt_criteria}}` and `{{monitoring_window_minutes}}` itself, so no command's quoting
+passes through this session. Each round starts on the minute, from minute 0 through the
+window's end, and runs every criterion at once. A criterion fires when it exits non-zero or
+has not exited 55 seconds into its round, and a value the script cannot read is a halt too.
+Only an exit of 0 with a last line of `window clean` settles `gates/release.md` criterion 3.
+Any other ending is a halt: a `HALT` line, a traceback, a missing `python3`, a killed or
+interrupted task.
 
 **On a halt — a fired criterion, a watch that did not end clean, a failed production
 deploy, or a failed production smoke test — roll back first.** Before reading logs, reporting, or anything else, run
