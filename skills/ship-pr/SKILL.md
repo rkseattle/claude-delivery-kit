@@ -16,8 +16,8 @@ the point where a resumed run must know whether the PR already exists. **A `"pr"
 in that file means an earlier run opened the PR:** resume at `stage_step`, skipping Steps
 1–3, the push, and `gh pr create`.
 
-Read `${CLAUDE_PROJECT_DIR}/.claude/project.json` for this project's push procedure and
-verification tiers.
+Read `${CLAUDE_PROJECT_DIR}/.claude/project.json` for this project's push procedure,
+verification tiers, and roles.
 Read `${CLAUDE_PLUGIN_ROOT}/gates/project-config.md` and follow it exactly.
 
 ## Step 1 — Rebase onto the parent, then local CI equivalence
@@ -53,15 +53,16 @@ cannot run it yourself. So:
 1. Confirm the branch builds for the target the verification needs, with
    `{{release_build_command}}` where the project defines one. A branch that cannot build for
    that target is not ready to hand over.
-2. **Hand Rob the charter**: the items from `{{verification_step_file}}`, narrowed to the
-   ones this diff can affect, with one line each on what a failure would look like. Not
-   "please test it" — the specific things to watch.
+2. **Hand `{{roles.qa}}` the charter**, printed per `gates/project-config.md`: the items
+   from `{{verification_step_file}}`, narrowed to the ones this diff can affect, with one
+   line each on what a failure would look like. Not "please test it" — the specific things
+   to watch.
 3. **Ask whether to push now or wait for the session.** Both are legitimate: an early PR
    makes CI run and the diff reviewable, and the outcome lands in the PR afterward.
    Recommend pushing now unless the diff is one where a failure would rewrite the approach
    rather than adjust it.
 
-Whichever he chooses, the PR body records those ACs as outstanding until the verification
+Whichever is chosen, the PR body records those ACs as outstanding until the verification
 reports. Never mark such an AC met on the strength of a green automated run.
 
 If the verification fails, root-cause it, survey the failure mode per `deliver`'s

@@ -258,7 +258,9 @@ defaults.
   in every plan, and `design-adversary` blocks a `High` threat that names no phase.
 - `roles` — a map from each role above to the person who holds it.
   `{{roles.<role>}}` in a skill resolves to that role's entry in `roles`, so
-  `{{roles.tech_lead}}` names the tech lead. Default: a role absent from `roles` is the
+  `{{roles.tech_lead}}` names the tech lead. `write-tickets` waits on the product owner after
+  QA confirms each `Must` ticket's ACs are testable, `plan-work` on the tech lead after QA
+  approves the test strategy, and `ship-pr` hands QA the verification charter. Default: a role absent from `roles` is the
   person running the session, and the skill addresses that person directly. That is the
   absent-key rule above applied per role, so a missing role never resolves to `none`,
   and a project with no `roles` key at all has the person running the session in every

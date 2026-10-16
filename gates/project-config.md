@@ -24,3 +24,8 @@ is `none`, say so in **one line naming every such key and the value it took** �
 default or `none` — never one line per key, and never invent a substitute. A default is
 announced like `none`: a project that omitted `project_size` is told it is running as
 `small`. Each stage announces its own keys, including under `/deliver`.
+
+## Printing a role
+
+Wherever a skill names `{{roles.<role>}}` to someone, print the role beside its person —
+`tech lead: <person>` — or `tech lead: you` for a role `roles` leaves out.
