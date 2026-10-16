@@ -33,7 +33,7 @@ agents/                ticket-, design-, commit-, ci-failure-, greptile- adversa
 gates/                 status-report.md, definition-of-done.md, pre-push.md,
                        read-only-agent.md (the universal halves only),
                        project-config.md, exceptions.md, rule-book-review.md,
-                       planning-exit.md, and release-readiness.md;
+                       planning-exit.md, release-readiness.md, and release.md;
                        scripts/sarif_gate.py builds the scanners' git inputs and reads
                        their reports into the gates' verdicts
 hooks/                 hooks.json + the two hooks and their self-tests
@@ -147,6 +147,14 @@ The stage skills carry the procedure; the commands, paths and thresholds come fr
   "system_results_read_command": "<command that reads counts out of it, or none>",
   "nfr_test_command": "<command printing one <KEY> NFR<n> pass|fail line per NFR, or none>",
   "release_dir": "<directory for test summaries and release notes, e.g. docs/releases, or none>",
+  "release_artifact_command": "<command that builds the release artifact and prints its path last, or none>",
+  "deploy_command": "<command taking <stage> <artifact-path>, or none>",
+  "smoke_test_command": "<command taking <stage>, exiting non-zero on failure, or none>",
+  "rollback_command": "<command taking <stage>, or none>",
+  "rollout_stages": ["<first production stage, e.g. canary>", "<next, e.g. all>"],
+  "halt_criteria": ["<shell command exiting non-zero when its criterion fires>"],
+  "monitoring_window_minutes": 60,
+  "released_status": "<Jira transition and status released tickets move to, or none>",
   "ci_results_artifact": "<name of the uploaded CI result artifact, or none>",
   "ci_integration_results_artifact": "<name of the uploaded CI integration result artifact, or none>",
   "verification_tiers": "<the tiers an AC can be verified by>",
@@ -264,6 +272,25 @@ notes. They are working files, not committed, so the path may be gitignored. All
 default to `none`. A `none` system key or `release_dir` stops `release-readiness` and names
 the key, and so does a system results file equal to `results_file` or
 `integration_results_file`.
+
+`release_artifact_command`, `deploy_command`, `smoke_test_command`, `rollback_command`,
+`rollout_stages`, `halt_criteria`, `monitoring_window_minutes`, and `released_status` serve
+rule book Phase 6, whose gate is `gates/release.md`. `release` builds the artifact once,
+from a worktree of the new `v<version>` tag, with `release_artifact_command` — the
+deployable artifact itself, where `release_build_command` only proves a production-config
+build compiles before a push — and takes the last line the command prints as its path. Every
+stage deploys that path with `deploy_command <stage> <artifact-path>`, checks it with
+`smoke_test_command <stage>`, and undoes it with `rollback_command <stage>`; staging's
+rollback is tested before any production stage. `rollout_stages` lists the production stages
+in order. `halt_criteria` lists shell commands that each exit non-zero when their criterion
+fires — an error rate above 1%, say, or p95 latency 20% above baseline, the rule book's
+examples — and every one runs once a minute for `monitoring_window_minutes` after each
+stage. `released_status` names the Jira transition the released tickets take, matched by
+name and confirmed by reading each ticket back. All default to `none` except
+`monitoring_window_minutes`, which defaults to `60`, the rule book's one hour. What stops
+`release` before it tags, including `rollout_stages` `none` on a `medium` or `large`
+project, is listed once, in `gates/release.md`. `released_status` `none` leaves the
+tickets where they are.
 
 The values in the block above are illustrations, not defaults. Some of its keys are
 required and have no default; one that is missing, empty, `none`, or a `<placeholder>`
