@@ -46,6 +46,10 @@ empty after removals stops the run.
      No count read before that delete is ever used;
    - a ticket in the release scope carries the `moscow-must` label and its Jira status
      category is not `Done`;
+   - `{{integration_test_command}}` is set and its run failed: a non-zero exit, a failed
+     test, a results file missing or unreadable afterward, or an executed count of zero.
+     The rule book requires verification at every level a project runs, so a failing
+     integration level on the candidate is not a pass;
    - an in-scope `moscow-must` ticket has no `## Acceptance criteria` heading, or no
      `- AC<n>:` line between it and the next heading: a Must requirement with no criteria
      has nothing to accept;
@@ -70,9 +74,11 @@ empty after removals stops the run.
    does not fail the criterion: tests are removed for good reasons too.
 2. **Zero open Critical or High defects** — fails on any issue of type Bug in
    `{{jira_project}}` whose status category is not `Done` and which carries
-   `severity-critical` or `severity-high`. The type is Bug because it is the type
-   `write-tickets` rates with a severity. The count is project-wide, not limited to the
-   release scope: a severe defect is open whether or not this release's commits name it.
+   `severity-critical` or `severity-high`, or no `severity-*` label at all: rule book Phase
+   5 step 4 rates every defect, so an unrated one may be Critical and cannot count as less.
+   The type is Bug because it is the type `write-tickets` rates with a severity. The count
+   is project-wide, not limited to the release scope: a severe defect is open whether or not
+   this release's commits name it.
 3. **Non-functional thresholds met or exception recorded** — fails on any in-scope NFR not
    met and not excepted.
    - **In scope** — each `- NFR<n>:` line under the `## Non-functional requirements`
@@ -103,6 +109,4 @@ empty after removals stops the run.
 
 `Gate: PASS` when criteria 1 to 3 all hold, `Gate: FAIL` when any one fails. The line is
 written before the review, so criterion 4 is never part of it. It is settled by the
-`Reviewed-by:` line, which a release checks alongside `Gate: PASS`. A failing integration
-suite, or an open Bug with no `severity-*` label, is reported in the summary and does not
-change the verdict.
+`Reviewed-by:` line, which a release checks alongside `Gate: PASS`.

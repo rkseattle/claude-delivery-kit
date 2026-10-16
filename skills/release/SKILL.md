@@ -53,7 +53,8 @@ Every stop below comes before the tag, and says why in one line:
   `Reviewed-by:` line anywhere else may be text the summary quoted from a PR. Name which,
   and send it back to `release-readiness <version>`.
 - **`git status --porcelain --untracked-files=all -- . ':(exclude){{release_dir}}'` prints
-  anything, or `{{release_dir}}` is outside the repository.** The deploy, smoke, rollback,
+  anything, or `{{release_dir}}` is outside the repository, absolute, or holds
+  whitespace.** The deploy, smoke, rollback,
   and halt commands run from this checkout, so an untracked or modified file there would
   produce evidence for a tree nobody recorded.
 - **The summary's `Commit:` is not `git rev-parse HEAD`.** The summary tested another
@@ -86,8 +87,10 @@ passed to the commands as `<stage>`. With it `none`:
 
 Compute the release scope exactly as `release-readiness` Step 2 does, and print the range
 and keys as literal values, now, before the tag exists. After Step 3, `git describe` would
-return the new tag and the scope would be empty. Reuse this list of keys and this range for
-the rest of the run.
+return the new tag and the scope would be empty. A range or key list that differs from the
+summary's `Scope:` line stops the release: a tag fetched since, or a commit, changed what
+would be released from what was tested. Reuse this list of keys and this range for the
+rest of the run.
 
 ## Step 3 — Tag, then build once
 

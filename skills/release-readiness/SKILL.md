@@ -39,10 +39,11 @@ Stop, and say why in one line, when:
   with no leading `v` — Semantic Versioning's core form. The tag `release` creates is
   `v<version>`, so a leading `v` would double it.
 - **`git status --porcelain --untracked-files=all -- . ':(exclude){{release_dir}}'` prints
-  anything, or `{{release_dir}}` is outside the repository.** The suites run against the
-  working tree, and the summary records HEAD: a modified or untracked file, a fixture or a
-  config the suites pick up, would be tested and not recorded. Ignored files and
-  `{{release_dir}}`, which this kit writes to and never commits, do not count.
+  anything, or `{{release_dir}}` is outside the repository, absolute, or holds whitespace.**
+  The commands below write it unquoted and relative to the project root. The suites run
+  against the working tree, and the summary records HEAD: a modified or untracked file, a
+  fixture or a config the suites pick up, would be tested and not recorded. Ignored files
+  and `{{release_dir}}`, which this kit writes to and never commits, do not count.
 
 With `{{integration_test_command}}` `none`, the one line `gates/project-config.md` defines
 says the project has no integration tier. With `{{nfr_test_command}}` `none`, it says every
@@ -52,10 +53,15 @@ in-scope NFR counts as failed, per the gate's criterion 3.
 
 The scope is every `{{ticket_prefix}}` key named in a commit subject since the last
 release. The last release is the nearest `v*` tag reachable from HEAD, which is what
-`git describe` returns; with none, the range is all of history back to the root commit:
+`git describe` returns; with none, the range is all of history back to the root commit.
+History must be whole first: `git rev-parse --is-shallow-repository` printing `true` stops
+the skill, since a shallow clone hides both tags and commits. `git describe` failing for
+any reason but finding no tag, its `No names found` or `No tags can describe`, stops it
+too, rather than reading as a first release:
 
 ```bash
-last=$(git describe --tags --abbrev=0 --match 'v[0-9]*' 2>/dev/null) && range="$last..HEAD" || range=HEAD
+last=$(git describe --tags --abbrev=0 --match 'v[0-9]*' 2>&1) && range="$last..HEAD" ||
+  case $last in *"No names found"*|*"No tags can describe"*) range=HEAD ;; *) echo "$last"; false ;; esac
 git log --format=%s "$range" | grep -oE '[A-Z][A-Z0-9_]*-[0-9]+' | grep -xE '{{ticket_prefix}}-[0-9]+' | sort -u
 ```
 
@@ -239,12 +245,14 @@ Reviewed-by: product_owner <name> <YYYY-MM-DD>
 ```
 
 `<name>` is the person who answered: the product owner as `roles` names them, or with no
-product owner in `roles`, the person running the session by git `user.name`, never the
-word "you". A relayed answer, as `gates/project-config.md` defines one, names the person
-the session said it came from and appends `, relayed by <git user.name>` after the date.
-Then record the verdict on the tested commit as a git note, so it stays with the SHA it
-attests rather than only in a working file, as Gerrit's review-notes plugin records a
-change's review on its commit under `refs/notes/review`. The note holds the version, the
+product owner in `roles`, the person running the session by git `user.name`, never the word
+"you". A relayed answer, as `gates/project-config.md` defines one, names the person the
+session said it came from and appends `, relayed by <git user.name>` after the date. Then
+record the verdict on the tested commit as a git note, so it stays with the SHA it attests
+rather than only in a working file, in the place Gerrit's review-notes plugin uses for a
+change's review, `refs/notes/review`. It is an integrity check, not a signed attestation:
+anyone with the checkout can rewrite it, as anyone can the summary. What it adds is that the
+summary `release` reads is the one that was reviewed. The note holds the version, the
 summary's SHA-256, so a later edit to the file is detectable, and the summary's last two
 lines, with trailing whitespace stripped, as `git notes` strips it. Python builds it, so no
 character in the summary reaches a shell:

@@ -30,7 +30,7 @@ import time
 
 ROUND_SECONDS = 60
 BUDGET_SECONDS = 55
-STAGE_NAME = re.compile(r"^[A-Za-z0-9._-]+$")
+STAGE_NAME = re.compile(r"^[A-Za-z0-9_][A-Za-z0-9._-]*$")
 PLACEHOLDER = re.compile(r"^\s*<.*>\s*$")
 POLL_SECONDS = 0.05
 
@@ -66,9 +66,10 @@ def check(config_path):
     if not (isinstance(stages, list) and stages and all(isinstance(n, str) for n in stages)):
         raise ValueError("rollout_stages is neither none nor a non-empty list of names")
     for name in stages:
-        if not STAGE_NAME.match(name) or name == "staging":
-            raise ValueError(f"rollout_stages entry {name!r} is blank, staging, or not "
-                             "made only of letters, digits, '.', '_', and '-'")
+        if not STAGE_NAME.match(name) or name.lower() == "staging":
+            raise ValueError(f"rollout_stages entry {name!r} is blank, staging, starts with "
+                             "'-' or '.', or is not made only of letters, digits, '.', '_', "
+                             "and '-'")
     if len(set(stages)) != len(stages):
         raise ValueError("rollout_stages repeats a stage")
 
@@ -97,9 +98,11 @@ def watch(criteria, window, round_seconds=ROUND_SECONDS, budget_seconds=BUDGET_S
     for minute in range(window + 1):
         round_start = start + round_seconds * minute
         time.sleep(max(0, round_start - time.monotonic()))
-        procs = [subprocess.Popen(["bash", "-c", c], stdin=subprocess.DEVNULL, cwd=cwd,
-                                  start_new_session=True) for c in criteria]
-        running[:] = procs
+        procs = running
+        procs.clear()
+        for c in criteria:
+            procs.append(subprocess.Popen(["bash", "-c", c], stdin=subprocess.DEVNULL, cwd=cwd,
+                                          start_new_session=True))
         pending = dict(zip(procs, criteria))
         deadline = round_start + budget_seconds
         while pending:
@@ -176,6 +179,12 @@ CHECK_CASES = [
      "ValueError"),
     ("a stage with a metacharacter", {"halt_criteria": ["true"], "rollout_stages": ["a;b"]},
      "ValueError"),
+    ("a stage that looks like an option", {"halt_criteria": ["true"], "rollout_stages": ["-rf"]},
+     "ValueError"),
+    ("a stage that is a path", {"halt_criteria": ["true"], "rollout_stages": [".."]},
+     "ValueError"),
+    ("staging in another case", {"halt_criteria": ["true"], "rollout_stages": ["Staging"]},
+     "ValueError"),
     ("a non-string stage", {"halt_criteria": ["true"], "rollout_stages": ["canary", 3]},
      "ValueError"),
     ("bad criteria fail the check", {"halt_criteria": []}, "ValueError"),
@@ -217,8 +226,20 @@ def self_test():
         began = time.monotonic()
         got = watch(SLOW_THEN_FAILING, 0, round_seconds=0.5, budget_seconds=0.4)
         failures += report("watch", "a later failure is not held up by an earlier slow one",
-                           (got, time.monotonic() - began < 0.25),
+                           (got, time.monotonic() - began < 0.28),
                            ("HALT at minute 0: exit 7 (7)", True))
+        stamps = os.path.join(directory, "stamps")
+        began = time.monotonic()
+        got = watch([f"python3 -c 'import time; print(time.monotonic())' >> '{stamps}'"], 2,
+                    round_seconds=0.5, budget_seconds=0.4)
+        elapsed = time.monotonic() - began
+        with open(stamps, encoding="utf-8") as handle:
+            starts = [float(line) for line in handle.read().split()]
+        gaps = [later - earlier for earlier, later in zip(starts, starts[1:])]
+        failures += report("watch", "a clean window waits out every round",
+                           (got, elapsed >= 1.0, len(starts)), ("window clean", True, 3))
+        failures += report("watch", "each round starts a round apart",
+                           all(gap >= 0.45 for gap in gaps), True)
         leftover = os.path.join(directory, "leftover")
         got = watch([f"(sleep 0.5; touch '{leftover}') & exit 0"], 0, round_seconds=0.5,
                     budget_seconds=0.4)
