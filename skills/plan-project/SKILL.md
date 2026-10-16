@@ -158,8 +158,10 @@ sponsor, and today's date from `date +%F`:
 Approved by <sponsor> on <YYYY-MM-DD>.
 ```
 
-An answer relayed by the person running the session adds `, relayed by <name>` before the
-period, so the record keeps what the session printed.
+The record names who gave the answer, not only who holds the role. Compare
+`gh api user --jq .login` with `roles.sponsor`: when they differ, or `gh` cannot say, the
+answer was relayed, and the line adds `, relayed by <login or git user.name>` before the
+period — whatever the person running the session said about where it came from.
 
 An approval confirms every `(proposed)` value as written, so remove those marks with it.
 `Rejected` takes the same form, with the reason in one more line. A rejected brief is
