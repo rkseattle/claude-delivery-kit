@@ -137,11 +137,14 @@ and fails the gate criteria that depend on it. It is named in the summary under
 
 - **The scope's tickets** — read each key on its own with `jira_get_issue`, for `summary`,
   `status`, `labels`, `issuetype`, `parent`, and `description`. One key at a time, because
-  Jira rejects a whole `key in (…)` search over one key it does not know.
-  `jira_get_issue` also returns the description in Markdown, which `jira_search` strips of
-  its headings and list markers, as `write-tickets` relies on when it reads tickets back.
-  A key Jira reports as not found is handled as the gate says. Any other error is a failed
-  read.
+  Jira rejects a whole `key in (…)` search over one key it does not know. `jira_get_issue`
+  also returns the description in Markdown, which `jira_search` strips of its headings and
+  list markers, as `write-tickets` relies on when it reads tickets back. A key Jira reports
+  as not found is a failed read unless the register excepts it, as the gate says, checked
+  with `python3 "${CLAUDE_PLUGIN_ROOT}/skills/release-readiness/scripts/readiness_check.py"
+  excepted --rule "<KEY> not found" --exceptions {{exceptions_log}} --today "$(date +%F)"`.
+  Only `ok`, exit 0, removes the key; a `MISMATCH:` or `INVALID:`, as with
+  `{{exceptions_log}}` `none`, leaves it a failed read. Any other Jira error is a failed read.
 - **Must tickets not done** — of those, each with the `moscow-must` label whose status
   category is not `Done`.
 - **Must acceptance criteria** — as the gate's criterion 1 defines them, each with the tier

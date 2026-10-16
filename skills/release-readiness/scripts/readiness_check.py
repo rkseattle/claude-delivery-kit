@@ -19,6 +19,8 @@ Called by skills/release-readiness/SKILL.md (Steps 1, 2, 4, 7) and skills/releas
     readiness_check.py settle --nfrs-file PATH [--exceptions PATH] --today YYYY-MM-DD < OUTPUT
         one tab-separated `<KEY> NFR<n>`, `pass|excepted|fail`, `<why>` line per NFR, reading the
         nfr_test_command output on stdin; exit 1 when any NFR is fail
+    readiness_check.py excepted --rule RULE --exceptions PATH --today YYYY-MM-DD
+        `ok` when an unexpired, complete register row's Rule is exactly RULE
     readiness_check.py scope --summary PATH --range RANGE --keys K1,K2
     readiness_check.py commit --summary PATH --head SHA
     readiness_check.py hash PATH                      prints the file's SHA-256
@@ -190,19 +192,27 @@ def nfrs(description, key):
     return found, problems
 
 
+REGISTER_COLUMNS = ("Rule", "Reason", "Risk", "Expiry", "Remediation")
+
+
 def exceptions(path, today):
-    """{Rule: Expiry} for every unexpired row in a register table."""
+    """{Rule: Expiry} for every unexpired, complete row in a register table, in the format
+    gates/exceptions.md defines: a row missing its reason, risk, or remediation records no
+    exception, since nothing says why the waiver holds or how it ends."""
     if not path:
         return {}
     with open(path, encoding="utf-8") as handle:
         rows = [[cell.strip() for cell in line.strip().strip("|").split("|")]
                 for line in handle if line.lstrip().startswith("|")]
-    if not rows or "Rule" not in rows[0] or "Expiry" not in rows[0]:
-        raise ValueError("the exceptions register has no Rule and Expiry header row")
-    rule, expiry = rows[0].index("Rule"), rows[0].index("Expiry")
+    if not rows or tuple(rows[0][:len(REGISTER_COLUMNS)]) != REGISTER_COLUMNS:
+        raise ValueError("the exceptions register's header is not "
+                         + " | ".join(REGISTER_COLUMNS))
+    rule, expiry = 0, REGISTER_COLUMNS.index("Expiry")
     return {row[rule]: row[expiry] for row in rows[1:]
-            if len(row) > max(rule, expiry) and re.match(r"^\d{4}-\d{2}-\d{2}$", row[expiry])
-            and row[expiry] >= today}
+            if len(row) >= len(REGISTER_COLUMNS)
+            and all(row[n] and not re.fullmatch(r":?-+:?", row[n])
+                    for n in range(len(REGISTER_COLUMNS)))
+            and re.match(r"^\d{4}-\d{2}-\d{2}$", row[expiry]) and row[expiry] >= today}
 
 
 def settle(in_scope, output, excepted_rules):
@@ -231,6 +241,11 @@ def header(summary_path):
         lines = handle.read().splitlines()
     end = next((n for n, line in enumerate(lines) if line.startswith("## ")), len(lines))
     return lines[:end]
+
+
+def check_excepted(rule, register, today):
+    if rule not in exceptions(register, today):
+        raise ValueError(f"no unexpired, complete register row has Rule {rule!r}")
 
 
 def check_scope(summary_path, scope_range, keys):
@@ -496,6 +511,12 @@ def self_test():
                                                     os.path.join(directory, "register.md"),
                                                     "--today", "2026-10-16"],
                  "AB-1 NFR2 fail\n", "AB-1 NFR2\texcepted", 0),
+                ("excepted ok", ["excepted", "--rule", "AB-1 NFR2", "--exceptions",
+                                 os.path.join(directory, "register.md"), "--today", "2026-10-16"],
+                 "", "ok", 0),
+                ("excepted missing", ["excepted", "--rule", "AB-7 not found", "--exceptions",
+                                      os.path.join(directory, "register.md"), "--today",
+                                      "2026-10-16"], "", "MISMATCH: no unexpired", 1),
                 ("nfrs exits 1 on a problem", ["nfrs", "--key", "AB-1"],
                  "## Non-functional requirements\n* NFR1: a\n", "INVALID:", 1),
                 ("no subcommand is usage", [], "", "", 2)]:
@@ -546,6 +567,13 @@ def release_checks_cases(directory, summary_file, good):
     failures += report("settle", "no output: every NFR has no result",
                        [row[1:] for row in settle(["AB-1 NFR1"], "", set())],
                        [("fail", "no result")])
+    partial = summary_file("| Rule | Reason | Risk | Expiry | Remediation |\n| --- | --- | --- | "
+                           "--- | --- |\n| AB-1 NFR2 |  |  | 2026-12-31 |  |\n", "partial.md")
+    failures += report("settle", "a row missing its reason, risk, or remediation excepts nothing",
+                       exceptions(partial, "2026-10-16"), {})
+    failures += report("settle", "a register with only Rule and Expiry columns", _error(
+        exceptions, summary_file("| Rule | Expiry |\n| AB-1 NFR2 | 2026-12-31 |\n", "two.md"),
+        "2026-10-16"), "ValueError")
     failures += report("settle", "a register with no header", _error(
         exceptions, summary_file("| a | b |\n", "noheader.md"), "2026-10-16"), "ValueError")
     scoped = summary_file("# x\nCommit: abc123\nScope: v1.0.0..HEAD — 2 tickets: AB-1, AB-2\n",
@@ -665,6 +693,10 @@ def main():
     artifact.add_argument("--sha256-file", required=True)
     headings = commands.add_parser("notes-headings")
     headings.add_argument("--notes", required=True)
+    waived = commands.add_parser("excepted")
+    waived.add_argument("--rule", required=True)
+    waived.add_argument("--exceptions", required=True)
+    waived.add_argument("--today", required=True)
     directory = commands.add_parser("release-dir")
     directory.add_argument("--value", required=True)
     args = parser.parse_args()
@@ -707,7 +739,8 @@ def main():
                   "commit": lambda: check_commit(args.summary, args.head),
                   "artifact": lambda: check_artifact(args.path, args.sha256_file),
                   "notes-headings": lambda: check_notes(args.notes),
-                  "release-dir": lambda: check_release_dir(args.value)}
+                  "release-dir": lambda: check_release_dir(args.value),
+                  "excepted": lambda: check_excepted(args.rule, args.exceptions, args.today)}
         if args.command in checks:
             try:
                 checks[args.command]()

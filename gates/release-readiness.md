@@ -30,11 +30,12 @@ Every fact below is read by this run. A read that fails — a Jira call that err
 only part of its results — fails each criterion that depends on it. A failed read never
 counts as an empty list, since a list nobody could read would otherwise pass every check it
 feeds. Jira answers "not found" both for a key that does not exist and for one the caller
-may not see, so a scope key it reports as not found leaves the scope, listed under
-`Known risks`, only when at least one other scope key read succeeded. That read shows
-access, and the missing key is then a mistyped or deleted key in a subject nobody can
-rewrite. With no scope key read, every not-found key is a failed read, and a scope left
-empty after removals stops the run.
+may not see, and reading one key proves nothing about access to another, so a scope key it
+reports as not found is a failed read too. It leaves the scope only when an unexpired,
+complete `{{exceptions_log}}` row, in `${CLAUDE_PLUGIN_ROOT}/gates/exceptions.md`'s format,
+has the `Rule` `<KEY> not found`: the record that someone confirmed a mistyped or deleted
+key in a subject nobody can rewrite, with the reason and the remediation. It is then listed
+under `Known risks`, and a scope left empty after removals stops the run.
 
 1. **All Must acceptance tests pass** — fails on any of:
    - `{{system_test_command}}` exits non-zero;
@@ -96,9 +97,10 @@ empty after removals stops the run.
      untested threshold is not a met one. Lines for NFRs outside the scope are ignored.
      The command's exit status is not read; its lines are. With `{{nfr_test_command}}`
      `none`, every in-scope NFR counts as a `fail` line.
-   - **Excepted** — an unexpired `{{exceptions_log}}` row has a `Rule` reading exactly
-     `<KEY> NFR<n>`. Expiry is as `${CLAUDE_PLUGIN_ROOT}/gates/exceptions.md` defines it.
-     With `{{exceptions_log}}` `none`, no `fail` line is excepted.
+   - **Excepted** — an unexpired, complete `{{exceptions_log}}` row, every column filled,
+     has a `Rule` reading exactly `<KEY> NFR<n>`. Expiry is as
+     `${CLAUDE_PLUGIN_ROOT}/gates/exceptions.md` defines it. With `{{exceptions_log}}`
+     `none`, no `fail` line is excepted.
 4. **Test summary reviewed by product owner** — the summary's line before `Gate:` reads
    `Reviewed-by: product_owner <name> <YYYY-MM-DD>`, written only on
    `{{roles.product_owner}}`'s explicit answer. A relayed answer, as
