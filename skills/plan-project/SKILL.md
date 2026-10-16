@@ -37,11 +37,14 @@ Stop, and say why in one line, when:
 **An interrupted Step 5 comes first, after the first two stops.** When
 `git rev-parse --git-path plan-project` names a directory that exists, Step 5 started and
 did not finish — the way `.git/rebase-merge` tells git a rebase is in progress. Continue
-it, keeping the recorded decision: switch to its `brief/<slug>` (or cut it if absent),
-make the `## Decision` line match `decision`, then commit as Step 5 does. On an explicit
-abort instead, restore `{{brief_file}}` from `presented.md`, switch to
-`{{parent_branch_default}}`, delete `brief/<slug>` if it has no commits of its own, and
-remove the directory. No other stop applies while it exists.
+it, keeping the recorded decision: switch to its `brief/<slug>` (or cut it if absent).
+When `git show brief/<slug>:{{brief_file}}` already holds the `decision` line, the commit
+landed and only cleanup was lost: remove the directory and report that commit. Otherwise
+make the `## Decision` line match `decision` and commit as Step 5 does. On an explicit
+abort instead, unstage the brief with `git restore --staged {{brief_file}}`, restore it
+from `presented.md`, switch to `{{parent_branch_default}}`, delete `brief/<slug>` if it has
+no commits of its own, and remove the directory — leaving index and tree as before Step 5,
+as `git rebase --abort` does. No other stop applies while it exists.
 
 An existing `{{brief_file}}` whose decision is `Pending`, or that has no `## Decision`
 section yet, is the draft: read it, and revise it in Step 2 rather than writing over it
