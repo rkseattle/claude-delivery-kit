@@ -62,8 +62,8 @@ For every failing job:
    the previous attempt's results. `gh run view <run-id> --json` lists the exact name if the
    attempt is not to hand.
 
-   Read the counts with `{{results_read_command}}`, any `{}` in it replaced by the downloaded
-   results file's path.
+   Read the counts with `{{results_read_command}}`, a `{}` argument in it replaced by the
+   downloaded results file's path.
 
 2. **Root-cause it**, under `{{failure_policy_gate}}`'s failure policy — it governs CI jobs
    as much as local runs. No `paused` declaration is needed for the routine loop here;

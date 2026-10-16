@@ -65,7 +65,8 @@ In order, all green, before every `git push`:
 5. **The unit suite**, at the scope `{{unit_test_scope}}` names. That key is the project's
    answer to a real trade: running the whole target matches what CI runs and cannot be
    wrong about which subset mattered, while a scoped run is cheaper on a slow suite. The
-   project states which it takes and why.
+   project states which it takes and why. Read its counts with `{{results_read_command}}`,
+   a `{}` argument in it replaced by `{{results_file}}`.
 
    **Check the executed count, not just the failure count.** Zero failures out of forty
    executed is not a pass of an eight-hundred-test suite — it is a run that died early.
@@ -73,15 +74,15 @@ In order, all green, before every `git push`:
 
 6. **The integration suite** — `{{integration_test_command}}`, rule book Phase 5's
    integration level, which runs on every pull request, so on every push to one. The
-   Definition of Done keeps it out of the commit gate; this is where it gates. Delete
-   `{{integration_results_file}}` before the run, then read its counts with
-   `{{results_read_command}}`, its `{}` replaced by that path, and check the executed count
-   as step 5 does. With `{{integration_test_command}}` set to `none`, the step is skipped:
-   the one line `gates/project-config.md` defines names both integration keys with their
-   values and says the project has no integration tier. With the command set, a
+   Definition of Done keeps it out of the commit gate; this is where it gates. With
+   `{{integration_test_command}}` set to `none`, the step is skipped: the one line
+   `gates/project-config.md` defines names both integration keys with their values and says
+   the project has no integration tier. Otherwise check before running it: a
    `{{integration_results_file}}` of `none` or equal to `{{results_file}}`, or a
-   `{{results_read_command}}` without `{}`, leaves no verdict of its own to read: stop and
-   name the key.
+   `{{results_read_command}}` with no `{}` argument, leaves no verdict of its own to read —
+   stop and name the key. Then delete `{{integration_results_file}}`, run the suite, read
+   its counts with `{{results_read_command}}`, the `{}` argument replaced by that path, and
+   check the executed count as step 5 does.
 
 7. **Dependency audit**, where the project has dependencies — always, never conditional on
    whether they changed. Advisories are published against versions you already have: a

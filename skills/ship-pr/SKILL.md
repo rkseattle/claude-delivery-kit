@@ -43,8 +43,9 @@ Two shapes recur, and the project file says which applies:
 **An automated tier the push itself runs.** Where a push hook resolves the diff to affected
 tests and attests they executed against this HEAD, do not run that suite by hand and then
 bypass the hook. The gate's bypass section says why, and its cadence rules still apply. Read
-counts from `{{results_file}}`, never the console and never the exit code. If output
-truncates, read the file — do not re-run.
+counts from `{{results_file}}` with `{{results_read_command}}`, a `{}` argument in it
+replaced by that path — never the console and never the exit code. If output truncates,
+read the file — do not re-run.
 
 **A tier no automation can reach.** Where the suite is structurally silent on the thing that
 changed — behavior only real hardware, a real integration, or a human can observe — you
@@ -57,7 +58,7 @@ cannot run it yourself. So:
    from `{{verification_step_file}}`, narrowed to the ones this diff can affect, with one
    line each on what a failure would look like. Not "please test it" — the specific things
    to watch.
-3. **Ask whether to push now or wait for the session.** Both are legitimate: an early PR
+3. **Ask the person running the session whether to push now or wait.** Both are legitimate: an early PR
    makes CI run and the diff reviewable, and the outcome lands in the PR afterward.
    Recommend pushing now unless the diff is one where a failure would rewrite the approach
    rather than adjust it.

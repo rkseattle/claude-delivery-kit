@@ -204,12 +204,13 @@ in SmartBear's study of code review at Cisco; `none` skips the check, announced 
 interfaces and external services, run on every pull request. The pre-push checklist runs it
 after the unit suite and reads its counts from `integration_results_file` — a file of its
 own, as Maven's Failsafe writes integration results apart from Surefire's unit results, so
-neither suite overwrites the other's verdict. The
-Definition of Done never runs it, so a third party being down never blocks a commit. Both
-default to `none`, announced as no integration tier. To read a second file,
-`results_read_command` holds `{}` where the path goes, as `find -exec` does, and every gate
-running it replaces `{}` with the file it reads; a reader without one reads its one fixed
-file, so with the command set and no `{}` the push stops, as it does when the two results
+neither suite overwrites the other's verdict. The Definition of Done never runs it, so a
+third party being down never blocks a commit. Both default to `none`, announced as no
+integration tier. To read a second file, `results_read_command` holds `{}` as a whole
+argument where the path goes, the form POSIX `find -exec` guarantees, and every gate running
+it replaces that argument with the file it reads; a `{}` inside a larger argument, such as
+`jq '.stats // {}'`, is left alone. A reader with no `{}` argument reads its one fixed file,
+so with the command set the push stops before running it, as it does when the two results
 files share a path.
 
 The values in the block above are illustrations, not defaults. Some of its keys are
@@ -260,8 +261,8 @@ defaults.
   `{{roles.<role>}}` in a skill resolves to that role's entry in `roles`, so
   `{{roles.tech_lead}}` names the tech lead. `write-tickets` waits on the product owner after
   QA confirms each `Must` ticket's ACs are testable, `plan-work` on the tech lead after QA
-  approves the test strategy, and `ship-pr` hands QA the verification charter. Default: a role absent from `roles` is the
-  person running the session, and the skill addresses that person directly. That is the
+  approves the test strategy, and `ship-pr` hands QA the verification charter. Default: a
+  role absent from `roles` is the person running the session, and the skill addresses that person directly. That is the
   absent-key rule above applied per role, so a missing role never resolves to `none`,
   and a project with no `roles` key at all has the person running the session in every
   role.
