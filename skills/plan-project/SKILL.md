@@ -18,8 +18,7 @@ decision. No file is created, edited, or staged before the sponsor answers excep
 Read `${CLAUDE_PROJECT_DIR}/.claude/project.json`: every `{{key}}` below comes from it.
 Read `${CLAUDE_PLUGIN_ROOT}/gates/project-config.md` and follow it exactly; this skill's
 optional keys are `brief_file`, `project_size`, `lifecycle_model`, `roles`,
-`results_file`, `results_read_command`, and, through the planning exit gate,
-`exceptions_log`.
+`results_file`, and `results_read_command`.
 
 Stop, and say why in one line, when:
 
@@ -83,9 +82,9 @@ Write `{{brief_file}}` from this template, every section in this order:
 Pending — <sponsor>.
 ```
 
-`<sponsor>` here and in Step 5 is the handle `roles.sponsor` holds, or the git
-`user.name` of the person running the session when `roles` has none — a name, never the
-word "you".
+`<sponsor>` here and in Step 5 is the handle `roles.sponsor` holds. With no sponsor in
+`roles` the sponsor is the person running the session, per `gates/project-config.md`: use
+their git `user.name`, or ask for a name when it is unset — a name, never the word "you".
 
 Fill it from $ARGUMENTS and the repository. A value neither supplies is a proposal: write
 it, mark it `(proposed)`, and list it at Step 4 for the sponsor to confirm or change — a
@@ -118,19 +117,19 @@ lists nothing but `{{brief_file}}`; a failed fetch is named as that. Stop, too, 
 `brief/<slug>` or `origin/brief/<slug>` already exists — `<slug>` the project name in
 lowercase kebab-case — and ask rather than reuse it. Then run
 `{{build_command}}`. When `{{results_file}}` is not `none`, read the verdict from it with
-`{{results_read_command}}`, per `gates/definition-of-done.md`'s rule on results; otherwise
-the exit status is the verdict. **On failure, stop**: name the command and its first error.
+`{{results_read_command}}` rather than from the console; otherwise the exit status is the
+verdict. **On failure, stop**: name the command and its first error.
 
 Then the pipeline:
 
 ```bash
 gh run list --branch {{parent_branch_default}} --limit 1 --json conclusion
-gh run list --commit "$(git rev-parse HEAD)" --json workflowName,conclusion
+gh run list --commit "$(git rev-parse HEAD)" --json databaseId,workflowName,status,conclusion
 ```
 
-**Stop unless the first reports `success` and every run in the second concluded `success`
-or `skipped`.** An empty list, a run in progress, a cancelled run, and a `gh` error are each
-handled as criterion 4 says. Name what was reported.
+**Stop unless the first reports `success`, and the second lists at least one run, every one
+concluded `success` or `skipped`.** An empty list fails. A run in progress, a cancelled
+run, and a `gh` error are each handled as criterion 4 says. Name what was reported.
 
 A failure here is not repaired by this skill: setting up or fixing the build and pipeline
 is the project's step 6 work. The brief stays in place, and a re-run presents it once both
@@ -162,12 +161,15 @@ the person running the session is printed as relayed.
 
 ## Step 5 — Record the decision and commit
 
-Replace the `Pending — <sponsor>.` line under `## Decision` with the decision, the sponsor, and today's date from
-`date +%F`:
+Replace the `Pending — <sponsor>.` line under `## Decision` with the decision, the
+sponsor, and today's date from `date +%F`:
 
 ```markdown
 Approved by <sponsor> on <YYYY-MM-DD>.
 ```
+
+An answer relayed by the person running the session adds `, relayed by <name>` before the
+period, so the record keeps what the session printed.
 
 An approval confirms every `(proposed)` value as written, so remove those marks with it.
 `Rejected` takes the same form, with the reason in one more line. A rejected brief is
@@ -179,9 +181,10 @@ commit the brief alone:
 ```bash
 git switch -c brief/<slug> {{parent_branch_default}}
 git add {{brief_file}}
-git commit -m "Record the project brief and the sponsor's decision"
+git commit -m "Record the project brief and the sponsor's decision" -- {{brief_file}}
 ```
 
 Do not push: report the branch, the commit, and the decision, and leave publishing it to the
 person running the session. An approved brief reaches `{{parent_branch_default}}`, where
-`write-tickets` reads it, only when that branch is merged.
+`write-tickets` reads it, only when that branch is merged by an ordinary pull request:
+`ship-pr` needs a ticket, and the brief precedes every ticket.

@@ -50,7 +50,7 @@ request-derived scope. Establish, by reading the code rather than file names:
   one existing test, and the command that runs it
 - **the brief's goals**, which `Goal:` lines draw on: the `## Goals` of `{{brief_file}}`,
   read only when its `## Decision` reads `Approved`; otherwise say in one line why none were
-  read — no file at the path, no decision or the one it names, or no goals listed
+  read — no file at the path, no `## Decision` or one other than `Approved`, or no goals
 
 Then search Jira: `project = {{jira_project}}` with the request's key terms, for tickets
 that overlap or that the new ones depend on. Record each one's key and status.
@@ -84,6 +84,8 @@ templates' format, blockers before dependents.
   `(modify)`, `(new)`, or `(delete)` with its purpose.
 - **Out of scope**: adjacent work with where it lives; excluded instances with the benign
   claim.
+- **Goal**, when Step 2 read the brief's goals: each `Goal:` line and Epic `## Goal`
+  restates the one it serves. A ticket serving none is removed from the draft (R14).
 - **Context**: why, with any linked source summarized. Never a reference to this session.
 
 ## Step 5 — Lint
@@ -116,6 +118,7 @@ In chat, one table — ID, type, summary, priority, severity, handoff, AC clause
 points, blocked by — followed by:
 
 - clauses that need out-of-band verification, called out separately
+- each ticket Step 4 removed for serving no goal of the brief
 - any sequenced split from Step 3, and every DECISION from the review
 - assumptions stated in place of questions
 

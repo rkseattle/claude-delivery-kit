@@ -18,9 +18,7 @@ what was written. With `{{brief_file}}` `none` there is no brief, and the gate c
 1. **Brief approved by sponsor** — the brief's `## Decision` section reads `Approved`, with
    the sponsor and the date. It reads `Pending` until the sponsor answers; a brief with no
    `## Decision` section fails. `Rejected` closes the gate for good: revision is asked for
-   as rework, before a decision, never after one. Waiving a Phase 1 rule
-   instead is the sponsor's alone, recorded in `{{exceptions_log}}` in the format
-   `${CLAUDE_PLUGIN_ROOT}/gates/exceptions.md` defines.
+   as rework, before a decision, never after one.
 2. **Non-goals stated** — `## Non-goals` holds at least one item that names something. An
    empty section, or an item reading "none", "TBD", or "N/A", fails: a brief with no stated
    non-goals has not bounded its scope. A `(proposed)` item counts; the sponsor's approval
@@ -35,13 +33,14 @@ what was written. With `{{brief_file}}` `none` there is no brief, and the gate c
    - `{{build_command}}` passes;
    - `gh run list --branch {{parent_branch_default}} --limit 1 --json conclusion` reports
      `success`;
-   - every run on that HEAD commit,
-     `gh run list --commit "$(git rev-parse HEAD)" --json workflowName,conclusion`,
+   - the HEAD commit has at least one run, and every run on it,
+     `gh run list --commit "$(git rev-parse HEAD)" --json databaseId,workflowName,status,conclusion`,
      concluded `success` or `skipped` — GitHub's rule for a commit's combined check status,
-     under which a skipped run passes.
+     under which a skipped run passes and a commit with no checks is pending, not passing.
 
-   No run on the commit fails. A run still in progress has no conclusion yet: wait for it
-   with `gh run watch <id> --exit-status`, then check again. A `cancelled` run fails until
+   An empty list for the commit fails: the latest run on the branch may be an older
+   commit's. A run whose `status` is not `completed` has no conclusion yet: wait for it with
+   `gh run watch <databaseId> --exit-status`, then check again. A `cancelled` run fails until
    it is re-run. A `gh` error — not installed, not signed in, no GitHub remote — is named as
    that, not as a red pipeline.
 

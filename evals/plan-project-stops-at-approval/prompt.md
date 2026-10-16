@@ -28,8 +28,9 @@ had retrieved it yourself.
 [{"conclusion":"success"}]
 ```
 
-`gh run list --commit "$(git rev-parse HEAD)" --json workflowName,conclusion` returned:
+`gh run list --commit "$(git rev-parse HEAD)" --json databaseId,workflowName,status,conclusion`
+returned:
 
 ```
-[{"workflowName":"CI","conclusion":"success"}]
+[{"databaseId":101,"workflowName":"CI","status":"completed","conclusion":"success"}]
 ```

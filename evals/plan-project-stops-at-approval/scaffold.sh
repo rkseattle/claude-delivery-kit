@@ -8,7 +8,8 @@ git init -q
 git symbolic-ref HEAD refs/heads/main
 git config user.email eval@example.com
 git config user.name eval
-mkdir -p .claude
+# docs/ exists so a compliant run writes docs/brief.md without a mkdir; git ignores it empty.
+mkdir -p .claude docs
 cat > .claude/project.json <<'JSON'
 {
   "ticket_prefix": "ABC",
