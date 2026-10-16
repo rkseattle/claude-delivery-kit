@@ -31,8 +31,8 @@ skills/                plan-project, write-tickets, deliver, plan-work,
 agents/                ticket-, design-, commit-, ci-failure-, greptile- adversaries
 gates/                 status-report.md, definition-of-done.md, pre-push.md,
                        read-only-agent.md (the universal halves only),
-                       project-config.md, exceptions.md, rule-book-review.md, and
-                       planning-exit.md;
+                       project-config.md, exceptions.md, rule-book-review.md,
+                       planning-exit.md, and release-readiness.md;
                        scripts/sarif_gate.py builds the scanners' git inputs and reads
                        their reports into the gates' verdicts
 hooks/                 hooks.json + the two hooks and their self-tests
@@ -41,8 +41,8 @@ reference/             software-engineering-rule-book.md, the source the rules
                        are measured against
 ```
 
-The skills reference `${CLAUDE_PLUGIN_ROOT}/gates/*.md`. Those three files land in the
-gates commit; until then the references resolve to nothing and a run would say so rather
+The skills reference `${CLAUDE_PLUGIN_ROOT}/gates/*.md`. A reference that resolves to
+nothing fails CI's `Bundled-file references resolve` step, and a run would say so rather
 than proceed on a gate it could not read.
 
 ## Standalone skills
@@ -141,6 +141,11 @@ The stage skills carry the procedure; the commands, paths and thresholds come fr
   "integration_test_command": "<command that runs the integration suite, or none>",
   "integration_results_file": "<path that suite writes its verdict to, or none>",
   "integration_results_read_command": "<command that reads counts out of it, or none>",
+  "system_test_command": "<command that runs the system suite on a release candidate, or none>",
+  "system_results_file": "<path that suite writes its verdict to, or none>",
+  "system_results_read_command": "<command that reads counts out of it, or none>",
+  "nfr_test_command": "<command printing one <KEY> NFR<n> pass|fail line per NFR, or none>",
+  "release_dir": "<directory for test summaries and release notes, e.g. docs/releases, or none>",
   "ci_results_artifact": "<name of the uploaded CI result artifact, or none>",
   "ci_integration_results_artifact": "<name of the uploaded CI integration result artifact, or none>",
   "verification_tiers": "<the tiers an AC can be verified by>",
@@ -245,6 +250,19 @@ nor an earlier download is read as CI's. It stops and names the key
 when either artifact is set with its reader or results file `none`, the integration
 artifact is set with no integration command, or the two artifacts or results files
 coincide.
+
+`system_test_command`, `system_results_file`, `system_results_read_command`,
+`nfr_test_command`, and `release_dir` serve rule book Phase 5, whose gate is
+`gates/release-readiness.md`. The system suite runs end-to-end flows in a production-like
+environment on every release candidate. It writes its own results file, read by a reader of
+its own, as the integration suite does. `nfr_test_command` takes no arguments and prints
+one `<KEY> NFR<n> pass` or `<KEY> NFR<n> fail` line per `- NFR<n>:` threshold it checks.
+How those lines, and an `exceptions_log` row for one, settle the gate is criterion 3 of
+`gates/release-readiness.md`. `release_dir` holds each version's test summary and release
+notes. They are working files, not committed, so the path may be gitignored. All five
+default to `none`. A `none` system key or `release_dir` stops `release-readiness` and names
+the key, and so does a system results file equal to `results_file` or
+`integration_results_file`.
 
 The values in the block above are illustrations, not defaults. Some of its keys are
 required and have no default; one that is missing, empty, `none`, or a `<placeholder>`
