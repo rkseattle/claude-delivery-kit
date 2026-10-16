@@ -15,7 +15,10 @@ of an earlier release.
 
 ## What settles each one
 
-Before the release is tagged, each of these stops it and names the key:
+Before the release is tagged, each of these stops it and names the key or the check:
+
+- a summary whose last two lines, version, and SHA-256 do not match the note
+  `release-readiness` wrote on HEAD under `refs/notes/release-readiness`, or no such note;
 
 - `{{release_artifact_command}}`, `{{deploy_command}}`, `{{smoke_test_command}}`,
   `{{rollback_command}}`, or `{{release_dir}}` of `none`;
@@ -62,7 +65,8 @@ version can run again.
    gate has failed for this release whatever the rollback's outcome. A rollback that fails
    does not stop the older stages' rollbacks. Each one's result is reported, and the first
    failure is reported as the emergency it is.
-4. **Release notes published** — after `git push origin v<version>`, `gh release create
+4. **Release notes published** — after the `--atomic` push of `v<version>` and the
+   readiness notes ref, `gh release create
    v<version> --verify-tag --title v<version> --notes-file {{release_dir}}/<version>-notes.md`
    exits zero in this run, and `gh release view v<version> --json isDraft --jq .isDraft`
    then prints `false`. A release that already existed is not one this run published. A

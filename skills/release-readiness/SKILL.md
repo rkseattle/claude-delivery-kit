@@ -9,10 +9,11 @@ allowed-tools: Read, Write, Edit, Grep, Glob, Bash
 Check release readiness for: $ARGUMENTS
 
 This skill is the rule book's Phase 5 step 7 and its exit gate: it writes the test summary
-for one release candidate and stops for `{{roles.product_owner}}`. It writes one file,
-`{{release_dir}}/<version>-test-summary.md`, and nothing else. No commit, tag, or push:
-`release` reads the file from the working tree, and a commit after it would move HEAD off
-the commit the summary tested.
+for one release candidate and stops for `{{roles.product_owner}}`. It writes
+`{{release_dir}}/<version>-test-summary.md` and its note file and, after the review, a
+git note on the tested commit under `refs/notes/release-readiness`. No commit to any
+branch, no tag, and no push: a note does not move HEAD, and `release` reads both the file
+from the working tree and the note, then pushes the note with the tag.
 
 ## Step 1 — Read the configuration
 
@@ -240,5 +241,33 @@ Reviewed-by: product_owner <name> <YYYY-MM-DD>
 product owner in `roles`, the person running the session by git `user.name`, never the
 word "you". A relayed answer, as `gates/project-config.md` defines one, names the person
 the session said it came from and appends `, relayed by <git user.name>` after the date.
-Then report the path and the verdict, and name `release <version>` as the next step only when the verdict is
-`Gate: PASS`.
+Then record the verdict on the tested commit as a git note, so it stays with the SHA it
+attests rather than only in a working file, as Gerrit's review-notes plugin records a
+change's review on its commit under `refs/notes/review`. The note holds the version, the
+summary's SHA-256, so a later edit to the file is detectable, and the summary's last two
+lines, with trailing whitespace stripped, as `git notes` strips it. Python builds it, so no
+character in the summary reaches a shell:
+
+```bash
+python3 - {{release_dir}}/<version>-test-summary.md v<version> > {{release_dir}}/<version>-note.txt <<'PY'
+import hashlib, sys
+data = open(sys.argv[1], "rb").read()
+review, gate = [line.rstrip() for line in data.decode().rstrip().splitlines()[-2:]]
+print(f"Release-readiness: {sys.argv[2]}\nSummary-SHA256: {hashlib.sha256(data).hexdigest()}")
+print(f"{review}\n{gate}")
+PY
+```
+
+Write the note, only from a note file the build produced:
+
+```bash
+test -s {{release_dir}}/<version>-note.txt &&
+  git notes --ref=release-readiness add -f -F {{release_dir}}/<version>-note.txt <Commit SHA>
+```
+
+`-f` replaces a note an earlier run wrote for the same commit, and an empty file would
+delete it. A non-zero exit from the build or the add stops the skill: name the command and
+its output, and neither report the review as recorded nor name `release` as the next step,
+since `release` would stop on the missing note. The note is local until `release` merges
+origin's and pushes it with the tag. Otherwise report the path, the note, and the verdict,
+and name `release <version>` as the next step only when the verdict is `Gate: PASS`.

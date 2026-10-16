@@ -272,7 +272,9 @@ those lines, and an `exceptions_log` row for one, settle the gate is criterion 3
 `verification_tiers` must declare, under the summary's `Untested requirements` for the
 product owner's acceptance, per criterion 1. `release_dir` holds each version's test
 summary and release notes. They are working files, not committed, so the path may be
-gitignored. All five default to `none`. A `none` system key or `release_dir` stops
+gitignored: the record that lasts is the note `release-readiness` writes on the tested
+commit under `refs/notes/release-readiness`, which `release` checks and pushes with the
+tag. All five default to `none`. A `none` system key or `release_dir` stops
 `release-readiness` and names the key, and so does a system results file equal to
 `results_file` or `integration_results_file`.
 

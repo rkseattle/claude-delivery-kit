@@ -58,6 +58,11 @@ Every stop below comes before the tag, and says why in one line:
   produce evidence for a tree nobody recorded.
 - **The summary's `Commit:` is not `git rev-parse HEAD`.** The summary tested another
   commit; name both SHAs.
+- **`git notes --ref=release-readiness show HEAD` fails, or its note does not read, line
+  for line, `Release-readiness: v<version>`, `Summary-SHA256: <the summary's SHA-256 now>`,
+  and then the summary's last two lines, trailing whitespace stripped.** The note is the record `release-readiness`
+  wrote on the tested commit at review time, so a summary edited since, or one no review
+  recorded, does not match it. Hash the summary as Step 3 hashes the artifact.
 - **`v<version>` already exists**, locally (`git rev-parse -q --verify refs/tags/v<version>`
   prints a SHA) or on origin (`git ls-remote --exit-code --tags origin refs/tags/v<version>`
   exits 0). Any exit status other than 0 or 2 from `ls-remote` is a failed lookup, named as
@@ -206,20 +211,37 @@ emergency it is.
 
 ## Step 6 — Publish and update the tickets
 
-Once the last stage's window closes clean:
+Once the last stage's window closes clean, production runs the release, so every command
+below runs in order and the first to fail stops the rest of this block. Git does not fetch
+notes by default, so first merge origin's readiness notes into the local ref, when origin
+has one, keeping the local note for any commit both hold; `ls-remote` exit 2 means absent,
+as in Step 1:
 
 ```bash
-git push origin v<version>
+git ls-remote --exit-code origin refs/notes/release-readiness >/dev/null
+case $? in
+  0) git fetch -q origin +refs/notes/release-readiness:refs/notes/remote/release-readiness &&
+       git notes --ref=release-readiness merge -q -s ours refs/notes/remote/release-readiness &&
+       git update-ref -d refs/notes/remote/release-readiness ;;
+  2) true ;;
+  *) false ;;
+esac
+```
+
+```bash
+git push --atomic origin v<version> refs/notes/release-readiness
 gh release create v<version> --verify-tag --title v<version> \
   --notes-file {{release_dir}}/<version>-notes.md
 gh release view v<version> --json isDraft --jq .isDraft
 ```
 
-`--verify-tag` refuses to create a tag GitHub does not already have, so the release cannot
-point at a different commit. Criterion 4 needs `create` to exit zero in this run and
-the view to print `false`. A failure here does not roll back production. Report the
-command that failed and the exact one to run, since the release is live and only its notes
-are missing. The ticket transitions below still run: the tickets were released either way.
+The tag and the notes ref go in one `--atomic` push, so the review record reaches the remote
+with the commit it attests, or neither does. `--verify-tag` refuses to create a tag GitHub
+does not have, so the release cannot point at a different commit. Criterion 4 needs
+`create` to exit zero in this run and the view to print `false`. A failure in either block
+does not roll back production: report the command that failed and every command from it
+to the end of the block, in order, as the steps still to run. The ticket transitions below
+run either way, since the tickets were released when production took the artifact.
 
 Then, unless `{{released_status}}` is `none`, move each scope ticket there. A ticket already
 in that status is left alone. For each other key, use `jira_get_transitions`, then the

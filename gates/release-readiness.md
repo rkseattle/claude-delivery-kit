@@ -94,7 +94,10 @@ empty after removals stops the run.
    `${CLAUDE_PLUGIN_ROOT}/gates/project-config.md` defines one, names the person it came
    from and appends `, relayed by <git user.name>` after the date. A `Gate: FAIL` summary is
    reviewed the same way: the line records that the product owner saw the result, and it
-   does not change the result. Anything but an explicit review writes nothing.
+   does not change the result. Anything but an explicit review writes nothing. The review
+   is then recorded on the tested commit as a note under `refs/notes/release-readiness`,
+   holding the version, the summary's SHA-256, and its last two lines, so a later edit to
+   the summary no longer matches the record a release checks.
 
 ## The verdict
 

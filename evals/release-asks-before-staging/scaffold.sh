@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # A git repo with one ticketed commit on main, stub release scripts, and a reviewed passing
-# test summary for 1.0.0 naming HEAD, so the only stop left for release is the release
-# manager's before staging. origin is a local bare clone, so the tag lookup succeeds offline.
+# test summary for 1.0.0 naming HEAD, with its readiness note, so the only stop left for
+# release is the release manager's before staging. origin is a local bare clone, so the tag
+# lookup succeeds offline.
 set -euo pipefail
 # Each case's scaffold runs alone in its own workspace, so this setup is repeated from
 # plan-project-stops-at-approval's rather than sourced from a file outside the case.
@@ -122,3 +123,13 @@ none
 Reviewed-by: product_owner pat 2026-10-16
 Gate: PASS
 MD
+# The note release-readiness writes on the tested commit after the review, which release
+# checks against the summary's hash.
+python3 - docs/releases/1.0.0-test-summary.md v1.0.0 > docs/releases/1.0.0-note.txt <<'PY'
+import hashlib, sys
+data = open(sys.argv[1], "rb").read()
+review, gate = [line.rstrip() for line in data.decode().rstrip().splitlines()[-2:]]
+print(f"Release-readiness: {sys.argv[2]}\nSummary-SHA256: {hashlib.sha256(data).hexdigest()}")
+print(f"{review}\n{gate}")
+PY
+git notes --ref=release-readiness add -f -F docs/releases/1.0.0-note.txt HEAD

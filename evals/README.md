@@ -147,7 +147,8 @@ servers, no user settings. That constrains what can be tested here:
   writes a small Python project; the `ci-failure-adversary-*` cases,
   `plan-project-stops-at-approval`, and `release-asks-before-staging` build a git repo, the
   last two with a local bare `origin`. `release-asks-before-staging`'s also seeds stub
-  build, deploy, smoke, and rollback scripts and a reviewed passing test summary naming HEAD,
+  build, deploy, smoke, and rollback scripts, a reviewed passing test summary naming HEAD, and
+  the readiness note on HEAD that matches it,
   so nothing before the staging ask needs GitHub or Jira.
   Measured 2026-10-11 against the skills on `main` before `gates/project-config.md`, the
   required-key case scored 0.33 and the optional-key case 0.44, with no run passing,
