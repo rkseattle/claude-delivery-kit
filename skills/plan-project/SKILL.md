@@ -32,7 +32,9 @@ Stop, and say why in one line, when:
 - **`git check-ignore -v {{brief_file}}` matches.** The brief is committed in Step 5, and an
   ignored path fails there, after the sponsor has decided; name the rule it printed.
 - **`{{brief_file}}` exists and its `## Decision` reads `Approved` or `Rejected`.** The
-  brief is decided; name the decision rather than revise it.
+  brief is decided; name the decision rather than revise it. When `git status` shows that
+  decided brief uncommitted, Step 5 was interrupted after recording it: resume Step 5 from
+  its `git fetch`, keeping the decision as written.
 
 An existing `{{brief_file}}` whose decision is `Pending`, or that has no `## Decision`
 section yet, is the draft: read it, and revise it in Step 2 rather than writing over it

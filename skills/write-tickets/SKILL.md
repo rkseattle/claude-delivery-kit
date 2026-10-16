@@ -51,7 +51,8 @@ request-derived scope. Establish, by reading the code rather than file names:
 - **the brief's goals**, which `Goal:` lines draw on: the `## Goals` of `{{brief_file}}`,
   read only when its `## Decision` reads `Approved`; otherwise say in one line why none were
   read — `none`, no file at the path, no `## Decision` or one other than `Approved`, or no
-  goals. With `{{brief_file}}` set, stop unless the brief is `Approved`: a `Rejected` one
+  goals. With `{{brief_file}}` set, stop unless the brief is `Approved` and lists a goal: a
+  goalless one has nothing to trace to, a `Rejected` one
   stopped the project at the planning gate, and a missing, `Pending`, or undecided one
   goes to `{{roles.sponsor}}` through `plan-project`, which records the decision.
 
