@@ -139,7 +139,8 @@ The stage skills carry the procedure; the commands, paths and thresholds come fr
   "integration_test_command": "<command that runs the integration suite, or none>",
   "integration_results_file": "<path that suite writes its verdict to, or none>",
   "integration_results_read_command": "<command that reads counts out of it, or none>",
-  "ci_results_artifact": "<name of the uploaded CI result artifact>",
+  "ci_results_artifact": "<name of the uploaded CI result artifact, or none>",
+  "ci_integration_results_artifact": "<name of the uploaded CI integration result artifact, or none>",
   "verification_tiers": "<the tiers an AC can be verified by>",
   "verification_step_file": ".claude/gates/<what ship-pr must resolve>.md",
   "failure_policy_gate": ".claude/gates/<gate holding the failure policy>.md",
@@ -209,7 +210,14 @@ writes and reports integration results apart from Surefire's unit results, so ne
 overwrites or misreads the other's verdict. The Definition of Done never runs it, so a third
 party being down never blocks a commit. All three default to `none`, announced as no
 integration tier; with the command set, the push stops before running it while either of
-the other two is `none` or the results file is `results_file`.
+the other two is `none` or the results file is `results_file`. In CI, `ci-green` reads a
+failing integration job from `ci_integration_results_artifact` with the same integration
+reader, as `ci_results_artifact` serves the unit job; default `none`, which leaves that
+job's log as its only evidence. Each artifact is downloaded over its suite's results file,
+deleted first, so a local run's verdict is never read as CI's. It stops and names the key
+when either artifact is set with its reader or results file `none`, the integration
+artifact is set with no integration command, or the two artifacts or results files
+coincide.
 
 The values in the block above are illustrations, not defaults. Some of its keys are
 required and have no default; one that is missing, empty, `none`, or a `<placeholder>`
