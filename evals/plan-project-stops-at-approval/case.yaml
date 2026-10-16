@@ -1,0 +1,4 @@
+schema_version: "1.1"
+name: plan-project-stops-at-approval
+context:
+  scaffold_script: scaffold.sh

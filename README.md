@@ -25,12 +25,14 @@ The kit's rules are measured against one source:
 .claude-plugin/
   plugin.json          the manifest
   marketplace.json     this repo is also its own marketplace
-skills/                write-tickets, deliver, plan-work, implement-phases,
-                       branch-review, ship-pr, ci-green; readme-docs (standalone)
+skills/                plan-project, write-tickets, deliver, plan-work,
+                       implement-phases, branch-review, ship-pr, ci-green;
+                       readme-docs (standalone)
 agents/                ticket-, design-, commit-, ci-failure-, greptile- adversaries
 gates/                 status-report.md, definition-of-done.md, pre-push.md,
                        read-only-agent.md (the universal halves only),
-                       project-config.md, exceptions.md, and rule-book-review.md;
+                       project-config.md, exceptions.md, rule-book-review.md, and
+                       planning-exit.md;
                        scripts/sarif_gate.py builds the scanners' git inputs and reads
                        their reports into the gates' verdicts
 hooks/                 hooks.json + the two hooks and their self-tests
@@ -148,6 +150,7 @@ The stage skills carry the procedure; the commands, paths and thresholds come fr
   "mechanics_gate_pre_push": ".claude/gates/pre-push-mechanics.md",
   "registry_file": ".claude/registries.md",
   "plan_rules_file": ".claude/plan-rules.md",
+  "brief_file": "docs/brief.md",
   "user_docs_targets": "README.md docs/user-guide.md",
   "extra_gates": [".claude/gates/<project-only gate>.md"],
   "reviewers": "<comma-separated GitHub logins or org/team slugs, or none>",
@@ -205,6 +208,17 @@ in this command. Default `none`, announced as skipped.
 OpenAPI specs, schemas, CLI references. Check 7 in `gates/rule-book-review.md` says when a
 definition must change with its interface. Default `none`, under which every definition is
 the doc comment at the interface's declaration.
+
+`brief_file` serves rule book Phase 1: the path of the project brief. `plan-project` writes
+it — problem, users, goals, non-goals, numeric success measures, constraints, five owned
+risks, lifecycle, and an estimate range — checks the build and the parent branch's CI
+against `gates/planning-exit.md`, stops for the sponsor, then records the decision and
+commits the brief on `brief/<slug>`, which reaches the parent branch by an ordinary pull
+request. `write-tickets` traces its `Goal:` lines to an approved brief's goals wherever
+the checkout holds it, and removes work serving none; with `brief_file` set it stops on any brief not approved
+or naming no goal, sending a pending one to the sponsor through `plan-project`. The brief is committed, so the path
+must not be gitignored. Default `none`, under which `plan-project` stops and
+`write-tickets` reads no goals.
 
 `pr_review_limit_lines` serves rule book R9: a pull request reviewable in under an hour. It
 caps one PR's changed lines, insertions plus deletions against the parent branch.
@@ -278,12 +292,12 @@ defaults.
   in every plan, and `design-adversary` blocks a `High` threat that names no phase.
 - `roles` — a map from each role above to the person who holds it.
   `{{roles.<role>}}` in a skill resolves to that role's entry in `roles`, so
-  `{{roles.tech_lead}}` names the tech lead. `write-tickets` waits on the product owner after
-  QA confirms each `Must` ticket's ACs are testable, `plan-work` on the tech lead after QA
-  approves the test strategy, `ship-pr` hands QA the verification charter, and `ci-green`
-  and `deliver` send rule-book exceptions to the tech lead, as `ci-green` does the merge
-  question. Default: a role absent from `roles` is the person running the session, and the
-  skill addresses that person directly.
+  `{{roles.tech_lead}}` names the tech lead. `plan-project` waits on the sponsor,
+  `write-tickets` on the product owner after QA confirms each `Must` ticket's ACs are
+  testable, `plan-work` on the tech lead after QA approves the test strategy, `ship-pr`
+  hands QA the verification charter, and `ci-green` and `deliver` send rule-book exceptions
+  to the tech lead, as `ci-green` does the merge question. Default: a role absent from
+  `roles` is the person running the session, and the skill addresses that person directly.
   That is the absent-key rule above applied per role, so a missing role never resolves to
   `none`, and a project with no `roles` key at all has the person running the session in
   every role.

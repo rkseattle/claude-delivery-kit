@@ -79,7 +79,8 @@ checked against.
 
 **R14 Traceable to a goal.** A Story or Task with no `Parent:` carries `Goal:`, one sentence
 naming the outcome it serves, held to R6, R7, and R10 like the sections. Bugs are exempt,
-and an Epic states its goal in `## Goal`; neither carries the header.
+and an Epic states its goal in `## Goal`; neither carries the header. With an approved
+brief, a goal restates one of the brief's `## Goals`, and work serving none is removed.
 Prevents: work that serves no goal reaching a plan unchallenged.
 
 **R15 Change impact recorded.** A ticket whose `Baseline:` line is filled is a rewrite of

@@ -16,10 +16,10 @@ prevents each one. Read it and
 
 Read `${CLAUDE_PROJECT_DIR}/.claude/project.json` first: `{{ticket_prefix}}`,
 `{{jira_project}}`, `{{registry_file}}`, `{{source_roots}}`, `{{verification_tiers}}`,
-`{{plan_rules_file}}`, `{{build_command}}`, `{{parent_branch_default}}`, and `{{roles.*}}`
-all come from it. Read `${CLAUDE_PLUGIN_ROOT}/gates/project-config.md` and follow it
-exactly: tickets written against invented tiers and roots fail at `plan-work` for reasons
-nobody can see.
+`{{plan_rules_file}}`, `{{build_command}}`, `{{parent_branch_default}}`, `{{brief_file}}`,
+and `{{roles.*}}` all come from it. Read `${CLAUDE_PLUGIN_ROOT}/gates/project-config.md`
+and follow it exactly: tickets written against invented tiers and roots fail at
+`plan-work` for reasons nobody can see.
 
 No ticket is created, edited, or transitioned before Step 7's approval. The only file this
 skill writes before then is the draft.
@@ -48,6 +48,13 @@ request-derived scope. Establish, by reading the code rather than file names:
 - **other instances of a root cause** the work fixes, by grep, not recall
 - for each tier in `{{verification_tiers}}`, where its evidence lives: the test directory,
   one existing test, and the command that runs it
+- **the brief's goals**, which `Goal:` lines draw on: the `## Goals` of `{{brief_file}}`,
+  read only when its `## Decision` reads `Approved`; otherwise say in one line why none were
+  read — `none`, no file at the path, no `## Decision` or one other than `Approved`, or no
+  goals. With `{{brief_file}}` set, stop unless it is `Approved` with a goal naming an
+  outcome, never "none", "TBD", or "N/A": a goalless one goes back to the sponsor; a
+  `Rejected` one stopped the project; a missing, `Pending`, or undecided one goes to
+  `{{roles.sponsor}}` through `plan-project`, which records the decision.
 
 Then search Jira: `project = {{jira_project}}` with the request's key terms, for tickets
 that overlap or that the new ones depend on. Record each one's key and status.
@@ -81,6 +88,8 @@ templates' format, blockers before dependents.
   `(modify)`, `(new)`, or `(delete)` with its purpose.
 - **Out of scope**: adjacent work with where it lives; excluded instances with the benign
   claim.
+- **Goal**, when Step 2 read the brief's goals: each `Goal:` line and Epic `## Goal`
+  restates the one it serves; a ticket whose goal serves none is removed (R14).
 - **Context**: why, with any linked source summarized. Never a reference to this session.
 
 ## Step 5 — Lint
@@ -113,6 +122,7 @@ In chat, one table — ID, type, summary, priority, severity, handoff, AC clause
 points, blocked by — followed by:
 
 - clauses that need out-of-band verification, called out separately
+- each ticket Step 4 removed for serving no goal of the brief
 - any sequenced split from Step 3, and every DECISION from the review
 - assumptions stated in place of questions
 
