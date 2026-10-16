@@ -135,7 +135,9 @@ The stage skills carry the procedure; the commands, paths and thresholds come fr
   "unit_test_scope": "<the whole target, or the changed workspaces — and why>",
   "post_fix_verification_scope": "<what a fix commit must re-run before the gate passes>",
   "results_file": "<path the local gate writes its verdict to>",
-  "results_read_command": "<command that reads counts out of it>",
+  "results_read_command": "<command that reads counts out of it; {} for another file's path>",
+  "integration_test_command": "<command that runs the integration suite, or none>",
+  "integration_results_file": "<path that suite writes its verdict to, or none>",
   "ci_results_artifact": "<name of the uploaded CI result artifact>",
   "verification_tiers": "<the tiers an AC can be verified by>",
   "verification_step_file": ".claude/gates/<what ship-pr must resolve>.md",
@@ -197,6 +199,18 @@ asking you when the diff is over; a yes records the count as `pr_size_approved_l
 `.claude/state/current-plan.json`, and it asks again only past that count, or at every push
 without a state file for the branch. Default `400`, where review effectiveness falls off
 in SmartBear's study of code review at Cisco; `none` skips the check, announced as skipped.
+
+`integration_test_command` serves rule book Phase 5 step 1: integration tests across module
+interfaces and external services, run on every pull request. The pre-push checklist runs it
+after the unit suite and reads its counts from `integration_results_file` — a file of its
+own, as Maven's Failsafe writes integration results apart from Surefire's unit results, so
+neither suite overwrites the other's verdict. The
+Definition of Done never runs it, so a third party being down never blocks a commit. Both
+default to `none`, announced as no integration tier. To read a second file,
+`results_read_command` holds `{}` where the path goes, as `find -exec` does, and every gate
+running it replaces `{}` with the file it reads; a reader without one reads its one fixed
+file, so with the command set and no `{}` the push stops, as it does when the two results
+files share a path.
 
 The values in the block above are illustrations, not defaults. Some of its keys are
 required and have no default; one that is missing, empty, `none`, or a `<placeholder>`

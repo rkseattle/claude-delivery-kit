@@ -71,27 +71,39 @@ In order, all green, before every `git push`:
    executed is not a pass of an eight-hundred-test suite — it is a run that died early.
    Compare the total against the previous run's before believing a green verdict.
 
-6. **Dependency audit**, where the project has dependencies — always, never conditional on
+6. **The integration suite** — `{{integration_test_command}}`, rule book Phase 5's
+   integration level, which runs on every pull request, so on every push to one. The
+   Definition of Done keeps it out of the commit gate; this is where it gates. Delete
+   `{{integration_results_file}}` before the run, then read its counts with
+   `{{results_read_command}}`, its `{}` replaced by that path, and check the executed count
+   as step 5 does. With `{{integration_test_command}}` set to `none`, the step is skipped:
+   the one line `gates/project-config.md` defines names both integration keys with their
+   values and says the project has no integration tier. With the command set, a
+   `{{integration_results_file}}` of `none` or equal to `{{results_file}}`, or a
+   `{{results_read_command}}` without `{}`, leaves no verdict of its own to read: stop and
+   name the key.
+
+7. **Dependency audit**, where the project has dependencies — always, never conditional on
    whether they changed. Advisories are published against versions you already have: a
    lockfile clean yesterday fails today because the advisory database moved, not because
    anything in the repo did. The bar is zero, with no allowlist.
-7. **Secret scan of every commit being pushed** — the Definition of Done's secret-scan step,
+8. **Secret scan of every commit being pushed** — the Definition of Done's secret-scan step,
    with `python3 "$gate" patch --commits origin/<parent>..HEAD` in place of
    `patch --staged`: every commit's message and added lines, not the branch's net diff,
    since a secret added in one commit and deleted in a later one is still pushed.
-8. **Static analysis, new findings only** — the Definition of Done's static-analysis step,
+9. **Static analysis, new findings only** — the Definition of Done's static-analysis step,
    with `tree "$staged" --ref HEAD` in place of `tree "$staged" --staged`, so staged
    changes not yet committed are not scanned as what is pushed, and with
    `renames "$merge_base" --head` in place of `renames "$merge_base" --staged`.
 
-   Steps 7 and 8 take those Definition of Done steps whole, with the paragraph after them:
+   Steps 8 and 9 take those Definition of Done steps whole, with the paragraph after them:
    the same script and verdicts, suppressions counted, and a scan whose key is `none` named
    in the one line `gates/project-config.md` defines.
 
-9. **A production-configuration build**, where the project has one distinct from its test
-   build. Optimization and stripped debug-only paths mean a production-only break is
-   invisible until this point.
-10. **A clean-checkout build** — `{{clean_build_command}}` in a fresh checkout of HEAD, so an
+10. **A production-configuration build**, where the project has one distinct from its test
+    build. Optimization and stripped debug-only paths mean a production-only break is
+    invisible until this point.
+11. **A clean-checkout build** — `{{clean_build_command}}` in a fresh checkout of HEAD, so an
     ignored or untracked local file cannot make the build pass:
 
     ```bash
@@ -109,7 +121,7 @@ In order, all green, before every `git push`:
     `{{clean_build_command}}` set to `none`, the build is skipped and named in the one-line
     announcement `gates/project-config.md` defines.
 
-11. **The verification tier the diff needs**, per `{{verification_step_file}}`. Where a push
+12. **The verification tier the diff needs**, per `{{verification_step_file}}`. Where a push
     hook runs an expensive suite, this is where it happens; where the tier is one no
     automation can reach, this is where the charter is handed over. Answer it explicitly —
     do not skip past it because everything else is green.
@@ -118,7 +130,7 @@ In order, all green, before every `git push`:
     tool timeout and a session-scoped background task dies with the session; both kill the
     run mid-suite and leave no result file.
 
-12. **`git status`** — scan for tracked files with local modifications that are **not**
+13. **`git status`** — scan for tracked files with local modifications that are **not**
     part of the intended commit set. Restore stray artifacts and generated outputs. When
     unsure whether a change was intentional, ask — never silently include or silently drop
     it.
@@ -126,7 +138,7 @@ In order, all green, before every `git push`:
 Lint and typecheck are separate gates from tests: a branch that fails either fails CI even
 when every test passes locally.
 
-Steps 2–12 all describe the post-rebase tree. If anything sends you back to step 1 — a late
+Steps 2–13 all describe the post-rebase tree. If anything sends you back to step 1 — a late
 conflict, a parent that moved while the suite was running — the steps after it are stale and
 run again.
 

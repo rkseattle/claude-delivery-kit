@@ -235,7 +235,7 @@ memory, are in `status-report.md` beside this file.
 
 Never rely on an exit code or a console summary for a test outcome. Delete stale result
 files before the run, then read the generated file — `{{results_file}}`, with
-`{{results_read_command}}`.
+`{{results_read_command}}`, any `{}` in it replaced by that path.
 
 **Check the executed count, not just the failure count.** Zero failures out of forty
 executed is not a pass of an eight-hundred-test suite — it is a run that died early. Compare
