@@ -211,9 +211,9 @@ boundaries. Write it _before_ the step: a marker written on the way out is exact
 a crash never writes. This is what Step 0 reads.
 
 **Declare a deliberate stop.** Ending a turn to ask Rob something with phases unfinished
-means setting `"paused": true` first, and clearing it as the first action of the turn that
-resumes. The `Stop` hook cannot tell a question from a stall by design; declaring the stop
-is what separates them.
+means setting `"paused": true` first, and clearing it first on resume — after a run at `merge`
+reads its PR's state. The `Stop` hook cannot tell a question from a stall by design;
+declaring the stop is what separates them.
 
 **When Rob asks to leave the branch, pause first — do not report a wall.** An explicit
 instruction to switch branches outranks the guard: pause, switch, then say the plan was

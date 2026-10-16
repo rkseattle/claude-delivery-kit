@@ -292,8 +292,10 @@ and manufacturing an item to fill the section is how a config file accumulates r
 needed.
 
 **The merge.** Rule book Phase 4 step 9 ends in a merge that stage 1's approval does not
-cover, so it is asked. Write `stage_step: "merge"`. A run resumed here reads the PR's state
-first, as below: `MERGED` goes straight to writing `"branch": null` and the Jira step. Check
+cover, so it is asked. Write `stage_step: "merge"`. A run resumed here reconciles before it
+clears `paused`, as Kubernetes controllers and Terraform's refresh do after a crash: it reads
+the PR's state as below, and `MERGED` writes `"branch": null` first, so the guard never chases
+the deleted branch, then clears `paused` and goes to the Jira step. Check
 `{{merge_method}}`: anything but `merge`, `squash` or `rebase` stops and names the key,
 since it becomes a flag. A base with a merge queue merges outside this run, so it is treated
 as declined, said in one line naming the tickets left In Review for the tech lead to close

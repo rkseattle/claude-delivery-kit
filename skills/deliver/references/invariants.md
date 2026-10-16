@@ -236,7 +236,8 @@ action of the turn that resumes.
 
 The `Stop` hook cannot tell a question from a stall, by design: distinguishing them would
 mean classifying prose. Declaring the stop is what separates them. The branch guard reads
-the same field.
+the same field. A run resumed at `merge` reads its PR's state before clearing it, since the
+merge may have deleted the branch the guard would restore (reconcile-on-restart).
 
 That hook only guards stops _inside_ a plan, and most turns are not inside one. So it is a
 backstop for a control that has to be behavioral: nothing catches a false pause taken
