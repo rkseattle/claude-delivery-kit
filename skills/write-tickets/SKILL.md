@@ -51,10 +51,10 @@ request-derived scope. Establish, by reading the code rather than file names:
 - **the brief's goals**, which `Goal:` lines draw on: the `## Goals` of `{{brief_file}}`,
   read only when its `## Decision` reads `Approved`; otherwise say in one line why none were
   read — `none`, no file at the path, no `## Decision` or one other than `Approved`, or no
-  goals. With `{{brief_file}}` set, stop unless the brief is `Approved` and lists a goal: a
-  goalless one has nothing to trace to, a `Rejected` one
-  stopped the project at the planning gate, and a missing, `Pending`, or undecided one
-  goes to `{{roles.sponsor}}` through `plan-project`, which records the decision.
+  goals. With `{{brief_file}}` set, stop unless it is `Approved` with a goal naming an
+  outcome, never "none", "TBD", or "N/A": a goalless one goes back to the sponsor; a
+  `Rejected` one stopped the project; a missing, `Pending`, or undecided one goes to
+  `{{roles.sponsor}}` through `plan-project`, which records the decision.
 
 Then search Jira: `project = {{jira_project}}` with the request's key terms, for tickets
 that overlap or that the new ones depend on. Record each one's key and status.

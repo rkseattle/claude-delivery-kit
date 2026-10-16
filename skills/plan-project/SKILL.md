@@ -20,7 +20,15 @@ Read `${CLAUDE_PLUGIN_ROOT}/gates/project-config.md` and follow it exactly; this
 optional keys are `brief_file`, `project_size`, `lifecycle_model`, `roles`,
 `results_file`, and `results_read_command`.
 
-Stop, and say why in one line, when:
+**An interrupted Step 5 resumes before anything else.** When `{{brief_file}}` reads
+`Approved` or `Rejected` but is uncommitted, and HEAD is `{{parent_branch_default}}` or a
+`brief/<slug>` with no commits beyond `origin/{{parent_branch_default}}`, the decision was
+recorded and its commit failed. Keep the decision as written: switch to `brief/<slug>` if
+it exists, otherwise cut it per Step 5, then run Step 5's `git add` and `git commit`. If
+`origin/{{parent_branch_default}}` has moved past HEAD, stop and report rather than present
+again.
+
+Otherwise, stop, and say why in one line, when:
 
 - **`{{brief_file}}` is `none`** — absent or set so. Name the key: the brief has nowhere to
   live, and a path this skill chose would be a guess about the project's layout.
@@ -32,9 +40,7 @@ Stop, and say why in one line, when:
 - **`git check-ignore -v {{brief_file}}` matches.** The brief is committed in Step 5, and an
   ignored path fails there, after the sponsor has decided; name the rule it printed.
 - **`{{brief_file}}` exists and its `## Decision` reads `Approved` or `Rejected`.** The
-  brief is decided; name the decision rather than revise it. When `git status` shows that
-  decided brief uncommitted, Step 5 was interrupted after recording it: resume Step 5 from
-  its `git fetch`, keeping the decision as written.
+  brief is decided; name the decision rather than revise it.
 
 An existing `{{brief_file}}` whose decision is `Pending`, or that has no `## Decision`
 section yet, is the draft: read it, and revise it in Step 2 rather than writing over it
@@ -95,20 +101,22 @@ stated assumption rather than a blocking question. Never leave a placeholder in 
 
 Then check the file against each rule, and fix what fails before going on:
 
-1. **Every success measure has a number.** A line under `## Success measures` whose target
+1. **`## Goals` names at least one outcome.** An empty section, or an item reading "none",
+   "TBD", or "N/A", fails: `write-tickets` traces every goal line to one of these.
+2. **Every success measure has a number.** A line under `## Success measures` whose target
    — the text between `:` and ` by ` — holds no quantity, a number with a unit, percent, or
    comparator, is rejected: rewrite it with a numeric target, or remove it. A digit inside a
    name such as `p95` is not a quantity. The target runs from the first `:` to the last ` by `, so a digit
    in the date does not count, and a line not in `<Measure>: <target> by <date>` form is
    rejected too. "Faster checkout by 2027-03-01" is not a measure; "Checkout time: under
    2 s at p95 by 2027-03-01" is.
-2. **`## Risks` passes criterion 3** of `${CLAUDE_PLUGIN_ROOT}/gates/planning-exit.md`, the
+3. **`## Risks` passes criterion 3** of `${CLAUDE_PLUGIN_ROOT}/gates/planning-exit.md`, the
    rule book's top five, each `Owner` a person or a role from `roles`.
-3. **`## Lifecycle`** names `{{lifecycle_model}}` and an iteration length in weeks. Under
+4. **`## Lifecycle`** names `{{lifecycle_model}}` and an iteration length in weeks. Under
    `waterfall` or `continuous`, which have no iterations, it is the delivery cadence: how
    often finished work is reviewed and released.
-4. **`## Estimate`** is a range in weeks, low before high, never a single number or date.
-5. **With `{{project_size}}` `small`, the file is at most 60 lines** — the rule book lets a
+5. **`## Estimate`** is a range in weeks, low before high, never a single number or date.
+6. **With `{{project_size}}` `small`, the file is at most 60 lines** — the rule book lets a
    small project's brief fit one page. Count with `wc -l < {{brief_file}}`; over 60, cut
    prose, never a section or a risk row. `medium` and `large` have no line cap.
 
