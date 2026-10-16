@@ -30,7 +30,8 @@ skills/                write-tickets, deliver, plan-work, implement-phases,
 agents/                ticket-, design-, commit-, ci-failure-, greptile- adversaries
 gates/                 status-report.md, definition-of-done.md, pre-push.md,
                        read-only-agent.md (the universal halves only),
-                       project-config.md, exceptions.md, and rule-book-review.md;
+                       project-config.md, exceptions.md, rule-book-review.md, and
+                       planning-exit.md;
                        scripts/sarif_gate.py builds the scanners' git inputs and reads
                        their reports into the gates' verdicts
 hooks/                 hooks.json + the two hooks and their self-tests
