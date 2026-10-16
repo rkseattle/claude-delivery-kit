@@ -307,19 +307,25 @@ or the R2 exception's green run judged — by `{{merge_method}}`, deleting its b
 same turn as the friction question above. An approved friction edit never lands on this
 branch, where it would move the head off `<sha>`; ask Rob where it goes instead.
 
-- **No:** the PR stays open. Go to Step 6.
-- **Yes:** the answer may come turns later, so first re-run the `review_gate.py approval`
-  call above — or confirm the R2 row still covers the run — `gh pr view <pr> --json
-  headRefOid`, which must still be `<sha>`, and `gh pr checks <pr>`: exit 0 is all green, 8
-  is still pending and waits like a red one, anything else is red. Then
-  GitHub's "require branches to be up to date" check, against the PR's own base: read
-  `gh pr view <pr> --json baseRefName`, `git fetch origin <base>`, and
+Either answer may come turns later, so the feedback is read again at the moment of acting —
+check-then-act, as `--match-head-commit` does for the head: repeat Step 4's fetch of all
+three endpoints, author filter included, and apply Step 5's exit test to what it returns.
+A counted finding with no fix and reply, or declined or deferred citation, is unaddressed; an
+approval or a summary with no finding is not. A failed fetch is no answer: report it and stop.
+
+- **No:** the PR stays open. Unaddressed feedback is handled under Step 4 first; then Step 6.
+- **Yes:** re-run the `review_gate.py approval` call above — or confirm the R2 row still
+  covers the run — `gh pr view <pr> --json headRefOid`, which must still be `<sha>`, and
+  `gh pr checks <pr>`: exit 0 is all green, 8 is still pending and waits like a red one,
+  anything else is red. Then GitHub's "require branches to be up to date" check, against the
+  PR's own base: read `gh pr view <pr> --json baseRefName`, `git fetch origin <base>`, and
   `git merge-base --is-ancestor origin/<base> <sha>` — exit 0 is up to date, 1 is a moved
-  base, and a failed fetch or any other exit is no answer: report it and stop. A verdict
-  other than `approved` (or a lapsed R2 row), a moved head, a check not green, or a moved base
-  returns the run to the loop — `stage_step` back to Step 5, a moved base rebased onto
-  `origin/<base>` and pushed per Step 3 item 7 — and asks again once green. Then set
-  `"paused": true` — the merge deletes the branch the guard would restore — and run
+  base, and a failed fetch or any other exit is no answer: report it and stop. Last, the
+  feedback re-read above, nearest the merge. A verdict other than `approved` (or a lapsed R2
+  row), a moved head, a check not green, a moved base, or unaddressed feedback returns the
+  run to the loop — `stage_step` back to Step 5, a moved base rebased onto `origin/<base>`
+  and pushed per Step 3 item 7 — and asks again once green. Then set `"paused": true` — the
+  merge deletes the branch the guard would restore — and run
   `gh pr merge <pr> --{{merge_method}} --delete-branch --match-head-commit <sha>`.
 
 The PR's state is the verdict, not the exit code: `gh pr view <pr> --json state`. `MERGED`
