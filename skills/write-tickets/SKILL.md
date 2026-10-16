@@ -16,9 +16,10 @@ prevents each one. Read it and
 
 Read `${CLAUDE_PROJECT_DIR}/.claude/project.json` first: `{{ticket_prefix}}`,
 `{{jira_project}}`, `{{registry_file}}`, `{{source_roots}}`, `{{verification_tiers}}`,
-`{{plan_rules_file}}`, `{{build_command}}`, and `{{parent_branch_default}}` all come from
-it. Read `${CLAUDE_PLUGIN_ROOT}/gates/project-config.md` and follow it exactly: tickets
-written against invented tiers and roots fail at `plan-work` for reasons nobody can see.
+`{{plan_rules_file}}`, `{{build_command}}`, `{{parent_branch_default}}`, and `{{roles.*}}`
+all come from it. Read `${CLAUDE_PLUGIN_ROOT}/gates/project-config.md` and follow it
+exactly: tickets written against invented tiers and roots fail at `plan-work` for reasons
+nobody can see.
 
 No ticket is created, edited, or transitioned before Step 7's approval. The only file this
 skill writes before then is the draft.
@@ -115,8 +116,14 @@ points, blocked by — followed by:
 - any sequenced split from Step 3, and every DECISION from the review
 - assumptions stated in place of questions
 
-Then stop and wait. Approval is an explicit "approved", "create them", or equivalent; a
-clarifying question is not approval.
+Ask `{{roles.qa}}` to confirm the ACs of every `Priority: Must` ticket are testable, and fix
+any QA finds untestable. Then stop and wait for `{{roles.product_owner}}`, the gate's one
+accountable role in RACI terms, whose approval counts only once QA has confirmed; one person
+holding both roles gives both in one answer. Print both per `gates/project-config.md`. Any
+edit after Step 6, whoever asks for it, re-runs Step 5 and one Step 6 round outside its
+three-round count; a BLOCKER from it goes to `{{roles.product_owner}}`, and an edit to a
+`Must` ticket's ACs goes back to QA, as a new commit dismisses a stale approval. Approval is
+an explicit "approved", "create them", or equivalent; a clarifying question is not approval.
 
 ## Step 8 — Create
 

@@ -15,7 +15,7 @@ those; recording the PR number saves a resumed session re-deriving it, and disti
 branch awaiting CI from one still unpushed.
 
 Read `${CLAUDE_PROJECT_DIR}/.claude/project.json` for this project's repo slug, result
-artifact, and failure shapes.
+artifacts, and failure shapes.
 Read `${CLAUDE_PLUGIN_ROOT}/gates/project-config.md` and follow it exactly.
 
 ## Step 1 — Arm the monitor, then stop talking
@@ -52,17 +52,40 @@ Never lead with reassurance. He has been right and the tooling wrong on this mor
 
 For every failing job:
 
-1. **Retrieve the real evidence.** `gh run view --log-failed`, or the uploaded result
-   artifact named in `{{ci_results_artifact}}`. Never a console summary, never an exit code:
-   an exit status routinely conflates a build failure with a test failure, and console output
-   truncates.
+1. **Retrieve the real evidence.** `gh run view --log-failed`, or the job's uploaded result
+   artifact: `{{ci_integration_results_artifact}}` for the job running the integration
+   suite, `{{ci_results_artifact}}` for the unit suite. Never a
+   console summary, never an exit code: an exit status routinely conflates a build failure
+   with a test failure, and console output truncates.
 
    Where the artifact name carries both the run id and the attempt, use both: re-running only
    the failed job keeps the run number, so attempt-keying is what stops a re-run from reading
    the previous attempt's results. `gh run view <run-id> --json` lists the exact name if the
    attempt is not to hand.
 
-   Read the counts with `{{results_read_command}}`.
+   Read the counts with the reader of that artifact's suite — `{{results_read_command}}`
+   on `{{results_file}}`, `{{integration_results_read_command}}` on
+   `{{integration_results_file}}`, never one suite's reader on the other's file. Each reader
+   reads a fixed path a local run left behind, so replace it in one command, with
+   `<results-path>` that suite's results file. A fresh directory per download means no
+   earlier download can stand in, and an artifact holding no file of that name is no verdict:
+
+   ```bash
+   rm -f "<results-path>"; dir=$(mktemp -d) && {
+     gh run download <run-id> -n <artifact> -D "$dir" \
+       && found=$(find "$dir" -type f -name "$(basename "<results-path>")") \
+       && [ "$(printf '%s\n' "$found" | grep -c .)" -eq 1 ] && mv "$found" "<results-path>"
+     rm -rf "$dir"; }
+   ```
+
+   Zero or several matching files leave no results file, which is no verdict.
+
+   Check before reading: an artifact set while its suite's reader or results file is
+   `none`, an integration artifact set while `{{integration_test_command}}` is `none`, both
+   artifacts set to one name, or both results files at one path leaves no verdict of its
+   own to read — stop and name the key. A failing integration job with
+   `{{ci_integration_results_artifact}}` set to `none` has only its log: say so in the
+   iteration report rather than reading the unit artifact.
 
 2. **Root-cause it**, under `{{failure_policy_gate}}`'s failure policy — it governs CI jobs
    as much as local runs. No `paused` declaration is needed for the routine loop here;

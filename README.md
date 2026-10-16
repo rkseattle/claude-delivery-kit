@@ -136,7 +136,11 @@ The stage skills carry the procedure; the commands, paths and thresholds come fr
   "post_fix_verification_scope": "<what a fix commit must re-run before the gate passes>",
   "results_file": "<path the local gate writes its verdict to>",
   "results_read_command": "<command that reads counts out of it>",
-  "ci_results_artifact": "<name of the uploaded CI result artifact>",
+  "integration_test_command": "<command that runs the integration suite, or none>",
+  "integration_results_file": "<path that suite writes its verdict to, or none>",
+  "integration_results_read_command": "<command that reads counts out of it, or none>",
+  "ci_results_artifact": "<name of the uploaded CI result artifact, or none>",
+  "ci_integration_results_artifact": "<name of the uploaded CI integration result artifact, or none>",
   "verification_tiers": "<the tiers an AC can be verified by>",
   "verification_step_file": ".claude/gates/<what ship-pr must resolve>.md",
   "failure_policy_gate": ".claude/gates/<gate holding the failure policy>.md",
@@ -198,6 +202,24 @@ asking you when the diff is over; a yes records the count as `pr_size_approved_l
 without a state file for the branch. Default `400`, where review effectiveness falls off
 in SmartBear's study of code review at Cisco; `none` skips the check, announced as skipped.
 
+`integration_test_command` serves rule book Phase 5 step 1: integration tests across module
+interfaces and external services, run on every pull request. The pre-push checklist runs it
+after the unit suite, writing `integration_results_file` and reading its counts with
+`integration_results_read_command` — a file and a reader of its own, as Maven's Failsafe
+writes and reports integration results apart from Surefire's unit results, so neither suite
+overwrites or misreads the other's verdict. The Definition of Done never runs it, so a third
+party being down never blocks a commit. All three default to `none`, announced as no
+integration tier; with the command set, the push stops before running it while either of
+the other two is `none` or the results file is `results_file`. In CI, `ci-green` reads a
+failing integration job from `ci_integration_results_artifact` with the same integration
+reader, as `ci_results_artifact` serves the unit job; default `none`, which leaves that
+job's log as its only evidence. Each artifact is downloaded into a fresh directory and its
+result file moved over its suite's deleted results file, so neither a local run's verdict
+nor an earlier download is read as CI's. It stops and names the key
+when either artifact is set with its reader or results file `none`, the integration
+artifact is set with no integration command, or the two artifacts or results files
+coincide.
+
 The values in the block above are illustrations, not defaults. Some of its keys are
 required and have no default; one that is missing, empty, `none`, or a `<placeholder>`
 stops the run. Any other key absent from
@@ -244,11 +266,14 @@ defaults.
   in every plan, and `design-adversary` blocks a `High` threat that names no phase.
 - `roles` — a map from each role above to the person who holds it.
   `{{roles.<role>}}` in a skill resolves to that role's entry in `roles`, so
-  `{{roles.tech_lead}}` names the tech lead. Default: a role absent from `roles` is the
-  person running the session, and the skill addresses that person directly. That is the
-  absent-key rule above applied per role, so a missing role never resolves to `none`,
-  and a project with no `roles` key at all has the person running the session in every
-  role.
+  `{{roles.tech_lead}}` names the tech lead. `write-tickets` waits on the product owner after
+  QA confirms each `Must` ticket's ACs are testable, `plan-work` on the tech lead after QA
+  approves the test strategy, `ship-pr` hands QA the verification charter, and `ci-green`
+  and `deliver` send rule-book exceptions to the tech lead. Default: a role absent from
+  `roles` is the person running the session, and the skill addresses that person directly.
+  That is the absent-key rule above applied per role, so a missing role never resolves to
+  `none`, and a project with no `roles` key at all has the person running the session in
+  every role.
 - `exceptions_log` — the project's register of rule-book exceptions, in the format
   `gates/exceptions.md` defines. Default `none`, under which a run stops rather than skip
   a "must" step.

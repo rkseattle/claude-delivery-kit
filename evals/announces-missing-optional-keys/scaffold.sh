@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # A project.json with every required key and no optional ones, so each optional key
-# plan-work uses resolves to its README default: none, [] for disciplines, or 400 for
-# pr_review_limit_lines.
+# plan-work uses resolves to its README default: none, [] for disciplines, 400 for
+# pr_review_limit_lines, or the person running the session for each role in roles.
 set -euo pipefail
 mkdir -p .claude
 cat > .claude/project.json <<'JSON'

@@ -2,7 +2,7 @@
 """The scanners' git inputs and the verdicts the commit and push gates read from their SARIF
 2.1.0 reports. Standard library only.
 
-Called by gates/definition-of-done.md (steps 7 and 8) and gates/pre-push.md (steps 7 and 8).
+Called by gates/definition-of-done.md (steps 7 and 8) and gates/pre-push.md (steps 8, 9 and 11).
 
     sarif_gate.py patch --staged | --commits RANGE
         writes the secret scanner's input to stdout: the added lines of the staged diff, or
