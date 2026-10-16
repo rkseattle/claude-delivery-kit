@@ -53,11 +53,14 @@ empty after removals stops the run.
    - an in-scope `moscow-must` ticket has no `## Acceptance criteria` heading, or no
      `- AC<n>:` line between it and the next heading: a Must requirement with no criteria
      has nothing to accept;
-   - one of those lines carries no readable `[verify:]` tag, in the form
+   - one of those lines, as
+     `${CLAUDE_PLUGIN_ROOT}/skills/release-readiness/scripts/readiness_check.py` `criteria`
+     reads it, carries no readable `[verify:]` tag, in the form
      `${CLAUDE_PLUGIN_ROOT}/skills/write-tickets/references/templates.md` defines and
      `write-tickets` writes, or the `\verify: …\` form Jira's Markdown conversion leaves of
      one written outside a code span; or its tag names a tier `{{verification_tiers}}` does
-     not declare. With no tag, or an undeclared tier, no test is named for the criterion,
+     not declare; or the description's code fences do not close, so its criteria cannot all
+     be read. With no tag, or an undeclared tier, no test is named for the criterion,
      and a requirement no one can test is not accepted (rule book Phase 2).
 
    Tiers stay the project's own: this gate maps none of them to a test level, and a

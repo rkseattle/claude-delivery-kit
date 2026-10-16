@@ -9,9 +9,10 @@ allowed-tools: Read, Write, Edit, Grep, Glob, Bash
 Check release readiness for: $ARGUMENTS
 
 This skill is the rule book's Phase 5 step 7 and its exit gate: it writes the test summary
-for one release candidate and stops for `{{roles.product_owner}}`. It writes
-`{{release_dir}}/<version>-test-summary.md` and its note file and, after the review, a
-git note on the tested commit under `refs/notes/release-readiness`. No commit to any
+for one release candidate and stops for `{{roles.product_owner}}`. In `{{release_dir}}` it
+writes `<version>-test-summary.md`, its `<version>-note.txt`, and a `<version>-<KEY>.md`
+copy of each Must ticket's description. After the review it adds a git note on the tested
+commit under `refs/notes/release-readiness`. No commit to any
 branch, no tag, and no push: a note does not move HEAD, and `release` reads both the file
 from the working tree and the note, then pushes the note with the tag.
 
@@ -36,8 +37,8 @@ Stop, and say why in one line, when:
   `{{integration_results_read_command}}` is `none`, or `{{integration_results_file}}` equals
   `{{results_file}}`** — `gates/pre-push.md` step 6's stop, for the same reason.
 - **`$ARGUMENTS` is not `MAJOR.MINOR.PATCH`**, three dot-separated non-negative integers
-  with no leading `v` — Semantic Versioning's core form. The tag `release` creates is
-  `v<version>`, so a leading `v` would double it.
+  with no leading `v` — Semantic Versioning's core form — as Step 2's version check
+  decides. The tag `release` creates is `v<version>`, so a leading `v` would double it.
 - **`git status --porcelain --untracked-files=all -- . ':(exclude){{release_dir}}'` prints
   anything, or `{{release_dir}}` is outside the repository, absolute, or holds whitespace.**
   The commands below write it unquoted and relative to the project root. The suites run
@@ -60,14 +61,23 @@ any reason but finding no tag, its `No names found` or `No tags can describe`, s
 too, rather than reading as a first release:
 
 ```bash
-last=$(git describe --tags --abbrev=0 --match 'v[0-9]*' 2>&1) && range="$last..HEAD" ||
+last=$(git describe --tags --abbrev=0 --match 'v[0-9]*.[0-9]*.[0-9]*' --exclude 'v*-*' 2>&1) && range="$last..HEAD" ||
   case $last in *"No names found"*|*"No tags can describe"*) range=HEAD ;; *) echo "$last"; false ;; esac
 git log --format=%s "$range" | grep -oE '[A-Z][A-Z0-9_]*-[0-9]+' | grep -xE '{{ticket_prefix}}-[0-9]+' | sort -u
 ```
 
-With a last tag `v<last>`, `<version>` must be greater than it in Semantic Versioning
-precedence, or the skill stops: a release numbered below the one it follows would mislabel
-history.
+Then check the version, passing `--last` only when the command above found a tag. Only a
+full `vMAJOR.MINOR.PATCH` tag counts as a release: a pre-release such as `v1.2.0-rc1` is
+excluded from the search, so it neither starts the range nor blocks the next version.
+Anything but `ok` stops the skill: a malformed version, or one not greater than the last in
+Semantic Versioning precedence, would mislabel history.
+
+```bash
+python3 "${CLAUDE_PLUGIN_ROOT}/skills/release-readiness/scripts/readiness_check.py" version --new <version> --last v<last>
+python3 "${CLAUDE_PLUGIN_ROOT}/skills/release-readiness/scripts/readiness_check.py" version --new <version>
+```
+
+The first line is for a release after a tag, the second for the first release.
 
 Subjects only, because the subject names the ticket a commit delivers, by the convention
 every stage of this kit commits with. A body names tickets for other reasons, such as work
@@ -117,7 +127,18 @@ and fails the gate criteria that depend on it. It is named in the summary under
 - **Must tickets not done** — of those, each with the `moscow-must` label whose status
   category is not `Done`.
 - **Must acceptance criteria** — as the gate's criterion 1 defines them, each with the tier
-  and evidence of its tag.
+  and evidence of its tag, read by the tested check rather than by eye. Write each Must
+  ticket's `jira_get_issue` description, verbatim, to `{{release_dir}}/<version>-<KEY>.md`
+  with the Write tool, so no shell quoting touches it, then run, with the project root
+  written as its absolute path:
+
+  ```bash
+  python3 "${CLAUDE_PLUGIN_ROOT}/skills/release-readiness/scripts/readiness_check.py" criteria --config "<project root>/.claude/project.json" < {{release_dir}}/<version>-<KEY>.md
+  ```
+
+  Each line is `<AC>`, `<tier>`, `<evidence>`, and `<status>`, separated by tabs, since
+  evidence may hold spaces. A status other than `ok`, such as `no-criteria` or
+  `unclosed-fence`, is a criterion 1 failure.
 - **In-scope NFRs** — as the gate's criterion 3 defines them. Reach a ticket's Epic by
   following `parent` with `jira_get_issue` until an issue of type Epic, or none.
 - **Open defects** — `jira_search`, paging until every result is read, for
@@ -254,25 +275,17 @@ change's review, `refs/notes/review`. It is an integrity check, not a signed att
 anyone with the checkout can rewrite it, as anyone can the summary. What it adds is that the
 summary `release` reads is the one that was reviewed. The note holds the version, the
 summary's SHA-256, so a later edit to the file is detectable, and the summary's last two
-lines, with trailing whitespace stripped, as `git notes` strips it. Python builds it, so no
-character in the summary reaches a shell:
+lines, with trailing whitespace stripped, as `git notes` strips it. The tested check builds
+it, and refuses a summary whose last two lines are not a review and a verdict:
 
 ```bash
-python3 - {{release_dir}}/<version>-test-summary.md v<version> > {{release_dir}}/<version>-note.txt <<'PY'
-import hashlib, sys
-data = open(sys.argv[1], "rb").read()
-review, gate = [line.rstrip() for line in data.decode().rstrip().splitlines()[-2:]]
-print(f"Release-readiness: {sys.argv[2]}\nSummary-SHA256: {hashlib.sha256(data).hexdigest()}")
-print(f"{review}\n{gate}")
-PY
-```
-
-Write the note, only from a note file the build produced:
-
-```bash
-test -s {{release_dir}}/<version>-note.txt &&
+python3 "${CLAUDE_PLUGIN_ROOT}/skills/release-readiness/scripts/readiness_check.py" note --summary {{release_dir}}/<version>-test-summary.md --version v<version> > {{release_dir}}/<version>-note.txt &&
+  test -s {{release_dir}}/<version>-note.txt &&
   git notes --ref=release-readiness add -f -F {{release_dir}}/<version>-note.txt <Commit SHA>
 ```
+
+The note is written only from a note file the build produced: the check prints its
+`INVALID:` line to standard error, and the chain stops at the first failure.
 
 `-f` replaces a note an earlier run wrote for the same commit, and an empty file would
 delete it. A non-zero exit from the build or the add stops the skill: name the command and

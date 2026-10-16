@@ -270,14 +270,17 @@ its own, as the integration suite does. `nfr_test_command` takes no arguments an
 those lines, and an `exceptions_log` row for one, settle the gate is criterion 3 of
 `gates/release-readiness.md`. Each Must acceptance criterion is listed, with its `[verify:]`
 tier, which `verification_tiers` must declare, under the summary's `Untested requirements`
-for the product owner's acceptance, per criterion 1. `release_dir` holds each version's test
-summary and release notes. They are working files, not committed, so the path may be
-gitignored. The note `release-readiness` writes on the tested commit under
-`refs/notes/release-readiness`, which `release` checks and pushes with the tag, records the
-summary's hash and verdict there; it is an integrity check, not a signed attestation. All
-five default to `none`. A `none` system key or `release_dir` stops `release-readiness` and
-names the key, and so does a system results file equal to `results_file` or
-`integration_results_file`.
+for the product owner's acceptance, per criterion 1. It reads `verification_tiers` as tier
+names separated by `·`, commas, or semicolons, each optionally in backticks and followed by
+a note in parentheses; `and` and `or` are joiners, and names compare without case.
+`release_dir` holds each version's test summary, its note file, the Must tickets'
+description copies the check reads, and the release notes. They are working files, not
+committed, so the path may be gitignored. The note `release-readiness` writes on the tested
+commit under `refs/notes/release-readiness`, which `release` checks and pushes with the tag,
+records the summary's hash and verdict there; it is an integrity check, not a signed
+attestation. All five default to `none`. A `none` system key or `release_dir` stops
+`release-readiness` and names the key, and so does a system results file equal to
+`results_file` or `integration_results_file`.
 
 `release_artifact_command`, `deploy_command`, `smoke_test_command`, `rollback_command`,
 `rollout_stages`, `halt_criteria`, `monitoring_window_minutes`, and `released_status` serve

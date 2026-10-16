@@ -69,6 +69,12 @@ jobs:
       - name: Halt watch self-test
         run: python3 skills/release/scripts/halt_watch.py --self-test
 
+      # One case per way a release could pass the readiness record when it should not: a
+      # version below the last, an untagged or undeclared Must criterion, a note that does
+      # not match its summary; both release skills call this script for those checks.
+      - name: Readiness check self-test
+        run: python3 skills/release-readiness/scripts/readiness_check.py --self-test
+
   manifest:
     name: Plugin manifest
     runs-on: ubuntu-latest

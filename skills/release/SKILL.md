@@ -45,13 +45,23 @@ Every stop below comes before the tag, and says why in one line:
 
   Write the project root as its absolute path: `CLAUDE_PROJECT_DIR` is not set in the
   session's shell. Each would let a criterion pass with nothing checked.
-- **`$ARGUMENTS` is not `MAJOR.MINOR.PATCH`**, as `release-readiness` requires.
-- **`{{release_dir}}/<version>-test-summary.md` is missing, its last line is not
-  `Gate: PASS`, or the line directly before that does not match
-  `^Reviewed-by: product_owner .+ [0-9]{4}-[0-9]{2}-[0-9]{2}(, relayed by .+)?$`** — the
-  exact form and place `gates/release-readiness.md` criterion 4 defines, since a
-  `Reviewed-by:` line anywhere else may be text the summary quoted from a PR. Name which,
-  and send it back to `release-readiness <version>`.
+- **`$ARGUMENTS` is not `MAJOR.MINOR.PATCH`**: this prints anything but `ok`.
+
+  ```bash
+  python3 "${CLAUDE_PLUGIN_ROOT}/skills/release-readiness/scripts/readiness_check.py" version --new <version>
+  ```
+- **The readiness record does not hold**: the tested check below prints anything but `ok`.
+  It requires the summary to exist, to end `Gate: PASS` with the `Reviewed-by:` line
+  `gates/release-readiness.md` criterion 4 defines directly before it, and to match, as it
+  is now, the note `release-readiness` wrote on HEAD. A `Reviewed-by:` line anywhere else
+  may be text the summary quoted from a PR, and a summary edited since the review no longer
+  matches its note. Name what it printed, and send it back to
+  `release-readiness <version>`.
+
+  ```bash
+  git notes --ref=release-readiness show HEAD |
+    python3 "${CLAUDE_PLUGIN_ROOT}/skills/release-readiness/scripts/readiness_check.py" verify --summary {{release_dir}}/<version>-test-summary.md --version v<version> --require-pass
+  ```
 - **`git status --porcelain --untracked-files=all -- . ':(exclude){{release_dir}}'` prints
   anything, or `{{release_dir}}` is outside the repository, absolute, or holds
   whitespace.** The deploy, smoke, rollback,
@@ -59,12 +69,6 @@ Every stop below comes before the tag, and says why in one line:
   produce evidence for a tree nobody recorded.
 - **The summary's `Commit:` is not `git rev-parse HEAD`.** The summary tested another
   commit; name both SHAs.
-- **`git notes --ref=release-readiness show HEAD` fails, or its note does not read, line for
-  line, `Release-readiness: v<version>`, `Summary-SHA256: <the summary's SHA-256 now>`, and
-  then the summary's last two lines, trailing whitespace stripped.** The note is the record
-  `release-readiness` wrote on the tested commit at review time, so a summary edited since,
-  or one no review recorded, does not match it. Hash the summary as Step 3 hashes the
-  artifact.
 - **`v<version>` already exists**, locally (`git rev-parse -q --verify refs/tags/v<version>`
   prints a SHA) or on origin (`git ls-remote --exit-code --tags origin refs/tags/v<version>`
   exits 0). Any exit status other than 0 or 2 from `ls-remote` is a failed lookup, named as
