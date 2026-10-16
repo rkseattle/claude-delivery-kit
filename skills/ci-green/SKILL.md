@@ -300,15 +300,18 @@ line, and the tech lead queues it. Read it with
 `gh api graphql -f query='{repository(owner:"<owner>",name:"<repo>"){pullRequest(number:<pr>){isMergeQueueEnabled}}}'`
 over `{{repo_slug}}`; a failed call is no answer — report it and stop. Ask
 `{{roles.tech_lead}}` whether to merge PR `<pr>` at `<sha>` — the head the approving review
-or the R2 exception's green run judged — in the same turn as the friction question above.
-Whatever the answer, an approved friction edit is applied after Step 6 as a delivery of its
-own, branched from a freshly fetched `origin/{{parent_branch_default}}`: on this branch it
-would move the head off `<sha>`.
+or the R2 exception's green run judged — by `{{merge_method}}`, deleting its branch, in the
+same turn as the friction question above. An approved friction edit never lands on this
+branch, where it would move the head off `<sha>`; ask Rob where it goes instead.
 
 - **No:** the PR stays open. Go to Step 6.
 - **Yes:** the answer may come turns later, so first re-run the `review_gate.py approval`
-  call above — or confirm the R2 row still covers the run — and `gh pr checks <pr>`. Anything
-  but `approved` and every check green on `<sha>` returns the run to the loop. Then write
+  call above — or confirm the R2 row still covers the run — and `gh pr checks <pr>`, then
+  `git fetch origin` and `git merge-base --is-ancestor origin/{{parent_branch_default}} <sha>`,
+  GitHub's "require branches to be up to date" check: CI judged `<sha>` on its base, not on
+  one that moved since. A verdict other than `approved` (or a lapsed R2 row), a check not
+  green on `<sha>`, or a moved base returns the run to the loop — `stage_step` back to Step
+  5, a moved base rebased and pushed per Step 3 item 7 — and asks again once green. Then write
   `"paused": true` and `"branch": null` together — the merge deletes the branch the guard
   would restore, and a resume that clears `paused` must find nothing to restore — and run
   `gh pr merge <pr> --{{merge_method}} --delete-branch --match-head-commit <sha>`.
@@ -316,7 +319,7 @@ would move the head off `<sha>`.
 The PR's state is the verdict, not the exit code: `gh pr view <pr> --json state`. `MERGED`
 is a merge even when the command then failed — deleting the local branch, say — so report
 that error and go on. Anything else is a failed merge: report the error, write `branch` back
-and clear `paused`, and end the turn with the PR open, no Jira transition and no Step 6; the
+from `gh pr view <pr> --json headRefName` and clear `paused`, and end the turn with the PR open, no Jira transition and no Step 6; the
 run is unfinished, and `/deliver` or `/ci-green` resumes it at `merge`.
 
 Once `MERGED`, before any Jira call, write `"stage_step": "jira"`; a run found there resumes

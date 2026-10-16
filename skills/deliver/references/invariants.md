@@ -203,8 +203,8 @@ before committing to `{{parent_branch_default}}`.
 **Authorization already given is not asked for twice.** This rule governs an external
 write nobody has approved yet — the ad-hoc request, the "while you're in there". It does
 not re-gate the stages of an approved run: stage 1's approval covers the push, the PR, and
-the Jira transitions that stages 2 through 5 exist to perform. Stopping at `ship-pr` to
-ask permission to push would deadlock the workflow at its final stage.
+the Jira transitions to In Progress and In Review; the tech lead's merge yes covers Done.
+Stopping at `ship-pr` to ask permission to push would deadlock the workflow at its end.
 
 The test is whether _this specific operation_ was authorized, not whether it is
 irreversible. An approved plan authorizes its own delivery; it does not authorize an

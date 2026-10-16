@@ -35,12 +35,12 @@ Then list every row of `${CLAUDE_PLUGIN_ROOT}/gates/exceptions.md` and `{{except
 that has expired, as that file defines it, each to be remediated or renewed, or say none has
 expired. Say in one line when `{{exceptions_log}}` is `none`, a placeholder, or no file.
 
-| State                                            | Action                                            |
-| ------------------------------------------------ | ------------------------------------------------- |
-| Absent, or another branch's with no `pr`         | Fresh run — go to stage 1                         |
+| State                                            | Action                                                       |
+| ------------------------------------------------ | ------------------------------------------------------------ |
+| Absent, or another branch's with no `pr`         | Fresh run — go to stage 1                                    |
 | Another branch's, with a `pr` recorded           | **Stop and ask:** resume, or abandon an open PR per ci-green |
-| Present, unfinished, tickets match or none given | **Resume path** below                             |
-| Present, but $ARGUMENTS names different tickets  | **Stop and ask.** Never start over the top of it. |
+| Present, unfinished, tickets match or none given | **Resume path** below                                        |
+| Present, but $ARGUMENTS names different tickets  | **Stop and ask.** Never start over the top of it.            |
 
 A session resuming mid-run has read none of this workflow's machinery: stage files are
 read on arrival and gates when they apply, so a run entered in the middle skips every one

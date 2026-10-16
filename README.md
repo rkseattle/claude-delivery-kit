@@ -176,12 +176,13 @@ push.
 
 `merge_method` and `done_transition` serve rule book Phase 4 step 9: merge, and delete the
 branch. Once `ci-green` exits its loop it asks the tech lead whether to merge; on yes it
+re-checks the approval, the checks, and that the branch is up to date with its base, then
 runs `gh pr merge` with `--merge`, `--squash`, or `--rebase` — the value of `merge_method`,
 default `squash` — and `--delete-branch`. Any other value stops the run and names the key.
 It then moves each covered ticket by the Jira transition whose name is `done_transition`,
 default `Done`, and confirms each one landed in the `Done` status category; a ticket with no
-such transition, or not landing there, is reported by key and left to the tech lead. On no, the PR
-stays open and the run's scratch files are cleaned up all the same. A failed merge is
+such transition, or not landing there, is reported by key and left to the tech lead. On no,
+the PR stays open and the run's scratch files are cleaned up all the same. A failed merge is
 reported, leaves the PR open, moves no ticket, and keeps the run unfinished, so `/deliver`
 or `/ci-green` resumes at the merge question. A base branch with a merge queue is left for
 the tech lead to queue, as on no.
