@@ -1,6 +1,6 @@
 ---
 name: ci-green
-description: Monitor a PR's CI run and review feedback until every job passes, no unaddressed comments remain, and someone other than the author has approved the PR — or, with no reviewers configured, a rule-book R2 exception is recorded — root-causing each failure in an isolated subagent and propagating fix patterns across the codebase.
+description: Monitor a PR's CI run and review feedback until every job passes, no unaddressed comments remain, and someone other than the author has approved the PR — or, with no reviewers configured, a rule-book R2 exception is recorded — root-causing each failure in an isolated subagent and propagating fix patterns across the codebase, then merging on the tech lead's yes.
 argument-hint: [PR number, defaults to the current branch's PR]
 disable-model-invocation: true
 allowed-tools: Read, Write, Edit, Grep, Glob, Bash, Task, WebSearch, WebFetch
@@ -291,13 +291,49 @@ Report `none` when the run genuinely recorded no friction. A clean run is a real
 and manufacturing an item to fill the section is how a config file accumulates rules nobody
 needed.
 
+**The merge.** Rule book Phase 4 step 9 ends in a merge that stage 1's approval does not
+cover, so it is asked. Write `stage_step: "merge"`. A run resumed here reads the PR's state
+first, as below, and a `MERGED` PR goes straight to the Jira step. Check `{{merge_method}}`:
+anything but `merge`, `squash` or `rebase` stops and names the key, since it becomes a flag.
+A base with a merge queue merges outside this run, so it is treated as declined, said in one
+line, and the tech lead queues it. Read it with
+`gh api graphql -f query='{repository(owner:"<owner>",name:"<repo>"){pullRequest(number:<pr>){isMergeQueueEnabled}}}'`
+over `{{repo_slug}}`; a failed call is no answer — report it and stop. Ask
+`{{roles.tech_lead}}` whether to merge PR `<pr>` at `<sha>` — the head the approving review
+or the R2 exception's green run judged — in the same turn as the friction question above.
+Whatever the answer, an approved friction edit is applied after Step 6 as a delivery of its
+own, branched from a freshly fetched `origin/{{parent_branch_default}}`: on this branch it
+would move the head off `<sha>`.
+
+- **No:** the PR stays open. Go to Step 6.
+- **Yes:** the answer may come turns later, so first re-run the `review_gate.py approval`
+  call above — or confirm the R2 row still covers the run — and `gh pr checks <pr>`. Anything
+  but `approved` and every check green on `<sha>` returns the run to the loop. Then write
+  `"paused": true` and `"branch": null` together — the merge deletes the branch the guard
+  would restore, and a resume that clears `paused` must find nothing to restore — and run
+  `gh pr merge <pr> --{{merge_method}} --delete-branch --match-head-commit <sha>`.
+
+The PR's state is the verdict, not the exit code: `gh pr view <pr> --json state`. `MERGED`
+is a merge even when the command then failed — deleting the local branch, say — so report
+that error and go on. Anything else is a failed merge: report the error, write `branch` back
+and clear `paused`, and end the turn with the PR open, no Jira transition and no Step 6; the
+run is unfinished, and `/deliver` or `/ci-green` resumes it at `merge`.
+
+Once `MERGED`, before any Jira call, write `"stage_step": "jira"`; a run found there resumes
+here and never asks again. Report `git branch --show-current`. Then `jira_search` for
+`key in (<tickets>) AND statusCategory = Done`, over the covered tickets in `tickets`; for
+each one it does not return, `jira_get_transitions` and the entry whose `name` equals
+`{{done_transition}}` exactly, transitioned by its ID. Run the search again: it must return
+every ticket. One with no matching transition — list its names — or still missing is
+reported by key and left to `{{roles.tech_lead}}`; Step 6 still runs, since the PR is merged.
+
 ## Step 6 — Clean up the run's scratch files
 
 **Only once the run is genuinely finished** — every check green, no unaddressed comment, the
-approval in hand or its R2 exception pushed or already covered, and Step 5's report
-written, both lists included. That ordering is not arbitrary: those lists live in the file
-this step deletes, so cleanup runs after the report or they are gone. Report the deletions
-as part of that report.
+approval in hand or its R2 exception pushed or already covered, Step 5's report written,
+both lists included, and the merge answered: merged, or declined. A failed merge is not an
+answer. That ordering is not arbitrary: those lists live in the file this step deletes, so
+cleanup runs after the report or they are gone. Report the deletions with the merge outcome.
 
 ```bash
 rm -f .claude/state/current-plan.json .claude/state/blocked-*
@@ -319,9 +355,10 @@ The glob catches the plan and anything written alongside it — handoff notes, s
 Delete nothing outside `docs/plans/` and `.claude/state/`, and never a tracked file:
 `git status` must be clean afterward, exactly as it was before.
 
-If the PR is not merged yet, that is fine — the branch and the PR are the record from here
-on. But if anything is still red or unaddressed, or the approval is outstanding, the run
-has not finished and Step 6 deletes nothing — only Rob's choice to abandon it, below, does.
+If the tech lead declined the merge, that is fine — the PR stays open, and the branch and
+the PR are the record from here on. But if anything is still red or unaddressed, or the
+approval is outstanding, the run has not finished and Step 6 deletes nothing — only Rob's
+choice to abandon it, below, does.
 **An outstanding out-of-band verification does not block cleanup**: it is Rob's to run, it
 is recorded in the PR body, and holding the state file open for it would strand the branch
 guard indefinitely.
@@ -335,4 +372,5 @@ Write Step 5's report with both lists, comment on the PR naming what was still o
 — failing checks, open comments, the R2 approval — then delete the same files Step 6 does.
 If the comment cannot be posted, delete nothing: report the failure, since the PR comment
 is the only record left once the state file is gone. The tickets stay In Review: the PR is
-still open, and moving them is Rob's call.
+still open, and moving them is Rob's call. A run whose PR is merged is never abandoned: it
+resumes at the merge step's Jira half.

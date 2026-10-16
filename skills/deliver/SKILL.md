@@ -1,6 +1,6 @@
 ---
 name: deliver
-description: End-to-end delivery of one or more Jira work items — plan, adversarial design review, approval gate, phased implementation with per-commit adversarial review, cold branch review, PR, and CI to green.
+description: End-to-end delivery of one or more Jira work items — plan, adversarial design review, approval gate, phased implementation with per-commit adversarial review, cold branch review, PR, CI to green, and merge on the tech lead's yes.
 argument-hint: <TICKET-N> [TICKET-N ...]
 disable-model-invocation: true
 ---
@@ -38,7 +38,7 @@ expired. Say in one line when `{{exceptions_log}}` is `none`, a placeholder, or 
 | State                                            | Action                                            |
 | ------------------------------------------------ | ------------------------------------------------- |
 | Absent, or another branch's with no `pr`         | Fresh run — go to stage 1                         |
-| Another branch's, with a `pr` recorded           | **Stop and ask:** resume, or abandon per ci-green |
+| Another branch's, with a `pr` recorded           | **Stop and ask:** resume, or abandon an open PR per ci-green |
 | Present, unfinished, tickets match or none given | **Resume path** below                             |
 | Present, but $ARGUMENTS names different tickets  | **Stop and ask.** Never start over the top of it. |
 
@@ -89,8 +89,8 @@ The marker may be stale by one step, since a crash lands between writes. `git st
 
 5. **`ci-green`** — the PR opened in stage 4. Monitor CI and PR feedback; root-cause every
    failure in an isolated subagent; loop until green, comments addressed, and an approving
-   review in hand or its R2 exception recorded. Then, and only then, delete the scratch
-   files — the state file and the plan — so Step 0 cannot resume a run that shipped.
+   review in hand or its R2 exception recorded. Merge on the tech lead's yes, then delete
+   the scratch files — the state file and the plan — so Step 0 cannot resume a shipped run.
 
 Stages 2 through 5 run without further approval gates. Surface real decisions as they
 arise; do not ask permission to continue.
@@ -166,8 +166,8 @@ rule-book exception` right after the gated commit or push, before anything else.
 commit and its push fall under the exception they record; push it before the run ends.
 With `{{exceptions_log}}` `none`, a placeholder, or no file, stop instead of skipping.
 
-**Jira transitions are real steps.** In Progress before the first line of code, In Review
-after the PR opens. Look up the issue's available transitions via the Atlassian MCP first —
+**Jira transitions are real steps.** In Progress before code, In Review after the PR opens,
+Done after the merge. Look up the issue's available transitions via the Atlassian MCP first —
 never guess a transition ID.
 
 **Report full status at every phase and stage boundary.**

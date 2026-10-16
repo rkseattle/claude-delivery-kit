@@ -123,8 +123,8 @@ permission; creating a work item does.
 **Deleting or closing someone else's work item needs permission too**, and for the
 opposite reason: it is not reversible from here, and a ticket you delete is a decision
 someone else can no longer see. Ask, and say what happens to the work it tracked. Moving a
-ticket through its normal workflow states — In Progress, In Review — is routine and needs
-no permission.
+ticket through its normal workflow states — In Progress, In Review, and Done after a merge
+the tech lead approved — is routine and needs no permission.
 
 ## Report full status at every boundary
 

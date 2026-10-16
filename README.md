@@ -150,7 +150,9 @@ The stage skills carry the procedure; the commands, paths and thresholds come fr
   "plan_rules_file": ".claude/plan-rules.md",
   "user_docs_targets": "README.md docs/user-guide.md",
   "extra_gates": [".claude/gates/<project-only gate>.md"],
-  "reviewers": "<comma-separated GitHub logins or org/team slugs, or none>"
+  "reviewers": "<comma-separated GitHub logins or org/team slugs, or none>",
+  "merge_method": "<merge, squash, or rebase>",
+  "done_transition": "<name of the Jira transition into the done state>"
 }
 ```
 
@@ -167,8 +169,22 @@ author, and `ci-green` does not finish until someone other than the author appro
 PR's latest commit. Default `none`: no reviewer is requested, and `ci-green` instead records
 an R2 exception in `exceptions_log`, pausing once for the tech lead to approve it, unless an
 unexpired R2 row already covers the run. With `exceptions_log` also `none`, it stops and
-asks. The wait only keeps the run open; what stops an unreviewed merge is a branch
-protection rule or ruleset requiring an approval of the latest push.
+asks. The wait only keeps the run open. `ci-green` merges only on the tech lead's yes, and
+on the exception path that yes merges a PR nobody reviewed; what stops anyone else's
+unreviewed merge is a branch protection rule or ruleset requiring an approval of the latest
+push.
+
+`merge_method` and `done_transition` serve rule book Phase 4 step 9: merge, and delete the
+branch. Once `ci-green` exits its loop it asks the tech lead whether to merge; on yes it
+runs `gh pr merge` with `--merge`, `--squash`, or `--rebase` — the value of `merge_method`,
+default `squash` — and `--delete-branch`. Any other value stops the run and names the key.
+It then moves each covered ticket by the Jira transition whose name is `done_transition`,
+default `Done`, and confirms each one landed in the `Done` status category; a ticket with no
+such transition, or not landing there, is reported by key and left to the tech lead. On no, the PR
+stays open and the run's scratch files are cleaned up all the same. A failed merge is
+reported, leaves the PR open, moves no ticket, and keeps the run unfinished, so `/deliver`
+or `/ci-green` resumes at the merge question. A base branch with a merge queue is left for
+the tech lead to queue, as on no.
 
 `secret_scan_command` and `sast_command` serve rule book R12 and Appendix B1's scans. Each
 writes SARIF 2.1.0 to standard output, redacted, with inline suppression comments ignored;
