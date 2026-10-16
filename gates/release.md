@@ -23,7 +23,9 @@ Before the release is tagged, each of these stops it and names the key:
   entry that is empty or only spaces;
 - `{{monitoring_window_minutes}}` that is not a positive whole number;
 - `{{rollout_stages}}` that is neither `none` nor a JSON list of strings, an empty list, or
-  a list with an entry named `staging`, which would count staging as production.
+  a list with an entry that is blank, repeated, named `staging` (which would count staging
+  as production), or not made only of letters, digits, `.`, `_`, and `-`, since each name
+  is passed to the commands as a bare argument.
 
 Each of those would let a criterion pass with nothing checked. The production stages are
 `{{rollout_stages}}` in order. With it `none`, a `{{project_size}}` of `small` gets the
@@ -51,15 +53,17 @@ version can run again.
    criterion 3's is.
 3. **No halt criterion triggered during the monitoring window** — after each production
    stage, every `{{halt_criteria}}` command ran once a minute for
-   `{{monitoring_window_minutes}}` minutes and none fired. A command fires when it exits
+   `{{monitoring_window_minutes}}` minutes and none fired, settled only by a watch that
+   exits 0 with a last line of `window clean`. A watch that ends any other way, crashed or
+   killed included, is a halt. A command fires when it exits
    non-zero, or when it has not exited 55 seconds after it started: a check that cannot
    finish within its minute cannot be run once a minute. The run's first action is then
    `{{rollback_command}} <stage>` for each deployed production stage, newest first, and the
    gate has failed for this release whatever the rollback's outcome. A rollback that fails
    does not stop the older stages' rollbacks. Each one's result is reported, and the first
    failure is reported as the emergency it is.
-4. **Release notes published** — after `git push origin v<version>`,
-   `gh release create v<version> --verify-tag --notes-file {{release_dir}}/<version>-notes.md`
+4. **Release notes published** — after `git push origin v<version>`, `gh release create
+   v<version> --verify-tag --title v<version> --notes-file {{release_dir}}/<version>-notes.md`
    exits zero in this run, and `gh release view v<version> --json isDraft --jq .isDraft`
    then prints `false`. A release that already existed is not one this run published. A
    failure here leaves production on the new version, rolled out and monitored clean: it is

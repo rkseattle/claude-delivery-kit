@@ -37,19 +37,28 @@ Every stop below comes before the tag, and says why in one line:
   the Phase 6 policy is unmet before anything starts.
 - **Any other stop `gates/release.md` lists before the tag** — a `none` artifact, smoke, or
   `release_dir` key; a `halt_criteria` or `rollout_stages` that is not a JSON list of
-  strings, is empty, or holds a blank entry or `staging`; a window that is not a positive
-  whole number. Name the key: each would let a criterion pass with nothing checked.
+  strings, is empty, or holds a blank entry, or a stage name the gate rejects; a window that
+  is not a positive whole number. Name the key: each would let a criterion pass with nothing checked.
 - **`$ARGUMENTS` is not `MAJOR.MINOR.PATCH`**, as `release-readiness` requires.
-- **`{{release_dir}}/<version>-test-summary.md` is missing, has no line starting
-  `Reviewed-by:`, or its last line is not `Gate: PASS`.** Name which, and send it back to
-  `release-readiness <version>`.
+- **`{{release_dir}}/<version>-test-summary.md` is missing, its last line is not
+  `Gate: PASS`, or the line directly before that does not match
+  `^Reviewed-by: product_owner .+ [0-9]{4}-[0-9]{2}-[0-9]{2}(, relayed by .+)?$`** — the
+  exact form and place `gates/release-readiness.md` criterion 4 defines, since a
+  `Reviewed-by:` line anywhere else may be text the summary quoted from a PR. Name which,
+  and send it back to `release-readiness <version>`.
+- **`git status --porcelain --untracked-files=all -- . ':(exclude){{release_dir}}'` prints
+  anything, or `{{release_dir}}` is outside the repository.** The deploy, smoke, rollback,
+  and halt commands run from this checkout, so an untracked or modified file there would
+  produce evidence for a tree nobody recorded.
 - **The summary's `Commit:` is not `git rev-parse HEAD`.** The summary tested another
   commit; name both SHAs.
 - **`v<version>` already exists**, locally (`git rev-parse -q --verify refs/tags/v<version>`
   prints a SHA) or on origin (`git ls-remote --exit-code --tags origin refs/tags/v<version>`
   exits 0). Any exit status other than 0 or 2 from `ls-remote` is a failed lookup, named as
-  that, not as an absent tag. A tag only local is one an interrupted run left: say so, and
-  that `git tag -d v<version>` clears it.
+  that, not as an absent tag. A tag only local is one an interrupted run left, and that run
+  may have deployed a production stage that now runs it unmonitored: ask
+  `{{roles.release_manager}}` whether any stage was deployed before suggesting
+  `git tag -d v<version>`.
 
 **The stages.** `{{rollout_stages}}` is a list of production stage names, in order, each
 passed to the commands as `<stage>`. With it `none`:
@@ -70,25 +79,35 @@ the rest of the run.
 
 ## Step 3 — Tag, then build once
 
+Build in a fresh worktree of the tag, removed by a trap on every exit, as the pre-push
+checklist's clean build does. Write `{{release_artifact_command}}`, `{{release_dir}}`, and
+the version in full: shell variables do not survive between commands.
+
 ```bash
 git tag -a v<version> -m "Release v<version>"
 git worktree prune
-build=$(mktemp -d) && git worktree add --detach "$build" v<version> && echo "$build"
+mkdir -p {{release_dir}}
+build=$(mktemp -d); repo=$PWD; out="$repo/{{release_dir}}"
+git worktree add --detach "$build" v<version> && (
+  set -o pipefail
+  trap 'cd "$repo" && git worktree remove --force "$build"' EXIT
+  cd "$build" && {{release_artifact_command}} | tee "$out/<version>-build.log" &&
+    artifact=$(tail -n 1 "$out/<version>-build.log") && [ -f "$artifact" ] &&
+    cp "$artifact" "$out/<version>-$(basename "$artifact")" &&
+    python3 -c 'import hashlib,sys; print(hashlib.sha256(open(sys.argv[1],"rb").read()).hexdigest())' \
+      "$out/<version>-$(basename "$artifact")" > "$out/<version>-artifact.sha256"
+); echo "build exited $?"
 ```
 
-Print the worktree's path, and from here on write it out in full: shell variables do not
-survive between commands. Run `{{release_artifact_command}}` once, from that worktree. The
-build reads the tagged commit and nothing else in this checkout, so untracked files never
-reach the artifact. Its last line of standard output is the artifact's path, relative to the
-worktree unless absolute. A non-zero exit, or a path that does not exist, stops the release.
-Copy the artifact to `{{release_dir}}/<version>-<its file name>`, record that copy's
-absolute path as `<artifact-path>`, and remove the worktree with `git worktree remove
---force <worktree path>`, reporting a failed removal with the path. Remove it the same way
-on every exit from this step, a failed build included, as the pre-push checklist's clean
-build does. The copy outlives the
-run, so the artifact production runs is never lost with the worktree. Every later step
-deploys that one path, and this command never runs again in this release — a rebuild is a
-different artifact than the one about to be tested.
+The build reads the tagged commit and nothing else in this checkout. Its last line of
+standard output is the artifact's path, relative to the worktree unless absolute. Any exit
+but `build exited 0` stops the release. The copy in `{{release_dir}}` is `<artifact-path>`,
+written out as an absolute path from here on; it outlives the worktree, so the artifact
+production runs is never lost with it. Its SHA-256 is recorded beside it, and before every
+deploy the copy is hashed again: a mismatch stops the release before staging and is a halt
+after it, since a changed file is not the artifact that was tested. The build command never
+runs again in this release — a rebuild is a different artifact than the one about to be
+tested.
 
 ## Step 4 — Write the release notes
 
@@ -107,8 +126,9 @@ nothing between here and the staging ask needs the network:
 - **Changes** — one line per scope key, with each commit subject in the range that names
   it.
 - **Migrations** — the summary's `Upgrade notes` section, or `none`.
-- **Known issues** — every non-empty defect group under the summary's
-  `Open defects by severity`, then its `Known risks`.
+- **Known issues** — the open Bugs under the summary's `Open defects by severity` whose
+  keys are in the scope, then its `Known risks`. The summary's defect list is project-wide,
+  for the gate; the published notes name only this release's tickets.
 - **Rollback** — `{{rollback_command}} <stage>` for each production stage, newest first.
 
 Then read the file back: all four headings present, or the release stops here, per
@@ -122,7 +142,8 @@ Then read the file back: all four headings present, or the release stops here, p
 - the artifact path;
 - `{{deploy_command}} staging <artifact-path>`, then `{{smoke_test_command}} staging`, then
   `{{rollback_command}} staging`, then `{{smoke_test_command}} staging` again;
-- the rollback of staging that any failure triggers.
+- the rollback of staging that any failure triggers;
+- the release notes, in full, since Step 6 publishes them.
 
 Then stop and wait. Run no `{{deploy_command}}` before an answer. A clarifying question is
 not an answer, and only the release manager's answer counts; one relayed by the person
@@ -140,8 +161,8 @@ command from here to the end of Step 6 runs from the project root, never the bui
 
 1. Ask `{{roles.release_manager}}` to approve `<stage>`. The approval covers that stage's
    deploy, its smoke test, its monitoring window, and its rollback on a halt, with no
-   further ask. The last stage's question also names the tag push, the published notes,
-   and the ticket transition of Step 6, which its approval covers too. Print the role per
+   further ask. The last stage's question also names the tag push, the notes as they will
+   be published, and the ticket transition of Step 6, which its approval covers too. Print the role per
    `gates/project-config.md`, then stop and wait as for staging: a clarifying question
    keeps the wait open. An explicit refusal or abort ends the rollout as a halt does, minus
    the halt itself: roll back every production stage
@@ -163,9 +184,10 @@ import json, os, subprocess, sys, time
 window = int(sys.argv[1])
 try:
     criteria = json.loads(os.fdopen(3).read())
-    assert isinstance(criteria, list) and criteria
-    assert all(isinstance(c, str) and c.strip() for c in criteria)
 except Exception:
+    criteria = None
+if not (isinstance(criteria, list) and criteria
+        and all(isinstance(c, str) and c.strip() for c in criteria)):
     print("HALT: halt_criteria could not be read as a non-empty list of commands")
     sys.exit(1)
 start = time.monotonic()
@@ -196,10 +218,12 @@ JSON
 Each round starts on the minute, from minute 0 through the window's end, and runs every
 criterion at once. A criterion fires when it exits non-zero or has not exited 55 seconds
 into its round, and the watch ends there. A list it cannot read is a halt too: a watch with
-nothing to check would pass.
+nothing to check would pass. Only an exit of 0 with a last line of `window clean` settles
+`gates/release.md` criterion 3. Any other ending is a halt: a `HALT` line, a traceback, a
+missing `python3`, a killed or interrupted task.
 
-**On a halt — a fired criterion, a failed production deploy, or a failed production smoke
-test — roll back first.** Before reading logs, reporting, or anything else, run
+**On a halt — a fired criterion, a watch that did not end clean, a failed production
+deploy, or a failed production smoke test — roll back first.** Before reading logs, reporting, or anything else, run
 `{{rollback_command}} <stage>` for every production stage deployed, the failed one included,
 newest first. Each stage's own approval already authorized its rollback. Then report the
 criterion or smoke output, each rollback's result, and the stage the release stopped at.
@@ -214,7 +238,8 @@ Once the last stage's window closes clean:
 
 ```bash
 git push origin v<version>
-gh release create v<version> --verify-tag --title v<version> --notes-file {{release_dir}}/<version>-notes.md
+gh release create v<version> --verify-tag --title v<version> \
+  --notes-file {{release_dir}}/<version>-notes.md
 gh release view v<version> --json isDraft --jq .isDraft
 ```
 

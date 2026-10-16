@@ -37,10 +37,11 @@ Stop, and say why in one line, when:
 - **`$ARGUMENTS` is not `MAJOR.MINOR.PATCH`**, three dot-separated non-negative integers
   with no leading `v` — Semantic Versioning's core form. The tag `release` creates is
   `v<version>`, so a leading `v` would double it.
-- **`git status --porcelain --untracked-files=no -- . ':(exclude){{release_dir}}'` prints
-  anything.** The suites run against the working tree, and the summary records HEAD: a
-  tracked change would be tested and not recorded. Untracked files do not count, and
-  neither does `{{release_dir}}`, which this kit writes to and never commits.
+- **`git status --porcelain --untracked-files=all -- . ':(exclude){{release_dir}}'` prints
+  anything, or `{{release_dir}}` is outside the repository.** The suites run against the
+  working tree, and the summary records HEAD: a modified or untracked file, a fixture or a
+  config the suites pick up, would be tested and not recorded. Ignored files and
+  `{{release_dir}}`, which this kit writes to and never commits, do not count.
 
 With `{{integration_test_command}}` `none`, the one line `gates/project-config.md` defines
 says the project has no integration tier. With `{{nfr_test_command}}` `none`, it says every
@@ -56,6 +57,9 @@ release. The last release is the nearest `v*` tag reachable from HEAD, which is 
 last=$(git describe --tags --abbrev=0 --match 'v[0-9]*' 2>/dev/null) && range="$last..HEAD" || range=HEAD
 git log --format=%s "$range" | grep -oE '[A-Z][A-Z0-9_]*-[0-9]+' | grep -xE '{{ticket_prefix}}-[0-9]+' | sort -u
 ```
+
+With a last tag `v<last>`, `<version>` must be greater than it in Semantic Versioning precedence,
+or the skill stops: a release numbered below the one it follows would mislabel history.
 
 Subjects only, because the subject names the ticket a commit delivers, by the convention
 every stage of this kit commits with. A body names tickets for other reasons, such as work
