@@ -213,8 +213,9 @@ integration tier; with the command set, the push stops before running it while e
 the other two is `none` or the results file is `results_file`. In CI, `ci-green` reads a
 failing integration job from `ci_integration_results_artifact` with the same integration
 reader, as `ci_results_artifact` serves the unit job; default `none`, which leaves that
-job's log as its only evidence. Each artifact is downloaded over its suite's results file,
-deleted first, so a local run's verdict is never read as CI's. It stops and names the key
+job's log as its only evidence. Each artifact is downloaded into a fresh directory and its
+result file moved over its suite's deleted results file, so neither a local run's verdict
+nor an earlier download is read as CI's. It stops and names the key
 when either artifact is set with its reader or results file `none`, the integration
 artifact is set with no integration command, or the two artifacts or results files
 coincide.

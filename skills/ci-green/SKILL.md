@@ -66,12 +66,24 @@ For every failing job:
    Read the counts with the reader of that artifact's suite — `{{results_read_command}}`
    on `{{results_file}}`, `{{integration_results_read_command}}` on
    `{{integration_results_file}}`, never one suite's reader on the other's file. Each reader
-   reads a fixed path a local run left behind, so delete that file first, then
-   `gh run download <run-id> -n <artifact>` and move its result file to that path; an
-   artifact holding no such file is no verdict. Check before reading: an artifact set while
-   its suite's reader or results file is `none`, an integration artifact set while
-   `{{integration_test_command}}` is `none`, both artifacts set to one name, or both results
-   files at one path leaves no verdict of its own to read — stop and name the key. A failing integration job with
+   reads a fixed path a local run left behind, so replace it in one command, with
+   `<results-path>` that suite's results file. A fresh directory per download means no
+   earlier download can stand in, and an artifact holding no file of that name is no verdict:
+
+   ```bash
+   rm -f "<results-path>"; dir=$(mktemp -d) && {
+     gh run download <run-id> -n <artifact> -D "$dir" \
+       && found=$(find "$dir" -type f -name "$(basename "<results-path>")") \
+       && [ "$(printf '%s\n' "$found" | grep -c .)" -eq 1 ] && mv "$found" "<results-path>"
+     rm -rf "$dir"; }
+   ```
+
+   Zero or several matching files leave no results file, which is no verdict.
+
+   Check before reading: an artifact set while its suite's reader or results file is
+   `none`, an integration artifact set while `{{integration_test_command}}` is `none`, both
+   artifacts set to one name, or both results files at one path leaves no verdict of its
+   own to read — stop and name the key. A failing integration job with
    `{{ci_integration_results_artifact}}` set to `none` has only its log: say so in the
    iteration report rather than reading the unit artifact.
 
