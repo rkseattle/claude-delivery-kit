@@ -35,8 +35,8 @@ Stop, and say why in one line, when:
   brief is decided; name the decision rather than revise it.
 
 An existing `{{brief_file}}` whose decision is `Pending`, or that has no `## Decision`
-section yet, is the draft: read it, and revise
-it in Step 2 rather than writing over it unread.
+section yet, is the draft: read it, and revise it in Step 2 rather than writing over it
+unread.
 
 ## Step 2 — Write the brief
 
@@ -87,23 +87,24 @@ Pending — <sponsor>.
 their git `user.name`, or ask for a name when it is unset — a name, never the word "you".
 
 Fill it from $ARGUMENTS and the repository; with $ARGUMENTS empty, ask what the project is
-for before writing anything. A value neither supplies is a proposal: write
-it, mark it `(proposed)`, and list it at Step 4 for the sponsor to confirm or change — a
+for before writing anything. A value neither supplies is a proposal: write it, mark it
+`(proposed)`, and list it at Step 4 for the sponsor to confirm or change — a
 stated assumption rather than a blocking question. Never leave a placeholder in the file.
 
 Then check the file against each rule, and fix what fails before going on:
 
 1. **Every success measure has a number.** A line under `## Success measures` whose target
-   — the text between `:` and ` by ` — holds no digit is rejected: rewrite it with a numeric
-   target, or remove it. The target runs from the first `:` to the last ` by `, so a digit
+   — the text between `:` and ` by ` — holds no quantity, a number with a unit, percent, or
+   comparator, is rejected: rewrite it with a numeric target, or remove it. A digit inside a
+   name such as `p95` is not a quantity. The target runs from the first `:` to the last ` by `, so a digit
    in the date does not count, and a line not in `<Measure>: <target> by <date>` form is
    rejected too. "Faster checkout by 2027-03-01" is not a measure; "Checkout time: under
    2 s at p95 by 2027-03-01" is.
 2. **`## Risks` passes criterion 3** of `${CLAUDE_PLUGIN_ROOT}/gates/planning-exit.md`, the
    rule book's top five, each `Owner` a person or a role from `roles`.
 3. **`## Lifecycle`** names `{{lifecycle_model}}` and an iteration length in weeks. Under
-   `waterfall` or `continuous`, which have no iterations, it is the cadence at which the
-   brief is reviewed again.
+   `waterfall` or `continuous`, which have no iterations, it is the delivery cadence: how
+   often finished work is reviewed and released.
 4. **`## Estimate`** is a range in weeks, low before high, never a single number or date.
 5. **With `{{project_size}}` `small`, the file is at most 60 lines** — the rule book lets a
    small project's brief fit one page. Count with `wc -l < {{brief_file}}`; over 60, cut
@@ -158,17 +159,19 @@ sponsor, and today's date from `date +%F`:
 Approved by <sponsor> on <YYYY-MM-DD>.
 ```
 
-The record names who gave the answer, not only who holds the role. Compare
-`gh api user --jq .login` with `roles.sponsor`: when they differ, or `gh` cannot say, the
-answer was relayed, and the line adds `, relayed by <login or git user.name>` before the
-period — whatever the person running the session said about where it came from.
+The record names who gave the answer, not only who holds the role. It was relayed when
+the person running the session says so, per `gates/project-config.md`, or when
+`roles.sponsor` is set, as a GitHub login, and `gh api user --jq .login` names someone
+else or cannot say. A relayed answer adds `, relayed by <that login, or git user.name>`
+before the period. With no sponsor in `roles`, only the first test applies.
 
 An approval confirms every `(proposed)` value as written, so remove those marks with it.
 `Rejected` takes the same form, with the reason in one more line. A rejected brief is
 committed too: it is the record that the project was stopped at the gate.
 
-Run `git fetch` first; if `origin/{{parent_branch_default}}` moved since Step 3, re-run
-Step 3 and present again before recording anything. Then cut the branch, with the `<slug>`
+Run `git fetch` first; if `origin/{{parent_branch_default}}` moved since Step 3, or
+`origin/brief/<slug>` now exists, re-run Step 3 and present again before recording
+anything. Then cut the branch, with the `<slug>`
 Step 3 checked, and commit the brief alone:
 
 ```bash

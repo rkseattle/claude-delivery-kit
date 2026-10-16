@@ -215,8 +215,8 @@ risks, lifecycle, and an estimate range — checks the build and the parent bran
 against `gates/planning-exit.md`, stops for the sponsor, then records the decision and
 commits the brief on `brief/<slug>`, which reaches the parent branch by an ordinary pull
 request. `write-tickets` traces its `Goal:` lines to an approved brief's goals wherever
-the checkout holds it, and removes work serving none; it stops on a rejected brief and asks
-the sponsor about a pending one. The brief is committed, so the path
+the checkout holds it, and removes work serving none; with `brief_file` set it stops on any brief not approved,
+sending a pending one to the sponsor through `plan-project`. The brief is committed, so the path
 must not be gitignored. Default `none`, under which `plan-project` stops and
 `write-tickets` reads no goals.
 

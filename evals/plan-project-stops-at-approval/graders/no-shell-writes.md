@@ -10,6 +10,6 @@ arm: both
 No shell command writes a file. `plan-project` writes nothing but `brief_file` before the
 sponsor answers, and writes that with the Write or Edit tool, so a redirect into a file,
 `tee`, `sed -i`, `cp`, `mv`, `touch`, `mkdir`, `rm`, `ln`, or `install` in this run wrote
-outside it. Only the input's `command` value is read, never its description. Redirects to `/dev/null`
+outside it. A write from inside an interpreter, such as `python3 -c`, is not caught here. Only the input's `command` value is read, never its description. Redirects to `/dev/null`
 and to another descriptor, as in `2>&1`, and input redirects such as
 `wc -l < docs/brief.md` are not matched; `2>file` and `&>file` are.

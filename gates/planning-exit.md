@@ -37,8 +37,9 @@ what was written. With `{{brief_file}}` `none` there is no brief, and the gate c
      which covers it, since HEAD is `origin/{{parent_branch_default}}`;
    - the HEAD commit has at least one run, and every run on it,
      `gh run list --commit "$(git rev-parse HEAD)" --limit 100 --json databaseId,workflowName,status,conclusion`,
-     concluded `success` or `skipped` — GitHub's rule for a commit's combined check status,
-     under which a skipped run passes and a commit with no checks is pending, not passing.
+     concluded `success`, `neutral`, or `skipped` — GitHub's rule for a commit's combined
+     check status, under which those pass and a commit with no checks is pending, not
+     passing.
 
    An empty list for the commit fails: the latest run on the branch may be an older
    commit's. A run whose `status` is not `completed` has no conclusion yet: wait for it with
