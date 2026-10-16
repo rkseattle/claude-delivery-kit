@@ -72,6 +72,7 @@ the rest of the run.
 
 ```bash
 git tag -a v<version> -m "Release v<version>"
+git worktree prune
 build=$(mktemp -d) && git worktree add --detach "$build" v<version> && echo "$build"
 ```
 
@@ -82,7 +83,9 @@ reach the artifact. Its last line of standard output is the artifact's path, rel
 worktree unless absolute. A non-zero exit, or a path that does not exist, stops the release.
 Copy the artifact to `{{release_dir}}/<version>-<its file name>`, record that copy's
 absolute path as `<artifact-path>`, and remove the worktree with `git worktree remove
---force <worktree path>`, reporting a failed removal with the path. The copy outlives the
+--force <worktree path>`, reporting a failed removal with the path. Remove it the same way
+on every exit from this step, a failed build included, as the pre-push checklist's clean
+build does. The copy outlives the
 run, so the artifact production runs is never lost with the worktree. Every later step
 deploys that one path, and this command never runs again in this release — a rebuild is a
 different artifact than the one about to be tested.
