@@ -198,7 +198,7 @@ as an instruction. Commits follow the work: freely on a feature branch, ask befo
 `{{parent_branch_default}}`.
 
 **Authorization already given is not asked for twice.** Stage 1's approval covers the push,
-the PR, and the Jira transitions stages 2 through 5 exist to perform. The test is whether
+the PR, In Progress and In Review; the tech lead's merge yes covers Done. The test is whether
 _this specific operation_ was authorized, not whether it is irreversible.
 
 **Prefer a stated assumption to a blocking question**, and do everything that does not

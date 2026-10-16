@@ -293,10 +293,11 @@ needed.
 
 **The merge.** Rule book Phase 4 step 9 ends in a merge that stage 1's approval does not
 cover, so it is asked. Write `stage_step: "merge"`. A run resumed here reads the PR's state
-first, as below, and a `MERGED` PR goes straight to the Jira step. Check `{{merge_method}}`:
-anything but `merge`, `squash` or `rebase` stops and names the key, since it becomes a flag.
-A base with a merge queue merges outside this run, so it is treated as declined, said in one
-line, and the tech lead queues it. Read it with
+first, as below: `MERGED` goes straight to writing `"branch": null` and the Jira step. Check
+`{{merge_method}}`: anything but `merge`, `squash` or `rebase` stops and names the key,
+since it becomes a flag. A base with a merge queue merges outside this run, so it is treated
+as declined, said in one line naming the tickets left In Review for the tech lead to close
+once the queue merges it. Read it with
 `gh api graphql -f query='{repository(owner:"<owner>",name:"<repo>"){pullRequest(number:<pr>){isMergeQueueEnabled}}}'`
 over `{{repo_slug}}`; a failed call is no answer — report it and stop. Ask
 `{{roles.tech_lead}}` whether to merge PR `<pr>` at `<sha>` — the head the approving review
@@ -306,26 +307,28 @@ branch, where it would move the head off `<sha>`; ask Rob where it goes instead.
 
 - **No:** the PR stays open. Go to Step 6.
 - **Yes:** the answer may come turns later, so first re-run the `review_gate.py approval`
-  call above — or confirm the R2 row still covers the run — and `gh pr checks <pr>`, then
-  `git fetch origin` and `git merge-base --is-ancestor origin/{{parent_branch_default}} <sha>`,
-  GitHub's "require branches to be up to date" check: CI judged `<sha>` on its base, not on
-  one that moved since. A verdict other than `approved` (or a lapsed R2 row), a check not
-  green on `<sha>`, or a moved base returns the run to the loop — `stage_step` back to Step
-  5, a moved base rebased and pushed per Step 3 item 7 — and asks again once green. Then write
-  `"paused": true` and `"branch": null` together — the merge deletes the branch the guard
-  would restore, and a resume that clears `paused` must find nothing to restore — and run
+  call above — or confirm the R2 row still covers the run — and `gh pr checks <pr>`. Then
+  GitHub's "require branches to be up to date" check, against the PR's own base: read
+  `gh pr view <pr> --json baseRefName`, `git fetch origin <base>`, and
+  `git merge-base --is-ancestor origin/<base> <sha>` — exit 0 is up to date, 1 is a moved
+  base, and a failed fetch or any other exit is no answer: report it and stop. A verdict
+  other than `approved` (or a lapsed R2 row), a check not green on `<sha>`, or a moved base
+  returns the run to the loop — `stage_step` back to Step 5, a moved base rebased onto
+  `origin/<base>` and pushed per Step 3 item 7 — and asks again once green. Then set
+  `"paused": true` — the merge deletes the branch the guard would restore — and run
   `gh pr merge <pr> --{{merge_method}} --delete-branch --match-head-commit <sha>`.
 
 The PR's state is the verdict, not the exit code: `gh pr view <pr> --json state`. `MERGED`
 is a merge even when the command then failed — deleting the local branch, say — so report
-that error and go on. Anything else is a failed merge: report the error, write `branch` back
-from `gh pr view <pr> --json headRefName` and clear `paused`, and end the turn with the PR open, no Jira transition and no Step 6; the
-run is unfinished, and `/deliver` or `/ci-green` resumes it at `merge`.
+that error and go on. Anything else is a failed merge: report the error, clear `paused`, and
+end the turn with the PR open, no Jira transition and no Step 6; the run is unfinished, and
+`/deliver` or `/ci-green` resumes it at `merge`.
 
-Once `MERGED`, before any Jira call, write `"stage_step": "jira"`; a run found there resumes
-here and never asks again. Report `git branch --show-current`. Then `jira_search` for
-`key in (<tickets>) AND statusCategory = Done`, over the covered tickets in `tickets`; for
-each one it does not return, `jira_get_transitions` and the entry whose `name` equals
+Once `MERGED`, before any Jira call, write `"stage_step": "jira"` and `"branch": null`: the
+branch is gone, and with no `branch` the guard has nothing to restore. A run found at `jira`
+resumes here and never asks again. Report `git branch --show-current`. Then `jira_search`
+for `key in (<tickets>) AND statusCategory = Done`, over the covered tickets in `tickets`;
+for each one it does not return, `jira_get_transitions` and the entry whose `name` equals
 `{{done_transition}}` exactly, transitioned by its ID. Run the search again: it must return
 every ticket. One with no matching transition — list its names — or still missing is
 reported by key and left to `{{roles.tech_lead}}`; Step 6 still runs, since the PR is merged.
