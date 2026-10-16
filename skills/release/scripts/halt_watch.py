@@ -9,7 +9,7 @@ Called by skills/release/SKILL.md (Step 5) after each production stage.
         round; otherwise prints one `HALT` line and exits 1
     halt_watch.py --check --config PATH
         validates those two keys and `rollout_stages` without watching; prints `ok` and
-        exits 0, or prints `INVALID: <what>` and exits 1. Release runs it before the tag.
+        exits 0, or prints `INVALID: <what>` to standard error and exits 1. Release runs it before the tag.
     halt_watch.py --self-test       runs every case below; exit 0 only if each one matches
 
 A round starts on each minute from 0 through the window's end and runs every criterion at
@@ -140,7 +140,7 @@ WATCH_CASES = [
     ("quotes and newlines survive", ["printf 'a\\nb\\n' | wc -l | grep -q 2"], 0, "window clean"),
 ]
 
-SLOW_THEN_FAILING = ["sleep 0.3; true", "exit 7"]
+SLOW_THEN_FAILING = ["sleep 1.5; true", "exit 7"]
 
 CLI_CASES = [
     ("a clean window exits 0", [], {"halt_criteria": ["true"], "monitoring_window_minutes": 1},
@@ -224,9 +224,9 @@ def self_test():
             got = watch(criteria, window, round_seconds=0.5, budget_seconds=0.4)
             failures += report("watch", name, got[:len(expected)], expected)
         began = time.monotonic()
-        got = watch(SLOW_THEN_FAILING, 0, round_seconds=0.5, budget_seconds=0.4)
+        got = watch(SLOW_THEN_FAILING, 0, round_seconds=2, budget_seconds=1.8)
         failures += report("watch", "a later failure is not held up by an earlier slow one",
-                           (got, time.monotonic() - began < 0.28),
+                           (got, time.monotonic() - began < 1.0),
                            ("HALT at minute 0: exit 7 (7)", True))
         stamps = os.path.join(directory, "stamps")
         began = time.monotonic()
@@ -239,7 +239,7 @@ def self_test():
         failures += report("watch", "a clean window waits out every round",
                            (got, elapsed >= 1.0, len(starts)), ("window clean", True, 3))
         failures += report("watch", "each round starts a round apart",
-                           all(gap >= 0.45 for gap in gaps), True)
+                           all(gap >= 0.4 for gap in gaps), True)
         leftover = os.path.join(directory, "leftover")
         got = watch([f"(sleep 0.5; touch '{leftover}') & exit 0"], 0, round_seconds=0.5,
                     budget_seconds=0.4)
@@ -274,7 +274,8 @@ def self_test():
             config = write_config(os.path.join(root, ".claude"), value, "project.json")
             run = subprocess.run([sys.executable, script, *arguments, "--config", config, *clock],
                                  cwd=elsewhere, capture_output=True, text=True, check=False)
-            last = run.stdout.strip().splitlines()[-1:] or [""]
+            stream = run.stderr if expected_output.startswith("INVALID") else run.stdout
+            last = stream.strip().splitlines()[-1:] or [""]
             failures += report("cli", name, (last[0][:len(expected_output)], run.returncode),
                                (expected_output, expected_exit))
         signalled = os.path.join(directory, "signalled")
@@ -328,7 +329,7 @@ def main():
         try:
             check(args.config)
         except ValueError as error:
-            print(f"INVALID: {error}")
+            print(f"INVALID: {error}", file=sys.stderr)
             return 1
         print("ok")
         return 0

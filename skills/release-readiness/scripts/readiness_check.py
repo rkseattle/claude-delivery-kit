@@ -43,6 +43,8 @@ BRACKET_TAG = re.compile(VERIFY_TAG + r"`?\s*$")
 # Its evidence may hold Jira's own escapes, such as \_ in a path; they are undone below.
 ESCAPED_TAG = re.compile(r"\\verify:\s*([^@\\\s][^@\\]*?)\s*@\s*(\S.*?)\s*\\\s*$")
 AC_LINE = re.compile(r"^-\s+(AC\d+):")
+# A criterion in another list form, indented or marked with * or 1., is still a criterion.
+STRAY_AC = re.compile(r"^\s*(?:[-*]|\d+\.)\s+(AC\d+):")
 REVIEW = re.compile(r"^Reviewed-by: product_owner .+ \d{4}-\d{2}-\d{2}(, relayed by .+)?$")
 GATE = re.compile(r"^Gate: (PASS|FAIL)$")
 
@@ -66,13 +68,14 @@ def declared_tiers(config_path):
     if not isinstance(config, dict):
         raise ValueError("project.json is not an object")
     value = config.get("verification_tiers", "")
-    # A tier's note in parentheses may hold commas of its own; drop notes before splitting.
-    plain = re.sub(r"\([^)]*\)", "", value if isinstance(value, str) else "").replace("`", "")
-    tiers = set()
-    for part in re.split(r"[·,;]", plain):
-        name = re.sub(r"^(?:and|or)\s+", "", " ".join(part.split()), flags=re.I).lower()
-        if name:
-            tiers.add(name)
+    # A tier's note in parentheses may hold commas or parentheses of its own; drop every note,
+    # innermost first, before splitting on the separators and the joiners.
+    plain = value if isinstance(value, str) else ""
+    while re.search(r"\([^()]*\)", plain):
+        plain = re.sub(r"\([^()]*\)", "", plain)
+    plain = plain.replace("`", "")
+    tiers = {" ".join(part.split()).lower()
+             for part in re.split(r"[·,;]|\b(?:and|or)\b", plain, flags=re.I)} - {""}
     if not tiers:
         raise ValueError("verification_tiers declares no tiers")
     return tiers
@@ -82,8 +85,9 @@ def criteria(description, tiers):
     """[(ac, tier, evidence, status)] for the acceptance-criteria section, or no-criteria."""
     rows, inside, fence = [], False, None
     for line in description.splitlines():
-        marker = re.match(r"^\s*(```|~~~)", line)
-        if marker and fence in (None, marker.group(1)):
+        marker = re.match(r"^\s*(`{3,}|~{3,})", line)
+        if marker and (fence is None or (marker.group(1)[0] == fence[0]
+                                         and len(marker.group(1)) >= len(fence))):
             fence = None if fence else marker.group(1)
             continue
         if fence:
@@ -93,6 +97,9 @@ def criteria(description, tiers):
             continue
         ac = AC_LINE.match(line) if inside else None
         if not ac:
+            stray = STRAY_AC.match(line) if inside else None
+            if stray:
+                rows.append((stray.group(1), "-", "-", "not-in-the-ac-form"))
             continue
         # Jira may also escape a bracket tag's brackets as \[ and \].
         line = line.replace("\\[", "[").replace("\\]", "]")
@@ -206,6 +213,13 @@ CRITERIA_CASES = [
     ("an unclosed fence is a problem",
      "## Acceptance criteria\n- AC1: x [verify: ci @ y]\n```\n- AC2: z\n",
      [("AC1", "ci", "y", "ok"), ("-", "-", "-", "unclosed-fence")]),
+    ("criteria in other list forms",
+     "## Acceptance criteria\n  - AC4: x [verify: ci @ y]\n* AC5: x\n1. AC6: x\n",
+     [("AC4", "-", "-", "not-in-the-ac-form"), ("AC5", "-", "-", "not-in-the-ac-form"),
+      ("AC6", "-", "-", "not-in-the-ac-form")]),
+    ("a shorter fence does not close a longer one",
+     "## Acceptance criteria\n````\n```\n- AC9: x\n````\n- AC1: x [verify: ci @ y]\n",
+     [("AC1", "ci", "y", "ok")]),
     ("a fenced comment does not end the section",
      "## Acceptance criteria\n- AC1: x [verify: ci @ y]\n```\n# not a heading\n```\n- AC2: z\n",
      [("AC1", "ci", "y", "ok"), ("AC2", "-", "-", "no-tag")]),
@@ -241,6 +255,9 @@ def self_test():
                  {"unit", "ui"}),
                 ("a multi-word tier stays whole", "unit, manual QA, and integration",
                  {"unit", "manual qa", "integration"}),
+                ("and as the only joiner", "unit and integration", {"unit", "integration"}),
+                ("or as the only joiner", "unit or manual", {"unit", "manual"}),
+                ("a nested note", "ci (note (nested)) · eval", {"ci", "eval"}),
                 ("no tiers", "", "ValueError"), ("a non-string value", ["ci"], "ValueError")]:
             path = os.path.join(directory, "tiers.json")
             with open(path, "w", encoding="utf-8") as handle:

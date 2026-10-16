@@ -18,13 +18,12 @@ from the working tree and the note, then pushes the note with the tag.
 
 ## Step 1 — Read the configuration
 
-Read `${CLAUDE_PROJECT_DIR}/.claude/project.json`: every `{{key}}` below comes from it.
-Read `${CLAUDE_PLUGIN_ROOT}/gates/project-config.md` and follow it exactly; this skill's
-optional keys are `system_test_command`, `system_results_file`,
-`system_results_read_command`, `integration_test_command`, `integration_results_file`,
-`integration_results_read_command`, `nfr_test_command`, `release_dir`, `exceptions_log`,
-and `roles`. Then read `${CLAUDE_PLUGIN_ROOT}/gates/release-readiness.md`, which decides
-the verdict.
+Read `${CLAUDE_PROJECT_DIR}/.claude/project.json`: every `{{key}}` below comes from it. Read
+`${CLAUDE_PLUGIN_ROOT}/gates/project-config.md` and follow it exactly; this skill's optional
+keys are `system_test_command`, `system_results_file`, `system_results_read_command`,
+`integration_test_command`, `integration_results_file`, `integration_results_read_command`,
+`nfr_test_command`, `release_dir`, `exceptions_log`, `results_file`, and `roles`. Then read
+`${CLAUDE_PLUGIN_ROOT}/gates/release-readiness.md`, which decides the verdict.
 
 Stop, and say why in one line, when:
 
@@ -39,6 +38,11 @@ Stop, and say why in one line, when:
 - **`$ARGUMENTS` is not `MAJOR.MINOR.PATCH`**, three dot-separated non-negative integers
   with no leading `v` — Semantic Versioning's core form — as Step 2's version check
   decides. The tag `release` creates is `v<version>`, so a leading `v` would double it.
+- **HEAD is not on `origin/{{parent_branch_default}}`.** After `git fetch origin`,
+  `git merge-base --is-ancestor HEAD origin/{{parent_branch_default}}` must exit 0. A release
+  is cut from the reviewed mainline, as trunk-based release practice and Humble and Farley's
+  build-once-from-the-mainline both require; a feature branch or an unpushed local commit
+  was never merged through review.
 - **`git status --porcelain --untracked-files=all -- . ':(exclude){{release_dir}}'` prints
   anything, or `{{release_dir}}` is outside the repository, absolute, or holds whitespace.**
   The commands below write it unquoted and relative to the project root. The suites run
@@ -61,9 +65,9 @@ any reason but finding no tag, its `No names found` or `No tags can describe`, s
 too, rather than reading as a first release:
 
 ```bash
-last=$(git describe --tags --abbrev=0 --match 'v[0-9]*.[0-9]*.[0-9]*' --exclude 'v*-*' 2>&1) && range="$last..HEAD" ||
-  case $last in *"No names found"*|*"No tags can describe"*) range=HEAD ;; *) echo "$last"; false ;; esac
-git log --format=%s "$range" | grep -oE '[A-Z][A-Z0-9_]*-[0-9]+' | grep -xE '{{ticket_prefix}}-[0-9]+' | sort -u
+{ last=$(git describe --tags --abbrev=0 --match 'v[0-9]*.[0-9]*.[0-9]*' --exclude 'v*-*' 2>&1) && range="$last..HEAD" ||
+  case $last in *"No names found"*|*"No tags can describe"*) range=HEAD ;; *) echo "$last"; false ;; esac; } &&
+  git log --format=%s "$range" | grep -oE '[A-Z][A-Z0-9_]*-[0-9]+' | grep -xE '{{ticket_prefix}}-[0-9]+' | sort -u
 ```
 
 Then check the version, passing `--last` only when the command above found a tag. Only a
@@ -157,13 +161,14 @@ exist. GitHub's search tokenizes the key even when quoted. Keep only a PR whose 
 body contains the key as a whole word, and whose `mergeCommit.oid` is a commit in the range,
 `git rev-list <range> | grep -qx <oid>`, with Step 2's literal range; a `git rev-list` that
 fails stops the skill as a `gh` error does. A PR merged before the last release, whose body
-merely names a scope key, is not this release's. Read each PR once even when several keys
-find it. From each body, take the `Risks` section, and the section whose heading names
-migrations or upgrade notes. A section runs from its heading — a Markdown heading, or a bold
-lead-in such as `**Risks**` — to the next one. A PR with no `Risks` section is listed as
-having none, which is not the same as risks of `none`. A `gh` error stops the skill, named
-as that: a risk list missing because GitHub was unreachable would read as a release with no
-risks.
+merely names a scope key, is not this release's. A scope key that no merged PR in the range
+names is listed under `Known risks` as unreviewed: its commits reached the mainline without
+a pull request. Read each PR once even when several keys find it. From each body, take the
+`Risks` section, and the section whose heading names migrations or upgrade notes. A section
+runs from its heading — a Markdown heading, or a bold lead-in such as `**Risks**` — to the
+next one. A PR with no `Risks` section is listed as having none, which is not the same as
+risks of `none`. A `gh` error stops the skill, named as that: a risk list missing because
+GitHub was unreachable would read as a release with no risks.
 
 ## Step 5 — Write the summary
 
@@ -270,8 +275,8 @@ product owner in `roles`, the person running the session by git `user.name`, nev
 "you". A relayed answer, as `gates/project-config.md` defines one, names the person the
 session said it came from and appends `, relayed by <git user.name>` after the date. Then
 record the verdict on the tested commit as a git note, so it stays with the SHA it attests
-rather than only in a working file, in the place Gerrit's review-notes plugin uses for a
-change's review, `refs/notes/review`. It is an integrity check, not a signed attestation:
+rather than only in a working file, as Gerrit's review-notes plugin records a change's
+review in `refs/notes/review`. It is an integrity check, not a signed attestation:
 anyone with the checkout can rewrite it, as anyone can the summary. What it adds is that the
 summary `release` reads is the one that was reviewed. The note holds the version, the
 summary's SHA-256, so a later edit to the file is detectable, and the summary's last two

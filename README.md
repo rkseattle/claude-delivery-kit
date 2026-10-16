@@ -278,7 +278,10 @@ description copies the check reads, and the release notes. They are working file
 committed, so the path may be gitignored. The note `release-readiness` writes on the tested
 commit under `refs/notes/release-readiness`, which `release` checks and pushes with the tag,
 records the summary's hash and verdict there; it is an integrity check, not a signed
-attestation. All five default to `none`. A `none` system key or `release_dir` stops
+attestation. The hosted equivalents, a GitHub commit status or check run for the verdict and
+Environment required reviewers for the stage approvals, are a known deviation: both skills
+keep their records in git and the session, so they run the same without GitHub's protections
+configured. All five default to `none`. A `none` system key or `release_dir` stops
 `release-readiness` and names the key, and so does a system results file equal to
 `results_file` or `integration_results_file`.
 

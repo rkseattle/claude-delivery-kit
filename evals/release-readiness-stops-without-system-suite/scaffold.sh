@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
-# A git repo with one ticketed commit and a project.json that sets every required key and
-# release_dir but no system_test_command, so release-readiness must stop and name it.
+# A git repo with one ticketed commit, pushed to a local bare origin, and a project.json
+# that sets every required key and release_dir but no system_test_command, so
+# release-readiness must stop and name it.
 # Each case's scaffold runs alone in its own workspace, so this setup is repeated from
 # plan-project-stops-at-approval's rather than sourced from a file outside the case.
 set -euo pipefail
@@ -28,3 +29,7 @@ JSON
 echo 'echo "hello"' > src/app.sh
 git add .
 git commit -qm "ABC-101 - Add the greeting script"
+# origin is a local bare clone, so the mainline check finds HEAD on origin/main offline.
+git clone -q --bare . .git/origin.git
+git remote add origin "$PWD/.git/origin.git"
+git fetch -q origin

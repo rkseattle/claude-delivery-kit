@@ -145,20 +145,19 @@ servers, no user settings. That constrains what can be tested here:
   whether planning stops at the approval gate, the shape of what it produces.
 - **Testable with a scaffold**: a workspace that needs only files or a local git history
   made before the run. The missing-key cases' `context.scaffold_script` writes a
-  `.claude/project.json` and nothing else; `readme-docs-updates-an-existing-readme`'s
-  writes a small Python project; the `ci-failure-adversary-*` cases,
-  `plan-project-stops-at-approval`, `release-asks-before-staging`, and
-  `release-readiness-stops-without-system-suite` build a git repo, the middle two with a
-  local bare `origin`. `release-readiness-stops-without-system-suite`'s project.json sets
-  every required key and `release_dir` but no `system_test_command`, so the run stops in
-  Step 1 before any suite, Jira, or GitHub call. `release-asks-before-staging`'s also seeds stub
-  build, deploy, smoke, and rollback scripts, a reviewed passing test summary naming HEAD, and
-  the readiness note on HEAD that matches it,
-  so nothing before the staging ask needs GitHub or Jira. Measured 2026-10-11 against the
-  skills on `main` before `gates/project-config.md`, the required-key case scored 0.33 and
-  the optional-key case 0.44, with no run passing, against 1.00 for both after it, 3 runs
-  per arm. `results/` is not tracked, so re-run both against `main` and the branch to
-  check these.
+  `.claude/project.json` and nothing else. Measured 2026-10-11 against the skills on `main`
+  before `gates/project-config.md`, the required-key case scored 0.33 and the optional-key
+  case 0.44, with no run passing, against 1.00 for both after it, 3 runs per arm. `results/`
+  is not tracked, so re-run both against `main` and the branch to check these.
+  `readme-docs-updates-an-existing-readme`'s scaffold writes a small Python project; the
+  `ci-failure-adversary-*` cases, `plan-project-stops-at-approval`,
+  `release-asks-before-staging`, and `release-readiness-stops-without-system-suite` build a
+  git repo, the last three with a local bare `origin`. `release-asks-before-staging`'s also
+  seeds stub build, deploy, smoke, and rollback scripts, a reviewed passing test summary
+  naming HEAD, and the readiness note on HEAD that matches it, so nothing before the staging
+  ask needs GitHub or Jira. `release-readiness-stops-without-system-suite`'s project.json
+  sets every required key and `release_dir` but no `system_test_command`, so the run stops
+  in Step 1 before any suite, Jira, or GitHub call.
 - **Not testable without more scaffolding**: anything needing Jira, GitHub itself, or a
   populated `.claude/state/`. The citation contract end-to-end — the highest-value case —
   is in this category: it spans `plan-work` → `implement-phases` → `ci-green` across a

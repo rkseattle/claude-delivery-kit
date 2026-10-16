@@ -17,6 +17,8 @@ of an earlier release.
 
 Before the release is tagged, each of these stops it and names the key or the check:
 
+- HEAD not reachable from a freshly fetched `origin/{{parent_branch_default}}`, since a
+  release is cut from the reviewed mainline;
 - a summary whose last two lines, version, and SHA-256 do not match the note
   `release-readiness` wrote on HEAD under `refs/notes/release-readiness`, or no such note;
 - `{{release_artifact_command}}`, `{{deploy_command}}`, `{{smoke_test_command}}`,

@@ -62,6 +62,11 @@ Every stop below comes before the tag, and says why in one line:
   git notes --ref=release-readiness show HEAD |
     python3 "${CLAUDE_PLUGIN_ROOT}/skills/release-readiness/scripts/readiness_check.py" verify --summary {{release_dir}}/<version>-test-summary.md --version v<version> --require-pass
   ```
+- **HEAD is not on `origin/{{parent_branch_default}}`.** After `git fetch origin`,
+  `git merge-base --is-ancestor HEAD origin/{{parent_branch_default}}` must exit 0. A release
+  is cut from the reviewed mainline, as trunk-based release practice and Humble and Farley's
+  build-once-from-the-mainline both require; a feature branch or an unpushed local commit
+  was never merged through review.
 - **`git status --porcelain --untracked-files=all -- . ':(exclude){{release_dir}}'` prints
   anything, or `{{release_dir}}` is outside the repository, absolute, or holds
   whitespace.** The deploy, smoke, rollback,
