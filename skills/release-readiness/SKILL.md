@@ -59,8 +59,9 @@ last=$(git describe --tags --abbrev=0 --match 'v[0-9]*' 2>/dev/null) && range="$
 git log --format=%s "$range" | grep -oE '[A-Z][A-Z0-9_]*-[0-9]+' | grep -xE '{{ticket_prefix}}-[0-9]+' | sort -u
 ```
 
-With a last tag `v<last>`, `<version>` must be greater than it in Semantic Versioning precedence,
-or the skill stops: a release numbered below the one it follows would mislabel history.
+With a last tag `v<last>`, `<version>` must be greater than it in Semantic Versioning
+precedence, or the skill stops: a release numbered below the one it follows would mislabel
+history.
 
 Subjects only, because the subject names the ticket a commit delivers, by the convention
 every stage of this kit commits with. A body names tickets for other reasons, such as work

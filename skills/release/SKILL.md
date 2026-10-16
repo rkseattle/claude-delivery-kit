@@ -58,11 +58,12 @@ Every stop below comes before the tag, and says why in one line:
   produce evidence for a tree nobody recorded.
 - **The summary's `Commit:` is not `git rev-parse HEAD`.** The summary tested another
   commit; name both SHAs.
-- **`git notes --ref=release-readiness show HEAD` fails, or its note does not read, line
-  for line, `Release-readiness: v<version>`, `Summary-SHA256: <the summary's SHA-256 now>`,
-  and then the summary's last two lines, trailing whitespace stripped.** The note is the record `release-readiness`
-  wrote on the tested commit at review time, so a summary edited since, or one no review
-  recorded, does not match it. Hash the summary as Step 3 hashes the artifact.
+- **`git notes --ref=release-readiness show HEAD` fails, or its note does not read, line for
+  line, `Release-readiness: v<version>`, `Summary-SHA256: <the summary's SHA-256 now>`, and
+  then the summary's last two lines, trailing whitespace stripped.** The note is the record
+  `release-readiness` wrote on the tested commit at review time, so a summary edited since,
+  or one no review recorded, does not match it. Hash the summary as Step 3 hashes the
+  artifact.
 - **`v<version>` already exists**, locally (`git rev-parse -q --verify refs/tags/v<version>`
   prints a SHA) or on origin (`git ls-remote --exit-code --tags origin refs/tags/v<version>`
   exits 0). Any exit status other than 0 or 2 from `ls-remote` is a failed lookup, named as
@@ -172,13 +173,13 @@ command from here to the end of Step 6 runs from the project root, never the bui
 
 1. Ask `{{roles.release_manager}}` to approve `<stage>`. The approval covers that stage's
    deploy, its smoke test, its monitoring window, and its rollback on a halt, with no
-   further ask. The last stage's question also names the tag push, the notes as they will
-   be published, and the ticket transition of Step 6, which its approval covers too. Print the role per
-   `gates/project-config.md`, then stop and wait as for staging: a clarifying question
-   keeps the wait open. An explicit refusal or abort ends the rollout as a halt does, minus
-   the halt itself: roll back every production stage
-   already deployed, newest first, under their own approvals. That is Argo Rollouts' abort,
-   which returns a rollout to its stable version, never one left part-way.
+   further ask. The last stage's question also names the tag push, the notes as they will be
+   published, and the ticket transition of Step 6, which its approval covers too. Print the
+   role per `gates/project-config.md`, then stop and wait as for staging: a clarifying
+   question keeps the wait open. An explicit refusal or abort ends the rollout as a halt
+   does, minus the halt itself: roll back every production stage already deployed, newest
+   first, under their own approvals. That is Argo Rollouts' abort, which returns a rollout
+   to its stable version, never one left part-way.
 2. `{{deploy_command}} <stage> <artifact-path>`, then `{{smoke_test_command}} <stage>`.
 3. Watch the halt criteria for the window with the command below. Run it as one background
    command and wait for it to finish. It keeps no state the session must poll, and nothing
@@ -199,15 +200,15 @@ Only an exit of 0 with a last line of `window clean` settles `gates/release.md` 
 Any other ending is a halt: a `HALT` line, a traceback, a missing `python3`, a killed or
 interrupted task.
 
-**On a halt — a fired criterion, a watch that did not end clean, a failed production
-deploy, or a failed production smoke test — roll back first.** Before reading logs, reporting, or anything else, run
-`{{rollback_command}} <stage>` for every production stage deployed, the failed one included,
-newest first. Each stage's own approval already authorized its rollback. Then report the
-criterion or smoke output, each rollback's result, and the stage the release stopped at.
-Delete the local tag and stop, unless a rollback failed: then production still runs the
-tagged artifact, so the tag stays and is named in the report. A rollback that itself fails
-does not stop the older stages' rollbacks, and is reported first, in one line, as the
-emergency it is.
+**On a halt — a fired criterion, a watch that did not end clean, a failed production deploy,
+or a failed production smoke test — roll back first.** Before reading logs, reporting, or
+anything else, run `{{rollback_command}} <stage>` for every production stage deployed, the
+failed one included, newest first. Each stage's own approval already authorized its
+rollback. Then report the criterion or smoke output, each rollback's result, and the stage
+the release stopped at. Delete the local tag and stop, unless a rollback failed: then
+production still runs the tagged artifact, so the tag stays and is named in the report. A
+rollback that itself fails does not stop the older stages' rollbacks, and is reported first,
+in one line, as the emergency it is.
 
 ## Step 6 — Publish and update the tickets
 
