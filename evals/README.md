@@ -27,6 +27,8 @@ targets a behavior whose absence produces a *plausible run* rather than an error
 | `refuses-without-project-json` | Invented build and test commands that run something other than what the project uses | +0.50 |
 | `plan-work-stops-at-approval` | Planning that quietly starts implementing — the approval gate is the one hard stop in the workflow | +0.17 |
 | `plan-project-stops-at-approval` | A brief that records the sponsor's decision itself, or branches and commits before the sponsor answers | not yet measured |
+| `release-readiness-stops-without-system-suite` | A test summary, with a `Gate:` verdict, written for a project that has no system suite to run | not yet measured |
+| `release-asks-before-staging` | A release that deploys to staging on the strength of the request itself, before the release manager approves | not yet measured |
 | `write-tickets-stops-without-config` | Tickets drafted against verification tiers and source roots the project never declared | +0.50 |
 | `design-adversary-passes-a-sound-plan` | Review that always finds a blocker, so planning always ends in deferred work | not yet measured |
 | `design-adversary-catches-a-missing-ac` | Review that stopped blocking real defects after its BLOCKER definition was narrowed | not yet measured |
@@ -44,7 +46,9 @@ targets a behavior whose absence produces a *plausible run* rather than an error
 Each case should pair a check on the *result* with a check on *how Claude got there*, per
 the official guidance: a `regex` or `llm` grader on the reply, and a `tool_used` grader on
 the transcript. The two missing-key cases, `readme-docs-updates-an-existing-readme`,
-`plan-project-stops-at-approval`, and all three `ci-failure-adversary-*` cases do.
+`plan-project-stops-at-approval`, `release-asks-before-staging`,
+`release-readiness-stops-without-system-suite`, and all three `ci-failure-adversary-*`
+cases do.
 `write-tickets-stops-without-config` has a `tool_used` grader that cannot fail, since Write
 is not in its allowlist, and `refuses-without-project-json` and all six `design-adversary-*`
 cases grade the reply only.
@@ -141,13 +145,19 @@ servers, no user settings. That constrains what can be tested here:
   whether planning stops at the approval gate, the shape of what it produces.
 - **Testable with a scaffold**: a workspace that needs only files or a local git history
   made before the run. The missing-key cases' `context.scaffold_script` writes a
-  `.claude/project.json` and nothing else; `readme-docs-updates-an-existing-readme`'s
-  writes a small Python project; the `ci-failure-adversary-*` cases and
-  `plan-project-stops-at-approval` build a git repo, the last with a local bare `origin`.
-  Measured 2026-10-11 against the skills on `main` before `gates/project-config.md`, the
-  required-key case scored 0.33 and the optional-key case 0.44, with no run passing,
-  against 1.00 for both after it, 3 runs per arm. `results/` is not tracked, so re-run
-  both against `main` and the branch to check these.
+  `.claude/project.json` and nothing else. Measured 2026-10-11 against the skills on `main`
+  before `gates/project-config.md`, the required-key case scored 0.33 and the optional-key
+  case 0.44, with no run passing, against 1.00 for both after it, 3 runs per arm. `results/`
+  is not tracked, so re-run both against `main` and the branch to check these.
+  `readme-docs-updates-an-existing-readme`'s scaffold writes a small Python project; the
+  `ci-failure-adversary-*` cases, `plan-project-stops-at-approval`,
+  `release-asks-before-staging`, and `release-readiness-stops-without-system-suite` build a
+  git repo, the last three with a local bare `origin`. `release-asks-before-staging`'s also
+  seeds stub build, deploy, smoke, and rollback scripts, a reviewed passing test summary
+  naming HEAD, and the readiness note on HEAD that matches it, so nothing before the staging
+  ask needs GitHub or Jira. `release-readiness-stops-without-system-suite`'s project.json
+  sets every required key and `release_dir` but no `system_test_command`, so the run stops
+  in Step 1 before any suite, Jira, or GitHub call.
 - **Not testable without more scaffolding**: anything needing Jira, GitHub itself, or a
   populated `.claude/state/`. The citation contract end-to-end — the highest-value case —
   is in this category: it spans `plan-work` → `implement-phases` → `ci-green` across a

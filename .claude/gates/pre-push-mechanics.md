@@ -23,6 +23,8 @@ installed one differs.
 | `script-tests` · Review gate self-test | `python3 skills/ci-green/scripts/review_gate.py --self-test` |
 | `script-tests` · README checker fixtures | `python3 skills/readme-docs/scripts/check_readme.py --self-test` |
 | `script-tests` · SARIF gate self-test | `python3 gates/scripts/sarif_gate.py --self-test` |
+| `script-tests` · Halt watch self-test | `python3 skills/release/scripts/halt_watch.py --self-test` |
+| `script-tests` · Readiness check self-test | `python3 skills/release-readiness/scripts/readiness_check.py --self-test` |
 | `manifest` · Every JSON file parses | `bash scripts/ci/json-parses.sh` |
 | `manifest` · Frontmatter names | `bash scripts/ci/frontmatter-names.sh` |
 | `manifest` · Line budget | `bash scripts/ci/line-budget.sh` |
