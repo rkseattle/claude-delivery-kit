@@ -34,6 +34,15 @@ Stop, and say why in one line, when:
 - **`{{brief_file}}` exists and its `## Decision` reads `Approved` or `Rejected`.** The
   brief is decided; name the decision rather than revise it.
 
+**An interrupted Step 5 comes first, after the first two stops.** When
+`git rev-parse --git-path plan-project` names a directory that exists, Step 5 started and
+did not finish — the way `.git/rebase-merge` tells git a rebase is in progress. Continue
+it, keeping the recorded decision: switch to its `brief/<slug>` (or cut it if absent),
+make the `## Decision` line match `decision`, then commit as Step 5 does. On an explicit
+abort instead, restore `{{brief_file}}` from `presented.md`, switch to
+`{{parent_branch_default}}`, delete `brief/<slug>` if it has no commits of its own, and
+remove the directory. No other stop applies while it exists.
+
 An existing `{{brief_file}}` whose decision is `Pending`, or that has no `## Decision`
 section yet, is the draft: read it, and revise it in Step 2 rather than writing over it
 unread.
@@ -158,8 +167,11 @@ Run `git fetch` first; if `origin/{{parent_branch_default}}` moved since Step 3,
 `origin/brief/<slug>` now exists, re-run Step 3 and present again before recording
 anything.
 
-Replace the `Pending — <sponsor>.` line under `## Decision` with the decision, the
-sponsor, and today's date from `date +%F`:
+Before touching the brief, write the operation's state where git keeps its own, in the
+directory `git rev-parse --git-path plan-project` names: `presented.md`, a copy of the
+brief as Step 4 presented it; `slug`; and `decision`, the line below. Then replace the
+`Pending — <sponsor>.` line under `## Decision` with the decision, the sponsor, and today's
+date from `date +%F`:
 
 ```markdown
 Approved by <sponsor> on <YYYY-MM-DD>.
@@ -183,12 +195,10 @@ git add {{brief_file}}
 git commit -m "Record the project brief and the sponsor's decision" -- {{brief_file}}
 ```
 
-Recording and committing the decision succeed together or not at all. When the commit
-fails — a hook rejects it, say — fix what it names and commit again in this run; the
-sponsor's answer stands. When that cannot be done in this run, roll back: return the
-brief to what Step 4 presented, `Pending` with its `(proposed)` marks, switch back to
-`{{parent_branch_default}}`, delete the empty `brief/<slug>`, and report the error and the sponsor's answer, so a later run finds
-a draft, not a decided brief it would refuse.
+Remove the state directory once the commit succeeds. When the commit fails — a hook
+rejects it, say — fix what it names and commit again; the sponsor's answer stands. If that
+cannot be done in this run, stop with the directory in place and say so: the next run
+continues or aborts it, as `git rebase --continue` and `--abort` do.
 
 Do not push: report the branch, the commit, and the decision, and leave publishing it to the
 person running the session. An approved brief reaches `{{parent_branch_default}}`, where
