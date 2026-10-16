@@ -16,10 +16,10 @@ prevents each one. Read it and
 
 Read `${CLAUDE_PROJECT_DIR}/.claude/project.json` first: `{{ticket_prefix}}`,
 `{{jira_project}}`, `{{registry_file}}`, `{{source_roots}}`, `{{verification_tiers}}`,
-`{{plan_rules_file}}`, `{{build_command}}`, `{{parent_branch_default}}`, and `{{roles.*}}`
-all come from it. Read `${CLAUDE_PLUGIN_ROOT}/gates/project-config.md` and follow it
-exactly: tickets written against invented tiers and roots fail at `plan-work` for reasons
-nobody can see.
+`{{plan_rules_file}}`, `{{build_command}}`, `{{parent_branch_default}}`, `{{brief_file}}`,
+and `{{roles.*}}` all come from it. Read `${CLAUDE_PLUGIN_ROOT}/gates/project-config.md`
+and follow it exactly: tickets written against invented tiers and roots fail at
+`plan-work` for reasons nobody can see.
 
 No ticket is created, edited, or transitioned before Step 7's approval. The only file this
 skill writes before then is the draft.
@@ -48,6 +48,9 @@ request-derived scope. Establish, by reading the code rather than file names:
 - **other instances of a root cause** the work fixes, by grep, not recall
 - for each tier in `{{verification_tiers}}`, where its evidence lives: the test directory,
   one existing test, and the command that runs it
+- **the brief's goals**, which `Goal:` lines draw on: the `## Goals` of `{{brief_file}}`,
+  read only when its `## Decision` reads `Approved`; otherwise say in one line why none were
+  read — no file at the path, no decision or the one it names, or no goals listed
 
 Then search Jira: `project = {{jira_project}}` with the request's key terms, for tickets
 that overlap or that the new ones depend on. Record each one's key and status.

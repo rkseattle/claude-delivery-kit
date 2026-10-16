@@ -213,8 +213,10 @@ the doc comment at the interface's declaration.
 it — problem, users, goals, non-goals, numeric success measures, constraints, five owned
 risks, lifecycle, and an estimate range — checks the build and the parent branch's CI
 against `gates/planning-exit.md`, stops for the sponsor, then records the decision and
-commits the brief on `brief/<slug>`. The brief is committed, so the path must not be
-gitignored. Default `none`, under which `plan-project` stops.
+commits the brief on `brief/<slug>`. `write-tickets` reads an approved brief's goals for
+its `Goal:` lines wherever the checkout holds it. The brief is committed, so the path must
+not be gitignored. Default `none`, under which `plan-project` stops and `write-tickets`
+reads no goals.
 
 `pr_review_limit_lines` serves rule book R9: a pull request reviewable in under an hour. It
 caps one PR's changed lines, insertions plus deletions against the parent branch.
