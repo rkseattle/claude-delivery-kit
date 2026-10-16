@@ -65,8 +65,14 @@ Scope: HEAD — 1 ticket: ABC-101
 
 | Level | Passed / executed | Failed |
 | --- | --- | --- |
-| system | 12 / 12 | 0 |
+| unit | not run here — the Definition of Done runs it before every commit | — |
 | integration | not run — no integration tier | — |
+| system | 12 / 12 | 0 |
+| acceptance | with the product owner — the review of \`Untested requirements\` | — |
+
+## Untested requirements
+
+none
 
 ## Non-functional results
 
@@ -108,7 +114,7 @@ none
 
 ## Gate criteria
 
-- All Must acceptance tests pass — holds: system 12 / 12, no Must ticket open
+- All Must acceptance tests pass — holds: system 12 / 12, no Must ticket in scope
 - Zero open Critical or High defects — holds: none open
 - Non-functional thresholds met or exception recorded — holds: no in-scope NFRs
 - Test summary reviewed by product owner — open: awaiting the product owner's review

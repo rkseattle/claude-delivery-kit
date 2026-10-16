@@ -45,7 +45,25 @@ empty after removals stops the run.
      after it, before any other suite runs. A file missing or unreadable afterward fails.
      No count read before that delete is ever used;
    - a ticket in the release scope carries the `moscow-must` label and its Jira status
-     category is not `Done`.
+     category is not `Done`;
+   - an in-scope `moscow-must` ticket has no `## Acceptance criteria` heading, or no
+     `- AC<n>:` line between it and the next heading: a Must requirement with no criteria
+     has nothing to accept;
+   - one of those lines carries no readable `[verify:]` tag, in the form
+     `${CLAUDE_PLUGIN_ROOT}/skills/write-tickets/references/templates.md` defines and
+     `write-tickets` writes, or the `\verify: …\` form Jira's Markdown conversion leaves of
+     one written outside a code span; or its tag names a tier `{{verification_tiers}}` does
+     not declare. With no tag, or an undeclared tier, no test is named for the criterion,
+     and a requirement no one can test is not accepted (rule book Phase 2).
+
+   Tiers stay the project's own: this gate maps none of them to a test level, and a
+   criterion's suite counts say nothing about one criterion. No in-scope Must criterion is
+   individually verified by this run, so `Untested requirements` lists every one, with its
+   tier and evidence, together with each in-scope NFR with no result line and each case the
+   two bullets above fail on, keyed by ticket and criterion, or by ticket alone when it has
+   none. A listed criterion or NFR that does not fail a bullet above does not fail this
+   criterion; the product owner accepts or returns it in criterion 4, the rule book's
+   acceptance level.
 
    An executed count below the one in the previous release's summary, where
    `{{release_dir}}` holds it, is a risk the summary names, as pre-push step 5 asks. It

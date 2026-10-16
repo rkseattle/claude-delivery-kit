@@ -1,6 +1,6 @@
 ---
 name: release-readiness
-description: Run the rule book's Phase 5 release gate for a version — system, integration, and non-functional suites over every ticket committed since the last release tag, open defects by severity, Must tickets not done, and each merged PR's risks — write the test summary with a PASS or FAIL verdict, and stop for the product owner's review.
+description: Run the rule book's Phase 5 release gate for a version — system, integration, and non-functional suites over every ticket committed since the last release tag, open defects by severity, Must tickets not done and their untested acceptance criteria, and each merged PR's risks — write the test summary with a PASS or FAIL verdict, and stop for the product owner's review.
 argument-hint: <version, e.g. 1.4.0>
 disable-model-invocation: true
 allowed-tools: Read, Write, Edit, Grep, Glob, Bash
@@ -108,6 +108,8 @@ and fails the gate criteria that depend on it. It is named in the summary under
   read.
 - **Must tickets not done** — of those, each with the `moscow-must` label whose status
   category is not `Done`.
+- **Must acceptance criteria** — as the gate's criterion 1 defines them, each with the tier
+  and evidence of its tag.
 - **In-scope NFRs** — as the gate's criterion 3 defines them. Reach a ticket's Epic by
   following `parent` with `jira_get_issue` until an issue of type Epic, or none.
 - **Open defects** — `jira_search`, paging until every result is read, for
@@ -151,8 +153,16 @@ Scope: <range> — <n> tickets: <KEY>, <KEY>, …
 
 | Level | Passed / executed | Failed |
 | --- | --- | --- |
-| system | <p> / <e> | <f> |
+| unit | not run here — the Definition of Done runs it before every commit | — |
 | integration | <p> / <e> | <f> |
+| system | <p> / <e> | <f> |
+| acceptance | with the product owner — the review of `Untested requirements` | — |
+
+## Untested requirements
+
+| Requirement | Tier | Evidence |
+| --- | --- | --- |
+| <KEY> AC<n>, <KEY> NFR<n>, or <KEY> | <tier, `no tag`, or `no criteria`> | <the tag's evidence, or what is missing> |
 
 ## Non-functional results
 
@@ -184,7 +194,12 @@ Gate: PASS
 The integration row reads `not run — no integration tier` when
 `{{integration_test_command}}` is `none`. A row whose suite left no counts to read reads
 `no result — <exit status, or the file missing or unreadable>`, never `0 / 0`. A
-Non-functional row lists each in-scope NFR.
+Non-functional row lists each in-scope NFR, and one with no result line reads
+`no result — see Untested requirements`. `Untested requirements` lists what the gate's
+criterion 1 says, a row per criterion or NFR with its tier, or `no tag`: rule book Phase 5
+step 7's untested requirements, the rows of a traceability matrix no test covers. An NFR
+that ran and failed, or printed a line in another form, belongs under
+`Non-functional results` only, as `fail`.
 Under a defect heading, each Bug is one line of key, summary, and status. An empty section
 says `none`. `Known risks` lists each PR's `Risks` section under its number and title,
 then the unreadable lines and scope keys Jira does not know, then a system executed count
@@ -201,6 +216,8 @@ Present to `{{roles.product_owner}}`, printed per `gates/project-config.md`:
 - each exit criterion and how it stands, with "Test summary reviewed by product owner"
   open
 - every failing criterion's facts, one line each
+- `Untested requirements`, in full: the product owner's review is where those are
+  accepted or sent back
 
 Then stop and wait. An explicit "reviewed", "approved", or equivalent records the review. A
 clarifying question is not an answer, and neither is a request for changes. Fixing a

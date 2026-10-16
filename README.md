@@ -265,14 +265,16 @@ coincide.
 `nfr_test_command`, and `release_dir` serve rule book Phase 5, whose gate is
 `gates/release-readiness.md`. The system suite runs end-to-end flows in a production-like
 environment on every release candidate. It writes its own results file, read by a reader of
-its own, as the integration suite does. `nfr_test_command` takes no arguments and prints
-one `<KEY> NFR<n> pass` or `<KEY> NFR<n> fail` line per `- NFR<n>:` threshold it checks.
-How those lines, and an `exceptions_log` row for one, settle the gate is criterion 3 of
-`gates/release-readiness.md`. `release_dir` holds each version's test summary and release
-notes. They are working files, not committed, so the path may be gitignored. All five
-default to `none`. A `none` system key or `release_dir` stops `release-readiness` and names
-the key, and so does a system results file equal to `results_file` or
-`integration_results_file`.
+its own, as the integration suite does. `nfr_test_command` takes no arguments and prints one
+`<KEY> NFR<n> pass` or `<KEY> NFR<n> fail` line per `- NFR<n>:` threshold it checks. How
+those lines, and an `exceptions_log` row for one, settle the gate is criterion 3 of
+`gates/release-readiness.md`. Each Must acceptance criterion is listed, with its `[verify:]` tier, which
+`verification_tiers` must declare, under the summary's `Untested requirements` for the
+product owner's acceptance, per criterion 1. `release_dir` holds each version's test
+summary and release notes. They are working files, not committed, so the path may be
+gitignored. All five default to `none`. A `none` system key or `release_dir` stops
+`release-readiness` and names the key, and so does a system results file equal to
+`results_file` or `integration_results_file`.
 
 `release_artifact_command`, `deploy_command`, `smoke_test_command`, `rollback_command`,
 `rollout_stages`, `halt_criteria`, `monitoring_window_minutes`, and `released_status` serve
