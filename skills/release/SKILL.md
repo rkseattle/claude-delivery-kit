@@ -87,7 +87,8 @@ Every stop below comes before the tag, and says why in one line.
 - **`git status --porcelain --untracked-files=all -- . ':(exclude){{release_dir}}'` prints
   anything.** The deploy, smoke, rollback, and halt commands run from this checkout, so an
   untracked or modified file there would produce evidence for a tree nobody recorded.
-- **The summary's `Commit:` is not HEAD**, by the tested check:
+- **The summary's `Commit:` is not HEAD**, by the tested check. Record that SHA: it is the
+  `<verified SHA>` Step 3 tags, so a HEAD that moves during a later wait is never tagged:
 
   ```bash
   python3 "${CLAUDE_PLUGIN_ROOT}/skills/release-readiness/scripts/readiness_check.py" commit --summary {{release_dir}}/<version>-test-summary.md --head "$(git rev-parse HEAD)"
@@ -168,8 +169,11 @@ Build in a fresh worktree of the tag, removed by a trap on every exit, as the pr
 checklist's clean build does. Write `{{release_artifact_command}}`, `{{release_dir}}`, and
 the version in full: shell variables do not survive between commands.
 
+Run `git rev-parse HEAD` first: anything but Step 1's `<verified SHA>` means HEAD moved during
+a wait since, and stops the release before the tag. Then:
+
 ```bash
-git tag -a v<version> -m "Release v<version>"
+git tag -a v<version> -m "Release v<version>" <verified SHA>
 git worktree prune
 mkdir -p {{release_dir}}
 build=$(mktemp -d); repo=$PWD; out="$repo/{{release_dir}}"
@@ -228,7 +232,11 @@ nothing between here and the staging ask needs the network:
   names the key, as Changes reads it, comma-separated. This prints each commit's subject,
   then its flags on a line of their own, empty when it has none:
   `git log --format='%s%nRemote-flag: %(trailers:key=Remote-flag,valueonly,separator=%x2C)' <range>`.
-  A key with no trailer is written `- <KEY>: none — no Remote-flag trailer`.
+  For each key with no trailer, ask `{{roles.release_manager}}`, printed per
+  `gates/project-config.md`, in one question listing them all, for the flag that gates its
+  new behavior or the reason none does, and wait. Only the release manager's answer counts,
+  printed as relayed when it is; write each as given, `- <KEY>: <flag>` or
+  `- <KEY>: none — <reason>`. Nothing is filled in for them.
 
 Then check the file: anything but `ok` stops the release here, per `gates/release.md`
 criterion 1. With `mobile`, run the second line instead, with Step 2's keys:
@@ -247,9 +255,7 @@ python3 "${CLAUDE_PLUGIN_ROOT}/skills/release-readiness/scripts/readiness_check.
 - `{{deploy_command}} staging "<artifact-path>"`, then `{{smoke_test_command}} staging`, then
   `{{rollback_command}} staging`, then `{{smoke_test_command}} staging` again;
 - the rollback of staging that any failure triggers;
-- the release notes, in full, since Step 6 publishes them, and with `mobile`, apart from
-  them, each key whose `Remote flags` line reads `none — no Remote-flag trailer`: a change
-  no flag can turn off;
+- the release notes, in full, since Step 6 publishes them;
 - with `embedded`, a request to confirm that the artifact installs atomically with a
   fallback image, A/B partitions or equivalent. An approval that does not confirm it keeps
   the wait open.

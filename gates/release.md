@@ -115,7 +115,8 @@ every supported app version.
   before the full one, and `{{rollback_command}} <stage>` halts that phase, since a shipped
   binary cannot be recalled. `halt_watch.py --check` decides it.
 - The notes hold `## Remote flags`, with a `- <KEY>: <flag>` line for every scope key: the
-  flag that gates the key's new behavior, or `none — <why>`. Before staging,
+  flag a `Remote-flag:` trailer on its commits names, or, for a key with none,
+  `{{roles.release_manager}}`'s answer — the flag, or `none — <reason>`. Before staging,
   `readiness_check.py notes-headings --flag-keys` passing settles it, with criterion 1's
   headings.
 

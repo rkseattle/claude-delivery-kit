@@ -26,8 +26,8 @@ Read `${CLAUDE_PROJECT_DIR}/.claude/project.json`: every `{{key}}` below comes f
 Read `${CLAUDE_PLUGIN_ROOT}/gates/project-config.md` and follow it exactly; this skill's
 optional keys are `incident_reviews_dir` and `roles`.
 
-`$ARGUMENTS` is the incident, in a few words, then its date; with either missing, ask for
-it in one line before anything else. The slug is those words in lowercase kebab-case. The
+`$ARGUMENTS` is the incident, in a few words, then its date, the UTC date it began; with
+either missing, ask for it in one line before anything else. The slug is those words in lowercase kebab-case. The
 start date is today's in UTC, from `date -u +%F`, as the timeline is in UTC, unless the
 review file already exists uncommitted, as below: then it is that file's `Review started:`
 date, since the review started then.
@@ -171,7 +171,8 @@ created, so a stopped run never creates one twice.
 does: the review stays uncommitted in the working tree, and a re-run continues from it,
 presenting only the lines still `— proposed`. Report the path and the held lines.
 
-Otherwise run `git fetch origin` again, since Step 4's wait may have been long; if
+Otherwise, since Step 4's wait may have been long, repeat Step 1's first stop — a plan now
+in flight would undo the switch below — then run `git fetch origin` again; if
 `origin/incident/<date>-<slug>` now exists, stop and ask, as Step 1 does. Then cut the branch
 from the freshly fetched parent and commit the review alone:
 

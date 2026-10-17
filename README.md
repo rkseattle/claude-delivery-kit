@@ -402,7 +402,11 @@ discipline is named, with no default, and placeholders here.
     server API still serves that app version, the version dotted digits. `rollout_stages`
     must list at least two stages, the store's phased release, whatever `project_size` is,
     and `rollback_command <stage>` halts that phase. The release notes gain `## Remote
-    flags`, one line per ticket, from `Remote-flag: <flag>` git trailers on its commits.
+    flags`, one line per ticket, from `Remote-flag: <flag>` git trailers on its commits —
+    a trailer the commit that adds the behavior carries — or, for a ticket with none, from
+    the release manager's answer: the flag, or `none — <reason>`.
+  - A command that takes arguments receives them at its end, so in a pipeline only the last
+    command gets them; wrap a pipeline in a script that passes them on.
   - `sre` at release: `error_budget_command` prints the remaining error budget as one
     number. At `0` or below, the release stops unless every ticket in scope carries the
     `reliability` label.
