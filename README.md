@@ -399,8 +399,10 @@ no default, and placeholders here.
     the release manager confirms the artifact installs atomically with a fallback image.
   - `security` at release: `security_sensitive_paths` is a space-separated list of globs, read
     as CODEOWNERS reads its patterns — `*.pem` matches at any depth, `/keys/` only at the
-    root, `src/auth/` everything below it. A path the release's range changed that matches
-    one, deleted or moved included, needs the security role's sign-off before the tag.
+    root, `src/auth/` everything below it, `docs/*` only directly in `docs/`. A `!`
+    negation, a `[ ]` range, or a `\` escape stops the release, since CODEOWNERS supports
+    none of them. A path the release's range changed that matches one, deleted or moved
+    included, needs the security role's sign-off before the tag.
   - `mobile` at release: `api_compat_command <min_supported_app_version>` exits zero when the
     server API still serves that app version, the version dotted digits. `rollout_stages`
     must list at least two stages, the store's phased release, whatever `project_size` is,

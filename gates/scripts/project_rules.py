@@ -8,11 +8,14 @@ of them can disagree on what an unset key, a placeholder, or a discipline is. Ea
 importer's self-test covers the rules it uses; this module has no entry point of its own.
 """
 import json
+import os
 import re
 
 PLACEHOLDER = re.compile(r"^\s*<.*>\s*$")
 # A value passed to a command as a bare argument: no option, path, or shell metacharacter.
-BARE_ARGUMENT = re.compile(r"^[A-Za-z0-9_][A-Za-z0-9._-]*$")
+BARE_FRAGMENT = r"[A-Za-z0-9_][A-Za-z0-9._-]*"
+BARE_ARGUMENT = re.compile(rf"^{BARE_FRAGMENT}$")
+REPO_PATH = re.compile(r"^[A-Za-z0-9_][A-Za-z0-9._/-]*$")
 DISCIPLINES = ("security", "data-ml", "mobile", "embedded", "sre")
 
 
@@ -50,6 +53,17 @@ def named_disciplines(config):
         raise ValueError(f"disciplines names {', '.join(map(repr, unknown))}, not one of "
                          + ", ".join(DISCIPLINES))
     return value
+
+
+def check_repo_path(key, value):
+    """A directory key written unquoted into commands: set, relative, inside the repository
+    and outside .git, made only of characters no shell treats specially."""
+    if (is_unset(value) or not isinstance(value, str) or not REPO_PATH.fullmatch(value)
+            or os.path.isabs(value)
+            or os.path.normpath(value).split(os.sep)[0] in ("..", ".", ".git")):
+        raise ValueError(f"{key} {value!r} is not a relative path inside the repository "
+                         "outside .git, starting with a letter, digit, or '_', and made only "
+                         "of letters, digits, '.', '_', '-', and '/'")
 
 
 def report(kind, name, got, expected):

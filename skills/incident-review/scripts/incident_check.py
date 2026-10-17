@@ -26,11 +26,8 @@ import sys
 
 sys.dont_write_bytecode = True
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)),
-                                "..", "..", "release-readiness", "scripts"))
-from readiness_check import check_repo_path  # noqa: E402  the rule release_dir follows
-sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)),
                                 "..", "..", "..", "gates", "scripts"))
-from project_rules import error_of, report, result_of  # noqa: E402
+from project_rules import check_repo_path, error_of, report, result_of  # noqa: E402  shared
 
 LATE_AFTER = 5
 DATE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
@@ -107,7 +104,7 @@ def self_test():
         failures += report("working-days", name, result_of(timeliness, incident, start), expected)
     for name, date, slug, expected in BRANCH_CASES:
         failures += report("branch", name, result_of(branch, date, slug), expected)
-    # readiness_check.py's self-test covers the path rules; this pins the key the error names.
+    # readiness_check.py's self-test covers the path rules; these pin the key and the unset.
     failures += report("reviews-dir", "a relative path",
                        error_of(check_repo_path, "incident_reviews_dir", "docs/incidents"), "ok")
     try:
@@ -117,6 +114,9 @@ def self_test():
         named = str(error).split()[0]
     failures += report("reviews-dir", "the error names incident_reviews_dir", named,
                        "incident_reviews_dir")
+    for value in ("None", "NONE", "none"):
+        failures += report("reviews-dir", f"{value} is unset",
+                           error_of(check_repo_path, "incident_reviews_dir", value), "ValueError")
     script = os.path.abspath(__file__)
     for name, arguments, expected_output, expected_exit in [
             ("late prints the count and late",

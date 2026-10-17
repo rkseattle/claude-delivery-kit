@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """The release gates' deterministic checks, so no skill applies them by eye. Standard library only.
 
-Called by skills/release-readiness/SKILL.md (Steps 1 to 4, 7), skills/release/SKILL.md
-(Steps 1 to 5); incident_check.py imports check_repo_path. The project.json rules it
-shares with the other scripts are in gates/scripts/project_rules.py.
+Called by skills/release-readiness/SKILL.md (Steps 1 to 4, 7) and skills/release/SKILL.md
+(Steps 1 to 5). The project.json rules it shares with the other scripts are in
+gates/scripts/project_rules.py.
 
     readiness_check.py version --new X.Y.Z [--last vA.B.C]
         `ok` when X.Y.Z is MAJOR.MINOR.PATCH and, with --last, greater in SemVer precedence
@@ -64,8 +64,8 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)),
 from lint_draft import NFR_SECTION, VERIFY_TAG  # noqa: E402  what write-tickets writes
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)),
                                 "..", "..", "..", "gates", "scripts"))
-from project_rules import (BARE_ARGUMENT, PLACEHOLDER, is_unset, named_disciplines,  # noqa: E402
-                           read_config as load_config, report)
+from project_rules import (BARE_FRAGMENT, PLACEHOLDER, check_repo_path,  # noqa: E402
+                           is_unset, named_disciplines, read_config as load_config, report)
 from project_rules import error_of as _error, result_of as _result  # noqa: E402  test helpers
 
 SEMVER = re.compile(r"^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$")
@@ -189,7 +189,6 @@ def verify_note(summary_path, version, note, require_pass=False):
 
 NOTES_HEADINGS = ("## Changes", "## Migrations", "## Known issues", "## Rollback")
 SCOPE = re.compile(r"^Scope: (\S+) — (\d+) tickets?: (.*)$")
-RELEASE_DIR = re.compile(r"^[A-Za-z0-9_][A-Za-z0-9._/-]*$")
 
 
 def nfrs(description, key):
@@ -306,16 +305,6 @@ def check_notes(notes_path, flag_keys=None):
         check_flags(notes_path, [key.strip() for key in flag_keys.split(",") if key.strip()])
 
 
-def check_repo_path(key, value):
-    """A directory key written unquoted into commands: relative, inside the repository and
-    outside .git, made only of characters no shell treats specially."""
-    if (not value or value == "none" or not RELEASE_DIR.fullmatch(value) or os.path.isabs(value)
-            or os.path.normpath(value).split(os.sep)[0] in ("..", ".", ".git")):
-        raise ValueError(f"{key} {value!r} is not a relative path inside the repository "
-                         "outside .git, starting with a letter, digit, or '_', and made only "
-                         "of letters, digits, '.', '_', '-', and '/'")
-
-
 def check_release_dir(value):
     check_repo_path("release_dir", value)
 
@@ -331,11 +320,9 @@ GATE_KEYS = {
                 "mobile": ("api_compat_command", "min_supported_app_version"),
                 "sre": ("error_budget_command",)},
 }
-# Each part is passed to a command as a bare argument, as a stage name is.
-BARE = BARE_ARGUMENT.pattern.strip("^$")
 DOTTED = r"\d+(?:\.\d+)*"
-DEVICE = re.compile(rf"^({BARE}) ({DOTTED})$")
-THRESHOLD = re.compile(rf"^({BARE}) (-?\d+(?:\.\d+)?)$")
+DEVICE = re.compile(rf"^({BARE_FRAGMENT}) ({DOTTED})$")
+THRESHOLD = re.compile(rf"^({BARE_FRAGMENT}) (-?\d+(?:\.\d+)?)$")
 BUDGET = re.compile(r"^-?\d+(?:\.\d+)?$")
 FLAGS_HEADING = "## Remote flags"
 
@@ -365,6 +352,11 @@ def sensitive_globs(config):
     value = config.get("security_sensitive_paths")
     if is_unset(value) or not isinstance(value, str):
         raise ValueError("security_sensitive_paths is not a space-separated list of globs")
+    unsupported = [pattern for pattern in value.split()
+                   if pattern.startswith("!") or re.search(r"[\[\]\\]", pattern)]
+    if unsupported:
+        raise ValueError(f"security_sensitive_paths holds {', '.join(unsupported)}: CODEOWNERS "
+                         "supports no `!` negation, `[ ]` ranges, or `\\` escapes")
     return value.split()
 
 
@@ -381,7 +373,7 @@ def owners_pathspec(pattern):
     below = f":(glob){spec}/**"
     if pattern.endswith("/"):
         return [below]
-    if "/" in core and re.search(r"[*?\[]", core.rsplit("/", 1)[-1]):
+    if "/" in core and re.search(r"[*?]", core.rsplit("/", 1)[-1]):
         return [f":(glob){spec}"]
     return [f":(glob){spec}", below]
 
@@ -857,7 +849,10 @@ def release_checks_cases(directory, summary_file, good):
                                   ("git's own directory", ".git/releases", "ValueError"),
                                   ("an option", "-n", "ValueError"),
                                   ("none", "none", "ValueError"),
-                                  ("a trailing newline", "docs\n", "ValueError")]:
+                                  ("a trailing newline", "docs\n", "ValueError"),
+                                  ("None", "None", "ValueError"),
+                                  ("NONE", "NONE", "ValueError"),
+                                  ("not a string", ["docs"], "ValueError")]:
         failures += report("release-dir", name, _error(check_release_dir, value), expected)
     return failures + discipline_cases(directory, summary_file)
 
@@ -917,6 +912,17 @@ def discipline_cases(directory, summary_file):
              ["hil_test_command"]),
             ("sensitive paths none", dict(RELEASED, security_sensitive_paths="none"), "release",
              ["security_sensitive_paths"]),
+            ("a negated sensitive path", dict(RELEASED, security_sensitive_paths="src/ !docs/"),
+             "release", ["security_sensitive_paths"]),
+            ("a bracket range in a sensitive path",
+             dict(RELEASED, security_sensitive_paths="key[0-9].pem"), "release",
+             ["security_sensitive_paths"]),
+            ("a lone closing bracket", dict(RELEASED, security_sensitive_paths="key].pem"),
+             "release", ["security_sensitive_paths"]),
+            ("a backslash escape", dict(RELEASED, security_sensitive_paths="\\#secret"),
+             "release", ["security_sensitive_paths"]),
+            ("a ! inside a pattern", dict(RELEASED, security_sensitive_paths="src/a!b/"),
+             "release", []),
             ("blank sensitive paths", dict(RELEASED, security_sensitive_paths=" "), "release",
              ["security_sensitive_paths"]),
             ("a minimum version with a trailing newline",
