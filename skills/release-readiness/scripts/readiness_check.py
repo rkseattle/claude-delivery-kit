@@ -2,7 +2,8 @@
 """The release gates' deterministic checks, so no skill applies them by eye. Standard library only.
 
 Called by skills/release-readiness/SKILL.md (Steps 1 to 4, 7), skills/release/SKILL.md
-(Steps 1 to 5), and skills/plan-work/SKILL.md (its disciplines check).
+(Steps 1 to 5), and skills/plan-work/SKILL.md (its disciplines check);
+incident_check.py imports check_repo_path.
 
     readiness_check.py version --new X.Y.Z [--last vA.B.C]
         `ok` when X.Y.Z is MAJOR.MINOR.PATCH and, with --last, greater in SemVer precedence
@@ -304,12 +305,18 @@ def check_notes(notes_path, flag_keys=None):
         check_flags(notes_path, [key.strip() for key in flag_keys.split(",") if key.strip()])
 
 
-def check_release_dir(value):
+def check_repo_path(key, value):
+    """A directory key written unquoted into commands: relative, inside the repository and
+    outside .git, made only of characters no shell treats specially."""
     if (not value or value == "none" or not RELEASE_DIR.fullmatch(value) or os.path.isabs(value)
             or os.path.normpath(value).split(os.sep)[0] in ("..", ".", ".git")):
-        raise ValueError(f"release_dir {value!r} is not a relative path inside the repository "
+        raise ValueError(f"{key} {value!r} is not a relative path inside the repository "
                          "outside .git, starting with a letter, digit, or '_', and made only "
                          "of letters, digits, '.', '_', '-', and '/'")
+
+
+def check_release_dir(value):
+    check_repo_path("release_dir", value)
 
 
 # The keys each named discipline needs, per gate: Appendix B's Testing addenda run at
