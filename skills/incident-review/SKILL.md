@@ -111,8 +111,11 @@ Service owner: <name>
   of that condition, and list each, with its path, as a follow-up.
 - **Contributing factors** — the other conditions that made it worse, longer, or harder to
   see: a missing alert, an untested path, an unclear runbook.
-- **Follow-ups** — one line each, `- <summary> — proposed`, from the root cause, every
-  instance its grep found, and each contributing factor.
+- **Follow-ups** — one line each,
+  `- <summary> — AC: <criterion> [verify: <tier> @ <evidence>] — proposed`, from the root
+  cause, every instance its grep found, and each contributing factor. The criterion is the
+  one that would show the follow-up done, its tier one `{{verification_tiers}}` declares,
+  written here so that what the service owner approves is what a resumed run tickets.
 
 `<name>` is the service owner as `roles` names them, or with none there, the person running
 the session by git `user.name` — never the word "you", which means nothing in a committed
@@ -133,8 +136,9 @@ sections that names a person.
 Skip this step when no line is still `— proposed`, as on a re-run that only finishes
 Step 5. Otherwise present to `{{roles.service_owner}}`, printed per
 `gates/project-config.md`: the review's
-path, its `Root cause`, and each follow-up, numbered, with the one acceptance criterion that
-would show it done. Then stop and wait.
+path, its `Root cause`, and each follow-up, numbered, with its criterion as the file records
+it. Then stop and wait. A summary, criterion, or verify tag the service owner changes is
+rewritten in its line before the line records the approval.
 
 Each follow-up is approved, declined, or held on its own. Only an explicit approval of that
 follow-up counts; a clarifying question is not one, and only the service owner's answer
@@ -154,13 +158,13 @@ ticket with the same summary is not. Otherwise
 create it as `write-tickets` Step 8 creates a ticket: look up
 `{{jira_project}}`'s issue types first and use `Task`, never a guessed name or ID. Give it:
 
-- the summary as approved;
+- the summary its line records;
 - the label `incident-follow-up`;
 - a description of `## Context`, naming the review's path and the branch it will be
   committed on, and
-  `## Acceptance criteria` holding its criterion as one `- AC1:` line ending in a
-  `[verify: <tier> @ <evidence>]` tag, the tier one `{{verification_tiers}}` declares, the
-  tag inside a code span as `write-tickets` writes it.
+  `## Acceptance criteria` holding the criterion its line records as one `- AC1:` line
+  ending in its `[verify: <tier> @ <evidence>]` tag, the tier one `{{verification_tiers}}`
+  declares, the tag inside a code span as `write-tickets` writes it.
 
 Read each ticket back with `jira_get_issue` and confirm it carries `incident-follow-up` and
 its `[verify: …]` tag whole; fix either once if it does not, and report it if it still does
