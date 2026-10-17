@@ -19,6 +19,9 @@ A missing key resolves to the default stated in the prose of
 `${CLAUDE_PLUGIN_ROOT}/README.md`'s `project.json` section, or to `none` where it states
 none. A value shown in that section's example blocks is an illustration, never a default.
 
+A key only a discipline's addendum reads is used only when `disciplines` names that
+discipline; otherwise it is neither read nor announced.
+
 Where a key used by the file that sent you here, or by a gate it reads, was left out or
 is `none`, say so in **one line naming every such key and the value it took** — its
 default or `none` — never one line per key, and never invent a substitute. A default is

@@ -11,11 +11,12 @@ Check release readiness for: $ARGUMENTS
 This skill is the rule book's Phase 5 step 7 and its exit gate: it writes the test summary
 for one release candidate and stops for `{{roles.product_owner}}`. In `{{release_dir}}` it
 writes `<version>-test-summary.md` and its `<version>-note.txt`, a `<version>-<KEY>.md` copy
-of each scope ticket's and Epic's description it reads, and the `<version>-nfr-output.txt`
-and `<version>-nfrs.txt` the NFR check reads. After the review it adds a git note on the
-tested commit under `refs/notes/release-readiness`. No commit to any branch, no tag, and no
-push: a note does not move HEAD, and `release` reads both the file from the working tree and
-the note, then pushes the note with the tag.
+of each scope ticket's and Epic's description it reads, the `<version>-nfr-output.txt` and
+`<version>-nfrs.txt` the NFR check reads, and with `data-ml`, the
+`<version>-model-thresholds.txt` its model command reads. After the review it adds a git
+note on the tested commit under `refs/notes/release-readiness`. No commit to any branch, no
+tag, and no push: a note does not move HEAD, and `release` reads both the file from the
+working tree and the note, then pushes the note with the tag.
 
 ## Step 1 — Read the configuration
 
@@ -23,8 +24,11 @@ Read `${CLAUDE_PROJECT_DIR}/.claude/project.json`: every `{{key}}` below comes f
 `${CLAUDE_PLUGIN_ROOT}/gates/project-config.md` and follow it exactly; this skill's optional
 keys are `system_test_command`, `system_results_file`, `system_results_read_command`,
 `integration_test_command`, `integration_results_file`, `integration_results_read_command`,
-`nfr_test_command`, `release_dir`, `exceptions_log`, `results_file`, and `roles`. Then read
-`${CLAUDE_PLUGIN_ROOT}/gates/release-readiness.md`, which decides the verdict.
+`nfr_test_command`, `release_dir`, `exceptions_log`, `results_file`, `roles`, and
+`disciplines`, with the keys its named disciplines need here: `data_quality_command`,
+`model_eval_command`, `model_eval_thresholds`, `device_matrix`, `device_test_command`, and
+`hil_test_command`. A key no named discipline needs is not used, so it is not announced.
+Then read `${CLAUDE_PLUGIN_ROOT}/gates/release-readiness.md`, which decides the verdict.
 
 Stop, and say why in one line, when:
 
@@ -33,6 +37,11 @@ Stop, and say why in one line, when:
   directory the summary has nowhere to live.
 - **Any other stop `gates/release-readiness.md` names before a suite runs** — a `none`
   system results file or reader, or a system results file shared with another suite.
+- **The discipline check prints anything but `ok`.** Name each `INVALID:` line:
+
+  ```bash
+  python3 "${CLAUDE_PLUGIN_ROOT}/skills/release-readiness/scripts/readiness_check.py" disciplines --config "<project root>/.claude/project.json" --gate readiness
+  ```
 - **`{{integration_test_command}}` is set, and `{{integration_results_file}}` or
   `{{integration_results_read_command}}` is `none`, or `{{integration_results_file}}` equals
   `{{results_file}}`** — `gates/pre-push.md` step 6's stop, for the same reason.
@@ -123,11 +132,31 @@ suites run, so a crashed run cannot leave the previous verdict to be read as thi
 
    ```bash
    mkdir -p {{release_dir}} && : > {{release_dir}}/<version>-nfr-output.txt
-   {{nfr_test_command}} >> {{release_dir}}/<version>-nfr-output.txt
+   { {{nfr_test_command}}; } >> {{release_dir}}/<version>-nfr-output.txt
    ```
 
+4. **Discipline addenda** — only for each discipline `{{disciplines}}` names, as the gate's
+   `Discipline addenda` define them, recording each command's exit status. With the project
+   root written as its absolute path:
+
+   ```bash
+   {{data_quality_command}}
+   python3 "${CLAUDE_PLUGIN_ROOT}/skills/release-readiness/scripts/readiness_check.py" thresholds --config "<project root>/.claude/project.json" > {{release_dir}}/<version>-model-thresholds.txt &&
+     { {{model_eval_command}}; } < {{release_dir}}/<version>-model-thresholds.txt
+   python3 "${CLAUDE_PLUGIN_ROOT}/skills/release-readiness/scripts/readiness_check.py" oldest-devices --config "<project root>/.claude/project.json"
+   {{hil_test_command}}
+   ```
+
+   The first two are `data-ml`'s; a `thresholds` failure is the model row's failure, its
+   Command cell `thresholds` and its Result the `INVALID:` line, since the model never ran.
+   The third prints `mobile`'s `<os> <version>` lines: run `{{device_test_command}} <os>
+   <version>` once per line, each written out in full; its own failure is one failed `mobile`
+   row. The last is `embedded`'s. The braces give each redirect to the whole command, which
+   may be a pipeline or `cd` elsewhere first.
+
 Read counts from the results files, never from the console or an exit code. An executed
-count of zero is a run that died early, not a pass.
+count of zero is a run that died early, not a pass. The discipline commands report no
+counts; their exit status is their result, as the gate defines it.
 
 ## Step 4 — Jira and the merged PRs
 
@@ -248,13 +277,20 @@ Scope: <range> — <n> tickets: <KEY>, <KEY>, …
 
 ## Must tickets not done
 
+## Discipline checks
+
+| Discipline | Command | Result |
+| --- | --- | --- |
+| <discipline> | <the command as run, with its arguments> | pass, or fail — exit <n> |
+
 ## Known risks
 
 ## Upgrade notes
 
 ## Gate criteria
 
-<each exit criterion, and whether it holds, with the fact that settles it>
+<each exit criterion and each discipline section that applies, whether it holds, and the fact
+that settles it>
 
 Gate: PASS
 ```
@@ -273,7 +309,12 @@ summary, and status. An empty section says `none`. `Known risks` lists each PR's
 section under its number and title, then the scope keys Jira does not know, then a system
 executed count below the previous release's. `Upgrade notes` lists each PR's migration
 section the same way, and `release` copies it into its notes' `Migrations`. The last line is
-`Gate: PASS` or `Gate: FAIL`, per the gate's verdict.
+`Gate: PASS` or `Gate: FAIL`, per the gate's verdict. `Discipline checks` has one row per
+discipline command run — `{{data_quality_command}}`, `{{model_eval_command}}`, each
+`{{device_test_command}} <os> <version>`, and `{{hil_test_command}}`. A check script's
+failure fills the row of the command it stopped, as Step 3 item 4 says, and adds none. The
+section is left out whole when `{{disciplines}}` names none of
+`data-ml`, `mobile`, and `embedded`.
 
 ## Step 6 — Stop for the product owner
 
@@ -282,7 +323,7 @@ Present to `{{roles.product_owner}}`, printed per `gates/project-config.md`:
 - the summary's path and the `Gate:` verdict
 - each exit criterion and how it stands, with "Test summary reviewed by product owner"
   open
-- every failing criterion's facts, one line each
+- every failing criterion's or discipline section's facts, one line each
 - `Untested requirements`, in full: the product owner's review is where those are
   accepted or sent back
 

@@ -112,8 +112,41 @@ under `Known risks`, and a scope left empty after removals stops the run.
    holding the version, the summary's SHA-256, and its last two lines, so a later edit to
    the summary no longer matches the record a release checks.
 
+## Discipline addenda
+
+Rule book Appendix B changes Testing for some disciplines. Each section below applies only
+when `{{disciplines}}` names it; a section whose discipline is absent is skipped without
+output — no summary row and no announcement. Before any suite runs,
+`${CLAUDE_PLUGIN_ROOT}/skills/release-readiness/scripts/readiness_check.py` `disciplines
+--gate readiness` printing anything but `ok` stops the run and names each problem: an unknown
+discipline, or a named one's key absent, `none`, a `<placeholder>`, or malformed, would let
+a section pass with nothing run. Each command runs from the project root, on the same tree
+as the suites, and its exit status settles its row.
+
+### data-ml
+
+Appendix B2: data-quality checks, and a model evaluated against a fixed benchmark that must
+not regress past its threshold. Both commands run, and each must exit zero:
+`{{data_quality_command}}`, and `{{model_eval_command}}` reading, on standard input, the
+`<metric> <minimum>` lines the check's `thresholds` subcommand prints from
+`{{model_eval_thresholds}}`. A non-zero exit from either fails the section.
+
+### mobile
+
+Appendix B3: a device and OS-version matrix including the oldest supported OS.
+`{{device_test_command}} <os> <version>` exits zero for every line the check's
+`oldest-devices` subcommand prints: one per OS in `{{device_matrix}}`, at its lowest version,
+compared as numbers. A non-zero exit on any line fails the section.
+
+### embedded
+
+Appendix B4: hardware-in-the-loop tests on target hardware. `{{hil_test_command}}` exits
+zero. Simulator results alone do not meet this; the command is the project's statement that
+it runs on the hardware.
+
 ## The verdict
 
-`Gate: PASS` when criteria 1 to 3 all hold, `Gate: FAIL` when any one fails. The line is
+`Gate: PASS` when criteria 1 to 3 and every section of `Discipline addenda` that applies all
+hold, `Gate: FAIL` when any one fails. The line is
 written before the review, so criterion 4 is never part of it. It is settled by the
 `Reviewed-by:` line, which a release checks alongside `Gate: PASS`.

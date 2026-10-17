@@ -323,13 +323,20 @@ only honest re-verification is everything.
 Five more keys tailor the workflow to the project, per the rule book's "Tailoring and
 exceptions" section and its Appendices A through C. Each is optional, and each bullet
 below gives its default; the `roles` and `exceptions_log` values are placeholders, not
-defaults.
+defaults. The keys after `disciplines` in the block are its addenda's: required once their
+discipline is named, with no default, and placeholders here.
 
 ```json
 {
   "project_size": "small",
   "lifecycle_model": "continuous",
   "disciplines": [],
+  "data_quality_command": "<command exiting non-zero when a data-quality check fails>",
+  "model_eval_command": "<command reading <metric> <minimum> lines on stdin, exiting non-zero below one>",
+  "model_eval_thresholds": ["<metric> <minimum>, e.g. precision 0.92>"],
+  "device_matrix": ["<os> <version>, e.g. ios 16.4>", "<os> <version>, e.g. android 10>"],
+  "device_test_command": "<command taking <os> <version>, exiting non-zero on failure>",
+  "hil_test_command": "<command running the hardware-in-the-loop suite, exiting non-zero on failure>",
   "roles": {
     "sponsor": "<handle>",
     "product_owner": "<handle>",
@@ -348,6 +355,22 @@ defaults.
 - `disciplines` — a list drawn from `security`, `data-ml`, `mobile`, `embedded`, and
   `sre`. Default `[]`. With `security`, `plan-work` requires a STRIDE `## Threat model`
   in every plan, and `design-adversary` blocks a `High` threat that names no phase.
+  `plan-work`, `release-readiness`, and `release` (through `halt_watch.py --check`) stop on
+  any other name, matched with case, since a misspelled discipline would skip its addenda
+  without a word. A named discipline adds its section of `gates/release-readiness.md`, where
+  it has one, and a discipline left out skips it silently. The keys a named discipline needs at a gate
+  have no default: absent, `none`, a `<placeholder>`, or malformed, they stop that gate's skill.
+  - `data-ml` at readiness: `data_quality_command` and `model_eval_command`, each exiting
+    non-zero on failure. `model_eval_thresholds` is a list of `<metric> <minimum>` pairs, the
+    minimum a decimal number and each metric named once, without regard to case; the model
+    command reads them as lines on standard input and exits non-zero when any metric falls
+    below its minimum.
+  - `mobile` at readiness: `device_matrix` is a list of `<os> <version>` entries, the
+    version dotted digits, e.g. `ios 16.4`. `device_test_command <os> <version>` runs once
+    per OS, on its lowest version, compared as numbers, so `ios 9` is older than `ios 10`.
+    OS names compare without case, so `iOS 17` and `ios 15` are one OS.
+  - `embedded` at readiness: `hil_test_command` runs the hardware-in-the-loop tests on
+    target hardware; simulator results alone do not meet rule book Appendix B4.
 - `roles` — a map from each role above to the person who holds it. `{{roles.<role>}}` in a
   skill resolves to that role's entry in `roles`, so `{{roles.tech_lead}}` names the tech
   lead. `plan-project` waits on the sponsor, `write-tickets` on the product owner after QA
