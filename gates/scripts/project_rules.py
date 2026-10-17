@@ -1,6 +1,6 @@
 """The project.json rules, the record-parsing rules, and the self-test helpers, the kit's
 release, review, incident, maintenance, and retirement scripts share. Standard library only,
-plus the CommonMark parser vendored beside the README checker.
+except fence_split, which loads the CommonMark parser vendored beside the README checker.
 
 Imported by skills/release/scripts/halt_watch.py,
 skills/release-readiness/scripts/readiness_check.py, skills/ci-green/scripts/review_gate.py,
@@ -18,9 +18,9 @@ import os
 import re
 import sys
 
-# markdown-it-py, vendored beside the README checker, parses Markdown as CommonMark does.
-sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..",
-                                "skills", "readme-docs", "scripts", "_vendor"))
+# markdown-it-py, vendored beside the README checker; only fence_split loads it.
+VENDOR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "skills",
+                      "readme-docs", "scripts", "_vendor")
 
 PLACEHOLDER = re.compile(r"^\s*<.*>\s*$")
 # A value passed to a command as a bare argument: no option, path, or shell metacharacter.
@@ -103,10 +103,15 @@ def fence_split(text):
     """([(line, fenced)], unclosed): fenced is true for every line of a fenced or indented
     code block, its marker lines included, exactly as a CommonMark renderer shows them as
     code; unclosed is true when a fence runs to the end of its container without closing.
-    Lines split on newlines alone, as markdown-it splits them. Read
+    Line ends are normalized as markdown-it normalizes them. Read
     by the vendored markdown-it-py, never a hand-rolled fence rule, so no line the renderer
     shows as text can be taken for code."""
+    if VENDOR not in sys.path:
+        sys.path.insert(0, VENDOR)
     from markdown_it import MarkdownIt
+    # markdown-it reads a lone \r as a line end too, so line numbers match only once both
+    # line-end forms are newlines.
+    text = text.replace("\r\n", "\n").replace("\r", "\n")
     lines = text.split("\n")
     fenced, unclosed = [False] * len(lines), False
     for token in MarkdownIt("commonmark").parse(text):

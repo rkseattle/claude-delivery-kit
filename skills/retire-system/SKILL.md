@@ -3,7 +3,7 @@ name: retire-system
 description: Run the rule book's Phase 7 system retirement — write a record with user notice, data, infrastructure, and credentials sections, draft the notice, list every data store, resource, and credential the repository names, mark each section done only once the service owner confirms it, and commit the record on its own branch once all four are done. Runs no removal itself.
 argument-hint: <system name, lowercase kebab-case>
 disable-model-invocation: true
-allowed-tools: Read, Write, Edit, Grep, Glob, Bash
+allowed-tools: Read, Write, Edit, Grep, Glob, Bash(git fetch:*), Bash(git check-ignore:*), Bash(git cat-file:*), Bash(git rev-list:*), Bash(git switch:*), Bash(git add:*), Bash(git commit:*), Bash(git config user.name), Bash(date -u:*), Bash(python3 "${CLAUDE_PLUGIN_ROOT}/skills/retire-system/scripts/retire_check.py":*)
 ---
 
 Retire the system: $ARGUMENTS
@@ -30,7 +30,7 @@ records what the service owner confirms was done.
 
 Read `${CLAUDE_PROJECT_DIR}/.claude/project.json`: every `{{key}}` below comes from it.
 Read `${CLAUDE_PLUGIN_ROOT}/gates/project-config.md` and follow it exactly; this skill's
-optional keys are `retirements_dir` and `roles`.
+optional keys are `retirements_dir`, `secret_scan_command`, and `roles`.
 
 `$ARGUMENTS` is the system's name; with none, ask for it in one line before anything else.
 `<today>` is `date -u +%F`, written out in full wherever it appears below. Every command
@@ -189,6 +189,26 @@ record alone:
 ```bash
 git switch -c retire/<name> origin/{{parent_branch_default}}
 git add {{retirements_dir}}/<name>.md
+```
+
+Before the commit, unless `{{secret_scan_command}}` is `none`, scan what is staged, as
+`gates/definition-of-done.md` step 7 scans every commit:
+
+```bash
+(
+  gate="${CLAUDE_PLUGIN_ROOT}/gates/scripts/sarif_gate.py"; patch=$(mktemp)
+  secrets_sarif=$(mktemp); trap 'rm -f "$patch" "$secrets_sarif"' EXIT
+  python3 "$gate" patch --staged > "$patch" || exit 2
+  ( {{secret_scan_command}} ) < "$patch" > "$secrets_sarif"
+  python3 "$gate" secrets "$secrets_sarif"
+)
+```
+
+Anything but `clean` stops the skill before the commit: report each `rule file:line` it
+printed, never the text, and rewrite those lines to name the credential rather than hold it.
+A re-run finishes the commit as Step 1 describes, scanning again. Then:
+
+```bash
 git commit -m "Record the retirement of <name>" -- {{retirements_dir}}/<name>.md
 ```
 

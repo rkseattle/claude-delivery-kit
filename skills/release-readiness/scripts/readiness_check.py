@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-"""The release gates' deterministic checks, so no skill applies them by eye. Standard library only.
+"""The release gates' deterministic checks, so no skill applies them by eye. Standard library
+only, but for the CommonMark parser project_rules.fence_split loads.
 
 Called by skills/release-readiness/SKILL.md (Steps 1 to 4, 7), skills/release/SKILL.md
 (Steps 1 to 5), and, for its maintenance discipline keys, skills/maintenance-review/SKILL.md
@@ -582,6 +583,9 @@ CRITERIA_CASES = [
      [("AC1", "ci", "y", "ok")]),
     ("a closer with an info string closes nothing",
      "## Acceptance criteria\n```\n```x\n```\n- AC1: x [verify: ci @ y]\n",
+     [("AC1", "ci", "y", "ok")]),
+    ("lone carriage returns end lines as markdown-it reads them",
+     "## Acceptance criteria\r```\r- AC9: x\r```\r- AC1: x [verify: ci @ y]\r",
      [("AC1", "ci", "y", "ok")]),
     ("the section ends at the next heading",
      "## Acceptance criteria\n- AC1: x [verify: ci @ y]\n## Out of scope\n- AC9: z\n",

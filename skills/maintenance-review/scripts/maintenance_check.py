@@ -171,6 +171,10 @@ def stale_runbooks(config, today):
             rows.append(f"{path}\tuncommitted")
         elif (today - parse_date(dates[0])).days > RUNBOOK_MAX_AGE:
             rows.append(f"{path}\t{dates[0]}")
+    if not rows and not any(os.path.exists(path) for path in
+                            git_paths("ls-files", "-z", "--", directory)):
+        raise ValueError(f"runbooks_dir {directory!r} holds no runbook git can see — empty, "
+                         "or gitignored")
     return sorted(rows)
 
 
@@ -358,6 +362,10 @@ def runbook_cases():
                                 "runbooks/utc-ninety-one.md\t2026-07-18"])
             failures += report("runbooks", "a missing directory",
                                result_of(stale_runbooks, {"runbooks_dir": "playbooks"},
+                                         "2026-10-17"), "ValueError")
+            os.makedirs(os.path.join(root, "empty"))
+            failures += report("runbooks", "an empty directory is no list of runbooks",
+                               result_of(stale_runbooks, {"runbooks_dir": "empty"},
                                          "2026-10-17"), "ValueError")
             failures += report("runbooks", "runbooks_dir none",
                                result_of(stale_runbooks, {}, "2026-10-17"), "ValueError")

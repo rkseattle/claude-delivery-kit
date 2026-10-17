@@ -3,7 +3,7 @@ name: maintenance-review
 description: Run the rule book's Phase 7 ongoing checks — owner and on-call rota, incoming work by maintenance type, the preventive share of the last iteration, outdated dependencies, vulnerabilities past their patch SLA, stale runbooks, alerts routed to no person, and old incident follow-ups, plus the security, data-ml, and SRE maintenance addenda — report them, and create each proposed ticket only once the service owner approves it.
 argument-hint: (no arguments)
 disable-model-invocation: true
-allowed-tools: Read, Grep, Glob, Bash
+allowed-tools: Read, Grep, Glob, Bash(date -u:*), Bash(python3 "${CLAUDE_PLUGIN_ROOT}/skills/maintenance-review/scripts/maintenance_check.py":*), Bash(python3 "${CLAUDE_PLUGIN_ROOT}/skills/release-readiness/scripts/readiness_check.py" disciplines:*)
 ---
 
 Review maintenance for this project.
@@ -130,8 +130,8 @@ read, except where the first bullet says otherwise.
   such, since a rule in another format is not one this check can read. A missing
   `{{alert_rules_dir}}`, or one holding no `.yml` or `.yaml` file, is a failed read, never
   `none found`. This check and the reading of the outdated-dependency output are by eye, not
-  by the script: YAML is not in Python's standard library, which every kit script keeps to,
-  and each dependency tool prints its own table.
+  by the script: the kit vendors no YAML parser, and each dependency tool prints its own
+  table.
 
 ## Step 3 — Report
 

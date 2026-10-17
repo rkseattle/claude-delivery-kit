@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-"""Retirement-record checks, so the skill commits no record by eye. Standard library only.
+"""Retirement-record checks, so the skill commits no record by eye. Standard library only, but
+for the CommonMark parser project_rules.fence_split loads.
 
 Called by skills/retire-system/SKILL.md (Steps 1, 4 and 5).
 
@@ -54,7 +55,7 @@ OWNER = re.compile(r"^Service owner: (\S.*)$")
 TEMPLATE_PLACEHOLDERS = ("<each user group>", "<data store>", "<resource>", "<credential name>",
                          "<path>", "<line>", "<where>", "<to confirm>", "<the drafted notice",
                          "<name>", " or archived at ")
-TITLE = re.compile(r"^# Retirement — \S.*$")
+TITLE = re.compile(r"^# Retirement — (\S.*)$")
 HEADER_LINES = (TITLE, OWNER, STARTED)  # each exactly once
 SECTION_LINES = (STATUS, CONFIRMED, ITEM)
 
@@ -129,8 +130,9 @@ def section_state(heading, lines, fenced, owner, started, today):
     left = [line for line in lines + fenced
             if any(placeholder in line for placeholder in TEMPLATE_PLACEHOLDERS)]
     if left:
-        raise ValueError(f"{heading} is done but still holds {left[0]!r}, a placeholder the "
-                         "service owner's answer replaces")
+        raise ValueError(f"{heading} is done but still holds {left[0]!r}, template text the "
+                         "service owner's answer replaces — for a Data item, name only the one "
+                         "of `migrated to` or `archived at` that happened")
     if len(confirmations) != 1:
         raise ValueError(f"{heading} is done without one `Confirmed: <name> <YYYY-MM-DD>` line")
     name, date = confirmations[0].groups()
@@ -141,16 +143,18 @@ def section_state(heading, lines, fenced, owner, started, today):
     return "done"
 
 
-def record_state(text, owner, today):
+def record_state(text, owner, today, name=None):
     today = parse_date(today)
     header, sections = structure(text)
     headings = tuple(heading for heading, _, _ in sections)
     if headings != SECTIONS:
         raise ValueError(f"the sections are {', '.join(headings) or 'none'}, not "
                          + ", ".join(SECTIONS))
-    title = one(TITLE, header, "`# Retirement — ` title").group(0)
-    if any(placeholder in title for placeholder in TEMPLATE_PLACEHOLDERS):
-        raise ValueError(f"the title {title!r} still holds a template placeholder")
+    title = one(TITLE, header, "`# Retirement — ` title")
+    if any(placeholder in title.group(0) for placeholder in TEMPLATE_PLACEHOLDERS):
+        raise ValueError(f"the title {title.group(0)!r} still holds a template placeholder")
+    if name is not None and title.group(1) != name:
+        raise ValueError(f"the title names {title.group(1)!r}, but the record is {name}.md")
     named = one(OWNER, header, "Service owner").group(1)
     if named != owner:
         raise ValueError(f"the record names {named!r} as service owner, not {owner!r}")
@@ -333,6 +337,12 @@ def self_test():
     for name, text, expected in RECORD_CASES:
         failures += report("record", name, result_of(record_state, text, "rob", "2026-10-19"),
                            expected)
+    failures += report("record", "a title naming another record's file",
+                       result_of(record_state, record([DONE] * 4), "rob", "2026-10-19",
+                                 "payments"), "ValueError")
+    failures += report("record", "a title naming its own file",
+                       result_of(record_state, record([DONE] * 4), "rob", "2026-10-19",
+                                 "billing"), "done")
     for name, value, expected in NAME_CASES:
         failures += report("name", name, result_of(branch, value), expected)
     for name, value, expected in [("a relative path", "docs/retirements", "ok"),
@@ -351,7 +361,7 @@ def self_test():
     failures += owner_fallback_cases()
     script = os.path.abspath(__file__)
     with tempfile.TemporaryDirectory() as directory:
-        done = os.path.join(directory, "done.md")
+        done = os.path.join(directory, "billing.md")
         with open(done, "w", encoding="utf-8") as handle:
             handle.write(record([DONE] * 4))
         config = os.path.join(directory, "project.json")
@@ -400,7 +410,8 @@ def main():
               "name": lambda: branch(args.value),
               "record": lambda: record_state(read_record(args.file),
                                              service_owner(read_config(args.config)),
-                                             args.today)}
+                                             args.today,
+                                             os.path.splitext(os.path.basename(args.file))[0])}
     if args.command not in checks:
         parser.print_usage(sys.stderr)
         return 2

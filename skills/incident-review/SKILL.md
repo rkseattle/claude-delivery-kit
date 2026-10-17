@@ -3,7 +3,7 @@ name: incident-review
 description: Run the rule book's Phase 7 blameless incident review — timeline, impact, root cause, contributing factors, and follow-ups — record whether it started within five working days, create each follow-up ticket only once the service owner approves it, and commit the review on its own branch.
 argument-hint: <incident, a few words> <incident date YYYY-MM-DD>
 disable-model-invocation: true
-allowed-tools: Read, Write, Edit, Grep, Glob, Bash
+allowed-tools: Read, Write, Edit, Grep, Glob, Bash(git log:*), Bash(git fetch:*), Bash(git check-ignore:*), Bash(git cat-file:*), Bash(git rev-list:*), Bash(git switch:*), Bash(git add:*), Bash(git commit:*), Bash(git config user.name), Bash(gh run list:*), Bash(date -u:*), Bash(grep:*), Bash(python3 "${CLAUDE_PLUGIN_ROOT}/skills/incident-review/scripts/incident_check.py":*)
 ---
 
 Review the incident: $ARGUMENTS
@@ -24,7 +24,7 @@ accountable owner before they are tracked.
 
 Read `${CLAUDE_PROJECT_DIR}/.claude/project.json`: every `{{key}}` below comes from it.
 Read `${CLAUDE_PLUGIN_ROOT}/gates/project-config.md` and follow it exactly; this skill's
-optional keys are `incident_reviews_dir` and `roles`.
+optional keys are `incident_reviews_dir`, `secret_scan_command`, and `roles`.
 
 `$ARGUMENTS` is the incident, in a few words, then its date, the UTC date it began; with
 either missing, ask for it in one line before anything else. The slug is those words in lowercase kebab-case. The
@@ -183,6 +183,26 @@ from the freshly fetched parent and commit the review alone:
 ```bash
 git switch -c incident/<date>-<slug> origin/{{parent_branch_default}}
 git add {{incident_reviews_dir}}/<date>-<slug>.md
+```
+
+Before the commit, unless `{{secret_scan_command}}` is `none`, scan what is staged, as
+`gates/definition-of-done.md` step 7 scans every commit:
+
+```bash
+(
+  gate="${CLAUDE_PLUGIN_ROOT}/gates/scripts/sarif_gate.py"; patch=$(mktemp)
+  secrets_sarif=$(mktemp); trap 'rm -f "$patch" "$secrets_sarif"' EXIT
+  python3 "$gate" patch --staged > "$patch" || exit 2
+  ( {{secret_scan_command}} ) < "$patch" > "$secrets_sarif"
+  python3 "$gate" secrets "$secrets_sarif"
+)
+```
+
+Anything but `clean` stops the skill before the commit: report each `rule file:line` it
+printed, never the text, and rewrite those lines to name the credential rather than hold it.
+A re-run finishes the commit as Step 1 describes, scanning again. Then:
+
+```bash
 git commit -m "Record the incident review <date>-<slug>" -- {{incident_reviews_dir}}/<date>-<slug>.md
 ```
 
