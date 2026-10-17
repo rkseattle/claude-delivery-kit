@@ -1,19 +1,26 @@
-"""The project.json rules, and the self-test helpers, the kit's release, review, and incident
-scripts share. Standard library only.
+"""The project.json rules, the record-parsing rules, and the self-test helpers, the kit's
+release, review, incident, maintenance, and retirement scripts share. Standard library only,
+plus the CommonMark parser vendored beside the README checker.
 
 Imported by skills/release/scripts/halt_watch.py,
 skills/release-readiness/scripts/readiness_check.py, skills/ci-green/scripts/review_gate.py,
 skills/incident-review/scripts/incident_check.py,
-skills/maintenance-review/scripts/maintenance_check.py, and gates/scripts/sarif_gate.py, so
-no two of them can disagree on what an unset key, a placeholder, a discipline, a date, or a
-printed number is. Each
-importer's self-test covers the rules it uses; this module has no entry point of its own.
+skills/maintenance-review/scripts/maintenance_check.py,
+skills/retire-system/scripts/retire_check.py, and gates/scripts/sarif_gate.py, so no two of
+them can disagree on what an unset key, a placeholder, a discipline, a date, a printed
+number, a branch slug, or a code fence is. Each importer's self-test covers the rules it
+uses; this module has no entry point of its own.
 """
 import datetime
 import json
 import math
 import os
 import re
+import sys
+
+# markdown-it-py, vendored beside the README checker, parses Markdown as CommonMark does.
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..",
+                                "skills", "readme-docs", "scripts", "_vendor"))
 
 PLACEHOLDER = re.compile(r"^\s*<.*>\s*$")
 # A value passed to a command as a bare argument: no option, path, or shell metacharacter.
@@ -23,6 +30,7 @@ REPO_PATH = re.compile(r"^[A-Za-z0-9_][A-Za-z0-9._/-]*$")
 DISCIPLINES = ("security", "data-ml", "mobile", "embedded", "sre")
 DECIMAL = r"-?\d+(?:\.\d+)?"
 DATE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+SLUG = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
 
 
 def is_unset(value):
@@ -89,6 +97,36 @@ def is_date(value):
     except ValueError:
         return False
     return True
+
+
+def fence_split(text):
+    """([(line, fenced)], unclosed): fenced is true for every line of a fenced or indented
+    code block, its marker lines included, exactly as a CommonMark renderer shows them as
+    code; unclosed is true when a fence runs to the end of its container without closing.
+    Lines split on newlines alone, as markdown-it splits them. Read
+    by the vendored markdown-it-py, never a hand-rolled fence rule, so no line the renderer
+    shows as text can be taken for code."""
+    from markdown_it import MarkdownIt
+    lines = text.split("\n")
+    fenced, unclosed = [False] * len(lines), False
+    for token in MarkdownIt("commonmark").parse(text):
+        if token.type not in ("fence", "code_block") or not token.map:
+            continue
+        start, end = token.map
+        for number in range(start, min(end, len(lines))):
+            fenced[number] = True
+        # A closed fence's map holds its opener, its content lines, and its closer; one that
+        # ran to the end of its container has no closer line.
+        if token.type == "fence" and token.content.count("\n") == end - start - 1:
+            unclosed = True
+    return list(zip(lines, fenced)), unclosed
+
+
+def check_slug(kind, value):
+    """A name written into a branch and a path: lowercase kebab-case, nothing else."""
+    if not SLUG.fullmatch(value):
+        raise ValueError(f"{kind} {value!r} is not lowercase letters and digits joined by '-'")
+    return value
 
 
 def single_number(output, key):

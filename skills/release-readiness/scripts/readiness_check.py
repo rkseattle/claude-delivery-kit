@@ -66,7 +66,8 @@ from lint_draft import NFR_SECTION, VERIFY_TAG  # noqa: E402  what write-tickets
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)),
                                 "..", "..", "..", "gates", "scripts"))
 from project_rules import (BARE_FRAGMENT, DECIMAL, PLACEHOLDER, check_command,  # noqa: E402
-                           check_repo_path, is_date, is_unset, json_number, named_disciplines,
+                           check_repo_path, fence_split, is_date, is_unset, json_number,
+                           named_disciplines,
                            positive_int, read_config as load_config, report,
                            single_number)
 from project_rules import error_of as _error, result_of as _result  # noqa: E402  test helpers
@@ -114,16 +115,12 @@ def section_lines(description, heading, kind):
     """("item", id, line) for each `- <kind><n>:` line under `## <heading>`, ("stray", id) for
     one in another list form, and a final ("unclosed",) when a code fence never closes.
     Fenced lines are skipped; a fence closes only on a marker at least as long (CommonMark)."""
-    inside, fence = False, None
+    inside = False
     item = re.compile(rf"^-\s+({kind}\d+):")
     stray = re.compile(rf"^\s*(?:[-*]|\d+\.)\s+({kind}\d+):")
-    for line in description.splitlines():
-        marker = re.match(r"^\s*(`{3,}|~{3,})", line)
-        if marker and (fence is None or (marker.group(1)[0] == fence[0]
-                                         and len(marker.group(1)) >= len(fence))):
-            fence = None if fence else marker.group(1)
-            continue
-        if fence:
+    rows, unclosed = fence_split(description)
+    for line, fenced in rows:
+        if fenced:
             continue
         if re.match(r"^#{1,6}\s", line):
             inside = re.match(rf"^##\s+{heading}\s*$", line) is not None
@@ -135,7 +132,7 @@ def section_lines(description, heading, kind):
             yield ("item", found.group(1), line)
         elif stray.match(line):
             yield ("stray", stray.match(line).group(1))
-    if fence:
+    if unclosed:
         yield ("unclosed",)
 
 
@@ -572,6 +569,20 @@ CRITERIA_CASES = [
     ("a fenced comment does not end the section",
      "## Acceptance criteria\n- AC1: x [verify: ci @ y]\n```\n# not a heading\n```\n- AC2: z\n",
      [("AC1", "ci", "y", "ok"), ("AC2", "-", "-", "no-tag")]),
+    ("a marker indented four spaces is code, not a fence",
+     "## Acceptance criteria\n\n    ```\n    code\n\n- AC1: x [verify: ci @ y]\n",
+     [("AC1", "ci", "y", "ok")]),
+    ("a backtick in the opener's info string is no fence",
+     "## Acceptance criteria\n```x`y\n- AC1: x [verify: ci @ y]\n", [("AC1", "ci", "y", "ok")]),
+    ("a closed fence in a blockquote",
+     "## Acceptance criteria\n- AC1: x [verify: ci @ y]\n\n> ```\n> code\n> ```\n",
+     [("AC1", "ci", "y", "ok")]),
+    ("a closed fence in a nested list item",
+     "## Acceptance criteria\n- AC1: x [verify: ci @ y]\n  - b\n    ```\n    code\n    ```\n",
+     [("AC1", "ci", "y", "ok")]),
+    ("a closer with an info string closes nothing",
+     "## Acceptance criteria\n```\n```x\n```\n- AC1: x [verify: ci @ y]\n",
+     [("AC1", "ci", "y", "ok")]),
     ("the section ends at the next heading",
      "## Acceptance criteria\n- AC1: x [verify: ci @ y]\n## Out of scope\n- AC9: z\n",
      [("AC1", "ci", "y", "ok")]),

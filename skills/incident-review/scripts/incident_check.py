@@ -20,18 +20,16 @@ make a review late sooner, never excuse one.
 import argparse
 import datetime
 import os
-import re
 import subprocess
 import sys
 
 sys.dont_write_bytecode = True
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)),
                                 "..", "..", "..", "gates", "scripts"))
-from project_rules import (check_repo_path, error_of, parse_date, report,  # noqa: E402
-                           result_of)
+from project_rules import (check_repo_path, check_slug, error_of, parse_date,  # noqa: E402
+                           report, result_of)
 
 LATE_AFTER = 5
-SLUG = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
 
 
 def working_days(incident, start):
@@ -51,9 +49,7 @@ def timeliness(incident, start):
 
 def branch(date, slug):
     parse_date(date)
-    if not SLUG.fullmatch(slug):
-        raise ValueError(f"slug {slug!r} is not lowercase letters and digits joined by '-'")
-    return f"incident/{date}-{slug}"
+    return f"incident/{date}-{check_slug('slug', slug)}"
 
 
 WORKING_DAY_CASES = [

@@ -85,6 +85,11 @@ jobs:
       - name: Maintenance check self-test
         run: python3 skills/maintenance-review/scripts/maintenance_check.py --self-test
 
+      # One case per way a retirement record could read as done when it is not: a section
+      # missing, an unticked item, no confirmation; retire-system commits only on its `done`.
+      - name: Retirement check self-test
+        run: python3 skills/retire-system/scripts/retire_check.py --self-test
+
   manifest:
     name: Plugin manifest
     runs-on: ubuntu-latest
