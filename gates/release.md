@@ -109,7 +109,8 @@ sign-off is asked for.
 Appendix B3: phased store release, remote feature flags, and a server API compatible with
 every supported app version.
 
-- `{{api_compat_command}} {{min_supported_app_version}}` exits zero before the tag.
+- `{{api_compat_command}} {{min_supported_app_version}}` exits zero before the tag, and
+  again before the first production stage's deploy, after that stage's approval.
 - `{{rollout_stages}}` lists at least two stages, whatever `{{project_size}}` is, and
   `none` stops: the production stages are the store's phased release, a partial phase
   before the full one, and `{{rollback_command}} <stage>` halts that phase, since a shipped
@@ -136,5 +137,7 @@ exit from the command, or an `INVALID:` line from the check, stops the release, 
 unread budget is not a remaining one.
 At `0` or below the budget is spent, and the release stops unless every scope ticket carries
 the `reliability` label, read from Jira for this run; a ticket that cannot be read counts as
-unlabeled. Only reliability work ships until the budget recovers, as the Google SRE
-Workbook's error budget policy has it.
+unlabeled. The budget is read again before every production stage's deploy, after that
+stage's approval, so a budget spent during the waits stops the rollout there as an abort
+does. Only reliability work ships until the budget recovers, as the Google SRE Workbook's
+error budget policy has it.

@@ -294,16 +294,20 @@ for the product owner's acceptance, per criterion 1. It reads `verification_tier
 names separated by `·`, commas, or semicolons, each optionally in backticks and followed by
 a note in parentheses; `and` and `or` are joiners, and names compare without case.
 `release_dir` holds each version's test summary, its note file, the Must tickets'
-description copies the check reads, and the release notes. They are working files, not
+description copies the check reads, the release notes, and with disciplines named, the
+model thresholds, the error-budget reading, and the security sign-off. They are working files, not
 committed, so the path may be gitignored. The note `release-readiness` writes on the tested
 commit under `refs/notes/release-readiness`, which `release` checks and pushes with the tag,
 records the summary's hash and verdict there; it is an integrity check, not a signed
 attestation. The hosted equivalents, a GitHub commit status or check run for the verdict and
 Environment required reviewers for the stage approvals, are a known deviation: both skills
 keep their records in git and the session, so they run the same without GitHub's protections
-configured. All five default to `none`. A `none` system key or `release_dir` stops
-`release-readiness` and names the key, and so does a system results file equal to
-`results_file` or `integration_results_file`.
+configured; so is the security sign-off, recorded only in its `release_dir` file. Every
+configured command runs in a subshell from the project root, and one that takes arguments
+receives them at its end, so in a pipeline only the last command gets them; wrap a pipeline
+in a script that passes them on. All five default to `none`. A `none` system key or
+`release_dir` stops `release-readiness` and names the key, and so does a system results
+file equal to `results_file` or `integration_results_file`.
 
 `release_artifact_command`, `deploy_command`, `smoke_test_command`, `rollback_command`,
 `rollout_stages`, `halt_criteria`, `monitoring_window_minutes`, and `released_status` serve
@@ -410,8 +414,6 @@ no default, and placeholders here.
     flags`, one line per ticket, from `Remote-flag: <flag>` git trailers on its commits —
     a trailer the commit that adds the behavior carries — or, for a ticket with none, from
     the release manager's answer: the flag, or `none — <reason>`.
-  - A command that takes arguments receives them at its end, so in a pipeline only the last
-    command gets them; wrap a pipeline in a script that passes them on.
   - `sre` at release: `error_budget_command` prints the remaining error budget as one
     number. At `0` or below, the release stops unless every ticket in scope carries the
     `reliability` label.

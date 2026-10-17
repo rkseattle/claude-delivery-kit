@@ -111,6 +111,12 @@ empty scope stops the skill: there is nothing to release.
 
 ## Step 3 — Run the suites
 
+**Every configured command runs in a subshell from the project root** —
+`( {{command}} <arguments> )`, with any redirect outside the parentheses — so a `cd` or
+`export` inside it cannot move or change the shell for the commands after it, as
+`gates/definition-of-done.md` runs `{{sast_command}}`. This holds for each command below,
+written in a code block or named in prose.
+
 Run the suites in this order. Delete the system and integration results files before their
 suites run, so a crashed run cannot leave the previous verdict to be read as this one's:
 
@@ -132,7 +138,7 @@ suites run, so a crashed run cannot leave the previous verdict to be read as thi
 
    ```bash
    mkdir -p {{release_dir}} && : > {{release_dir}}/<version>-nfr-output.txt
-   { {{nfr_test_command}}; } >> {{release_dir}}/<version>-nfr-output.txt
+   ( {{nfr_test_command}} ) >> {{release_dir}}/<version>-nfr-output.txt
    ```
 
 4. **Discipline addenda** — only for each discipline `{{disciplines}}` names, as the gate's
@@ -140,19 +146,18 @@ suites run, so a crashed run cannot leave the previous verdict to be read as thi
    root written as its absolute path:
 
    ```bash
-   {{data_quality_command}}
+   ( {{data_quality_command}} )
    python3 "${CLAUDE_PLUGIN_ROOT}/skills/release-readiness/scripts/readiness_check.py" thresholds --config "<project root>/.claude/project.json" > {{release_dir}}/<version>-model-thresholds.txt &&
-     { {{model_eval_command}}; } < {{release_dir}}/<version>-model-thresholds.txt
+     ( {{model_eval_command}} ) < {{release_dir}}/<version>-model-thresholds.txt
    python3 "${CLAUDE_PLUGIN_ROOT}/skills/release-readiness/scripts/readiness_check.py" oldest-devices --config "<project root>/.claude/project.json"
-   {{hil_test_command}}
+   ( {{hil_test_command}} )
    ```
 
    The first two are `data-ml`'s; a `thresholds` failure is the model row's failure, its
    Command cell `thresholds` and its Result the `INVALID:` line, since the model never ran.
    The third prints `mobile`'s `<os> <version>` lines: run `{{device_test_command}} <os>
-   <version>` once per line, each written out in full; its own failure is one failed `mobile`
-   row. The last is `embedded`'s. The braces give each redirect to the whole command, which
-   may be a pipeline or `cd` elsewhere first.
+   <version>` once per line, in a subshell, each written out in full; its own failure is one
+   failed `mobile` row. The last is `embedded`'s.
 
 Read counts from the results files, never from the console or an exit code. An executed
 count of zero is a run that died early, not a pass. The discipline commands report no

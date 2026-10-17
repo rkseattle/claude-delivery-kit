@@ -23,6 +23,12 @@ tag.
 
 ## Step 1 — Read the configuration and check the prerequisites
 
+**Every configured command runs in a subshell from the project root** —
+`( {{command}} <arguments> )`, with any redirect outside the parentheses — so a `cd` or
+`export` inside it cannot move or change the shell for the commands after it, as
+`gates/definition-of-done.md` runs `{{sast_command}}`. This holds for each command below,
+written in a code block or named in prose.
+
 Read `${CLAUDE_PROJECT_DIR}/.claude/project.json`: every `{{key}}` below comes from it.
 Read `${CLAUDE_PLUGIN_ROOT}/gates/project-config.md` and follow it exactly, then
 `${CLAUDE_PLUGIN_ROOT}/gates/release.md`, whose stops come before the tag; this skill's
@@ -106,7 +112,7 @@ Every stop below comes before the tag, and says why in one line.
   oldest app version still supported, and a shipped binary cannot be recalled to match it.
 
   ```bash
-  {{api_compat_command}} {{min_supported_app_version}}
+  ( {{api_compat_command}} {{min_supported_app_version}} )
   ```
 
 **The stages.** `{{rollout_stages}}` is a list of production stage names, in order, each
@@ -140,7 +146,7 @@ the discipline stops that need them, each only when `{{disciplines}}` names it:
   `budget exited 0` stops the release; so does an `INVALID:` line from the check:
 
   ```bash
-  mkdir -p {{release_dir}} && { {{error_budget_command}}; } > {{release_dir}}/<version>-error-budget.txt; echo "budget exited $?"
+  mkdir -p {{release_dir}} && ( {{error_budget_command}} ) > {{release_dir}}/<version>-error-budget.txt; echo "budget exited $?"
   python3 "${CLAUDE_PLUGIN_ROOT}/skills/release-readiness/scripts/readiness_check.py" error-budget < {{release_dir}}/<version>-error-budget.txt
   ```
 
@@ -180,7 +186,7 @@ build=$(mktemp -d); repo=$PWD; out="$repo/{{release_dir}}"
 git worktree add --detach "$build" v<version> && (
   set -o pipefail
   trap 'cd "$repo" && git worktree remove --force "$build"' EXIT
-  cd "$build" && { {{release_artifact_command}}; } | tee "$out/<version>-build.log" &&
+  cd "$build" && ( {{release_artifact_command}} ) | tee "$out/<version>-build.log" &&
     artifact=$(tail -n 1 "$out/<version>-build.log") && [ -f "$artifact" ] &&
     cp "$artifact" "$out/<version>-$(basename "$artifact")" &&
     python3 "${CLAUDE_PLUGIN_ROOT}/skills/release-readiness/scripts/readiness_check.py" hash "$out/<version>-$(basename "$artifact")" > "$out/<version>-artifact.sha256"
@@ -227,10 +233,11 @@ nothing between here and the staging ask needs the network:
   keys are in the scope, then its `Known risks`. The summary's defect list is project-wide,
   for the gate; the published notes name only this release's tickets.
 - **Rollback** — `{{rollback_command}} <stage>` for each production stage, newest first.
-- **Remote flags**, with `mobile` only, the heading left out otherwise — one `- <KEY>: <flag>` line per scope key,
-  naming every flag a `Remote-flag:` git trailer gives on the range's commits whose subject
-  names the key, as Changes reads it, comma-separated. This prints each commit's subject,
-  then its flags on a line of their own, empty when it has none:
+- **Remote flags**, with `mobile` only, the heading left out otherwise — one
+  `- <KEY>: <flag>` line per scope key, naming every flag a `Remote-flag:` git trailer gives
+  on the range's commits whose subject names the key, as Changes reads it, comma-separated.
+  This prints each commit's subject, then its flags on a line of their own, empty when it
+  has none:
   `git log --format='%s%nRemote-flag: %(trailers:key=Remote-flag,valueonly,separator=%x2C)' <range>`.
   For each key with no trailer, ask `{{roles.release_manager}}`, printed per
   `gates/project-config.md`, in one question listing them all, for the flag that gates its
@@ -284,7 +291,11 @@ command from here to the end of Step 6 runs from the project root, never the bui
    does, minus the halt itself: roll back every production stage already deployed, newest
    first, under their own approvals. That is Argo Rollouts' abort, which returns a rollout
    to its stable version, never one left part-way.
-2. Step 3's artifact check, then `{{deploy_command}} <stage> "<artifact-path>"`, then
+2. With `sre`, Step 2's budget check again, since the approvals since may have taken long:
+   a spent budget with any scope ticket not labeled `reliability`, or a failed read, refuses
+   this stage, and the rollout ends as item 1's abort does. With `mobile`, before the first
+   production stage only, Step 1's API check again, a non-zero exit refusing it the same way.
+   Then Step 3's artifact check, then `{{deploy_command}} <stage> "<artifact-path>"`, then
    `{{smoke_test_command}} <stage>`.
 3. Watch the halt criteria for the window with the command below. Run it as one background
    command and wait for it to finish. It keeps no state the session must poll, and nothing
