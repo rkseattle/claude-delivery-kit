@@ -1,9 +1,9 @@
 # delivery-kit
 
 The shared half of the phased-delivery workflow: stage skills, adversary agents, the
-universal gates, and the two hooks, plus one standalone skill, `readme-docs`. Projects
-keep only what is genuinely theirs — the commands, thresholds and job names — in
-`.claude/project.json` and a pair of mechanics gate files.
+universal gates, and the two hooks, plus two standalone skills, `readme-docs` and
+`incident-review`. Projects keep only what is genuinely theirs — the commands, thresholds
+and job names — in `.claude/project.json` and a pair of mechanics gate files.
 
 ## Why this exists
 
@@ -29,7 +29,7 @@ skills/                plan-project, write-tickets, deliver, plan-work,
                        implement-phases, branch-review, ship-pr, ci-green;
                        release-readiness and release (once per release, after the
                        merges);
-                       readme-docs (standalone)
+                       readme-docs and incident-review (standalone)
 agents/                ticket-, design-, commit-, ci-failure-, greptile- adversaries
 gates/                 status-report.md, definition-of-done.md, pre-push.md,
                        read-only-agent.md (the universal halves only),
@@ -49,15 +49,26 @@ than proceed on a gate it could not read.
 
 ## Standalone skills
 
-These are not delivery stages: they load on their own, by description, and work with or
-without the rest of the kit.
+These are not delivery stages: neither runs inside `deliver`, and `readme-docs` works with
+or without the rest of the kit.
 
-- **`readme-docs`** — writes, rewrites, or audits a project's `README.md` and the docs it
-  links to, with every command and link checked against the repo by
-  `skills/readme-docs/scripts/check_readme.py`. It arrives with the plugin as
-  `delivery-kit:readme-docs`. To use it without the plugin, copy `skills/readme-docs/` to
-  `.claude/skills/readme-docs/` in a repo, or to `~/.claude/skills/readme-docs/` for every
-  project; a copy there wins the bare name `readme-docs` over the plugin's.
+- **`readme-docs`** — loads on its own, by description. It writes, rewrites, or audits a
+  project's `README.md` and the docs it links to, with every command and link checked
+  against the repo by `skills/readme-docs/scripts/check_readme.py`. It arrives with the
+  plugin as `delivery-kit:readme-docs`. To use it without the plugin, copy
+  `skills/readme-docs/` to `.claude/skills/readme-docs/` in a repo, or to
+  `~/.claude/skills/readme-docs/` for every project; a copy there wins the bare name
+  `readme-docs` over the plugin's.
+
+- **`incident-review`** — runs only when invoked by name, since it commits and creates
+  tickets: `/delivery-kit:incident-review <incident> <YYYY-MM-DD>`, the rule book's Phase 7
+  blameless review, after service is restored. It writes
+  `incident_reviews_dir/<date>-<slug>.md` with a timeline, impact, root cause, contributing
+  factors, and follow-ups, records `late` when it starts more than five working days
+  (Monday to Friday) after the incident, and commits the file on `incident/<date>-<slug>`
+  without pushing. Each follow-up becomes a Jira ticket labeled `incident-follow-up` only
+  once the service owner approves it. It refuses to start while a delivery plan is running
+  and not paused, since the branch guard would undo its branch switch.
 
 ## Installing in a project
 
@@ -170,7 +181,8 @@ The stage skills carry the procedure; the commands, paths and thresholds come fr
   "extra_gates": [".claude/gates/<project-only gate>.md"],
   "reviewers": "<comma-separated GitHub logins or org/team slugs, or none>",
   "merge_method": "<merge, squash, or rebase>",
-  "done_transition": "<name of the Jira transition into the done state>"
+  "done_transition": "<name of the Jira transition into the done state>",
+  "incident_reviews_dir": "<directory incident reviews are committed to, e.g. docs/incidents, or none>"
 }
 ```
 
@@ -199,6 +211,12 @@ run. `done_transition` names the Jira transition that then moves each covered ti
 done, default `Done`. The checks before the merge, and the decline and failure paths, are in
 `skills/ci-green/SKILL.md` Step 5. A rule requiring an approval refuses the merge on the R2
 exception path, which has none; the tech lead then merges outside the run.
+
+`incident_reviews_dir` serves rule book Phase 7 step 3: where `incident-review` commits each
+review. It must be a relative path inside the repository, outside `.git`, starting with a
+letter, digit, or `_` and made only of letters, digits, `.`, `_`, `-`, and `/`, and not
+gitignored, since the review is committed.
+Default `none`, under which `incident-review` stops and names the key.
 
 `secret_scan_command` and `sast_command` serve rule book R12 and Appendix B1's scans. Each
 writes SARIF 2.1.0 to standard output, redacted, with inline suppression comments ignored;
