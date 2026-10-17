@@ -32,7 +32,7 @@ the project's commands. Read both.
      gate="${CLAUDE_PLUGIN_ROOT}/gates/scripts/sarif_gate.py"; patch=$(mktemp)
      secrets_sarif=$(mktemp); trap 'rm -f "$patch" "$secrets_sarif"' EXIT
      python3 "$gate" patch --staged > "$patch" || exit 2
-     {{secret_scan_command}} < "$patch" > "$secrets_sarif"
+     { {{secret_scan_command}}; } < "$patch" > "$secrets_sarif"
      python3 "$gate" secrets "$secrets_sarif"
    )
    ```

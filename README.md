@@ -337,6 +337,10 @@ discipline is named, with no default, and placeholders here.
   "device_matrix": ["<os> <version>, e.g. ios 16.4>", "<os> <version>, e.g. android 10>"],
   "device_test_command": "<command taking <os> <version>, exiting non-zero on failure>",
   "hil_test_command": "<command running the hardware-in-the-loop suite, exiting non-zero on failure>",
+  "security_sensitive_paths": "<space-separated CODEOWNERS-style patterns, e.g. src/auth/ *.pem>",
+  "api_compat_command": "<command taking the minimum app version, exiting non-zero when the API breaks it>",
+  "min_supported_app_version": "<oldest app version still supported, e.g. 4.2>",
+  "error_budget_command": "<command printing the remaining error budget as one number>",
   "roles": {
     "sponsor": "<handle>",
     "product_owner": "<handle>",
@@ -355,10 +359,10 @@ discipline is named, with no default, and placeholders here.
 - `disciplines` — a list drawn from `security`, `data-ml`, `mobile`, `embedded`, and
   `sre`. Default `[]`. With `security`, `plan-work` requires a STRIDE `## Threat model`
   in every plan, and `design-adversary` blocks a `High` threat that names no phase.
-  `plan-work`, `release-readiness`, and `release` (through `halt_watch.py --check`) stop on
-  any other name, matched with case, since a misspelled discipline would skip its addenda
-  without a word. A named discipline adds its section of `gates/release-readiness.md`, where
-  it has one, and a discipline left out skips it silently. The keys a named discipline needs at a gate
+  `plan-work`, `release-readiness`, and `release` stop on any other name, matched with case,
+  since a misspelled discipline would skip its addenda without a word. A named discipline
+  adds its sections of `gates/release-readiness.md` and `gates/release.md`, where it has
+  them, and a discipline left out skips them silently. The keys a named discipline needs at a gate
   have no default: absent, `none`, a `<placeholder>`, or malformed, they stop that gate's skill.
   - `data-ml` at readiness: `data_quality_command` and `model_eval_command`, each exiting
     non-zero on failure. `model_eval_thresholds` is a list of `<metric> <minimum>` pairs, the
@@ -370,7 +374,20 @@ discipline is named, with no default, and placeholders here.
     per OS, on its lowest version, compared as numbers, so `ios 9` is older than `ios 10`.
     OS names compare without case, so `iOS 17` and `ios 15` are one OS.
   - `embedded` at readiness: `hil_test_command` runs the hardware-in-the-loop tests on
-    target hardware; simulator results alone do not meet rule book Appendix B4.
+    target hardware; simulator results alone do not meet rule book Appendix B4. At release,
+    the release manager confirms the artifact installs atomically with a fallback image.
+  - `security` at release: `security_sensitive_paths` is a space-separated list of globs, read
+    as CODEOWNERS reads its patterns — `*.pem` matches at any depth, `/keys/` only at the
+    root, `src/auth/` everything below it. A path the release's range changed that matches
+    one, deleted or moved included, needs the security role's sign-off before the tag.
+  - `mobile` at release: `api_compat_command <min_supported_app_version>` exits zero when the
+    server API still serves that app version, the version dotted digits. `rollout_stages`
+    must list at least two stages, the store's phased release, whatever `project_size` is,
+    and `rollback_command <stage>` halts that phase. The release notes gain `## Remote
+    flags`, one line per ticket, from `Remote-flag: <flag>` git trailers on its commits.
+  - `sre` at release: `error_budget_command` prints the remaining error budget as one
+    number. At `0` or below, the release stops unless every ticket in scope carries the
+    `reliability` label.
 - `roles` — a map from each role above to the person who holds it. `{{roles.<role>}}` in a
   skill resolves to that role's entry in `roles`, so `{{roles.tech_lead}}` names the tech
   lead. `plan-project` waits on the sponsor, `write-tickets` on the product owner after QA

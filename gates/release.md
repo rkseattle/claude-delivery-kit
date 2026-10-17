@@ -30,7 +30,10 @@ Before the release is tagged, each of these stops it and names the key or the ch
   a list with an entry that is blank, repeated, named `staging` (which would count staging
   as production, in any case), starting with `-` or `.`, or not made only of letters,
   digits, `.`, `_`, and `-`, since each name
-  is passed to the commands as a bare argument.
+  is passed to the commands as a bare argument;
+- `${CLAUDE_PLUGIN_ROOT}/skills/release-readiness/scripts/readiness_check.py` `disciplines
+  --gate release` printing anything but `ok`: an unknown discipline, or a key a named one
+  needs below that is absent, `none`, a `<placeholder>`, or malformed.
 
 Each of those would let a criterion pass with nothing checked. The production stages are
 `{{rollout_stages}}` in order. With it `none`, a `{{project_size}}` of `small` gets the
@@ -79,3 +82,57 @@ Criterion 1 is checked before any production stage, and a failure stops the rele
 staging is rolled back where it can be, nothing reaches production, and nothing is
 published. Criteria 2 and 3 are checked per stage, so a failure stops the rollout at the
 stage that failed. Criterion 4 runs only once the last stage's window has closed clean.
+
+## Discipline addenda
+
+Rule book Appendix B changes Deployment for some disciplines. Each section below applies
+only when `{{disciplines}}` names it; a section whose discipline is absent is skipped without
+output — no stop, no question, and no line in the report. Every stop here comes before the
+tag, except where a section says otherwise.
+
+### security
+
+Appendix B1: security sign-off for a release that changes authentication, authorization, or
+data handling. `readiness_check.py sensitive-paths` lists every path the release scope's
+range changed, deletions and both sides of a move included, that matches a pattern in
+`{{security_sensitive_paths}}`, a space-separated list read as CODEOWNERS reads its
+patterns: `*.pem` matches at any depth, `/keys/` only at the root, `src/auth/` everything
+below that directory. With a first release the range is all of
+history. Any path listed requires `{{roles.security}}`'s explicit sign-off before the tag,
+recorded as the last line of `{{release_dir}}/<version>-security-signoff.md`, after the
+paths: `Signed-off-by: security <name> <YYYY-MM-DD>`, with `, relayed by <git user.name>`
+for a relayed answer. A refusal, or a check that fails, stops the release. None listed: no
+sign-off is asked for.
+
+### mobile
+
+Appendix B3: phased store release, remote feature flags, and a server API compatible with
+every supported app version.
+
+- `{{api_compat_command}} {{min_supported_app_version}}` exits zero before the tag.
+- `{{rollout_stages}}` lists at least two stages, whatever `{{project_size}}` is, and
+  `none` stops: the production stages are the store's phased release, a partial phase
+  before the full one, and `{{rollback_command}} <stage>` halts that phase, since a shipped
+  binary cannot be recalled. `halt_watch.py --check` decides it.
+- The notes hold `## Remote flags`, with a `- <KEY>: <flag>` line for every scope key: the
+  flag that gates the key's new behavior, or `none — <why>`. Before staging,
+  `readiness_check.py notes-headings --flag-keys` passing settles it, with criterion 1's
+  headings.
+
+### embedded
+
+Appendix B4: firmware updates are atomic with a fallback image. The staging question asks
+`{{roles.release_manager}}` to confirm that the artifact installs atomically with a fallback
+image — A/B partitions or equivalent — so a failed update leaves the device on the previous
+image. An approval that does not confirm it is not an answer, and the wait stays open.
+
+### sre
+
+Appendix B5: the remaining error budget is a release gate. `{{error_budget_command}}` prints
+the remaining budget as one number; `readiness_check.py error-budget` reads it. A non-zero
+exit from the command, or an `INVALID:` line from the check, stops the release, since an
+unread budget is not a remaining one.
+At `0` or below the budget is spent, and the release stops unless every scope ticket carries
+the `reliability` label, read from Jira for this run; a ticket that cannot be read counts as
+unlabeled. Only reliability work ships until the budget recovers, as the Google SRE
+Workbook's error budget policy has it.
