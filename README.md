@@ -341,10 +341,11 @@ re-run that set and have a real verdict; one without a selector has no such answ
 only honest re-verification is everything.
 
 Five more keys tailor the workflow to the project, per the rule book's "Tailoring and
-exceptions" section and its Appendices A through C. Each is optional, and each bullet
-below gives its default; the `roles` and `exceptions_log` values are placeholders, not
-defaults. The keys after `disciplines` in the block are its addenda's: required once their
-discipline is named, with no default, and placeholders here.
+exceptions" section and its Appendices A through C, and the block also holds the keys
+`disciplines` brings in. The five are optional, and each bullet below gives its default;
+the `roles` and `exceptions_log` values are placeholders, not defaults. The keys after
+`disciplines` in the block are its addenda's: required once their discipline is named, with
+no default, and placeholders here.
 
 ```json
 {

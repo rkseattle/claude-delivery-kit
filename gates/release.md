@@ -117,8 +117,9 @@ every supported app version.
 - The notes hold `## Remote flags`, with a `- <KEY>: <flag>` line for every scope key: the
   flag a `Remote-flag:` trailer on its commits names, or, for a key with none,
   `{{roles.release_manager}}`'s answer — the flag, or `none — <reason>`. Before staging,
-  `readiness_check.py notes-headings --flag-keys` passing settles it, with criterion 1's
-  headings.
+  `readiness_check.py notes-headings --flag-keys` passing settles that every key has a line
+  that is no placeholder, with criterion 1's headings; the release manager's answer, not the
+  check, settles that a reason was given.
 
 ### embedded
 
