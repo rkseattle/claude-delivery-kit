@@ -2,8 +2,8 @@
 """The release gates' deterministic checks, so no skill applies them by eye. Standard library only.
 
 Called by skills/release-readiness/SKILL.md (Steps 1 to 4, 7), skills/release/SKILL.md
-(Steps 1 to 5), and skills/plan-work/SKILL.md (its disciplines check);
-incident_check.py imports check_repo_path.
+(Steps 1 to 5); incident_check.py imports check_repo_path. The project.json rules it
+shares with the other scripts are in gates/scripts/project_rules.py.
 
     readiness_check.py version --new X.Y.Z [--last vA.B.C]
         `ok` when X.Y.Z is MAJOR.MINOR.PATCH and, with --last, greater in SemVer precedence
@@ -63,9 +63,10 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)),
                                 "..", "..", "write-tickets", "scripts"))
 from lint_draft import NFR_SECTION, VERIFY_TAG  # noqa: E402  what write-tickets writes
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)),
-                                "..", "..", "release", "scripts"))
-from halt_watch import (PLACEHOLDER, STAGE_NAME, is_unset, named_disciplines,  # noqa: E402
-                        read_config as load_config)  # one rule each, shared with release
+                                "..", "..", "..", "gates", "scripts"))
+from project_rules import (BARE_ARGUMENT, PLACEHOLDER, is_unset, named_disciplines,  # noqa: E402
+                           read_config as load_config, report)
+from project_rules import error_of as _error, result_of as _result  # noqa: E402  test helpers
 
 SEMVER = re.compile(r"^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$")
 # A criterion's tag ends its line, as lint_draft.py's AC pattern requires, so a tag quoted in
@@ -331,7 +332,7 @@ GATE_KEYS = {
                 "sre": ("error_budget_command",)},
 }
 # Each part is passed to a command as a bare argument, as a stage name is.
-BARE = STAGE_NAME.pattern.strip("^$")
+BARE = BARE_ARGUMENT.pattern.strip("^$")
 DOTTED = r"\d+(?:\.\d+)*"
 DEVICE = re.compile(rf"^({BARE}) ({DOTTED})$")
 THRESHOLD = re.compile(rf"^({BARE}) (-?\d+(?:\.\d+)?)$")
@@ -362,20 +363,27 @@ def model_thresholds(config):
 
 def sensitive_globs(config):
     value = config.get("security_sensitive_paths")
-    if not isinstance(value, str) or not value.split():
+    if is_unset(value) or not isinstance(value, str):
         raise ValueError("security_sensitive_paths is not a space-separated list of globs")
     return value.split()
 
 
 def owners_pathspec(pattern):
-    """A CODEOWNERS pattern as git `:(glob)` pathspecs, by gitignore's rules: a pattern with
+    """A CODEOWNERS pattern as git `:(glob)` pathspecs, by CODEOWNERS' rules: a pattern with
     no `/` except a trailing one matches at any depth, and a leading `/` anchors to the root.
-    A pattern names a file or a directory, and a glob pathspec matches only whole paths, so
-    each also matches everything below a directory it names; a trailing `/` names only that."""
+    A literal name names a file or a directory, and a glob pathspec matches only whole paths,
+    so it also matches everything below a directory of that name; a trailing `/` names only
+    that. A pattern holding a `/` whose last segment holds a wildcard matches only at that
+    level, as CODEOWNERS' `docs/*` matches `docs/a.md` but not `docs/sub/b.md`; a slash-free
+    one such as `*secret*` still matches at any depth and below."""
     core = pattern.rstrip("/")
     spec = core.lstrip("/") if "/" in core else f"**/{core}"
     below = f":(glob){spec}/**"
-    return [below] if pattern.endswith("/") else [f":(glob){spec}", below]
+    if pattern.endswith("/"):
+        return [below]
+    if "/" in core and re.search(r"[*?\[]", core.rsplit("/", 1)[-1]):
+        return [f":(glob){spec}"]
+    return [f":(glob){spec}", below]
 
 
 def check_min_version(config):
@@ -907,6 +915,8 @@ def discipline_cases(directory, summary_file):
              ["model_eval_thresholds"]),
             ("a key none in another case", dict(READY, hil_test_command="None "), "readiness",
              ["hil_test_command"]),
+            ("sensitive paths none", dict(RELEASED, security_sensitive_paths="none"), "release",
+             ["security_sensitive_paths"]),
             ("blank sensitive paths", dict(RELEASED, security_sensitive_paths=" "), "release",
              ["security_sensitive_paths"]),
             ("a minimum version with a trailing newline",
@@ -976,6 +986,9 @@ def sensitive_cases(directory):
                               ("/keys/top.key", [":(glob)keys/top.key", ":(glob)keys/top.key/**"]),
                               ("auth", [":(glob)**/auth", ":(glob)**/auth/**"]),
                               ("src/auth/", [":(glob)src/auth/**"]),
+                              ("docs/*", [":(glob)docs/*"]),
+                              ("/*.pem", [":(glob)*.pem"]),
+                              ("**/secrets", [":(glob)**/secrets", ":(glob)**/secrets/**"]),
                               ("apps/", [":(glob)**/apps/**"])]:
         failures += report("sensitive-paths", f"{pattern} as a pathspec", owners_pathspec(pattern),
                            expected)
@@ -983,8 +996,8 @@ def sensitive_cases(directory):
     os.makedirs(os.path.join(repo, ".claude"))
     config = os.path.join(repo, ".claude", "project.json")
     with open(config, "w", encoding="utf-8") as handle:
-        json.dump({"security_sensitive_paths": "src/auth/ *.pem /keys/top.key docs/*.md vault"},
-                  handle)
+        json.dump({"security_sensitive_paths":
+                   "src/auth/ *.pem /keys/top.key docs/*.md vault *secret*"}, handle)
 
     def git(*arguments):
         subprocess.run(["git", "-c", "user.name=t", "-c", "user.email=t@t", "-c",
@@ -1016,7 +1029,7 @@ def sensitive_cases(directory):
     git("tag", "v1.3.0")
     for path in ("keys/sub/a.pem", "keys/b.pem", "keys/top.key", "other/keys/top.key",
                  "docs/a.md", "docs/sub/b.md", "readme.txt", "lib/vault/key.txt",
-                 "tab\tname.pem"):
+                 "tab\tname.pem", "app/secrets/key.txt"):
         write(path)
     git("add", "-A")
     git("commit", "-qm", "five")
@@ -1026,37 +1039,20 @@ def sensitive_cases(directory):
             ("a directory pattern matches files at any depth below it", "v1.2.0..v1.3.0",
              ["src/auth/deep/login.py"]),
             ("slash-free, leading-slash, and anchored patterns, as CODEOWNERS reads them",
-             "v1.3.0..HEAD", ["docs/a.md", "keys/b.pem", "keys/sub/a.pem", "keys/top.key",
-                              "lib/vault/key.txt", "tab\tname.pem"]),
+             "v1.3.0..HEAD", ["app/secrets/key.txt", "docs/a.md", "keys/b.pem", "keys/sub/a.pem",
+                              "keys/top.key", "lib/vault/key.txt", "tab\tname.pem"]),
             ("a first release diffs from the empty tree", "v1.0.0", ["src/auth/login.py"]),
             ("a range that looks like an option", "--output=x", "ValueError"),
             ("a revision git does not know", "v9.0.0..HEAD", "ValueError")]:
         failures += report("sensitive-paths", name,
                            _result(sensitive_paths, config, scope_range), expected)
+    for value in ("none", "<patterns>"):
+        unset = os.path.join(directory, "unset.json")
+        with open(unset, "w", encoding="utf-8") as handle:
+            json.dump({"security_sensitive_paths": value}, handle)
+        failures += report("sensitive-paths", f"{value} is not a pattern list",
+                           _result(sensitive_paths, unset, "v1.0.0..HEAD"), "ValueError")
     return failures
-
-
-def _result(function, *arguments):
-    try:
-        return function(*arguments)
-    except ValueError:
-        return "ValueError"
-
-
-def _error(function, *arguments):
-    try:
-        function(*arguments)
-    except ValueError:
-        return "ValueError"
-    return "ok"
-
-
-def report(kind, name, got, expected):
-    if got == expected:
-        print(f"ok   {kind}: {name}")
-        return 0
-    print(f"FAIL {kind}: {name} — expected {expected!r}, got {got!r}")
-    return 1
 
 
 def main():

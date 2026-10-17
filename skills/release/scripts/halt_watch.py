@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Watch a release stage's halt criteria for its monitoring window. Standard library only.
 
-Called by skills/release/SKILL.md (Steps 1 and 5); readiness_check.py imports its
-placeholder, stage-name, and disciplines rules so the two scripts cannot disagree.
+Called by skills/release/SKILL.md (Steps 1 and 5). The project.json rules it shares with
+the other scripts are in gates/scripts/project_rules.py.
 
     halt_watch.py --config PATH     reads `halt_criteria` and `monitoring_window_minutes`
         from the project.json at PATH and runs each criterion from that project's root;
@@ -25,55 +25,22 @@ the watch cannot read is a halt too: a watch with nothing to check would pass.
 import argparse
 import json
 import os
-import re
 import signal
 import subprocess
 import sys
 import tempfile
 import time
 
+sys.dont_write_bytecode = True
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                                "..", "..", "..", "gates", "scripts"))
+from project_rules import (BARE_ARGUMENT, PLACEHOLDER, named_disciplines,  # noqa: E402
+                           read_config, report)
+
 ROUND_SECONDS = 60
 BUDGET_SECONDS = 55
-STAGE_NAME = re.compile(r"^[A-Za-z0-9_][A-Za-z0-9._-]*$")
-PLACEHOLDER = re.compile(r"^\s*<.*>\s*$")
+STAGE_NAME = BARE_ARGUMENT
 POLL_SECONDS = 0.05
-DISCIPLINES = ("security", "data-ml", "mobile", "embedded", "sre")
-
-
-def named_disciplines(config):
-    """The `disciplines` list, matched with case; absent is the README's default, []."""
-    value = config.get("disciplines", [])
-    if not (isinstance(value, list) and all(isinstance(name, str) for name in value)):
-        raise ValueError("disciplines is not a list of names")
-    unknown = [name for name in value if name not in DISCIPLINES]
-    if unknown:
-        raise ValueError(f"disciplines names {', '.join(map(repr, unknown))}, not one of "
-                         + ", ".join(DISCIPLINES))
-    return value
-
-
-def is_unset(value):
-    """Absent, blank, `none` in any case, or a README placeholder: a key nothing was
-    configured for. review_gate.py reads `reviewers` by this rule too."""
-    if value is None:
-        return True
-    if isinstance(value, str):
-        return (not value.strip() or value.strip().lower() == "none"
-                or PLACEHOLDER.match(value) is not None)
-    return isinstance(value, list) and any(isinstance(entry, str) and PLACEHOLDER.match(entry)
-                                           for entry in value)
-
-
-def read_config(config_path):
-    """project.json as a dict, or raise ValueError naming what is wrong."""
-    try:
-        with open(config_path, encoding="utf-8") as handle:
-            config = json.load(handle)
-    except (OSError, ValueError) as error:
-        raise ValueError(f"project.json unreadable: {error}")
-    if not isinstance(config, dict):
-        raise ValueError("project.json is not an object")
-    return config
 
 
 def load(config_path):
@@ -358,14 +325,6 @@ def self_test():
         failures += report("watch", "a halted criterion's children are killed",
                            os.path.exists(orphan), False)
     return 1 if failures else 0
-
-
-def report(kind, name, got, expected):
-    if got == expected:
-        print(f"ok   {kind}: {name}")
-        return 0
-    print(f"FAIL {kind}: {name} — expected {expected!r}, got {got!r}")
-    return 1
 
 
 def main():

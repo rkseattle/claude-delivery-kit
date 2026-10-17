@@ -27,7 +27,10 @@ import sys
 sys.dont_write_bytecode = True
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)),
                                 "..", "..", "release-readiness", "scripts"))
-from readiness_check import _error, _result, check_repo_path, report  # noqa: E402  shared
+from readiness_check import check_repo_path  # noqa: E402  the rule release_dir follows
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                                "..", "..", "..", "gates", "scripts"))
+from project_rules import error_of, report, result_of  # noqa: E402
 
 LATE_AFTER = 5
 DATE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
@@ -101,12 +104,12 @@ BRANCH_CASES = [
 def self_test():
     failures = 0
     for name, incident, start, expected in WORKING_DAY_CASES:
-        failures += report("working-days", name, _result(timeliness, incident, start), expected)
+        failures += report("working-days", name, result_of(timeliness, incident, start), expected)
     for name, date, slug, expected in BRANCH_CASES:
-        failures += report("branch", name, _result(branch, date, slug), expected)
+        failures += report("branch", name, result_of(branch, date, slug), expected)
     # readiness_check.py's self-test covers the path rules; this pins the key the error names.
     failures += report("reviews-dir", "a relative path",
-                       _error(check_repo_path, "incident_reviews_dir", "docs/incidents"), "ok")
+                       error_of(check_repo_path, "incident_reviews_dir", "docs/incidents"), "ok")
     try:
         check_repo_path("incident_reviews_dir", "/tmp/incidents")
         named = "ok"

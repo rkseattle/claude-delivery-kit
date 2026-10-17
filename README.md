@@ -36,7 +36,9 @@ gates/                 status-report.md, definition-of-done.md, pre-push.md,
                        project-config.md, exceptions.md, rule-book-review.md,
                        planning-exit.md, release-readiness.md, and release.md;
                        scripts/sarif_gate.py builds the scanners' git inputs and reads
-                       their reports into the gates' verdicts
+                       their reports into the gates' verdicts; scripts/project_rules.py
+                       holds the project.json rules and self-test helpers the release,
+                       review, and incident scripts share
 hooks/                 hooks.json + the two hooks and their self-tests
 scripts/ci/            the CI checks, runnable locally; all.sh runs every one
 reference/             software-engineering-rule-book.md, the source the rules

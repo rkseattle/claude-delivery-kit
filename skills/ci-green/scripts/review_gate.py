@@ -20,8 +20,8 @@ import sys
 
 sys.dont_write_bytecode = True
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)),
-                                "..", "..", "release", "scripts"))
-from halt_watch import is_unset  # noqa: E402  the kit's one rule for an unset key
+                                "..", "..", "..", "gates", "scripts"))
+from project_rules import is_unset, report  # noqa: E402  shared with the kit's scripts
 # COLLABORATOR includes read-only collaborators, whom a required-review rule would not count;
 # branch protection, not this script, is what blocks a merge.
 COUNTED_ASSOCIATIONS = {"OWNER", "MEMBER", "COLLABORATOR"}
@@ -250,14 +250,6 @@ def self_test():
         failures += report("cli", name, (run.stdout.strip(), run.returncode),
                            (expected_output, expected_exit))
     return 1 if failures else 0
-
-
-def report(check, name, got, expected):
-    if got == expected:
-        print(f"ok   {check}: {name}")
-        return 0
-    print(f"FAIL {check}: {name} — expected {expected!r}, got {got!r}")
-    return 1
 
 
 def main():
