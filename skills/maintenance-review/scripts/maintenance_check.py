@@ -11,9 +11,10 @@ reads its keys from project.json itself, so no value passes through shell text.
         one `<key>\t<value>` line per general maintenance key, the value as JSON — its
         default or "none" when unset — or INVALID for each key set in the wrong shape
     maintenance_check.py alerts --config PATH --today YYYY-MM-DD < PAGES
-        one `<severity>\t<age>\t<package>\t<advisory>\t<url>` line per open Dependabot alert
-        more than patch_sla_days old, Critical first, then oldest first; PAGES is the output
-        of `gh api --paginate --slurp`, a list of pages, each a list of alerts
+        one `<severity>\t<age>\t<package>\t<advisory>\t<manifest>\t<url>` line per open alert
+        from Dependabot more than patch_sla_days old, Critical first, then oldest first, one
+        per manifest as Dependabot raises them; PAGES is the output of
+        `gh api --paginate --slurp`, a list of pages, each a list of alerts
     maintenance_check.py runbooks --config PATH --today YYYY-MM-DD
         one `<path>\t<last commit date, or uncommitted>` line per file under runbooks_dir
         whose last commit is more than 90 days old, or that no commit holds
@@ -131,7 +132,8 @@ def stale_alerts(config, pages, today):
             age = (today - utc_date(alert["created_at"])).days
             row = (alert["security_advisory"]["severity"], age,
                    alert["dependency"]["package"]["name"],
-                   alert["security_advisory"]["ghsa_id"], alert["html_url"])
+                   alert["security_advisory"]["ghsa_id"], alert["dependency"]["manifest_path"],
+                   alert["html_url"])
         except (KeyError, TypeError):
             raise ValueError(f"alert {alert!r:.80} lacks a Dependabot alert field")
         if age > sla_days:
@@ -212,7 +214,7 @@ def drift(config, output):
 
 def alert(created_at, severity="high", state="open", name="left-pad"):
     return {"state": state, "created_at": created_at, "html_url": f"https://example.test/{name}",
-            "dependency": {"package": {"name": name}},
+            "dependency": {"package": {"name": name}, "manifest_path": "package-lock.json"},
             "security_advisory": {"severity": severity, "ghsa_id": "GHSA-xxxx-xxxx-xxxx"}}
 
 
