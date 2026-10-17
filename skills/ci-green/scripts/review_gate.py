@@ -15,11 +15,13 @@ Exit 2 is unparseable input, never a verdict.
 import argparse
 import json
 import os
-import re
 import subprocess
 import sys
 
-PLACEHOLDER = re.compile(r"^<.*>$")
+sys.dont_write_bytecode = True
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                                "..", "..", "release", "scripts"))
+from halt_watch import is_unset  # noqa: E402  the kit's one rule for an unset key
 # COLLABORATOR includes read-only collaborators, whom a required-review rule would not count;
 # branch protection, not this script, is what blocks a merge.
 COUNTED_ASSOCIATIONS = {"OWNER", "MEMBER", "COLLABORATOR"}
@@ -30,9 +32,9 @@ DECISIVE_STATES = {"APPROVED", "CHANGES_REQUESTED"}
 
 def reviewer_set(reviewers, author=None):
     """The configured reviewers minus the author, or [] for none."""
-    value = (reviewers or "").strip()
-    if not value or value.lower() == "none" or PLACEHOLDER.match(value):
+    if is_unset(reviewers):
         return []
+    value = reviewers.strip()
     resolved = []
     for entry in value.split(","):
         login = entry.strip()

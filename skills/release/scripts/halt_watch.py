@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """Watch a release stage's halt criteria for its monitoring window. Standard library only.
 
-Called by skills/release/SKILL.md (Step 5) after each production stage.
+Called by skills/release/SKILL.md (Steps 1 and 5); readiness_check.py imports its
+placeholder, stage-name, and disciplines rules so the two scripts cannot disagree.
 
     halt_watch.py --config PATH     reads `halt_criteria` and `monitoring_window_minutes`
         from the project.json at PATH and runs each criterion from that project's root;
@@ -9,7 +10,10 @@ Called by skills/release/SKILL.md (Step 5) after each production stage.
         round; otherwise prints one `HALT` line and exits 1
     halt_watch.py --check --config PATH
         validates those two keys and `rollout_stages` without watching; prints `ok` and
-        exits 0, or prints `INVALID: <what>` to standard error and exits 1. Release runs it before the tag.
+        exits 0, or prints `INVALID: <what>` to standard error and exits 1; release runs
+        it before the tag.
+        With `mobile` in `disciplines`, `rollout_stages` must list at least two stages: the
+        stores' phased release (rule book Appendix B3) has a partial phase before the full one.
     halt_watch.py --self-test       runs every case below; exit 0 only if each one matches
 
 A round starts on each minute from 0 through the window's end and runs every criterion at
@@ -33,10 +37,35 @@ BUDGET_SECONDS = 55
 STAGE_NAME = re.compile(r"^[A-Za-z0-9_][A-Za-z0-9._-]*$")
 PLACEHOLDER = re.compile(r"^\s*<.*>\s*$")
 POLL_SECONDS = 0.05
+DISCIPLINES = ("security", "data-ml", "mobile", "embedded", "sre")
 
 
-def load(config_path):
-    """(criteria, window) from project.json, or raise ValueError naming what is wrong."""
+def named_disciplines(config):
+    """The `disciplines` list, matched with case; absent is the README's default, []."""
+    value = config.get("disciplines", [])
+    if not (isinstance(value, list) and all(isinstance(name, str) for name in value)):
+        raise ValueError("disciplines is not a list of names")
+    unknown = [name for name in value if name not in DISCIPLINES]
+    if unknown:
+        raise ValueError(f"disciplines names {', '.join(map(repr, unknown))}, not one of "
+                         + ", ".join(DISCIPLINES))
+    return value
+
+
+def is_unset(value):
+    """Absent, blank, `none` in any case, or a README placeholder: a key nothing was
+    configured for. review_gate.py reads `reviewers` by this rule too."""
+    if value is None:
+        return True
+    if isinstance(value, str):
+        return (not value.strip() or value.strip().lower() == "none"
+                or PLACEHOLDER.match(value) is not None)
+    return isinstance(value, list) and any(isinstance(entry, str) and PLACEHOLDER.match(entry)
+                                           for entry in value)
+
+
+def read_config(config_path):
+    """project.json as a dict, or raise ValueError naming what is wrong."""
     try:
         with open(config_path, encoding="utf-8") as handle:
             config = json.load(handle)
@@ -44,6 +73,15 @@ def load(config_path):
         raise ValueError(f"project.json unreadable: {error}")
     if not isinstance(config, dict):
         raise ValueError("project.json is not an object")
+    return config
+
+
+def load(config_path):
+    """(criteria, window) from project.json, or raise ValueError naming what is wrong."""
+    return settings(read_config(config_path))
+
+
+def settings(config):
     criteria = config.get("halt_criteria")
     if not (isinstance(criteria, list) and criteria
             and all(isinstance(c, str) and c.strip() for c in criteria)):
@@ -58,15 +96,19 @@ def load(config_path):
 
 def check(config_path):
     """Validate every value the watch and the stage loop read, or raise ValueError."""
-    load(config_path)
-    with open(config_path, encoding="utf-8") as handle:
-        stages = json.load(handle).get("rollout_stages", "none")
+    config = read_config(config_path)
+    settings(config)
+    stages = config.get("rollout_stages", "none")
+    if ("mobile" in named_disciplines(config)
+            and not (isinstance(stages, list) and len(stages) >= 2)):
+        raise ValueError("rollout_stages lists fewer than two stages, and mobile needs a phased "
+                         "store release")
     if stages == "none":
         return
     if not (isinstance(stages, list) and stages and all(isinstance(n, str) for n in stages)):
         raise ValueError("rollout_stages is neither none nor a non-empty list of names")
     for name in stages:
-        if not STAGE_NAME.match(name) or name.lower() == "staging":
+        if not STAGE_NAME.fullmatch(name) or name.lower() == "staging":
             raise ValueError(f"rollout_stages entry {name!r} is blank, staging, starts with "
                              "'-' or '.', or is not made only of letters, digits, '.', '_', "
                              "and '-'")
@@ -185,9 +227,26 @@ CHECK_CASES = [
      "ValueError"),
     ("staging in another case", {"halt_criteria": ["true"], "rollout_stages": ["Staging"]},
      "ValueError"),
+    ("a stage with a trailing newline", {"halt_criteria": ["true"], "rollout_stages": ["canary\n"]},
+     "ValueError"),
     ("a non-string stage", {"halt_criteria": ["true"], "rollout_stages": ["canary", 3]},
      "ValueError"),
     ("bad criteria fail the check", {"halt_criteria": []}, "ValueError"),
+    ("mobile with two stages", {"halt_criteria": ["true"], "disciplines": ["mobile"],
+                                "rollout_stages": ["phased", "full"]}, "ok"),
+    ("mobile with one stage", {"halt_criteria": ["true"], "disciplines": ["mobile"],
+                               "rollout_stages": ["full"]}, "ValueError"),
+    ("mobile with stages none on a small project",
+     {"halt_criteria": ["true"], "disciplines": ["mobile"], "project_size": "small",
+      "rollout_stages": "none"}, "ValueError"),
+    ("mobile with stages absent", {"halt_criteria": ["true"], "disciplines": ["mobile"]},
+     "ValueError"),
+    ("disciplines as a string", {"halt_criteria": ["true"], "disciplines": "mobile",
+                                 "rollout_stages": ["full"]}, "ValueError"),
+    ("an unknown discipline", {"halt_criteria": ["true"], "disciplines": ["Mobile"],
+                               "rollout_stages": ["full"]}, "ValueError"),
+    ("one stage without mobile", {"halt_criteria": ["true"], "disciplines": ["sre"],
+                                  "rollout_stages": ["full"]}, "ok"),
 ]
 
 LOAD_CASES = [
