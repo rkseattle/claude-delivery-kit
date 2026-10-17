@@ -3,7 +3,7 @@ name: incident-review
 description: Run the rule book's Phase 7 blameless incident review — timeline, impact, root cause, contributing factors, and follow-ups — record whether it started within five working days, create each follow-up ticket only once the service owner approves it, and commit the review on its own branch.
 argument-hint: <incident, a few words> <incident date YYYY-MM-DD>
 disable-model-invocation: true
-allowed-tools: Read, Write, Edit, Grep, Glob, Bash(git log:*), Bash(git fetch:*), Bash(git check-ignore:*), Bash(git cat-file:*), Bash(git rev-list:*), Bash(git switch:*), Bash(git add:*), Bash(git commit:*), Bash(git config user.name), Bash(gh run list:*), Bash(date -u:*), Bash(grep:*), Bash(python3 "${CLAUDE_PLUGIN_ROOT}/skills/incident-review/scripts/incident_check.py":*)
+allowed-tools: Read, Write, Edit, Grep, Glob, Bash
 ---
 
 Review the incident: $ARGUMENTS

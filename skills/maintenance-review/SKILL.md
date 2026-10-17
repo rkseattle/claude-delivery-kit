@@ -3,7 +3,7 @@ name: maintenance-review
 description: Run the rule book's Phase 7 ongoing checks — owner and on-call rota, incoming work by maintenance type, the preventive share of the last iteration, outdated dependencies, vulnerabilities past their patch SLA, stale runbooks, alerts routed to no person, and old incident follow-ups, plus the security, data-ml, and SRE maintenance addenda — report them, and create each proposed ticket only once the service owner approves it.
 argument-hint: (no arguments)
 disable-model-invocation: true
-allowed-tools: Read, Grep, Glob, Bash(date -u:*), Bash(python3 "${CLAUDE_PLUGIN_ROOT}/skills/maintenance-review/scripts/maintenance_check.py":*), Bash(python3 "${CLAUDE_PLUGIN_ROOT}/skills/release-readiness/scripts/readiness_check.py" disciplines:*)
+allowed-tools: Read, Grep, Glob, Bash
 ---
 
 Review maintenance for this project.

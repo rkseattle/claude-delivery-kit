@@ -3,7 +3,7 @@ name: retire-system
 description: Run the rule book's Phase 7 system retirement — write a record with user notice, data, infrastructure, and credentials sections, draft the notice, list every data store, resource, and credential the repository names, mark each section done only once the service owner confirms it, and commit the record on its own branch once all four are done. Runs no removal itself.
 argument-hint: <system name, lowercase kebab-case>
 disable-model-invocation: true
-allowed-tools: Read, Write, Edit, Grep, Glob, Bash(git fetch:*), Bash(git check-ignore:*), Bash(git cat-file:*), Bash(git rev-list:*), Bash(git switch:*), Bash(git add:*), Bash(git commit:*), Bash(git config user.name), Bash(date -u:*), Bash(python3 "${CLAUDE_PLUGIN_ROOT}/skills/retire-system/scripts/retire_check.py":*)
+allowed-tools: Read, Write, Edit, Grep, Glob, Bash
 ---
 
 Retire the system: $ARGUMENTS
