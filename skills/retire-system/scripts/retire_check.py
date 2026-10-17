@@ -11,7 +11,8 @@ Called by skills/retire-system/SKILL.md (Steps 1, 4 and 5).
     retire_check.py record --file PATH --config PATH --today YYYY-MM-DD
         `done` when the record holds exactly the sections User notice, Data, Infrastructure,
         and Credentials, in that order, each `Status: done` with every checklist item ticked
-        and one `Confirmed:` line naming the service owner; otherwise `pending: <section>, ...`
+        and one `Confirmed:` line naming the service owner, and no `<placeholder>` left in its
+        items or notice; otherwise `pending: <section>, ...`
         naming each section still `Status: pending`
     retire_check.py --self-test     runs every case below; exit 0 only if each one matches
 
@@ -48,6 +49,11 @@ ITEM = re.compile(r"^- \[([ x])\] \S.*$")
 CONFIRMED = re.compile(r"^Confirmed: (\S.*?) (\d{4}-\d{2}-\d{2})(?:, relayed by \S.*)?$")
 STARTED = re.compile(r"^Started: (\d{4}-\d{2}-\d{2})$")
 OWNER = re.compile(r"^Service owner: (\S.*)$")
+# Exactly what the skill's template leaves for an answer, so an email address or URL in angle
+# brackets in the sent notice is never taken for one.
+TEMPLATE_PLACEHOLDERS = ("<each user group>", "<data store>", "<resource>", "<credential name>",
+                         "<path>", "<line>", "<where>", "<to confirm>", "<the drafted notice",
+                         "<name>", " or archived at ")
 TITLE = re.compile(r"^# Retirement — \S.*$")
 HEADER_LINES = (TITLE, OWNER, STARTED)  # each exactly once
 SECTION_LINES = (STATUS, CONFIRMED, ITEM)
@@ -74,18 +80,23 @@ def service_owner(config):
 
 
 def structure(text):
-    """(header lines, [(heading, [lines])]) for the lines outside fences, each checked
-    against the allowlist its place in the record has."""
+    """(header lines, [(heading, [lines], [fenced lines])]): the lines outside fences each
+    checked against the allowlist its place in the record has, and a section's fenced lines,
+    such as the drafted notice, kept apart."""
     rows, unclosed = fence_split(text)
     if unclosed:
         raise ValueError("a code fence in the record never closes")
     header, sections = [], []
     for line, fenced in rows:
         line = line.rstrip()
-        if fenced or not line:
+        if fenced:
+            if sections:
+                sections[-1][2].append(line)
+            continue
+        if not line:
             continue
         if line.startswith("## "):
-            sections.append((line[3:].strip(), []))
+            sections.append((line[3:].strip(), [], []))
             continue
         allowed = SECTION_LINES if sections else HEADER_LINES
         if not any(pattern.match(line) for pattern in allowed):
@@ -103,7 +114,7 @@ def one(pattern, lines, what):
     return matches[0]
 
 
-def section_state(heading, lines, owner, started, today):
+def section_state(heading, lines, fenced, owner, started, today):
     status = one(STATUS, lines, f"{heading} status").group(1)
     items = [ITEM.match(line).group(1) for line in lines if ITEM.match(line)]
     if not items:
@@ -115,6 +126,11 @@ def section_state(heading, lines, owner, started, today):
         return "pending"
     if " " in items:
         raise ValueError(f"{heading} is done with an unticked item")
+    left = [line for line in lines + fenced
+            if any(placeholder in line for placeholder in TEMPLATE_PLACEHOLDERS)]
+    if left:
+        raise ValueError(f"{heading} is done but still holds {left[0]!r}, a placeholder the "
+                         "service owner's answer replaces")
     if len(confirmations) != 1:
         raise ValueError(f"{heading} is done without one `Confirmed: <name> <YYYY-MM-DD>` line")
     name, date = confirmations[0].groups()
@@ -128,17 +144,19 @@ def section_state(heading, lines, owner, started, today):
 def record_state(text, owner, today):
     today = parse_date(today)
     header, sections = structure(text)
-    headings = tuple(heading for heading, _ in sections)
+    headings = tuple(heading for heading, _, _ in sections)
     if headings != SECTIONS:
         raise ValueError(f"the sections are {', '.join(headings) or 'none'}, not "
                          + ", ".join(SECTIONS))
-    one(TITLE, header, "`# Retirement — ` title")
+    title = one(TITLE, header, "`# Retirement — ` title").group(0)
+    if any(placeholder in title for placeholder in TEMPLATE_PLACEHOLDERS):
+        raise ValueError(f"the title {title!r} still holds a template placeholder")
     named = one(OWNER, header, "Service owner").group(1)
     if named != owner:
         raise ValueError(f"the record names {named!r} as service owner, not {owner!r}")
     started = parse_date(one(STARTED, header, "Started").group(1))
-    pending = [heading for heading, lines in sections
-               if section_state(heading, lines, owner, started, today) == "pending"]
+    pending = [heading for heading, lines, fenced in sections
+               if section_state(heading, lines, fenced, owner, started, today) == "pending"]
     return f"pending: {', '.join(pending)}" if pending else "done"
 
 
@@ -218,6 +236,31 @@ RECORD_CASES = [
      .replace("Status: done", "Status: done "), "done"),
     ("no title", record([DONE] * 4).replace("# Retirement — billing\n", ""), "ValueError"),
     ("two titles", "# Retirement — x\n" + record([DONE] * 4), "ValueError"),
+    ("a done item still holding a placeholder",
+     first_section_with("- [x] billing-db — infra/db.tf:4 — migrated to <where>"), "ValueError"),
+    ("a done notice still holding a placeholder",
+     first_section_with("```\nThe service retires on <to confirm>.\n```"), "ValueError"),
+    ("an email address and a URL in a done notice",
+     first_section_with("```\nQuestions: Rob K <rob@example.com>, see "
+                        "<https://status.example.com>.\n```"), "done"),
+    ("angle brackets that are no placeholder", first_section_with(
+        "- [x] archived at s3://archive/<bucket>/2026, where a < b > c"), "done"),
+    *[(f"a done item holding {token.strip()!r}",
+       first_section_with(f"- [x] x {token} y"), "ValueError")
+      for token in ("<each user group>", "<data store>", "<resource>", "<path>", "<line>",
+                    "<the drafted notice, in a fenced block>", " or archived at ")],
+    ("a title still holding <name>",
+     record([DONE] * 4).replace("# Retirement — billing", "# Retirement — <name>"), "ValueError"),
+    ("a placeholder in a later section", record([DONE] * 4).replace(
+        "## Credentials\n\nStatus: done\n\n- [x] item",
+        "## Credentials\n\nStatus: done\n\n- [x] <credential name> — revoked"), "ValueError"),
+    ("a pending notice may hold placeholders",
+     record([("pending", " ", None)] + [DONE] * 3).replace(
+         "- [ ] item\n", "- [ ] item\n```\nRetires on <to confirm>.\n```\n", 1),
+     "pending: User notice"),
+    ("a pending section may hold placeholders",
+     record([("pending", " ", None)] + [DONE] * 3).replace("- [ ] item", "- [ ] <where>", 1),
+     "pending: User notice"),
     ("a closed fence in a blockquote is code, closed",
      first_section_with("> ```\n> - [ ] x\n> ```"), "done"),
     ("a closed fence in a nested list item",

@@ -1,10 +1,10 @@
 # delivery-kit
 
 The shared half of the phased-delivery workflow: stage skills, adversary agents, the
-universal gates, and the two hooks, plus three standalone skills, `readme-docs`,
-`incident-review`, and `maintenance-review`. Projects keep only what is genuinely theirs —
-the commands, thresholds and job names — in `.claude/project.json` and a pair of mechanics
-gate files.
+universal gates, and the two hooks, plus four standalone skills, `readme-docs`,
+`incident-review`, `maintenance-review`, and `retire-system`. Projects keep only what is
+genuinely theirs — the commands, thresholds and job names — in `.claude/project.json` and
+a pair of mechanics gate files.
 
 ## Why this exists
 
@@ -30,8 +30,8 @@ skills/                plan-project, write-tickets, deliver, plan-work,
                        implement-phases, branch-review, ship-pr, ci-green;
                        release-readiness and release (once per release, after the
                        merges);
-                       readme-docs, incident-review, and maintenance-review
-                       (standalone)
+                       readme-docs, incident-review, maintenance-review, and
+                       retire-system (standalone)
 agents/                ticket-, design-, commit-, ci-failure-, greptile- adversaries
 gates/                 status-report.md, definition-of-done.md, pre-push.md,
                        read-only-agent.md (the universal halves only),
@@ -40,7 +40,7 @@ gates/                 status-report.md, definition-of-done.md, pre-push.md,
                        scripts/sarif_gate.py builds the scanners' git inputs and reads
                        their reports into the gates' verdicts; scripts/project_rules.py
                        holds the project.json rules and self-test helpers the release,
-                       review, incident, and maintenance scripts share
+                       review, incident, maintenance, and retirement scripts share
 hooks/                 hooks.json + the two hooks and their self-tests
 scripts/ci/            the CI checks, runnable locally; all.sh runs every one
 reference/             software-engineering-rule-book.md, the source the rules
@@ -83,6 +83,17 @@ or without the rest of the kit.
   routes whose target is no one on call, and `incident-follow-up` issues open more than 30
   days, plus each named discipline's maintenance addendum. It writes no file and commits
   nothing, and each ticket it proposes is created only once the service owner approves it.
+
+- **`retire-system`** — runs only when invoked by name, since it commits:
+  `/delivery-kit:retire-system <name>`, the rule book's Phase 7 step 7. It writes
+  `retirements_dir/<name>.md` with `User notice`, `Data`, `Infrastructure`, and
+  `Credentials` sections, each a checklist with a `Status: pending` or `Status: done` line,
+  drafts the notice, and lists every data store, resource, and credential the repository
+  names — by name and location, never a value. A section becomes `done` only once the
+  service owner confirms every item in it, and the record is committed on `retire/<name>`,
+  without pushing, only once all four are. It runs no removal and sends no notice: every
+  teardown and revocation is the service owner's. Like `incident-review`, it refuses to start
+  while a delivery plan is running and not paused.
 
 ## Installing in a project
 
@@ -202,7 +213,8 @@ The stage skills carry the procedure; the commands, paths and thresholds come fr
   "dependency_outdated_command": "<command listing outdated dependencies, e.g. npm outdated, or none>",
   "patch_sla_days": "<days a vulnerability may stay unpatched, e.g. 30, or none>",
   "runbooks_dir": "<directory holding the runbooks, e.g. docs/runbooks, or none>",
-  "alert_routes_command": "<command printing one `<rule> <target>` line per alert route, or none>"
+  "alert_routes_command": "<command printing one `<rule> <target>` line per alert route, or none>",
+  "retirements_dir": "<directory retirement records are committed to, e.g. docs/retirements, or none>"
 }
 ```
 
@@ -250,6 +262,11 @@ shallow one gives every file the boundary commit's date. `alert_routes_command` 
 `<rule> <target>` line per alert route, read against `on_call`. Each defaults to `none`,
 under which its section of the report says it is unset, except `iteration_days`, and
 except that `security` makes `patch_sla_days` required.
+
+`retirements_dir` serves rule book Phase 7 step 7: where `retire-system` commits each
+retirement record. It follows `incident_reviews_dir`'s rule — a relative path inside the
+repository, outside `.git`, of the same characters, and not gitignored, since the record is
+committed. Default `none`, under which `retire-system` stops and names the key.
 
 `secret_scan_command` and `sast_command` serve rule book R12 and Appendix B1's scans. Each
 writes SARIF 2.1.0 to standard output, redacted, with inline suppression comments ignored;
@@ -466,17 +483,17 @@ discipline is named, with no default, and placeholders here.
 - `roles` — a map from each role above to the person who holds it. `{{roles.<role>}}` in a
   skill resolves to that role's entry in `roles`, so `{{roles.tech_lead}}` names the tech
   lead. `plan-project` waits on the sponsor, `write-tickets` on the product owner after QA
-  confirms each `Must` ticket's ACs are testable, `release-readiness` on the product owner's
-  review of the test summary, `release` on the release manager before staging and before
-  each production stage, `plan-work` on the tech lead after QA approves the test strategy,
-  `ship-pr` hands QA the verification charter, `incident-review` and
-  `maintenance-review` wait on the service owner before creating a ticket, and `ci-green`
-  and `deliver` send rule-book exceptions to the tech lead, as `ci-green` does the merge
-  question. Default: a role absent
-  from `roles` is the person running the session, and the skill addresses that person
-  directly. That is the absent-key rule above applied per role, so a missing role never
-  resolves to `none`, and a project with no `roles` key at all has the person running the
-  session in every role.
+  confirms each `Must` ticket's ACs are testable, `release-readiness` on the product
+  owner's review of the test summary, `release` on the release manager before staging and
+  before each production stage, `plan-work` on the tech lead after QA approves the test
+  strategy, `ship-pr` hands QA the verification charter, `incident-review` and
+  `maintenance-review` wait on the service owner before creating a ticket, `retire-system`
+  before marking each section done, and `ci-green` and `deliver` send rule-book exceptions
+  to the tech lead, as `ci-green` does the merge question. Default: a role absent from
+  `roles` is the person running the session, and the skill addresses that person directly.
+  That is the absent-key rule above applied per role, so a missing role never resolves to
+  `none`, and a project with no `roles` key at all has the person running the session in
+  every role.
 - `on_call` — the handles of the people on the on-call rota, each one word. A route from
   `alert_routes_command` reaches a person only when its target equals one exactly, case
   included. Default `none`, under which `maintenance-review` reports the rota unset and every
