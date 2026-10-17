@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """The release gates' deterministic checks, so no skill applies them by eye. Standard library only.
 
-Called by skills/release-readiness/SKILL.md (Steps 1 to 4, 7) and skills/release/SKILL.md
-(Steps 1 to 5). The project.json rules it shares with the other scripts are in
+Called by skills/release-readiness/SKILL.md (Steps 1 to 4, 7), skills/release/SKILL.md
+(Steps 1 to 5), and, for its maintenance discipline keys, skills/maintenance-review/SKILL.md
+(Step 1). The project.json rules it shares with the other scripts are in
 gates/scripts/project_rules.py.
 
     readiness_check.py version --new X.Y.Z [--last vA.B.C]
@@ -30,7 +31,7 @@ gates/scripts/project_rules.py.
         with keys, also a `- <KEY>: <flag>` line per key under `## Remote flags`
     readiness_check.py release-dir --value VALUE
         each but hash prints `ok`, or INVALID/MISMATCH and exits 1
-    readiness_check.py disciplines --config PATH [--gate readiness|release]
+    readiness_check.py disciplines --config PATH [--gate readiness|release|maintenance]
         `ok`, or one INVALID line per unknown discipline, or per key a named discipline needs
         at that gate that is absent, none, a placeholder, or malformed
     readiness_check.py oldest-devices --config PATH
@@ -64,8 +65,10 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)),
 from lint_draft import NFR_SECTION, VERIFY_TAG  # noqa: E402  what write-tickets writes
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)),
                                 "..", "..", "..", "gates", "scripts"))
-from project_rules import (BARE_FRAGMENT, PLACEHOLDER, check_repo_path,  # noqa: E402
-                           is_unset, named_disciplines, read_config as load_config, report)
+from project_rules import (BARE_FRAGMENT, DECIMAL, PLACEHOLDER, check_command,  # noqa: E402
+                           check_repo_path, is_date, is_unset, json_number, named_disciplines,
+                           positive_int, read_config as load_config, report,
+                           single_number)
 from project_rules import error_of as _error, result_of as _result  # noqa: E402  test helpers
 
 SEMVER = re.compile(r"^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$")
@@ -225,7 +228,7 @@ def exceptions(path, today):
             if len(row) >= len(REGISTER_COLUMNS)
             and all(row[n] and not re.fullmatch(r":?-+:?", row[n])
                     for n in range(len(REGISTER_COLUMNS)))
-            and re.match(r"^\d{4}-\d{2}-\d{2}$", row[expiry]) and row[expiry] >= today}
+            and is_date(row[expiry]) and row[expiry] >= today}
 
 
 def settle(in_scope, output, excepted_rules):
@@ -310,7 +313,8 @@ def check_release_dir(value):
 
 
 # The keys each named discipline needs, per gate: Appendix B's Testing addenda run at
-# readiness, its Deployment addenda at release. embedded's release section is a question.
+# readiness, its Deployment addenda at release, its Maintenance addenda at maintenance-review.
+# embedded's release section is a question.
 GATE_KEYS = {
     "readiness": {"data-ml": ("data_quality_command", "model_eval_command",
                               "model_eval_thresholds"),
@@ -319,11 +323,13 @@ GATE_KEYS = {
     "release": {"security": ("security_sensitive_paths",),
                 "mobile": ("api_compat_command", "min_supported_app_version"),
                 "sre": ("error_budget_command",)},
+    "maintenance": {"security": ("patch_sla_days",),
+                    "data-ml": ("drift_check_command", "drift_threshold"),
+                    "sre": ("alert_rules_dir",)},
 }
 DOTTED = r"\d+(?:\.\d+)*"
 DEVICE = re.compile(rf"^({BARE_FRAGMENT}) ({DOTTED})$")
-THRESHOLD = re.compile(rf"^({BARE_FRAGMENT}) (-?\d+(?:\.\d+)?)$")
-BUDGET = re.compile(r"^-?\d+(?:\.\d+)?$")
+THRESHOLD = re.compile(rf"^({BARE_FRAGMENT}) ({DECIMAL})$")
 FLAGS_HEADING = "## Remote flags"
 
 
@@ -386,7 +392,13 @@ def check_min_version(config):
 
 FORMATS = {"device_matrix": device_matrix, "model_eval_thresholds": model_thresholds,
            "security_sensitive_paths": sensitive_globs,
-           "min_supported_app_version": check_min_version}
+           "min_supported_app_version": check_min_version,
+           "patch_sla_days": lambda config: positive_int("patch_sla_days",
+                                                         config.get("patch_sla_days")),
+           "alert_rules_dir": lambda config: check_repo_path("alert_rules_dir",
+                                                             config.get("alert_rules_dir")),
+           "drift_threshold": lambda config: json_number("drift_threshold",
+                                                         config.get("drift_threshold"))}
 
 
 def discipline_problems(config_path, gate=None):
@@ -409,8 +421,11 @@ def discipline_problems(config_path, gate=None):
                     FORMATS[key](config)
                 except ValueError as error:
                     problems.append(str(error))
-            elif not isinstance(value, str):
-                problems.append(f"{key} is not a command")
+            else:
+                try:
+                    check_command(key, value)
+                except ValueError as error:
+                    problems.append(str(error))
     return problems
 
 
@@ -452,10 +467,8 @@ def sensitive_paths(config_path, scope_range):
 def error_budget(output):
     """("ok" or "spent", the number) from error_budget_command's output: exactly one line
     holding one decimal number. At 0 or below the budget is spent."""
-    lines = [line.strip() for line in output.splitlines() if line.strip()]
-    if len(lines) != 1 or not BUDGET.match(lines[0]):
-        raise ValueError("error_budget_command did not print exactly one decimal number")
-    return ("ok" if float(lines[0]) > 0 else "spent"), lines[0]
+    value = single_number(output, "error_budget_command")
+    return ("ok" if float(value) > 0 else "spent"), value
 
 
 def check_flags(notes_path, keys):
@@ -771,6 +784,11 @@ def release_checks_cases(directory, summary_file, good):
     failures += report("settle", "only unexpired rows count", rules, {"AB-1 NFR2": "2026-12-31"})
     failures += report("settle", "a row expiring today still counts",
                        exceptions(register, "2026-12-31"), {"AB-1 NFR2": "2026-12-31"})
+    impossible = summary_file("| Rule | Reason | Risk | Expiry | Remediation |\n| --- | --- | "
+                              "--- | --- | --- |\n| AB-1 NFR2 | r | r | 2026-02-30 | t |\n",
+                              "impossible.md")
+    failures += report("settle", "a row expiring on no calendar date records no exception",
+                       exceptions(impossible, "2026-01-01"), {})
     in_scope = ["AB-1 NFR1", "AB-1 NFR2", "AB-1 NFR3", "AB-1 NFR4", "AB-1 NFR5"]
     output = ("AB-1 NFR1 pass\nAB-1 NFR2 fail\nAB-1 NFR3 pass\nAB-1 NFR3 fail\n"
               "AB-1 NFR5 maybe\nAB-9 NFR1 fail\nAB-1 NFR10 pass\n")
@@ -865,6 +883,9 @@ READY = {"disciplines": ["data-ml", "mobile", "embedded"],
 RELEASED = {"disciplines": ["security", "mobile", "embedded", "sre"],
             "security_sensitive_paths": "src/auth/** *.pem", "api_compat_command": "ac",
             "min_supported_app_version": "4.2", "error_budget_command": "eb"}
+MAINTAINED = {"disciplines": ["security", "data-ml", "sre"], "patch_sla_days": 30,
+              "drift_check_command": "dc", "drift_threshold": 0.25,
+              "alert_rules_dir": "ops/alerts"}
 
 
 def discipline_cases(directory, summary_file):
@@ -932,6 +953,33 @@ def discipline_cases(directory, summary_file):
              "readiness", ["device_matrix"]),
             ("a minimum version with letters", dict(RELEASED, min_supported_app_version="4.x"),
              "release", ["min_supported_app_version"]),
+            ("every maintenance key set", MAINTAINED, "maintenance", []),
+            ("a whole-number drift threshold", dict(MAINTAINED, drift_threshold=1),
+             "maintenance", []),
+            ("maintenance needs nothing of mobile", {"disciplines": ["mobile"]}, "maintenance",
+             []),
+            ("security without its SLA", {"disciplines": ["security"]}, "maintenance",
+             ["patch_sla_days"]),
+            ("an SLA of zero", dict(MAINTAINED, patch_sla_days=0), "maintenance",
+             ["patch_sla_days"]),
+            ("an SLA as a string", dict(MAINTAINED, patch_sla_days="30"), "maintenance",
+             ["patch_sla_days"]),
+            ("an SLA of true", dict(MAINTAINED, patch_sla_days=True), "maintenance",
+             ["patch_sla_days"]),
+            ("sre without its alert rules", dict(MAINTAINED, alert_rules_dir="none"),
+             "maintenance", ["alert_rules_dir"]),
+            ("alert rules outside the repository", dict(MAINTAINED, alert_rules_dir="../ops"),
+             "maintenance", ["alert_rules_dir"]),
+            ("a drift threshold as a string", dict(MAINTAINED, drift_threshold="0.25"),
+             "maintenance", ["drift_threshold"]),
+            ("a drift threshold of false", dict(MAINTAINED, drift_threshold=False),
+             "maintenance", ["drift_threshold"]),
+            ("a drift threshold in exponent form", dict(MAINTAINED, drift_threshold=1e-5),
+             "maintenance", []),
+            ("a drift threshold of NaN", dict(MAINTAINED, drift_threshold=float("nan")),
+             "maintenance", ["drift_threshold"]),
+            ("data-ml without either drift key", {"disciplines": ["data-ml"]}, "maintenance",
+             ["drift_check_command", "drift_threshold"]),
             ("two keys absent are two problems", {"disciplines": ["data-ml"],
                                                   "data_quality_command": "dq"}, "readiness",
              ["model_eval_command", "model_eval_thresholds"])]:

@@ -26,6 +26,7 @@ installed one differs.
 | `script-tests` · Halt watch self-test | `python3 skills/release/scripts/halt_watch.py --self-test` |
 | `script-tests` · Readiness check self-test | `python3 skills/release-readiness/scripts/readiness_check.py --self-test` |
 | `script-tests` · Incident check self-test | `python3 skills/incident-review/scripts/incident_check.py --self-test` |
+| `script-tests` · Maintenance check self-test | `python3 skills/maintenance-review/scripts/maintenance_check.py --self-test` |
 | `manifest` · Every JSON file parses | `bash scripts/ci/json-parses.sh` |
 | `manifest` · Frontmatter names | `bash scripts/ci/frontmatter-names.sh` |
 | `manifest` · Line budget | `bash scripts/ci/line-budget.sh` |

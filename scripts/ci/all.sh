@@ -16,6 +16,7 @@ python3 gates/scripts/sarif_gate.py --self-test
 python3 skills/release/scripts/halt_watch.py --self-test
 python3 skills/release-readiness/scripts/readiness_check.py --self-test
 python3 skills/incident-review/scripts/incident_check.py --self-test
+python3 skills/maintenance-review/scripts/maintenance_check.py --self-test
 bash scripts/ci/json-parses.sh
 bash scripts/ci/frontmatter-names.sh
 bash scripts/ci/line-budget.sh
