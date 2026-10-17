@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """Watch a release stage's halt criteria for its monitoring window. Standard library only.
 
-Called by skills/release/SKILL.md (Step 5) after each production stage.
+Called by skills/release/SKILL.md (Steps 1 and 5). The project.json rules it shares with
+the other scripts are in gates/scripts/project_rules.py.
 
     halt_watch.py --config PATH     reads `halt_criteria` and `monitoring_window_minutes`
         from the project.json at PATH and runs each criterion from that project's root;
@@ -9,7 +10,10 @@ Called by skills/release/SKILL.md (Step 5) after each production stage.
         round; otherwise prints one `HALT` line and exits 1
     halt_watch.py --check --config PATH
         validates those two keys and `rollout_stages` without watching; prints `ok` and
-        exits 0, or prints `INVALID: <what>` to standard error and exits 1. Release runs it before the tag.
+        exits 0, or prints `INVALID: <what>` to standard error and exits 1; release runs
+        it before the tag.
+        With `mobile` in `disciplines`, `rollout_stages` must list at least two stages: the
+        stores' phased release (rule book Appendix B3) has a partial phase before the full one.
     halt_watch.py --self-test       runs every case below; exit 0 only if each one matches
 
 A round starts on each minute from 0 through the window's end and runs every criterion at
@@ -21,29 +25,30 @@ the watch cannot read is a halt too: a watch with nothing to check would pass.
 import argparse
 import json
 import os
-import re
 import signal
 import subprocess
 import sys
 import tempfile
 import time
 
+sys.dont_write_bytecode = True
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                                "..", "..", "..", "gates", "scripts"))
+from project_rules import (BARE_ARGUMENT, PLACEHOLDER, named_disciplines,  # noqa: E402
+                           read_config, report)
+
 ROUND_SECONDS = 60
 BUDGET_SECONDS = 55
-STAGE_NAME = re.compile(r"^[A-Za-z0-9_][A-Za-z0-9._-]*$")
-PLACEHOLDER = re.compile(r"^\s*<.*>\s*$")
+STAGE_NAME = BARE_ARGUMENT
 POLL_SECONDS = 0.05
 
 
 def load(config_path):
     """(criteria, window) from project.json, or raise ValueError naming what is wrong."""
-    try:
-        with open(config_path, encoding="utf-8") as handle:
-            config = json.load(handle)
-    except (OSError, ValueError) as error:
-        raise ValueError(f"project.json unreadable: {error}")
-    if not isinstance(config, dict):
-        raise ValueError("project.json is not an object")
+    return settings(read_config(config_path))
+
+
+def settings(config):
     criteria = config.get("halt_criteria")
     if not (isinstance(criteria, list) and criteria
             and all(isinstance(c, str) and c.strip() for c in criteria)):
@@ -58,15 +63,19 @@ def load(config_path):
 
 def check(config_path):
     """Validate every value the watch and the stage loop read, or raise ValueError."""
-    load(config_path)
-    with open(config_path, encoding="utf-8") as handle:
-        stages = json.load(handle).get("rollout_stages", "none")
+    config = read_config(config_path)
+    settings(config)
+    stages = config.get("rollout_stages", "none")
+    if ("mobile" in named_disciplines(config)
+            and not (isinstance(stages, list) and len(stages) >= 2)):
+        raise ValueError("rollout_stages lists fewer than two stages, and mobile needs a phased "
+                         "store release")
     if stages == "none":
         return
     if not (isinstance(stages, list) and stages and all(isinstance(n, str) for n in stages)):
         raise ValueError("rollout_stages is neither none nor a non-empty list of names")
     for name in stages:
-        if not STAGE_NAME.match(name) or name.lower() == "staging":
+        if not STAGE_NAME.fullmatch(name) or name.lower() == "staging":
             raise ValueError(f"rollout_stages entry {name!r} is blank, staging, starts with "
                              "'-' or '.', or is not made only of letters, digits, '.', '_', "
                              "and '-'")
@@ -185,9 +194,26 @@ CHECK_CASES = [
      "ValueError"),
     ("staging in another case", {"halt_criteria": ["true"], "rollout_stages": ["Staging"]},
      "ValueError"),
+    ("a stage with a trailing newline", {"halt_criteria": ["true"], "rollout_stages": ["canary\n"]},
+     "ValueError"),
     ("a non-string stage", {"halt_criteria": ["true"], "rollout_stages": ["canary", 3]},
      "ValueError"),
     ("bad criteria fail the check", {"halt_criteria": []}, "ValueError"),
+    ("mobile with two stages", {"halt_criteria": ["true"], "disciplines": ["mobile"],
+                                "rollout_stages": ["phased", "full"]}, "ok"),
+    ("mobile with one stage", {"halt_criteria": ["true"], "disciplines": ["mobile"],
+                               "rollout_stages": ["full"]}, "ValueError"),
+    ("mobile with stages none on a small project",
+     {"halt_criteria": ["true"], "disciplines": ["mobile"], "project_size": "small",
+      "rollout_stages": "none"}, "ValueError"),
+    ("mobile with stages absent", {"halt_criteria": ["true"], "disciplines": ["mobile"]},
+     "ValueError"),
+    ("disciplines as a string", {"halt_criteria": ["true"], "disciplines": "mobile",
+                                 "rollout_stages": ["full"]}, "ValueError"),
+    ("an unknown discipline", {"halt_criteria": ["true"], "disciplines": ["Mobile"],
+                               "rollout_stages": ["full"]}, "ValueError"),
+    ("one stage without mobile", {"halt_criteria": ["true"], "disciplines": ["sre"],
+                                  "rollout_stages": ["full"]}, "ok"),
 ]
 
 LOAD_CASES = [
@@ -299,14 +325,6 @@ def self_test():
         failures += report("watch", "a halted criterion's children are killed",
                            os.path.exists(orphan), False)
     return 1 if failures else 0
-
-
-def report(kind, name, got, expected):
-    if got == expected:
-        print(f"ok   {kind}: {name}")
-        return 0
-    print(f"FAIL {kind}: {name} — expected {expected!r}, got {got!r}")
-    return 1
 
 
 def main():

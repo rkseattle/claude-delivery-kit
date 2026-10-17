@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """The release gates' deterministic checks, so no skill applies them by eye. Standard library only.
 
-Called by skills/release-readiness/SKILL.md (Steps 1, 2, 4, 7) and skills/release/SKILL.md
-(Steps 1 to 5).
+Called by skills/release-readiness/SKILL.md (Steps 1 to 4, 7) and skills/release/SKILL.md
+(Steps 1 to 5). The project.json rules it shares with the other scripts are in
+gates/scripts/project_rules.py.
 
     readiness_check.py version --new X.Y.Z [--last vA.B.C]
         `ok` when X.Y.Z is MAJOR.MINOR.PATCH and, with --last, greater in SemVer precedence
@@ -25,9 +26,21 @@ Called by skills/release-readiness/SKILL.md (Steps 1, 2, 4, 7) and skills/releas
     readiness_check.py commit --summary PATH --head SHA
     readiness_check.py hash PATH                      prints the file's SHA-256
     readiness_check.py artifact --path PATH --sha256-file PATH
-    readiness_check.py notes-headings --notes PATH
+    readiness_check.py notes-headings --notes PATH [--flag-keys K1,K2]
+        with keys, also a `- <KEY>: <flag>` line per key under `## Remote flags`
     readiness_check.py release-dir --value VALUE
         each but hash prints `ok`, or INVALID/MISMATCH and exits 1
+    readiness_check.py disciplines --config PATH [--gate readiness|release]
+        `ok`, or one INVALID line per unknown discipline, or per key a named discipline needs
+        at that gate that is absent, none, a placeholder, or malformed
+    readiness_check.py oldest-devices --config PATH
+        one `<os> <version>` line per OS in device_matrix, its lowest version
+    readiness_check.py thresholds --config PATH
+        the model_eval_thresholds pairs, one `<metric> <minimum>` line each
+    readiness_check.py sensitive-paths --config PATH --range RANGE
+        each path changed in RANGE matching a security_sensitive_paths glob
+    readiness_check.py error-budget < OUTPUT
+        `ok <n>`, or `spent <n>` and exit 1 when the one number printed is 0 or below
     readiness_check.py --self-test     runs every case below; exit 0 only if each one matches
 
 Exit 1 is a failed check, printed to standard error as `INVALID: <what>` or `MISMATCH: <what>`,
@@ -49,6 +62,11 @@ sys.dont_write_bytecode = True
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)),
                                 "..", "..", "write-tickets", "scripts"))
 from lint_draft import NFR_SECTION, VERIFY_TAG  # noqa: E402  what write-tickets writes
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                                "..", "..", "..", "gates", "scripts"))
+from project_rules import (BARE_FRAGMENT, PLACEHOLDER, check_repo_path,  # noqa: E402
+                           is_unset, named_disciplines, read_config as load_config, report)
+from project_rules import error_of as _error, result_of as _result  # noqa: E402  test helpers
 
 SEMVER = re.compile(r"^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$")
 # A criterion's tag ends its line, as lint_draft.py's AC pattern requires, so a tag quoted in
@@ -63,11 +81,11 @@ GATE = re.compile(r"^Gate: (PASS|FAIL)$")
 
 def check_version(new, last=None):
     """Raise ValueError unless `new` is MAJOR.MINOR.PATCH and above `last` (a vX.Y.Z tag)."""
-    match = SEMVER.match(new)
+    match = SEMVER.fullmatch(new)
     if not match:
         raise ValueError(f"{new!r} is not MAJOR.MINOR.PATCH")
     if last:
-        previous = SEMVER.match(last[1:]) if last.startswith("v") else None
+        previous = SEMVER.fullmatch(last[1:]) if last.startswith("v") else None
         if not previous:
             raise ValueError(f"last tag {last!r} is not vMAJOR.MINOR.PATCH")
         if tuple(map(int, match.groups())) <= tuple(map(int, previous.groups())):
@@ -75,11 +93,7 @@ def check_version(new, last=None):
 
 
 def declared_tiers(config_path):
-    with open(config_path, encoding="utf-8") as handle:
-        config = json.load(handle)
-    if not isinstance(config, dict):
-        raise ValueError("project.json is not an object")
-    value = config.get("verification_tiers", "")
+    value = load_config(config_path).get("verification_tiers", "")
     # A tier's note in parentheses may hold commas or parentheses of its own; drop every note,
     # innermost first, before splitting on the separators and the joiners.
     plain = value if isinstance(value, str) else ""
@@ -175,7 +189,6 @@ def verify_note(summary_path, version, note, require_pass=False):
 
 NOTES_HEADINGS = ("## Changes", "## Migrations", "## Known issues", "## Rollback")
 SCOPE = re.compile(r"^Scope: (\S+) — (\d+) tickets?: (.*)$")
-RELEASE_DIR = re.compile(r"^[A-Za-z0-9_][A-Za-z0-9._/-]*$")
 
 
 def nfrs(description, key):
@@ -281,20 +294,189 @@ def check_artifact(path, recorded_path):
         raise ValueError("the artifact's SHA-256 is not the one recorded at build time")
 
 
-def check_notes(notes_path):
+def check_notes(notes_path, flag_keys=None):
+    """The four headings, and with `flag_keys` (comma-separated) a Remote flags line each."""
     with open(notes_path, encoding="utf-8") as handle:
         lines = {line.rstrip() for line in handle}
     missing = [heading for heading in NOTES_HEADINGS if heading not in lines]
     if missing:
         raise ValueError(f"the notes lack {', '.join(missing)}")
+    if flag_keys is not None:
+        check_flags(notes_path, [key.strip() for key in flag_keys.split(",") if key.strip()])
 
 
 def check_release_dir(value):
-    if (not value or value == "none" or not RELEASE_DIR.match(value) or os.path.isabs(value)
-            or os.path.normpath(value).split(os.sep)[0] in ("..", ".", ".git")):
-        raise ValueError(f"release_dir {value!r} is not a relative path inside the repository "
-                         "outside .git, starting with a letter, digit, or '_', and made only "
-                         "of letters, digits, '.', '_', '-', and '/'")
+    check_repo_path("release_dir", value)
+
+
+# The keys each named discipline needs, per gate: Appendix B's Testing addenda run at
+# readiness, its Deployment addenda at release. embedded's release section is a question.
+GATE_KEYS = {
+    "readiness": {"data-ml": ("data_quality_command", "model_eval_command",
+                              "model_eval_thresholds"),
+                  "mobile": ("device_matrix", "device_test_command"),
+                  "embedded": ("hil_test_command",)},
+    "release": {"security": ("security_sensitive_paths",),
+                "mobile": ("api_compat_command", "min_supported_app_version"),
+                "sre": ("error_budget_command",)},
+}
+DOTTED = r"\d+(?:\.\d+)*"
+DEVICE = re.compile(rf"^({BARE_FRAGMENT}) ({DOTTED})$")
+THRESHOLD = re.compile(rf"^({BARE_FRAGMENT}) (-?\d+(?:\.\d+)?)$")
+BUDGET = re.compile(r"^-?\d+(?:\.\d+)?$")
+FLAGS_HEADING = "## Remote flags"
+
+
+def device_matrix(config):
+    value = config.get("device_matrix")
+    if not (isinstance(value, list) and value
+            and all(isinstance(entry, str) and DEVICE.fullmatch(entry) for entry in value)):
+        raise ValueError("device_matrix is not a non-empty list of `<os> <version>` entries, "
+                         "the version dotted digits")
+    return [DEVICE.fullmatch(entry).groups() for entry in value]
+
+
+def model_thresholds(config):
+    value = config.get("model_eval_thresholds")
+    if not (isinstance(value, list) and value
+            and all(isinstance(entry, str) and THRESHOLD.fullmatch(entry) for entry in value)):
+        raise ValueError("model_eval_thresholds is not a non-empty list of `<metric> <minimum>` "
+                         "pairs, the minimum a decimal number")
+    metrics = [THRESHOLD.fullmatch(entry).group(1).lower() for entry in value]
+    if len(set(metrics)) != len(metrics):
+        raise ValueError("model_eval_thresholds names a metric twice")
+    return value
+
+
+def sensitive_globs(config):
+    value = config.get("security_sensitive_paths")
+    if is_unset(value) or not isinstance(value, str):
+        raise ValueError("security_sensitive_paths is not a space-separated list of globs")
+    unsupported = [pattern for pattern in value.split()
+                   if pattern.startswith("!") or re.search(r"[\[\]\\]", pattern)]
+    if unsupported:
+        raise ValueError(f"security_sensitive_paths holds {', '.join(unsupported)}: CODEOWNERS "
+                         "supports no `!` negation, `[ ]` ranges, or `\\` escapes")
+    return value.split()
+
+
+def owners_pathspec(pattern):
+    """A CODEOWNERS pattern as git `:(glob)` pathspecs, by CODEOWNERS' rules: a pattern with
+    no `/` except a trailing one matches at any depth, and a leading `/` anchors to the root.
+    A literal name names a file or a directory, and a glob pathspec matches only whole paths,
+    so it also matches everything below a directory of that name; a trailing `/` names only
+    that. A pattern holding a `/` whose last segment holds a wildcard matches only at that
+    level, as CODEOWNERS' `docs/*` matches `docs/a.md` but not `docs/sub/b.md`; a slash-free
+    one such as `*secret*` still matches at any depth and below."""
+    core = pattern.rstrip("/")
+    spec = core.lstrip("/") if "/" in core else f"**/{core}"
+    below = f":(glob){spec}/**"
+    if pattern.endswith("/"):
+        return [below]
+    if "/" in core and re.search(r"[*?]", core.rsplit("/", 1)[-1]):
+        return [f":(glob){spec}"]
+    return [f":(glob){spec}", below]
+
+
+def check_min_version(config):
+    value = config.get("min_supported_app_version")
+    if not (isinstance(value, str) and re.fullmatch(DOTTED, value)):
+        raise ValueError("min_supported_app_version is not dotted digits")
+
+
+FORMATS = {"device_matrix": device_matrix, "model_eval_thresholds": model_thresholds,
+           "security_sensitive_paths": sensitive_globs,
+           "min_supported_app_version": check_min_version}
+
+
+def discipline_problems(config_path, gate=None):
+    """Every problem with `disciplines` and, for a gate, with each key a named discipline
+    needs there: absent, `none`, blank, a README placeholder, or not in its format."""
+    config = load_config(config_path)
+    try:
+        named = named_disciplines(config)
+    except ValueError as error:
+        return [str(error)]
+    problems = []
+    for discipline in named:
+        for key in GATE_KEYS.get(gate, {}).get(discipline, ()):
+            value = config.get(key)
+            if is_unset(value):
+                problems.append(f"{key} is absent, none, blank, or a placeholder, and "
+                                f"{discipline} needs it")
+            elif key in FORMATS:
+                try:
+                    FORMATS[key](config)
+                except ValueError as error:
+                    problems.append(str(error))
+            elif not isinstance(value, str):
+                problems.append(f"{key} is not a command")
+    return problems
+
+
+def oldest_devices(config):
+    """`<os> <version>` for each OS's lowest version, OSes in first-appearance order and
+    compared without case, each line as its matrix entry spells it."""
+    oldest = {}
+    for system, version in device_matrix(config):
+        key = tuple(int(part) for part in version.split("."))
+        if system.lower() not in oldest or key < oldest[system.lower()][0]:
+            oldest[system.lower()] = (key, f"{system} {version}")
+    return [entry for _, entry in oldest.values()]
+
+
+def sensitive_paths(config_path, scope_range):
+    """Paths changed in the range that match a security_sensitive_paths pattern, as CODEOWNERS
+    matches. A range with no `..` is a first release, diffed from the empty tree."""
+    globs = sensitive_globs(load_config(config_path))
+    if not scope_range or scope_range.startswith("-"):
+        raise ValueError(f"range {scope_range!r} is not a revision range")
+    root = os.path.dirname(os.path.dirname(os.path.abspath(config_path)))
+
+    def git(*arguments):
+        run = subprocess.run(["git", "-c", "core.quotePath=false", *arguments], cwd=root,
+                             capture_output=True, text=True, check=False)
+        if run.returncode != 0:
+            raise ValueError(f"git {arguments[0]} failed: {run.stderr.strip()}")
+        return run.stdout
+
+    if ".." in scope_range:
+        revisions = [scope_range]
+    else:
+        revisions = [git("hash-object", "-t", "tree", "/dev/null").strip(), scope_range]
+    output = git("diff", "--no-renames", "--name-only", "-z", *revisions, "--",
+                 *[spec for pattern in globs for spec in owners_pathspec(pattern)])
+    return [path for path in output.split("\0") if path]
+
+
+def error_budget(output):
+    """("ok" or "spent", the number) from error_budget_command's output: exactly one line
+    holding one decimal number. At 0 or below the budget is spent."""
+    lines = [line.strip() for line in output.splitlines() if line.strip()]
+    if len(lines) != 1 or not BUDGET.match(lines[0]):
+        raise ValueError("error_budget_command did not print exactly one decimal number")
+    return ("ok" if float(lines[0]) > 0 else "spent"), lines[0]
+
+
+def check_flags(notes_path, keys):
+    """Each key has a `- <KEY>: <flag>` line under `## Remote flags`, the flag no README
+    placeholder."""
+    with open(notes_path, encoding="utf-8") as handle:
+        lines = [line.rstrip() for line in handle]
+    if FLAGS_HEADING not in lines:
+        raise ValueError(f"the notes lack {FLAGS_HEADING}")
+    section = []
+    for line in lines[lines.index(FLAGS_HEADING) + 1:]:
+        if re.match(r"^#{1,6}\s", line):
+            break
+        section.append(line)
+    def names(line, key):
+        return (re.match(rf"^- {re.escape(key)}: \S", line) is not None
+                and not PLACEHOLDER.match(line.split(": ", 1)[1]))
+
+    missing = [key for key in keys if not any(names(line, key) for line in section)]
+    if missing:
+        raise ValueError(f"{FLAGS_HEADING} has no line for {', '.join(missing)}")
 
 
 def scaffold_builder_output(scaffold, summary, version):
@@ -323,6 +505,7 @@ VERSION_CASES = [
     ("two parts", "1.0", None, "ValueError"),
     ("a leading zero", "1.01.0", None, "ValueError"),
     ("a pre-release suffix", "1.0.0-rc1", None, "ValueError"),
+    ("a trailing newline", "1.0.0\n", None, "ValueError"),
     ("a last tag that is not a version", "1.0.0", "vendor-x", "ValueError"),
     ("a last tag with no v", "1.0.1", "1.0.0", "ValueError"),
 ]
@@ -517,6 +700,42 @@ def self_test():
                 ("excepted missing", ["excepted", "--rule", "AB-7 not found", "--exceptions",
                                       os.path.join(directory, "register.md"), "--today",
                                       "2026-10-16"], "", "MISMATCH: no unexpired", 1),
+                ("disciplines ok", ["disciplines", "--config",
+                                    summary_file(json.dumps(READY), "ready.json"), "--gate",
+                                    "readiness"], "", "ok", 0),
+                ("disciplines names the key", ["disciplines", "--config",
+                                               summary_file(json.dumps({"disciplines": ["sre"]}),
+                                                            "sre.json"), "--gate", "release"],
+                 "", "INVALID: error_budget_command is absent", 1),
+                ("oldest-devices lists one per OS", ["oldest-devices", "--config",
+                                                     os.path.join(directory, "ready.json")],
+                 "", "ios 15.4", 0),
+                ("thresholds lists the pairs", ["thresholds", "--config",
+                                                os.path.join(directory, "ready.json")],
+                 "", "precision 0.92", 0),
+                ("thresholds with none set", ["thresholds", "--config",
+                                              os.path.join(directory, "sre.json")],
+                 "", "INVALID: model_eval_thresholds", 1),
+                ("error-budget spent exits 1", ["error-budget"], "0\n", "spent 0", 1),
+                ("error-budget ok", ["error-budget"], "12.5\n", "ok 12.5", 0),
+                ("error-budget unreadable", ["error-budget"], "n/a\n", "INVALID:", 1),
+                ("notes-headings without flags", ["notes-headings", "--notes",
+                                                  summary_file("## Changes\n## Migrations\n"
+                                                               "## Known issues\n## Rollback\n",
+                                                               "plain.md")], "", "ok", 0),
+                ("sensitive-paths lists the matching paths",
+                 ["sensitive-paths", "--config", os.path.join(directory, "repo", ".claude",
+                                                              "project.json"),
+                  "--range", "v1.1.0..v1.2.0"], "", "src/auth/login.py", 0),
+                ("notes-headings with a flag line missing",
+                 ["notes-headings", "--notes", os.path.join(directory, "spaced.md"),
+                  "--flag-keys", "AB-1,AB-3"], "", "MISMATCH: ## Remote flags has no line", 1),
+                ("notes-headings with every flag key", ["notes-headings", "--notes",
+                                                        os.path.join(directory, "spaced.md"),
+                                                        "--flag-keys", "AB-1,AB-2"], "", "ok", 0),
+                ("notes-headings with no Remote flags heading",
+                 ["notes-headings", "--notes", os.path.join(directory, "plain.md"),
+                  "--flag-keys", "AB-1"], "", "MISMATCH: the notes lack ## Remote flags", 1),
                 ("nfrs exits 1 on a problem", ["nfrs", "--key", "AB-1"],
                  "## Non-functional requirements\n* NFR1: a\n", "INVALID:", 1),
                 ("no subcommand is usage", [], "", "", 2)]:
@@ -629,32 +848,217 @@ def release_checks_cases(directory, summary_file, good):
                                   ("a separator", "docs;x", "ValueError"),
                                   ("git's own directory", ".git/releases", "ValueError"),
                                   ("an option", "-n", "ValueError"),
-                                  ("none", "none", "ValueError")]:
+                                  ("none", "none", "ValueError"),
+                                  ("a trailing newline", "docs\n", "ValueError"),
+                                  ("None", "None", "ValueError"),
+                                  ("NONE", "NONE", "ValueError"),
+                                  ("not a string", ["docs"], "ValueError")]:
         failures += report("release-dir", name, _error(check_release_dir, value), expected)
+    return failures + discipline_cases(directory, summary_file)
+
+
+READY = {"disciplines": ["data-ml", "mobile", "embedded"],
+         "data_quality_command": "dq", "model_eval_command": "me",
+         "model_eval_thresholds": ["precision 0.92", "recall 0.8"],
+         "device_matrix": ["ios 17.4", "ios 15.10", "android 14", "ios 15.4", "android 9"],
+         "device_test_command": "dt", "hil_test_command": "hil"}
+RELEASED = {"disciplines": ["security", "mobile", "embedded", "sre"],
+            "security_sensitive_paths": "src/auth/** *.pem", "api_compat_command": "ac",
+            "min_supported_app_version": "4.2", "error_budget_command": "eb"}
+
+
+def discipline_cases(directory, summary_file):
+    failures = 0
+
+    def problems(value, gate=None):
+        return discipline_problems(summary_file(json.dumps(value), "disciplines.json"), gate)
+
+    for name, value, gate, expected in [
+            ("absent disciplines are []", {}, "release", []),
+            ("an empty list", {"disciplines": []}, "readiness", []),
+            ("every readiness key set", READY, "readiness", []),
+            ("every release key set", RELEASED, "release", []),
+            ("no gate checks names only", {"disciplines": ["mobile"]}, None, []),
+            ("a discipline outside the gate needs nothing here", {"disciplines": ["sre"]},
+             "readiness", []),
+            ("an unknown discipline", {"disciplines": ["mobil"]}, None, ["disciplines"]),
+            ("a discipline in another case", {"disciplines": ["Mobile"]}, None, ["disciplines"]),
+            ("disciplines as a string", {"disciplines": "mobile"}, None, ["disciplines"]),
+            ("a key absent", {"disciplines": ["embedded"]}, "readiness", ["hil_test_command"]),
+            ("a key none", dict(READY, hil_test_command="none"), "readiness",
+             ["hil_test_command"]),
+            ("a key blank", dict(READY, hil_test_command="  "), "readiness", ["hil_test_command"]),
+            ("a key a placeholder", dict(READY, data_quality_command="<command>"), "readiness",
+             ["data_quality_command"]),
+            ("a command that is not a string", dict(RELEASED, error_budget_command=["eb"]),
+             "release", ["error_budget_command"]),
+            ("a matrix entry with no version", dict(READY, device_matrix=["ios"]), "readiness",
+             ["device_matrix"]),
+            ("a matrix version with letters", dict(READY, device_matrix=["ios 17b"]),
+             "readiness", ["device_matrix"]),
+            ("a matrix OS that looks like an option", dict(READY, device_matrix=["-rf 1"]),
+             "readiness", ["device_matrix"]),
+            ("a matrix placeholder", dict(READY, device_matrix=["<os> <version>"]),
+             "readiness", ["device_matrix"]),
+            ("an empty matrix", dict(READY, device_matrix=[]), "readiness", ["device_matrix"]),
+            ("a threshold that is not a number", dict(READY, model_eval_thresholds=["auc high"]),
+             "readiness", ["model_eval_thresholds"]),
+            ("a metric named twice", dict(READY, model_eval_thresholds=["auc 0.8", "auc 0.9"]),
+             "readiness", ["model_eval_thresholds"]),
+            ("a metric named twice in two cases",
+             dict(READY, model_eval_thresholds=["auc 0.8", "AUC 0.9"]), "readiness",
+             ["model_eval_thresholds"]),
+            ("a key none in another case", dict(READY, hil_test_command="None "), "readiness",
+             ["hil_test_command"]),
+            ("sensitive paths none", dict(RELEASED, security_sensitive_paths="none"), "release",
+             ["security_sensitive_paths"]),
+            ("a negated sensitive path", dict(RELEASED, security_sensitive_paths="src/ !docs/"),
+             "release", ["security_sensitive_paths"]),
+            ("a bracket range in a sensitive path",
+             dict(RELEASED, security_sensitive_paths="key[0-9].pem"), "release",
+             ["security_sensitive_paths"]),
+            ("a lone closing bracket", dict(RELEASED, security_sensitive_paths="key].pem"),
+             "release", ["security_sensitive_paths"]),
+            ("a backslash escape", dict(RELEASED, security_sensitive_paths="\\#secret"),
+             "release", ["security_sensitive_paths"]),
+            ("a ! inside a pattern", dict(RELEASED, security_sensitive_paths="src/a!b/"),
+             "release", []),
+            ("blank sensitive paths", dict(RELEASED, security_sensitive_paths=" "), "release",
+             ["security_sensitive_paths"]),
+            ("a minimum version with a trailing newline",
+             dict(RELEASED, min_supported_app_version="4.2\n"), "release",
+             ["min_supported_app_version"]),
+            ("a matrix entry with a trailing newline", dict(READY, device_matrix=["ios 16\n"]),
+             "readiness", ["device_matrix"]),
+            ("a minimum version with letters", dict(RELEASED, min_supported_app_version="4.x"),
+             "release", ["min_supported_app_version"]),
+            ("two keys absent are two problems", {"disciplines": ["data-ml"],
+                                                  "data_quality_command": "dq"}, "readiness",
+             ["model_eval_command", "model_eval_thresholds"])]:
+        got = problems(value, gate)
+        failures += report("disciplines", name, [problem.split()[0] for problem in got], expected)
+    failures += report("devices", "the lowest version per OS, compared as numbers",
+                       oldest_devices(READY), ["ios 15.4", "android 9"])
+    failures += report("devices", "one OS in two cases is one OS",
+                       oldest_devices({"device_matrix": ["iOS 17", "ios 15"]}), ["ios 15"])
+    failures += report("devices", "a single entry", oldest_devices({"device_matrix": ["ios 16"]}),
+                       ["ios 16"])
+    failures += report("devices", "an invalid matrix",
+                       _result(oldest_devices, {"device_matrix": "ios 16"}), "ValueError")
+    for name, output, expected in [("a positive budget", "0.01\n", ("ok", "0.01")),
+                                   ("zero", "0", ("spent", "0")),
+                                   ("a negative budget", "-0.5\n", ("spent", "-0.5")),
+                                   ("negative zero", "-0", ("spent", "-0")),
+                                   ("blank", "\n", "ValueError"),
+                                   ("two lines", "3\n4\n", "ValueError"),
+                                   ("a percent sign", "5%\n", "ValueError"),
+                                   ("not a number", "nan\n", "ValueError"),
+                                   ("a word around it", "budget: 5\n", "ValueError")]:
+        failures += report("error-budget", name, _result(error_budget, output), expected)
+    flags = summary_file("## Changes\n## Remote flags\n\n- AB-1: new_checkout\n"
+                         "- AB-2: none — a bug fix\n## Rollback\n- AB-3: x\n", "flags.md")
+    failures += report("flags", "a line for every key",
+                       _error(check_flags, flags, ["AB-1", "AB-2"]), "ok")
+    failures += report("flags", "a key with no line",
+                       _error(check_flags, flags, ["AB-1", "AB-4"]), "ValueError")
+    failures += report("flags", "a line after the section does not count",
+                       _error(check_flags, flags, ["AB-3"]), "ValueError")
+    failures += report("flags", "a prefix of another key does not count",
+                       _error(check_flags, flags, ["AB-"]), "ValueError")
+    failures += report("flags", "a placeholder flag",
+                       _error(check_flags, summary_file("## Remote flags\n- AB-1: <flag>\n",
+                                                        "placeholder.md"), ["AB-1"]), "ValueError")
+    failures += report("flags", "the notes check reads spaced keys",
+                       _error(check_notes, summary_file(
+                           "## Changes\n## Migrations\n## Known issues\n## Rollback\n"
+                           "## Remote flags\n- AB-1: a\n- AB-2: none — a fix\n", "spaced.md"),
+                           "AB-1, AB-2"), "ok")
+    failures += report("flags", "any heading ends the section",
+                       _error(check_flags, summary_file("## Remote flags\n# Other\n- AB-1: a\n",
+                                                        "h1.md"), ["AB-1"]), "ValueError")
+    failures += report("flags", "a key with an empty flag",
+                       _error(check_flags, summary_file("## Remote flags\n- AB-1: \n",
+                                                        "empty.md"), ["AB-1"]), "ValueError")
+    failures += report("flags", "no section",
+                       _error(check_flags, summary_file("## Changes\n- AB-1: x\n", "none.md"),
+                              ["AB-1"]), "ValueError")
+    return failures + sensitive_cases(directory)
+
+
+def sensitive_cases(directory):
+    """sensitive_paths against a real repository: one commit per change, tagged between."""
+    failures = 0
+    for pattern, expected in [("*.pem", [":(glob)**/*.pem", ":(glob)**/*.pem/**"]),
+                              ("/keys/top.key", [":(glob)keys/top.key", ":(glob)keys/top.key/**"]),
+                              ("auth", [":(glob)**/auth", ":(glob)**/auth/**"]),
+                              ("src/auth/", [":(glob)src/auth/**"]),
+                              ("docs/*", [":(glob)docs/*"]),
+                              ("/*.pem", [":(glob)*.pem"]),
+                              ("**/secrets", [":(glob)**/secrets", ":(glob)**/secrets/**"]),
+                              ("apps/", [":(glob)**/apps/**"])]:
+        failures += report("sensitive-paths", f"{pattern} as a pathspec", owners_pathspec(pattern),
+                           expected)
+    repo = os.path.join(directory, "repo")
+    os.makedirs(os.path.join(repo, ".claude"))
+    config = os.path.join(repo, ".claude", "project.json")
+    with open(config, "w", encoding="utf-8") as handle:
+        json.dump({"security_sensitive_paths":
+                   "src/auth/ *.pem /keys/top.key docs/*.md vault *secret*"}, handle)
+
+    def git(*arguments):
+        subprocess.run(["git", "-c", "user.name=t", "-c", "user.email=t@t", "-c",
+                        "core.hooksPath=/dev/null", "-c", "commit.gpgsign=false", "-c",
+                        "tag.gpgsign=false", *arguments],
+                       cwd=repo, capture_output=True, check=True)
+
+    def write(path, text="x"):
+        full = os.path.join(repo, path)
+        os.makedirs(os.path.dirname(full), exist_ok=True)
+        with open(full, "w", encoding="utf-8") as handle:
+            handle.write(text)
+
+    git("init", "-q", "--template=")
+    write("src/auth/login.py")
+    write("src/ui/view.py")
+    git("add", "-A")
+    git("commit", "-qm", "one")
+    git("tag", "v1.0.0")
+    write("src/ui/view.py", "y")
+    git("commit", "-qam", "two")
+    git("tag", "v1.1.0")
+    git("mv", "src/auth/login.py", "src/ui/login.py")
+    git("commit", "-qm", "three")
+    git("tag", "v1.2.0")
+    os.makedirs(os.path.join(repo, "src", "auth", "deep"))
+    git("mv", "src/ui/login.py", "src/auth/deep/login.py")
+    git("commit", "-qm", "four")
+    git("tag", "v1.3.0")
+    for path in ("keys/sub/a.pem", "keys/b.pem", "keys/top.key", "other/keys/top.key",
+                 "docs/a.md", "docs/sub/b.md", "readme.txt", "lib/vault/key.txt",
+                 "tab\tname.pem", "app/secrets/key.txt"):
+        write(path)
+    git("add", "-A")
+    git("commit", "-qm", "five")
+    for name, scope_range, expected in [
+            ("an unchanged sensitive path", "v1.0.0..v1.1.0", []),
+            ("a file moved out still matches", "v1.1.0..v1.2.0", ["src/auth/login.py"]),
+            ("a directory pattern matches files at any depth below it", "v1.2.0..v1.3.0",
+             ["src/auth/deep/login.py"]),
+            ("slash-free, leading-slash, and anchored patterns, as CODEOWNERS reads them",
+             "v1.3.0..HEAD", ["app/secrets/key.txt", "docs/a.md", "keys/b.pem", "keys/sub/a.pem",
+                              "keys/top.key", "lib/vault/key.txt", "tab\tname.pem"]),
+            ("a first release diffs from the empty tree", "v1.0.0", ["src/auth/login.py"]),
+            ("a range that looks like an option", "--output=x", "ValueError"),
+            ("a revision git does not know", "v9.0.0..HEAD", "ValueError")]:
+        failures += report("sensitive-paths", name,
+                           _result(sensitive_paths, config, scope_range), expected)
+    for value in ("none", "<patterns>"):
+        unset = os.path.join(directory, "unset.json")
+        with open(unset, "w", encoding="utf-8") as handle:
+            json.dump({"security_sensitive_paths": value}, handle)
+        failures += report("sensitive-paths", f"{value} is not a pattern list",
+                           _result(sensitive_paths, unset, "v1.0.0..HEAD"), "ValueError")
     return failures
-
-
-def _result(function, *arguments):
-    try:
-        return function(*arguments)
-    except ValueError:
-        return "ValueError"
-
-
-def _error(function, *arguments):
-    try:
-        function(*arguments)
-    except ValueError:
-        return "ValueError"
-    return "ok"
-
-
-def report(kind, name, got, expected):
-    if got == expected:
-        print(f"ok   {kind}: {name}")
-        return 0
-    print(f"FAIL {kind}: {name} — expected {expected!r}, got {got!r}")
-    return 1
 
 
 def main():
@@ -693,12 +1097,22 @@ def main():
     artifact.add_argument("--sha256-file", required=True)
     headings = commands.add_parser("notes-headings")
     headings.add_argument("--notes", required=True)
+    headings.add_argument("--flag-keys")
     waived = commands.add_parser("excepted")
     waived.add_argument("--rule", required=True)
     waived.add_argument("--exceptions", required=True)
     waived.add_argument("--today", required=True)
     directory = commands.add_parser("release-dir")
     directory.add_argument("--value", required=True)
+    named = commands.add_parser("disciplines")
+    named.add_argument("--config", required=True)
+    named.add_argument("--gate", choices=sorted(GATE_KEYS))
+    for name in ("oldest-devices", "thresholds"):
+        commands.add_parser(name).add_argument("--config", required=True)
+    paths = commands.add_parser("sensitive-paths")
+    paths.add_argument("--config", required=True)
+    paths.add_argument("--range", required=True)
+    commands.add_parser("error-budget")
     args = parser.parse_args()
     if args.self_test:
         return self_test()
@@ -729,6 +1143,24 @@ def main():
             for row in rows:
                 print("\t".join(row))
             return 1 if any(row[1] == "fail" for row in rows) else 0
+        if args.command == "disciplines":
+            found = discipline_problems(args.config, args.gate)
+            for problem in found:
+                print(f"INVALID: {problem}", file=sys.stderr)
+            if not found:
+                print("ok")
+            return 1 if found else 0
+        listings = {"oldest-devices": lambda: oldest_devices(load_config(args.config)),
+                    "thresholds": lambda: model_thresholds(load_config(args.config)),
+                    "sensitive-paths": lambda: sensitive_paths(args.config, args.range)}
+        if args.command in listings:
+            for line in listings[args.command]():
+                print(line)
+            return 0
+        if args.command == "error-budget":
+            state, value = error_budget(sys.stdin.read())
+            print(f"{state} {value}")
+            return 0 if state == "ok" else 1
         if args.command == "hash":
             print(sha256(args.path))
             return 0
@@ -738,7 +1170,7 @@ def main():
                                                [k for k in args.keys.split(",") if k]),
                   "commit": lambda: check_commit(args.summary, args.head),
                   "artifact": lambda: check_artifact(args.path, args.sha256_file),
-                  "notes-headings": lambda: check_notes(args.notes),
+                  "notes-headings": lambda: check_notes(args.notes, args.flag_keys),
                   "release-dir": lambda: check_release_dir(args.value),
                   "excepted": lambda: check_excepted(args.rule, args.exceptions, args.today)}
         if args.command in checks:

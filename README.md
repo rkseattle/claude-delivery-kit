@@ -1,9 +1,9 @@
 # delivery-kit
 
 The shared half of the phased-delivery workflow: stage skills, adversary agents, the
-universal gates, and the two hooks, plus one standalone skill, `readme-docs`. Projects
-keep only what is genuinely theirs — the commands, thresholds and job names — in
-`.claude/project.json` and a pair of mechanics gate files.
+universal gates, and the two hooks, plus two standalone skills, `readme-docs` and
+`incident-review`. Projects keep only what is genuinely theirs — the commands, thresholds
+and job names — in `.claude/project.json` and a pair of mechanics gate files.
 
 ## Why this exists
 
@@ -29,14 +29,16 @@ skills/                plan-project, write-tickets, deliver, plan-work,
                        implement-phases, branch-review, ship-pr, ci-green;
                        release-readiness and release (once per release, after the
                        merges);
-                       readme-docs (standalone)
+                       readme-docs and incident-review (standalone)
 agents/                ticket-, design-, commit-, ci-failure-, greptile- adversaries
 gates/                 status-report.md, definition-of-done.md, pre-push.md,
                        read-only-agent.md (the universal halves only),
                        project-config.md, exceptions.md, rule-book-review.md,
                        planning-exit.md, release-readiness.md, and release.md;
                        scripts/sarif_gate.py builds the scanners' git inputs and reads
-                       their reports into the gates' verdicts
+                       their reports into the gates' verdicts; scripts/project_rules.py
+                       holds the project.json rules and self-test helpers the release,
+                       review, and incident scripts share
 hooks/                 hooks.json + the two hooks and their self-tests
 scripts/ci/            the CI checks, runnable locally; all.sh runs every one
 reference/             software-engineering-rule-book.md, the source the rules
@@ -49,15 +51,26 @@ than proceed on a gate it could not read.
 
 ## Standalone skills
 
-These are not delivery stages: they load on their own, by description, and work with or
-without the rest of the kit.
+These are not delivery stages: neither runs inside `deliver`, and `readme-docs` works with
+or without the rest of the kit.
 
-- **`readme-docs`** — writes, rewrites, or audits a project's `README.md` and the docs it
-  links to, with every command and link checked against the repo by
-  `skills/readme-docs/scripts/check_readme.py`. It arrives with the plugin as
-  `delivery-kit:readme-docs`. To use it without the plugin, copy `skills/readme-docs/` to
-  `.claude/skills/readme-docs/` in a repo, or to `~/.claude/skills/readme-docs/` for every
-  project; a copy there wins the bare name `readme-docs` over the plugin's.
+- **`readme-docs`** — loads on its own, by description. It writes, rewrites, or audits a
+  project's `README.md` and the docs it links to, with every command and link checked
+  against the repo by `skills/readme-docs/scripts/check_readme.py`. It arrives with the
+  plugin as `delivery-kit:readme-docs`. To use it without the plugin, copy
+  `skills/readme-docs/` to `.claude/skills/readme-docs/` in a repo, or to
+  `~/.claude/skills/readme-docs/` for every project; a copy there wins the bare name
+  `readme-docs` over the plugin's.
+
+- **`incident-review`** — runs only when invoked by name, since it commits and creates
+  tickets: `/delivery-kit:incident-review <incident> <YYYY-MM-DD>`, the rule book's Phase 7
+  blameless review, after service is restored. It writes
+  `incident_reviews_dir/<date>-<slug>.md` with a timeline, impact, root cause, contributing
+  factors, and follow-ups, records `late` when it starts more than five working days
+  (Monday to Friday) after the incident, and commits the file on `incident/<date>-<slug>`
+  without pushing. Each follow-up becomes a Jira ticket labeled `incident-follow-up` only
+  once the service owner approves it. It refuses to start while a delivery plan is running
+  and not paused, since the branch guard would undo its branch switch.
 
 ## Installing in a project
 
@@ -170,7 +183,8 @@ The stage skills carry the procedure; the commands, paths and thresholds come fr
   "extra_gates": [".claude/gates/<project-only gate>.md"],
   "reviewers": "<comma-separated GitHub logins or org/team slugs, or none>",
   "merge_method": "<merge, squash, or rebase>",
-  "done_transition": "<name of the Jira transition into the done state>"
+  "done_transition": "<name of the Jira transition into the done state>",
+  "incident_reviews_dir": "<directory incident reviews are committed to, e.g. docs/incidents, or none>"
 }
 ```
 
@@ -199,6 +213,12 @@ run. `done_transition` names the Jira transition that then moves each covered ti
 done, default `Done`. The checks before the merge, and the decline and failure paths, are in
 `skills/ci-green/SKILL.md` Step 5. A rule requiring an approval refuses the merge on the R2
 exception path, which has none; the tech lead then merges outside the run.
+
+`incident_reviews_dir` serves rule book Phase 7 step 3: where `incident-review` commits each
+review. It must be a relative path inside the repository, outside `.git`, starting with a
+letter, digit, or `_` and made only of letters, digits, `.`, `_`, `-`, and `/`, and not
+gitignored, since the review is committed.
+Default `none`, under which `incident-review` stops and names the key.
 
 `secret_scan_command` and `sast_command` serve rule book R12 and Appendix B1's scans. Each
 writes SARIF 2.1.0 to standard output, redacted, with inline suppression comments ignored;
@@ -274,16 +294,20 @@ for the product owner's acceptance, per criterion 1. It reads `verification_tier
 names separated by `·`, commas, or semicolons, each optionally in backticks and followed by
 a note in parentheses; `and` and `or` are joiners, and names compare without case.
 `release_dir` holds each version's test summary, its note file, the Must tickets'
-description copies the check reads, and the release notes. They are working files, not
+description copies the check reads, the release notes, and with disciplines named, the
+model thresholds, the error-budget reading, and the security sign-off. They are working files, not
 committed, so the path may be gitignored. The note `release-readiness` writes on the tested
 commit under `refs/notes/release-readiness`, which `release` checks and pushes with the tag,
 records the summary's hash and verdict there; it is an integrity check, not a signed
 attestation. The hosted equivalents, a GitHub commit status or check run for the verdict and
 Environment required reviewers for the stage approvals, are a known deviation: both skills
 keep their records in git and the session, so they run the same without GitHub's protections
-configured. All five default to `none`. A `none` system key or `release_dir` stops
-`release-readiness` and names the key, and so does a system results file equal to
-`results_file` or `integration_results_file`.
+configured; so is the security sign-off, recorded only in its `release_dir` file. Every
+configured command runs in a subshell from the project root, and one that takes arguments
+receives them at its end, so in a pipeline only the last command gets them; wrap a pipeline
+in a script that passes them on. All five default to `none`. A `none` system key or
+`release_dir` stops `release-readiness` and names the key, and so does a system results
+file equal to `results_file` or `integration_results_file`.
 
 `release_artifact_command`, `deploy_command`, `smoke_test_command`, `rollback_command`,
 `rollout_stages`, `halt_criteria`, `monitoring_window_minutes`, and `released_status` serve
@@ -321,15 +345,27 @@ re-run that set and have a real verdict; one without a selector has no such answ
 only honest re-verification is everything.
 
 Five more keys tailor the workflow to the project, per the rule book's "Tailoring and
-exceptions" section and its Appendices A through C. Each is optional, and each bullet
-below gives its default; the `roles` and `exceptions_log` values are placeholders, not
-defaults.
+exceptions" section and its Appendices A through C, and the block also holds the keys
+`disciplines` brings in. The five are optional, and each bullet below gives its default;
+the `roles` and `exceptions_log` values are placeholders, not defaults. The keys after
+`disciplines` in the block are its addenda's: required once their discipline is named, with
+no default, and placeholders here.
 
 ```json
 {
   "project_size": "small",
   "lifecycle_model": "continuous",
   "disciplines": [],
+  "data_quality_command": "<command exiting non-zero when a data-quality check fails>",
+  "model_eval_command": "<command reading <metric> <minimum> lines on stdin, exiting non-zero below one>",
+  "model_eval_thresholds": ["<metric> <minimum>, e.g. precision 0.92>"],
+  "device_matrix": ["<os> <version>, e.g. ios 16.4>", "<os> <version>, e.g. android 10>"],
+  "device_test_command": "<command taking <os> <version>, exiting non-zero on failure>",
+  "hil_test_command": "<command running the hardware-in-the-loop suite, exiting non-zero on failure>",
+  "security_sensitive_paths": "<space-separated CODEOWNERS-style patterns, e.g. src/auth/ *.pem>",
+  "api_compat_command": "<command taking the minimum app version, exiting non-zero when the API breaks it>",
+  "min_supported_app_version": "<oldest app version still supported, e.g. 4.2>",
+  "error_budget_command": "<command printing the remaining error budget as one number>",
   "roles": {
     "sponsor": "<handle>",
     "product_owner": "<handle>",
@@ -348,6 +384,39 @@ defaults.
 - `disciplines` — a list drawn from `security`, `data-ml`, `mobile`, `embedded`, and
   `sre`. Default `[]`. With `security`, `plan-work` requires a STRIDE `## Threat model`
   in every plan, and `design-adversary` blocks a `High` threat that names no phase.
+  `plan-work`, `release-readiness`, and `release` stop on any other name, matched with case,
+  since a misspelled discipline would skip its addenda without a word. A named discipline
+  adds its sections of `gates/release-readiness.md` and `gates/release.md`, where it has
+  them, and a discipline left out skips them silently. The keys a named discipline needs at a gate
+  have no default: absent, `none`, a `<placeholder>`, or malformed, they stop that gate's skill.
+  - `data-ml` at readiness: `data_quality_command` and `model_eval_command`, each exiting
+    non-zero on failure. `model_eval_thresholds` is a list of `<metric> <minimum>` pairs, the
+    minimum a decimal number and each metric named once, without regard to case; the model
+    command reads them as lines on standard input and exits non-zero when any metric falls
+    below its minimum.
+  - `mobile` at readiness: `device_matrix` is a list of `<os> <version>` entries, the
+    version dotted digits, e.g. `ios 16.4`. `device_test_command <os> <version>` runs once
+    per OS, on its lowest version, compared as numbers, so `ios 9` is older than `ios 10`.
+    OS names compare without case, so `iOS 17` and `ios 15` are one OS.
+  - `embedded` at readiness: `hil_test_command` runs the hardware-in-the-loop tests on
+    target hardware; simulator results alone do not meet rule book Appendix B4. At release,
+    the release manager confirms the artifact installs atomically with a fallback image.
+  - `security` at release: `security_sensitive_paths` is a space-separated list of globs, read
+    as CODEOWNERS reads its patterns — `*.pem` matches at any depth, `/keys/` only at the
+    root, `src/auth/` everything below it, `docs/*` only directly in `docs/`. A `!`
+    negation, a `[ ]` range, or a `\` escape stops the release, since CODEOWNERS supports
+    none of them. A path the release's range changed that matches one, deleted or moved
+    included, needs the security role's sign-off before the tag.
+  - `mobile` at release: `api_compat_command <min_supported_app_version>` exits zero when the
+    server API still serves that app version, the version dotted digits. `rollout_stages`
+    must list at least two stages, the store's phased release, whatever `project_size` is,
+    and `rollback_command <stage>` halts that phase. The release notes gain `## Remote
+    flags`, one line per ticket, from `Remote-flag: <flag>` git trailers on its commits —
+    a trailer the commit that adds the behavior carries — or, for a ticket with none, from
+    the release manager's answer: the flag, or `none — <reason>`.
+  - `sre` at release: `error_budget_command` prints the remaining error budget as one
+    number. At `0` or below, the release stops unless every ticket in scope carries the
+    `reliability` label.
 - `roles` — a map from each role above to the person who holds it. `{{roles.<role>}}` in a
   skill resolves to that role's entry in `roles`, so `{{roles.tech_lead}}` names the tech
   lead. `plan-project` waits on the sponsor, `write-tickets` on the product owner after QA

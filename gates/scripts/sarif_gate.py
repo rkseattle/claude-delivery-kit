@@ -39,6 +39,10 @@ import sys
 import tempfile
 import urllib.parse
 
+sys.dont_write_bytecode = True
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from project_rules import report  # noqa: E402  the kit's shared self-test line
+
 HIGH_SEVERITY = 7.0  # GitHub code scanning: High is 7.0-8.9, Critical 9.0 and above
 
 
@@ -656,14 +660,6 @@ def cli_cases():
                                 capture_output=True, text=True, check=False)
         failures += report("cli", "the matched text is never printed", "s3cr3t" in leaked.stdout + leaked.stderr, False)
     return failures
-
-
-def report(check, name, got, expected):
-    if got == expected:
-        print(f"ok   {check}: {name}")
-        return 0
-    print(f"FAIL {check}: {name} — expected {expected!r}, got {got!r}")
-    return 1
 
 
 def main():

@@ -13,7 +13,10 @@ during this skill**, other than the plan document itself. No branch, no Jira tra
 no commit. The approval gate at the end is real.
 
 Read `${CLAUDE_PROJECT_DIR}/.claude/project.json` first: every `{{key}}` below comes from it.
-Read `${CLAUDE_PLUGIN_ROOT}/gates/project-config.md` and follow it exactly.
+Read `${CLAUDE_PLUGIN_ROOT}/gates/project-config.md` and follow it exactly. Stop, naming
+it, on a `disciplines` that is not a list, or that holds any entry other than exactly
+`security`, `data-ml`, `mobile`, `embedded`, or `sre`: a misspelled discipline would skip
+its addenda silently, the `Threat model` below among them.
 
 ## Step 1 — Resolve the arguments to a ticket set
 

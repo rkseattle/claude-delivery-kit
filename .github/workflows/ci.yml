@@ -75,6 +75,11 @@ jobs:
       - name: Readiness check self-test
         run: python3 skills/release-readiness/scripts/readiness_check.py --self-test
 
+      # One case per way an incident review could be counted on time when it is late, or
+      # write to a branch or path it should not; incident-review calls this script for both.
+      - name: Incident check self-test
+        run: python3 skills/incident-review/scripts/incident_check.py --self-test
+
   manifest:
     name: Plugin manifest
     runs-on: ubuntu-latest
