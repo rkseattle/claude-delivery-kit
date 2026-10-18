@@ -1,8 +1,8 @@
 """The project.json rules, the record-parsing rules, and the self-test helpers, the kit's
 release, review, incident, maintenance, and retirement scripts share. Standard library only,
-except fence_split, which loads the CommonMark parser vendored beside the README checker,
-and YAML_VENDOR, the PyYAML the maintenance check and scripts/ci/actions-pinned.sh load;
-scripts/ci/rule-book-map.sh loads the CommonMark parser through MARKDOWN_VENDOR too.
+except fence_split and markdown_tokens, which load the CommonMark parser vendored beside
+the README checker, and YAML_VENDOR, the PyYAML the maintenance check and
+scripts/ci/actions-pinned.sh load.
 
 Imported by skills/release/scripts/halt_watch.py,
 skills/release-readiness/scripts/readiness_check.py,
@@ -10,12 +10,12 @@ skills/ci-green/scripts/review_gate.py, skills/incident-review/scripts/incident_
 skills/maintenance-review/scripts/maintenance_check.py,
 skills/retire-system/scripts/retire_check.py, gates/scripts/sarif_gate.py, and, for the
 discipline and tracked-file rules, skills/write-tickets/scripts/lint_draft.py, and, for
-the YAML vendor alone, scripts/ci/actions-pinned.sh, and, for the Markdown vendor and the
-register and tracked-file rules, scripts/ci/rule-book-map.sh, so no two of them can
-disagree on what an unset key, a placeholder, a discipline, a date, a printed number, a
-branch slug, a code fence, a Markdown field's value, a register header, a complete
-exceptions-register row, or a tracked path is; each reader splits its own table. Each
-importer's self-test covers the rules it uses; this module has no entry point of its own.
+the YAML vendor alone, scripts/ci/actions-pinned.sh, and, for the Markdown table, register
+and tracked-file rules, scripts/ci/rule-book-map.sh, so no two of them can disagree on
+what an unset key, a placeholder, a discipline, a date, a printed number, a branch slug, a
+code fence, a Markdown field's value, a Markdown table, a register header, a complete
+exceptions-register row, or a tracked path is. Each importer's self-test covers the rules
+it uses; this module has no entry point of its own.
 """
 import ast
 import datetime
@@ -181,6 +181,51 @@ def is_date(value):
     return True
 
 
+def words(text):
+    """The text with each run of whitespace read as one space."""
+    return " ".join(text.split())
+
+
+def markdown_tokens(text):
+    """The document as the vendored CommonMark parser reads it, GFM tables on."""
+    vendored(MARKDOWN_VENDOR)
+    from markdown_it import MarkdownIt
+    return MarkdownIt("commonmark").enable("table").parse(text)
+
+
+def markdown_tables(tokens, section=None):
+    """Each table as (header cells, body rows of cells). A header cell reads each run of
+    whitespace as one space, as a renderer shows it; a body cell is its stripped source text,
+    an escaped pipe unescaped, so a value is read exactly. A body row is padded or cut to the
+    header's width, as GFM renders it. With section, only the tables under the heading of that
+    text, up to the next heading at its level or above. A pipe line in a fence or prose is
+    not a table, and an escaped pipe does not split a cell, as a renderer shows them."""
+    found, level, in_section, cells = [], None, section is None, None
+    for index, token in enumerate(tokens):
+        if token.type == "heading_open" and section is not None:
+            if tokens[index + 1].content.strip() == section:
+                level, in_section = token.tag, True
+            elif level is not None and token.tag <= level:
+                in_section = False
+        elif not in_section:
+            continue
+        elif token.type == "table_open":
+            found.append(([], []))
+        elif token.type == "tr_open":
+            cells = []
+        elif token.type == "tr_close":
+            header, rows = found[-1]
+            if header:
+                rows.append(cells)
+            else:
+                header.extend(cells)
+        elif token.type == "inline" and tokens[index - 1].type == "th_open":
+            cells.append(words(token.content))
+        elif token.type == "inline" and tokens[index - 1].type == "td_open":
+            cells.append(token.content.strip())
+    return found
+
+
 def fence_split(text):
     """([(line, fenced)], unclosed): fenced is true for every line of a fenced or indented
     code block, its marker lines included, exactly as a CommonMark renderer shows them as
@@ -188,8 +233,6 @@ def fence_split(text):
     Line ends are normalized as markdown-it normalizes them. Read
     by the vendored markdown-it-py, never a hand-rolled fence rule, so no line the renderer
     shows as text can be taken for code."""
-    vendored(MARKDOWN_VENDOR)
-    from markdown_it import MarkdownIt
     # markdown-it reads a lone \r as a line end too, so line numbers match only once both
     # line-end forms are newlines.
     text = text.replace("\r\n", "\n").replace("\r", "\n")
@@ -197,7 +240,7 @@ def fence_split(text):
     fenced, unclosed = [False] * len(lines), False
     # Parsed with a final newline, which a Jira description usually lacks, so the content
     # count below is the same whether the source ends in one or not.
-    for token in MarkdownIt("commonmark").parse(text if text.endswith("\n") else text + "\n"):
+    for token in markdown_tokens(text if text.endswith("\n") else text + "\n"):
         if token.type not in ("fence", "code_block") or not token.map:
             continue
         start, end = token.map

@@ -35,7 +35,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)),
                                 "..", "..", "..", "gates", "scripts"))
 # The discipline rules plan-work and the release scripts apply.
 from project_rules import (DISCIPLINES, is_unset, markdown_value, named_disciplines,  # noqa: E402
-                           read_config, tracked_path_matcher)
+                           read_config, tracked_path_matcher, words)
 
 SUMMARY_MAX = 100
 
@@ -55,7 +55,7 @@ def handoff_limit(skill_path=PLAN_WORK_SKILL):
     """The handoff limit as plan-work states it. Raises if the sentence moved."""
     with open(skill_path, encoding="utf8") as f:
         # The sentence wraps across lines in the skill, so match against the joined text.
-        found = HANDOFF_LIMIT_SENTENCE.search(" ".join(f.read().split()))
+        found = HANDOFF_LIMIT_SENTENCE.search(words(f.read()))
     if not found:
         raise SystemExit(
             f"UNPARSEABLE: no handoff limit found in {os.path.normpath(skill_path)} — "

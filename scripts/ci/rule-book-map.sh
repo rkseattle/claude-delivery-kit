@@ -27,14 +27,11 @@ import sys
 root, gates = sys.argv[1:3]
 sys.dont_write_bytecode = True
 sys.path.insert(0, gates)
-from project_rules import (MARKDOWN_VENDOR, REGISTER_COLUMNS, complete_register_row,  # noqa: E402
-                           is_register_header, tracked_path_matcher, vendored)
-
-vendored(MARKDOWN_VENDOR)
-from markdown_it import MarkdownIt  # noqa: E402
+from project_rules import (REGISTER_COLUMNS, complete_register_row, is_register_header,  # noqa: E402
+                           markdown_tables, markdown_tokens, tracked_path_matcher,
+                           words)
 
 EXCEPTED_BY = "Excepted by"
-parser = MarkdownIt("commonmark").enable("table")
 
 
 def read(path, missing):
@@ -48,42 +45,9 @@ def read(path, missing):
         sys.exit(f"{path} is not UTF-8: byte {error.start}")
 
 
-def words(text):
-    """The text with each run of whitespace read as one space."""
-    return " ".join(text.split())
-
-
-def tables(tokens, section=None):
-    """Each table as (header cells, body rows of cells), cells as source text. With
-    section, only the tables under the heading of that text, up to the next heading at its
-    level or above."""
-    found, level, in_section, cells = [], None, section is None, None
-    for index, token in enumerate(tokens):
-        if token.type == "heading_open" and section is not None:
-            if tokens[index + 1].content.strip() == section:
-                level, in_section = token.tag, True
-            elif level is not None and token.tag <= level:
-                in_section = False
-        elif not in_section:
-            continue
-        elif token.type == "table_open":
-            found.append(([], []))
-        elif token.type == "tr_open":
-            cells = []
-        elif token.type == "tr_close":
-            header, rows = found[-1]
-            if header:
-                rows.append(cells)
-            else:
-                header.extend(cells)
-        elif token.type == "inline" and tokens[index - 1].type in ("th_open", "td_open"):
-            cells.append(words(token.content))
-    return found
-
-
 path = os.path.join(root, "reference", "rule-book-map.md")
 text = read(path, "no rule-book map")
-tokens = parser.parse(text)
+tokens = markdown_tokens(text)
 
 
 def code_spans(tokens):
@@ -109,7 +73,7 @@ for span in paths:
         print(f"MISSING: {span}")
         failed = True
 cited = set()
-for header, rows in tables(tokens):
+for header, rows in markdown_tables(tokens):
     if EXCEPTED_BY not in header:
         print(f"NO {EXCEPTED_BY.upper()} COLUMN: the map table headed {' | '.join(header)}")
         failed = True
@@ -120,14 +84,14 @@ for header, rows in tables(tokens):
 if cited:
     exceptions = os.path.join(root, "gates", "exceptions.md")
     rules = []
-    for header, rows in tables(parser.parse(read(exceptions, "no exceptions register")),
-                               "Kit-wide exceptions"):
+    for header, rows in markdown_tables(markdown_tokens(read(exceptions, "no exceptions register")),
+                                        "Kit-wide exceptions"):
         if not is_register_header(header):
             print(f"NOT A REGISTER: a Kit-wide exceptions table in {exceptions} is headed "
                   f"{' | '.join(header)}, not {' | '.join(REGISTER_COLUMNS)}")
             failed = True
             continue
-        rules += [row[0] for row in rows if complete_register_row(row)]
+        rules += [words(row[0]) for row in rows if complete_register_row(row)]
     for name in sorted(cited):
         if any(rule.startswith(name + ":") for rule in rules):
             print(f"ok: excepted by {name}")

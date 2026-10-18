@@ -191,6 +191,9 @@ fresh_copy; fixture; row 'Rule book R90;'
 expect pass "a trailing semicolon in an Excepted by cell" rule-book-map.sh
 fresh_copy; fixture; row 'Rule book    R90'
 expect pass "a name with a run of spaces" rule-book-map.sh
+fresh_copy; sed -i.bak 's/^| ID | Rule | Applied by | Step or section | Excepted by |$/| ID | Rule | Applied by | Step or section | Excepted   by |/' \
+  "$tmp/repo/$map"; fixture
+expect pass "a header cell with a run of spaces" rule-book-map.sh
 fresh_copy; printf '| Rule book   R90: fixture | x | x | 2099-01-01 | x |\n' >> "$tmp/repo/$ex"; row 'Rule book R90'
 expect pass "a Rule cell with a run of spaces" rule-book-map.sh
 fresh_copy; fixture 2099-01-01 ''
