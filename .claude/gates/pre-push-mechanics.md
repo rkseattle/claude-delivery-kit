@@ -53,8 +53,10 @@ in full. It takes under a minute, so there is no subset worth trusting instead.
 - `OVER CAP <file>` — a line budget breach; the change names what comes out.
 - `UNPARSEABLE cap table` — `skills/deliver/references/invariants.md` is missing, or its cap
   table lost a row, repeated one, or holds a cap that is not a whole number; fix the table.
-- `BROKEN: <path>` — a malformed JSON file or a `${CLAUDE_PLUGIN_ROOT}` reference to a
-  missing file.
+- `BROKEN: <path>` — a malformed JSON file, or a `${CLAUDE_PLUGIN_ROOT}` reference git does
+  not track exactly as written: a missing file, one not yet `git add`ed, or a wrong case.
+  `cannot list the tracked files` from either reference check — run from a checkout git can
+  read.
 - `NOT PINNED` — a workflow's `uses:` names a tag, branch, or short SHA; pin it to the full
   commit SHA with the tag as a trailing comment. `UNPARSEABLE` — a workflow is not YAML
   with a `jobs:` mapping.
@@ -68,8 +70,7 @@ in full. It takes under a minute, so there is no subset worth trusting instead.
   `Rule` cell, up to its colon; point the map row at what now applies the rule, or at
   the renamed row. `NO EXCEPTED BY COLUMN:` — a map table lacks the column; add it. `NOT
   A REGISTER:` — a table under Kit-wide exceptions is not headed Rule | Reason | Risk |
-  Expiry | Remediation; restore its header. `cannot list the tracked files` — run from a
-  checkout git can read.
+  Expiry | Remediation; restore its header.
 - `FAIL <check>: <case>` from `self-test.sh` — a check stopped catching its defect; fix the
   check, never the case.
 - A hook self-test count mismatch — the hook's behavior changed; read the named case.

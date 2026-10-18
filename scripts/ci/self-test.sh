@@ -8,6 +8,8 @@ root="$(cd "${1:-.}" && pwd)"
 here="$(cd "$(dirname "$0")" && pwd)"
 tmp="$(mktemp -d)"
 trap 'rm -rf "$tmp"' EXIT
+# A temp dir inside some repository must not let git find that repository from a non-git root.
+export GIT_CEILING_DIRECTORIES="$tmp"
 fail=0
 
 fresh_copy() {
