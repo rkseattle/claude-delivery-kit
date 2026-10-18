@@ -64,7 +64,7 @@ for path in workflows:
         with open(path, encoding="utf-8") as handle:
             nodes = list(uses_nodes(yaml.compose(handle, Loader=yaml.SafeLoader)))
     except (OSError, ValueError, yaml.YAMLError) as error:
-        unparseable.append(f"UNPARSEABLE {path}: {str(error).splitlines()[0]}")
+        unparseable.append(f"UNPARSEABLE {path}: {(str(error).splitlines() or [type(error).__name__])[0]}")
         continue
     for node in nodes:
         ref = node.value if isinstance(node, yaml.ScalarNode) else ""
