@@ -2,9 +2,9 @@
 """Lint a write-tickets draft. Standard library only.
 
     lint_draft.py DRAFT.md [--repo ROOT] [--disciplines NAMES]
-                                           exit 0 clean, 1 errors, 2 unparseable, or a
-                                           `disciplines` in ROOT/.claude/project.json that
-                                           names an unknown discipline; NAMES, comma-
+                                           exit 0 clean, 1 errors, 2 unparseable, or
+                                           ROOT/.claude/project.json missing, unreadable,
+                                           or naming an unknown discipline; NAMES, comma-
                                            separated, overrides project.json
     lint_draft.py DRAFT.md --readback ID FETCHED.md
                                            exit 0 if Jira kept every line of ticket ID, 1 if not
@@ -77,10 +77,11 @@ SPEC_SECTIONS = ["Goal", "Behavior", "Change", "Acceptance criteria", "Expected"
 # Rule book Appendix B's ticket fields, each checked only when --disciplines names its discipline.
 DATA_LINES = ("Sources", "Retention", "Privacy")
 DATA_LINE = re.compile(r"^-\s+(\w+):\s*(.*)$")
-HOLDOUT = re.compile(r"\bholdout:\s*\w[^\s`]*", re.I)
+HOLDOUT = re.compile(r"\bholdout:\s*(\w[^\s`]*)", re.I)
 HARDWARE_BUDGETS = ("memory", "power", "timing")
 SLO_METRIC = re.compile(r"\b(availability|latency)\b", re.I)
-SLO_WINDOW = re.compile(r"\bover \d+ days?\b", re.I)
+# A rolling window or a calendar one, the two OpenSLO's timeWindow and the SRE Workbook allow.
+SLO_WINDOW = re.compile(r"\bover \d+ days?\b|\bper calendar (week|month|quarter|year)\b", re.I)
 UNDECIDED = [r"\bTBD\b", r"\bTBC\b", r"\bTODO\b", r"\?\?", r"\betc\b", r"\be\.g\.", r"\band/or\b",
              r"\bas needed\b", r"\bas appropriate\b", r"\bif possible\b", r"\bwhere applicable\b",
              r"\binvestigate\b", r"\bexplore\b", r"\bconsider\b", r"\bdecide\b", r"\bdetermine whether\b"]
@@ -347,7 +348,8 @@ def lint(items, repo, disciplines=()):
             if "data" in labels:
                 for problem in data_problems(i["sections"]):
                     err(i, "D1", problem)
-            if "model" in labels and not any(HOLDOUT.search(text.replace("`", "")) for _, text in nfrs):
+            sets = [m[1] for m in (HOLDOUT.search(text.replace("`", "")) for _, text in nfrs) if m]
+            if "model" in labels and not any(not is_unset(name) for name in sets):
                 err(i, "D2", "a Story labeled 'model' has no NFR naming 'holdout: <set>', the evaluation set")
         if "embedded" in disciplines and t == "Epic":
             for budget in HARDWARE_BUDGETS:
@@ -357,7 +359,8 @@ def lint(items, repo, disciplines=()):
             for num, text in nfrs:
                 slo = SLO_METRIC.search(metric(text))
                 if slo and not SLO_WINDOW.search(text):
-                    err(i, "D4", f"NFR{num} names {slo[1].lower()} with no 'over <n> days' measurement window")
+                    err(i, "D4", f"NFR{num} names {slo[1].lower()} with no 'over <n> days' or "
+                                 "'per calendar <period>' measurement window")
         for ref in ids(i["meta"].get("Blocked by")) + ids(i["meta"].get("Parent")):
             if LOCAL.match(ref):
                 if ref not in by_id:

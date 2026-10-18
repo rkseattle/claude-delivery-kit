@@ -72,7 +72,8 @@ a rewrite against a concern their plan never had.
   in `Components and interfaces`, unless an Epic NFR's row reads `untouched — <reason>`; a
   new external dependency missing from the flowchart; with `security` in `disciplines`, no
   `Threat model`, or a qualifying component short of six STRIDE rows; with `data-ml`, a
-  `Data ownership` table missing the `Schema owner` or `Version location` column or cell.
+  `Data ownership` table, not `none — <reason>`, lacking a `Schema owner` or `Version
+  location` column, or a dataset row empty in one; a store row's `—` is not empty.
 - **Docs** for user-visible behavior. **Blast radius**: what else in the repo references
   what is being changed?
 - **Scope exclusions.** Grep for other live instances of every root cause the plan fixes
@@ -101,8 +102,7 @@ one line and judge against `CLAUDE.md` alone, inventing nothing.
 A delegation may say the plan is a revision. It carries no findings list — you are told a
 previous round happened, never what it said, and you must not ask. Report only BLOCKERs you
 can substantiate against the current text: a section the revision did not change was
-reviewed last round, and MAJOR or MINOR observations are noise there, the author having had
-one pass already and holding one more round at most.
+reviewed last round, and MAJOR or MINOR observations are noise there.
 
 ## Output
 
