@@ -9,13 +9,13 @@ skills/release-readiness/scripts/readiness_check.py,
 skills/ci-green/scripts/review_gate.py, skills/incident-review/scripts/incident_check.py,
 skills/maintenance-review/scripts/maintenance_check.py,
 skills/retire-system/scripts/retire_check.py, gates/scripts/sarif_gate.py, and, for the
-discipline rule alone, skills/write-tickets/scripts/lint_draft.py, and, for the YAML
-vendor alone, scripts/ci/actions-pinned.sh, and, for the Markdown vendor and the register
-row rule, scripts/ci/rule-book-map.sh, so no two of them can disagree on what an unset
-key, a placeholder, a discipline, a date, a printed number, a branch slug, a code fence, a
-Markdown field's value, a register header, or a complete exceptions-register row is; each
-reader splits its own table. Each importer's self-test covers the rules it uses; this
-module has no entry point of its own.
+discipline and tracked-file rules, skills/write-tickets/scripts/lint_draft.py, and, for
+the YAML vendor alone, scripts/ci/actions-pinned.sh, and, for the Markdown vendor and the
+register and tracked-file rules, scripts/ci/rule-book-map.sh, so no two of them can
+disagree on what an unset key, a placeholder, a discipline, a date, a printed number, a
+branch slug, a code fence, a Markdown field's value, a register header, a complete
+exceptions-register row, or a tracked path is; each reader splits its own table. Each
+importer's self-test covers the rules it uses; this module has no entry point of its own.
 """
 import ast
 import datetime
@@ -23,6 +23,7 @@ import json
 import math
 import os
 import re
+import subprocess
 import sys
 
 GATES_SCRIPTS = os.path.dirname(os.path.abspath(__file__))
@@ -117,6 +118,32 @@ def parse_date(value):
         return datetime.date.fromisoformat(value)
     except ValueError:
         raise ValueError(f"{value!r} is not a calendar date")
+
+
+def tracked_files(root):
+    """Every path git tracks under root, as `git ls-files` writes it. A repo path matched
+    against this exactly, not tested on disk, is absent when untracked, cased wrongly on a
+    case-insensitive disk, or climbing out of the repo, as it is in a fresh checkout. A file
+    inside a submodule is not listed; the submodule's own path is. Raises ValueError where
+    git cannot list root."""
+    listing = subprocess.run(["git", "-C", root, "ls-files", "-z"], stdout=subprocess.PIPE,
+                             stderr=subprocess.PIPE)
+    if listing.returncode != 0:
+        raise ValueError(f"cannot list the tracked files under {root}")
+    return {os.fsdecode(name) for name in listing.stdout.split(b"\0") if name}
+
+
+def tracked_path_matcher(root):
+    """A test of whether git tracks a cited path under root, as a file or as a directory
+    holding one, its trailing slashes ignored: the one rule every reader of a repo path
+    applies. Raises ValueError where git cannot list root."""
+    paths = tracked_files(root)
+    for path in list(paths):
+        parent = os.path.dirname(path)
+        while parent:
+            paths.add(parent)
+            parent = os.path.dirname(parent)
+    return lambda cited: cited.rstrip("/") in paths
 
 
 # The exceptions register's columns, in order, as gates/exceptions.md's Format defines them.

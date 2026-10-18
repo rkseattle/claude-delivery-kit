@@ -9,11 +9,11 @@ row that records the departure, by its Rule text up to the colon, in plain text,
 by semicolons.
 
 Every backticked token containing a slash is a path from the repo root, and CI's
-`Rule-book map paths resolve` step fails when one is not a tracked file, or when an
-Excepted by name starts no complete kit-wide row. Write a step name or any other text
-holding a slash outside backticks, and cite an exception only in Excepted by. The step
-catches a moved or deleted file, not a renamed heading: a change that renames a step cited
-here updates its row in the same commit.
+`Rule-book map paths resolve` step fails when git tracks no such file or directory, or
+when an Excepted by name starts no complete kit-wide row. Write a step name or any other
+text holding a slash outside backticks, and cite an exception only in Excepted by. The
+step catches a moved or deleted file, not a renamed heading: a change that renames a step
+cited here updates its row in the same commit.
 
 ## Standing rules
 

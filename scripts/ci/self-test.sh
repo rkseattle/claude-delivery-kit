@@ -8,8 +8,10 @@ root="$(cd "${1:-.}" && pwd)"
 here="$(cd "$(dirname "$0")" && pwd)"
 tmp="$(mktemp -d)"
 trap 'rm -rf "$tmp"' EXIT
-# A temp dir inside some repository must not let git find that repository from a non-git root.
-export GIT_CEILING_DIRECTORIES="$tmp"
+# An inherited GIT_DIR, GIT_INDEX_FILE or config would aim every fixture repository at another
+# one, and a temp dir inside some repository must not let git find it from a non-git root.
+while IFS= read -r var; do unset "$var"; done < <(env | sed -n 's/^\(GIT_[A-Za-z0-9_]*\)=.*/\1/p')
+export GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null GIT_CEILING_DIRECTORIES="$tmp"
 fail=0
 
 fresh_copy() {
@@ -151,6 +153,10 @@ printf '| Z1 | %sgates/untracked.md%s | x |\n' "$bt" "$bt" >> "$tmp/repo/$map"
 expect_saying "a path on disk that git does not track" rule-book-map.sh "MISSING: gates/untracked.md"
 fresh_copy; printf '| Z1 | %sGates/pre-push.md%s | x |\n' "$bt" "$bt" >> "$tmp/repo/$map"
 expect_saying "a tracked path cased wrongly" rule-book-map.sh "MISSING: Gates/pre-push.md"
+fresh_copy; printf '| Z1 | %sgates/scripts%s | %sgates/scripts/%s | x |\n' "$bt" "$bt" "$bt" "$bt" >> "$tmp/repo/$map"
+expect pass "a tracked directory, with and without its trailing slash" rule-book-map.sh
+fresh_copy; printf '| Z1 | %sgates/does-not-exist/%s | x |\n' "$bt" "$bt" >> "$tmp/repo/$map"
+expect_saying "a directory no tracked file sits under" rule-book-map.sh "MISSING: gates/does-not-exist/"
 fresh_copy; printf '| Z1 | %s.github/workflows/ci.yml%s | x |\n' "$bt" "$bt" >> "$tmp/repo/$map"
 expect pass "a tracked path under a dot-directory" rule-book-map.sh
 fresh_copy; printf '| Z1 | %s gates/pre-push.md %s | x |\n' "$bt" "$bt" >> "$tmp/repo/$map"
