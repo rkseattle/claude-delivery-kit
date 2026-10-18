@@ -439,8 +439,14 @@ discipline is named, with no default, and placeholders here.
 - `disciplines` — a list drawn from `security`, `data-ml`, `mobile`, `embedded`, and
   `sre`. Default `[]`. With `security`, `plan-work` requires a STRIDE `## Threat model`
   in every plan, and `design-adversary` blocks a `High` threat that names no phase.
-  `plan-work`, `release-readiness`, and `release` stop on any other name, matched with case,
-  since a misspelled discipline would skip its addenda without a word. A named discipline
+  `write-tickets`' linter requires rule book Appendix B's ticket fields: with `data-ml`, a
+  `## Data` section on a Story labeled `data` and a holdout NFR on one labeled `model`; with
+  `embedded`, memory, power and timing NFRs on an Epic; with `sre`, an `over <n> days`
+  window on an availability or latency NFR. With `data-ml`, `plan-work`'s `## Data
+  ownership` names each dataset's schema owner and version location, and `design-adversary`
+  flags a plan without them. `plan-work`, `write-tickets`, `release-readiness`, and `release`
+  stop on any other name, matched with case, since a misspelled discipline would skip its
+  addenda without a word. A named discipline
   adds its sections of `gates/release-readiness.md` and `gates/release.md`, where it has
   them, and a discipline left out skips them silently. The keys a named discipline needs at a gate
   have no default: absent, `none`, a `<placeholder>`, or malformed, they stop that gate's skill.
