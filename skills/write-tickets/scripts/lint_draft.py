@@ -30,8 +30,8 @@ from mcp_atlassian_adf import markdown_to_adf  # noqa: E402  on the path jira_ro
 # The path is set here, not left to an importer: readiness_check.py imports this module first.
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)),
                                 "..", "..", "..", "gates", "scripts"))
-from project_rules import (DISCIPLINES, is_unset, named_disciplines,  # noqa: E402  as plan-work
-                           read_config)  # and release read them
+# The discipline rules plan-work and the release scripts apply.
+from project_rules import DISCIPLINES, is_unset, named_disciplines, read_config  # noqa: E402
 
 SUMMARY_MAX = 100
 
@@ -80,8 +80,7 @@ DATA_LINE = re.compile(r"^-\s+(\w+):\s*(.*)$")
 HOLDOUT = re.compile(r"\bholdout:\s*(\w[^\s`]*)", re.I)
 HARDWARE_BUDGETS = ("memory", "power", "timing")
 SLO_METRIC = re.compile(r"\b(availability|latency)\b", re.I)
-# A rolling window or a calendar one, the two OpenSLO's timeWindow and the SRE Workbook allow.
-SLO_WINDOW = re.compile(r"\bover \d+ days?\b|\bper calendar (week|month|quarter|year)\b", re.I)
+SLO_WINDOW = re.compile(r"\bover [1-9]\d* days?\b", re.I)
 UNDECIDED = [r"\bTBD\b", r"\bTBC\b", r"\bTODO\b", r"\?\?", r"\betc\b", r"\be\.g\.", r"\band/or\b",
              r"\bas needed\b", r"\bas appropriate\b", r"\bif possible\b", r"\bwhere applicable\b",
              r"\binvestigate\b", r"\bexplore\b", r"\bconsider\b", r"\bdecide\b", r"\bdetermine whether\b"]
@@ -359,8 +358,7 @@ def lint(items, repo, disciplines=()):
             for num, text in nfrs:
                 slo = SLO_METRIC.search(metric(text))
                 if slo and not SLO_WINDOW.search(text):
-                    err(i, "D4", f"NFR{num} names {slo[1].lower()} with no 'over <n> days' or "
-                                 "'per calendar <period>' measurement window")
+                    err(i, "D4", f"NFR{num} names {slo[1].lower()} with no 'over <n> days' measurement window")
         for ref in ids(i["meta"].get("Blocked by")) + ids(i["meta"].get("Parent")):
             if LOCAL.match(ref):
                 if ref not in by_id:

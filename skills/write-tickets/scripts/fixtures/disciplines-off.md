@@ -13,7 +13,8 @@ The gateway flags accounts likely to churn within 30 days.
 ## Non-functional requirements
 - NFR1: Gateway memory < 256 MB at 50 connected sensors in low power mode [verify: automated @ tests/auth/login.test.ts]
 - NFR2: Score API availability >= 99.9% across regions [verify: out-of-band @ monthly uptime report]
-- NFR4: Score API error rate < 0.1% per calendar month [verify: out-of-band @ monthly uptime report]
+- NFR4: Score API p99 latency < 400 ms over 1 day [verify: out-of-band @ monthly uptime report]
+- NFR6: Score API availability >= 99.5% over 0 days [verify: out-of-band @ monthly uptime report]
 - NFR5: Failover time < 30 s at 99.9% availability [verify: out-of-band @ monthly uptime report]
 - NFR3: Score API p95 latency < 200 ms over 28 days [verify: out-of-band @ monthly uptime report]
 
@@ -158,6 +159,7 @@ Each usage event carries the account's current plan.
 
 ## Data
 - Sources: gateway session logs, billing plan table
+- Retention:
 - Retention: 90 days
 - Privacy: account hashes only
 
