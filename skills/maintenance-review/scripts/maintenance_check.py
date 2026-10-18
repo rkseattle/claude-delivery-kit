@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Maintenance-review checks, so the skill settles no age, share, or match by eye. Standard
-library only.
+library only, but for the PyYAML vendored in gates/scripts/_vendor that alert-rules loads.
 
 Called by skills/maintenance-review/SKILL.md (Steps 1 to 3). The discipline keys are checked
 by skills/release-readiness/scripts/readiness_check.py's `disciplines --gate maintenance`,
@@ -26,6 +26,9 @@ reads its keys from project.json itself, so no value passes through shell text.
         nothing resolved, `no issues resolved`
     maintenance_check.py drift --config PATH < OUTPUT
         `within <n>` or `over <n>`, against drift_threshold, for the one number printed
+    maintenance_check.py alert-rules --config PATH
+        one `<file>\t<alert>\tno runbook\t<SLO or none>` line per Prometheus alerting rule
+        under alert_rules_dir with no `runbook_url` or `runbook` annotation, Appendix B5's rule
     maintenance_check.py --self-test     runs every case below; exit 0 only if each one matches
 
 A failed check prints `INVALID: <what>` to standard error and exits 1; exit 2 is usage.
@@ -47,9 +50,9 @@ import tempfile
 sys.dont_write_bytecode = True
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)),
                                 "..", "..", "..", "gates", "scripts"))
-from project_rules import (check_command, check_repo_path, is_unset,  # noqa: E402
-                           json_number, parse_date, positive_int, read_config, report,
-                           result_of, single_number)
+from project_rules import (YAML_VENDOR, check_command, check_repo_path,  # noqa: E402
+                           is_unset, json_number, parse_date, positive_int, read_config,
+                           report, result_of, single_number, vendored)
 
 RUNBOOK_MAX_AGE = 90
 DEFAULTS = {"on_call": "none", "iteration_days": 14, "debt_share_target": "none",
@@ -152,10 +155,8 @@ def git_paths(*arguments):
 
 def stale_runbooks(config, today):
     """Each runbook on disk whose last commit is more than 90 days before today, or none."""
-    directory = required(config, "runbooks_dir")
+    directory = existing_dir("runbooks_dir", required(config, "runbooks_dir"))
     today = parse_date(today)
-    if not os.path.isdir(directory):
-        raise ValueError(f"runbooks_dir {directory!r} is not a directory")
     if git_paths("rev-parse", "--is-shallow-repository") != ["false"]:
         raise ValueError("the checkout is shallow, so every file's last commit reads as the "
                          "clone's boundary; fetch the full history first")
@@ -205,6 +206,107 @@ def debt_share(config, resolved, preventive):
     if target == "none":
         return shown
     return f"{shown}\t{'meets' if share >= target else 'below'} {target}%"
+
+
+RUNBOOK_KEYS = ("runbook_url", "runbook")
+SLO_KEYS = ("slo", "sloth_slo")
+
+
+def existing_dir(key, value):
+    if not os.path.isdir(value):
+        raise ValueError(f"{key} {value!r} is not a directory")
+    return value
+
+
+# The fields Prometheus's rule-file parser (rulefmt) accepts; it rejects any other.
+GROUP_KEYS = {"name", "interval", "limit", "query_offset", "labels", "rules"}
+# prometheus-operator's PrometheusRule adds one group field for Thanos Ruler.
+OPERATOR_GROUP_KEYS = GROUP_KEYS | {"partial_response_strategy"}
+RULE_KEYS = {"alert", "record", "expr", "for", "keep_firing_for", "labels", "annotations"}
+
+
+def rule_groups(document, path):
+    """The rule groups of a Prometheus rule file or a prometheus-operator PrometheusRule,
+    held to rulefmt's fields; [] for another Kubernetes manifest, such as a kustomization,
+    or a Sloth SLO spec beside the rules it generates."""
+    allowed = GROUP_KEYS
+    if isinstance(document, dict) and "kind" in document:
+        if document["kind"] != "PrometheusRule":
+            return []
+        document, allowed = document.get("spec"), OPERATOR_GROUP_KEYS
+    if isinstance(document, dict) and "slos" in document and "groups" not in document:
+        return []
+    groups = document.get("groups", False) if isinstance(document, dict) else False
+    groups = [] if groups is None else groups
+    if not isinstance(groups, list):
+        raise ValueError(f"{path} is not Prometheus rule groups")
+    for group in groups:
+        if not (isinstance(group, dict) and group.get("name")):
+            raise ValueError(f"{path} holds a rule group that is not a named map")
+        unknown = set(group) - allowed
+        if unknown or not isinstance(group.get("rules") or [], list):
+            raise ValueError(f"{path}'s group {group['name']} has "
+                             + (f"fields {sorted(unknown)} rulefmt rejects" if unknown
+                                else "rules that are not a list"))
+        for rule in group.get("rules") or []:
+            if not isinstance(rule, dict) or len({"alert", "record"} & set(rule)) != 1 \
+                    or set(rule) - RULE_KEYS:
+                raise ValueError(f"{path}'s group {group['name']} holds {rule!r:.60}, not one "
+                                 "alerting or recording rule of rulefmt's fields")
+    return groups
+
+
+def unlinked_alerts(config):
+    """Each alerting rule with no runbook annotation, by file and alert, with its SLO."""
+    check_repo_path("alert_rules_dir", config.get("alert_rules_dir"))
+    directory = existing_dir("alert_rules_dir", config["alert_rules_dir"])
+    vendored(YAML_VENDOR)
+    import yaml
+    paths = sorted(os.path.join(root, name) for root, _, names in os.walk(directory)
+                   for name in names if name.endswith((".yml", ".yaml")))
+    if not paths:
+        raise ValueError(f"alert_rules_dir {directory!r} holds no .yml or .yaml file")
+    rows, groups_read = [], 0
+    for path in paths:
+        try:
+            with open(path, encoding="utf-8") as handle:
+                documents = [document for document in yaml.safe_load_all(handle)
+                             if document is not None]
+        except (OSError, ValueError, yaml.YAMLError) as error:
+            raise ValueError(f"{path} is unreadable as UTF-8 YAML: "
+                             f"{str(error).splitlines()[0]}")
+        for document in documents:
+            groups = rule_groups(document, path)
+            groups_read += len(groups)
+            for group in groups:
+                for rule in group.get("rules") or []:
+                    row = unlinked_row(rule, path)
+                    if row:
+                        rows.append(row)
+    if not groups_read:
+        raise ValueError(f"alert_rules_dir {directory!r} holds no Prometheus rule group")
+    return rows
+
+
+def unlinked_row(rule, path):
+    """The row for an alerting rule with no runbook annotation; None for one with one, or for
+    a recording rule. A field Prometheus would reject is INVALID, never a row."""
+    if "alert" not in rule:
+        return None
+    name, annotations, labels = (rule["alert"], rule.get("annotations") or {},
+                                 rule.get("labels") or {})
+    if not (isinstance(name, str) and name.split() == [name]):
+        raise ValueError(f"{path} holds an alert named {name!r}, not one word")
+    if not (isinstance(annotations, dict) and isinstance(labels, dict)):
+        raise ValueError(f"{path}'s alert {name} has labels or annotations that are not maps")
+    if any(annotations.get(key) for key in RUNBOOK_KEYS):
+        return None
+    slo = next((source[key] for source in (labels, annotations) for key in SLO_KEYS
+                if source.get(key)), "none")
+    if not (isinstance(slo, str) and slo.split() == [slo]):
+        raise ValueError(f"{path}'s alert {name} names its SLO {slo!r}, not one word of text; "
+                         "quote it, as YAML reads yes or 1.10 as something else")
+    return f"{path}\t{name}\tno runbook\t{slo}"
 
 
 def drift(config, output):
@@ -392,6 +494,141 @@ def runbook_cases():
     return failures
 
 
+ALERT_RULE_FILES = {
+    "ops/alerts/api.yml": """groups:
+- name: api
+  rules:
+  - alert: HighErrorRate
+    labels: {slo: api-availability}
+    annotations: {runbook_url: "https://runbooks.example.test/api"}
+  - alert: HighLatency
+    labels: {sloth_slo: api-latency}
+  - alert: DiskFull
+    annotations: {summary: disk}
+  - record: job:requests:rate5m
+    expr: rate(requests[5m])
+""",
+    "ops/alerts/kustomization.yaml": "kind: Kustomization\nresources: [operator.yaml]\n",
+    "ops/alerts/sloth.yaml": "version: prometheus/v1\nservice: api\nslos: []\n",
+    "ops/alerts/null-rules.yml": "groups:\n- name: none-yet\n  rules:\n",
+    "ops/alerts/no-groups.yml": "groups:\n",
+    "ops/alerts/empty-runbook.yml": """groups:
+- name: blank
+  rules:
+  - alert: BlankRunbook
+    annotations: {runbook_url: ""}
+""",
+    "ops/alerts/multi.yml": """groups:
+- name: empty
+- name: by-annotation
+  rules:
+  - alert: CertExpiry
+    annotations: {slo: tls-validity}
+  - alert: Both
+    labels: {slo: from-labels}
+    annotations: {slo: from-annotations}
+---
+---
+groups: []
+""",
+    "ops/alerts/operator.yaml": """apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+spec:
+  groups:
+  - name: queue
+    rules:
+    - alert: QueueBacklog
+      annotations: {runbook: docs/runbooks/queue.md}
+    - alert: QueueStalled
+  - name: thanos
+    partial_response_strategy: warn
+    rules: []
+""",
+}
+
+
+def alert_rule_cases():
+    failures = 0
+    here = os.getcwd()
+    with tempfile.TemporaryDirectory() as root:
+        os.chdir(root)
+        try:
+            for path, text in ALERT_RULE_FILES.items():
+                os.makedirs(os.path.dirname(path), exist_ok=True)
+                with open(path, "w", encoding="utf-8") as handle:
+                    handle.write(text)
+            config = {"alert_rules_dir": "ops/alerts"}
+            failures += report("alert-rules", "alerts with no runbook, with their SLO",
+                               result_of(unlinked_alerts, config),
+                               ["ops/alerts/api.yml\tHighLatency\tno runbook\tapi-latency",
+                                "ops/alerts/api.yml\tDiskFull\tno runbook\tnone",
+                                "ops/alerts/empty-runbook.yml\tBlankRunbook\tno runbook\tnone",
+                                "ops/alerts/multi.yml\tCertExpiry\tno runbook\ttls-validity",
+                                "ops/alerts/multi.yml\tBoth\tno runbook\tfrom-labels",
+                                "ops/alerts/operator.yaml\tQueueStalled\tno runbook\tnone"])
+            for name, text in [("a file that is not rule groups", "alerts: []\n"),
+                               ("a YAML syntax error", "groups: [\n"),
+                               ("a Python object tag safe_load refuses",
+                                "groups: !!python/object/apply:os.system [true]\n"),
+                               ("annotations as a list",
+                                "groups:\n- name: g\n  rules:\n  - alert: A\n    annotations: [x]\n"),
+                               ("labels as a string",
+                                "groups:\n- name: g\n  rules:\n  - alert: A\n    labels: x\n"),
+                               ("an alert with no name", "groups:\n- name: g\n  rules:\n  - alert:\n"),
+                               ("an alert name with a tab",
+                                "groups:\n- name: g\n  rules:\n  - alert: \"A\\tB\"\n"),
+                               ("a file that is not UTF-8", b"groups: [\xe9]\n"),
+                               ("a rule that is not a map",
+                                "groups:\n- name: g\n  rules:\n  - alert X\n"),
+                               ("a rule neither alert nor record",
+                                "groups:\n- name: g\n  rules:\n  - alrt: Typo\n"),
+                               ("a misspelled rules key",
+                                "groups:\n- name: g\n  rule:\n  - alert: A\n"),
+                               ("a group that is not a map", "groups:\n- g\n"),
+                               ("rules that are not a list",
+                                "groups:\n- name: g\n  rules: {alert: A}\n"),
+                               ("a PrometheusRule with no spec", "kind: PrometheusRule\n"),
+                               ("an SLO across two lines", "groups:\n- name: g\n  rules:\n"
+                                "  - alert: A\n    labels: {slo: \"a\\nb\"}\n"),
+                               ("an SLO YAML reads as a boolean", "groups:\n- name: g\n"
+                                "  rules:\n  - alert: A\n    labels: {slo: yes}\n"),
+                               ("an operator-only field in a plain rule file",
+                                "groups:\n- name: g\n  partial_response_strategy: warn\n"),
+                               ("an impossible date", "groups:\n- name: g\n  rules:\n"
+                                "  - alert: A\n    labels: {d: 2026-13-01}\n")]:
+                with open("ops/alerts/bad.yml", "wb") as handle:
+                    handle.write(text if isinstance(text, bytes) else text.encode())
+                failures += report("alert-rules", name, result_of(unlinked_alerts, config),
+                                   "ValueError")
+            os.remove("ops/alerts/bad.yml")
+            os.makedirs("manifests")
+            with open("manifests/kustomization.yaml", "w", encoding="utf-8") as handle:
+                handle.write("kind: Kustomization\n")
+            failures += report("alert-rules", "manifests holding no rule group",
+                               result_of(unlinked_alerts, {"alert_rules_dir": "manifests"}),
+                               "ValueError")
+            with open(os.path.join(root, "project.json"), "w", encoding="utf-8") as handle:
+                json.dump(config, handle)
+            run = subprocess.run([sys.executable, os.path.abspath(__file__), "alert-rules",
+                                  "--config", os.path.join(root, "project.json")],
+                                 capture_output=True, text=True, check=False)
+            failures += report("cli", "alert-rules prints its rows",
+                               (run.returncode, run.stdout.splitlines()[:1]),
+                               (0, ["ops/alerts/api.yml\tHighLatency\tno runbook\tapi-latency"]))
+            os.makedirs("empty")
+            failures += report("alert-rules", "a directory with no rule file",
+                               result_of(unlinked_alerts, {"alert_rules_dir": "empty"}),
+                               "ValueError")
+            failures += report("alert-rules", "a missing directory",
+                               result_of(unlinked_alerts, {"alert_rules_dir": "nowhere"}),
+                               "ValueError")
+            failures += report("alert-rules", "alert_rules_dir none",
+                               result_of(unlinked_alerts, {}), "ValueError")
+        finally:
+            os.chdir(here)
+    return failures
+
+
 def cli_cases():
     failures = 0
     script = os.path.abspath(__file__)
@@ -448,6 +685,7 @@ def self_test():
     for name, config, expected in CONFIG_CASES:
         failures += report("config", name, result_of(resolve_config, config), expected)
     failures += runbook_cases()
+    failures += alert_rule_cases()
     failures += cli_cases()
     return 1 if failures else 0
 
@@ -457,7 +695,8 @@ def main():
     parser.add_argument("--self-test", action="store_true")
     commands = parser.add_subparsers(dest="command")
     subcommands = {name: commands.add_parser(name)
-                   for name in ("config", "alerts", "runbooks", "routes", "share", "drift")}
+                   for name in ("config", "alerts", "runbooks", "routes", "share", "drift",
+                                "alert-rules")}
     for subcommand in subcommands.values():
         subcommand.add_argument("--config", required=True)
     for name in ("alerts", "runbooks"):
@@ -480,6 +719,8 @@ def main():
             except ValueError as error:
                 raise ValueError(f"the alerts are not JSON: {error}")
             rows = stale_alerts(config, pages, args.today)
+        elif args.command == "alert-rules":
+            rows = unlinked_alerts(config)
         elif args.command == "runbooks":
             rows = stale_runbooks(config, args.today)
         elif args.command == "routes":

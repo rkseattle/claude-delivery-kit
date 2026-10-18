@@ -68,7 +68,8 @@ since this connector returns `"total": -1` and a `total` field is never a count.
   (corrective, adaptive, perfective, preventive))`, keeping each key and summary.
 - **Resolved this iteration** — `statusCategory = Done AND statusCategoryChangedDate >=
   -{{iteration_days}}d`, then the same with `AND labels = preventive`, by status category as
-  every other query here, since a workflow can reach done without setting a resolution. Their counts are `<resolved>` and `<preventive>`.
+  every other query here, since a workflow can reach done without setting a resolution.
+  Their counts are `<resolved>` and `<preventive>`.
 - **Old incident follow-ups** — `statusCategory != Done AND labels = incident-follow-up AND
   created < -30d`, keeping each key, summary, and created date. The `<` keeps an issue
   created exactly 30 days ago out, as "more than 30 days" asks.
@@ -119,19 +120,23 @@ read, except where the first bullet says otherwise.
 
   `within <n>` or `over <n>`; any non-zero exit is a failed read.
 - **Alert rules**, with `sre` — Appendix B5: "each alert must map to an SLO or a documented
-  failure mode and link to a runbook". Read every `.yml` and `.yaml` file under
-  `{{alert_rules_dir}}` as Prometheus alerting rules: each `- alert: <name>` entry under a
-  group's `rules`. An entry links a runbook when its `annotations` hold `runbook_url`, the
-  kube-prometheus convention, or `runbook`, and maps to an SLO when its `labels` or `annotations` hold
-  `slo`, the label Pyrra gives the alerts it generates, or `sloth_slo`, Sloth's. With no SLO,
-  its linked runbook is the documented failure mode B5 accepts in an SLO's place, so the rule
-  B5 sets every entry is a `runbook_url`: keep each entry without one, with the file, the
-  alert name, and whether it maps to an SLO. A file holding no `alert:` entry is listed as
-  such, since a rule in another format is not one this check can read. A missing
-  `{{alert_rules_dir}}`, or one holding no `.yml` or `.yaml` file, is a failed read, never
-  `none found`. This check and the reading of the outdated-dependency output are by eye, not
-  by the script: the kit vendors no YAML parser, and each dependency tool prints its own
-  table.
+  failure mode and link to a runbook":
+
+  ```bash
+  python3 "${CLAUDE_PLUGIN_ROOT}/skills/maintenance-review/scripts/maintenance_check.py" alert-rules --config "<project root>/.claude/project.json"
+  ```
+
+  It reads every `.yml` and `.yaml` file under `{{alert_rules_dir}}` as Prometheus rule
+  groups, or a prometheus-operator `PrometheusRule`, and prints each alerting rule with no
+  `runbook_url` annotation, the kube-prometheus convention, nor `runbook`, as `<file>`,
+  `<alert>`, `no runbook`, and the SLO it names by an `slo` label or annotation, Pyrra's, or
+  `sloth_slo`, Sloth's, or `none`. With no SLO, a linked runbook is the documented failure
+  mode B5 accepts in an SLO's place, so the rule every alert must meet is the runbook link.
+  Another Kubernetes manifest beside them, such as a kustomization, is skipped. An
+  `INVALID:` line — no such directory, no rule group in it, a file that is not UTF-8 YAML
+  rule groups, or a rule Prometheus would reject — is a failed read, never `none found`.
+  Reading the outdated-dependency output is the one check by eye, since each dependency tool
+  prints its own table.
 
 ## Step 3 — Report
 
@@ -251,6 +256,7 @@ and use `Task`, never a guessed name or ID. Give it:
   writes it.
 
 Read each ticket back with `jira_get_issue` and confirm it carries both labels, its
-`[verify: …]` tag whole, and its `Finding:` code span exactly; fix any once if it does not, and report it if it still does
-not. Then report each approved ticket with its key, and each declined or held one with its
-answer. Nothing else changes: no file, no commit, no other Jira write.
+`[verify: …]` tag whole, and its `Finding:` code span exactly; fix any once if it does not,
+and report it if it still does not. Then report each approved ticket with its key, and each
+declined or held one with its answer. Nothing else changes: no file, no commit, no other
+Jira write.

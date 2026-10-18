@@ -19,8 +19,18 @@ import re
 import sys
 
 # markdown-it-py, vendored beside the README checker; only fence_split loads it.
-VENDOR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "skills",
-                      "readme-docs", "scripts", "_vendor")
+GATES_SCRIPTS = os.path.dirname(os.path.abspath(__file__))
+# markdown-it-py, vendored beside the README checker so that skill can be copied alone; PyYAML,
+# vendored here. Each loads only when a function needs it.
+MARKDOWN_VENDOR = os.path.join(GATES_SCRIPTS, "..", "..", "skills", "readme-docs", "scripts",
+                               "_vendor")
+YAML_VENDOR = os.path.join(GATES_SCRIPTS, "_vendor")
+
+
+def vendored(directory):
+    """Put a vendor directory on the import path once, for the import that follows."""
+    if directory not in sys.path:
+        sys.path.insert(0, directory)
 
 PLACEHOLDER = re.compile(r"^\s*<.*>\s*$")
 # A value passed to a command as a bare argument: no option, path, or shell metacharacter.
@@ -106,8 +116,7 @@ def fence_split(text):
     Line ends are normalized as markdown-it normalizes them. Read
     by the vendored markdown-it-py, never a hand-rolled fence rule, so no line the renderer
     shows as text can be taken for code."""
-    if VENDOR not in sys.path:
-        sys.path.insert(0, VENDOR)
+    vendored(MARKDOWN_VENDOR)
     from markdown_it import MarkdownIt
     # markdown-it reads a lone \r as a line end too, so line numbers match only once both
     # line-end forms are newlines.

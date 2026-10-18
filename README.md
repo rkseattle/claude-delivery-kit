@@ -40,7 +40,9 @@ gates/                 status-report.md, definition-of-done.md, pre-push.md,
                        scripts/sarif_gate.py builds the scanners' git inputs and reads
                        their reports into the gates' verdicts; scripts/project_rules.py
                        holds the project.json rules and self-test helpers the release,
-                       review, incident, maintenance, and retirement scripts share
+                       review, incident, maintenance, and retirement scripts share;
+                       scripts/_vendor holds PyYAML, which the maintenance check reads
+                       alert rules with
 hooks/                 hooks.json + the two hooks and their self-tests
 scripts/ci/            the CI checks, runnable locally; all.sh runs every one
 reference/             software-engineering-rule-book.md, the source the rules
@@ -474,10 +476,11 @@ discipline is named, with no default, and placeholders here.
   - `data-ml` at maintenance: `drift_check_command` prints the current drift as one decimal
     number, and `drift_threshold` is a JSON number; drift above it is reported, Appendix B2's
     trigger for retraining or rollback.
-  - `sre` at maintenance: `alert_rules_dir` holds Prometheus alerting rules, read as
-    relative to the repository as `incident_reviews_dir` is. Each `alert:` entry lacking a
-    `runbook_url` or `runbook` annotation is reported, with whether it names an SLO by an `slo` or
-    `sloth_slo` label or annotation: Appendix B5's rule that every alert maps to an SLO or a
+  - `sre` at maintenance: `alert_rules_dir` holds Prometheus rule files or
+    prometheus-operator `PrometheusRule`s, relative to the repository as `incident_reviews_dir`
+    is. `maintenance_check.py alert-rules` reports each alerting rule lacking a `runbook_url`
+    or `runbook` annotation, with whether it names an SLO by an `slo` or `sloth_slo` label or
+    annotation: Appendix B5's rule that every alert maps to an SLO or a
     documented failure mode and links to a runbook, the runbook documenting the failure mode
     where no SLO is named.
 - `roles` — a map from each role above to the person who holds it. `{{roles.<role>}}` in a
