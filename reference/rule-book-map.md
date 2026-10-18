@@ -6,9 +6,11 @@ Each row names the kit files that apply the item and the step or section in each
 it. Where no kit file applies an item, or applies only part of it, the row names the
 `gates/exceptions.md` kit-wide row that records the departure.
 
-Every backticked token containing a slash is a path from the repo root. Write a step name or
-any other text holding a slash outside backticks, and keep each backticked token on one
-line. A change that renames a step cited here updates its row in the same commit.
+Every backticked token containing a slash is a path from the repo root, and CI's
+`Rule-book map paths resolve` step fails when one is not a tracked file. Write a step name
+or any other text holding a slash outside backticks. The step catches a moved or deleted
+file, not a renamed heading: a change that renames a step cited here updates its row in
+the same commit.
 
 ## Standing rules
 
