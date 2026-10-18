@@ -80,6 +80,17 @@ jobs:
       - name: Incident check self-test
         run: python3 skills/incident-review/scripts/incident_check.py --self-test
 
+      # One case per way a maintenance finding could go unreported: an alert a day past its
+      # SLA, a runbook a day past 90, a route to a channel, an alert rule with no runbook; and
+      # the script and its vendored PyYAML keep to the 3.8 grammar and the standard library.
+      - name: Maintenance check self-test
+        run: python3 skills/maintenance-review/scripts/maintenance_check.py --self-test
+
+      # One case per way a retirement record could read as done when it is not: a section
+      # missing, an unticked item, no confirmation; retire-system commits only on its `done`.
+      - name: Retirement check self-test
+        run: python3 skills/retire-system/scripts/retire_check.py --self-test
+
   manifest:
     name: Plugin manifest
     runs-on: ubuntu-latest

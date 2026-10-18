@@ -35,7 +35,7 @@ sys.dont_write_bytecode = True
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)),
                                 "..", "..", "..", "gates", "scripts"))
 from project_rules import (BARE_ARGUMENT, PLACEHOLDER, named_disciplines,  # noqa: E402
-                           read_config, report)
+                           positive_int, read_config, report)
 
 ROUND_SECONDS = 60
 BUDGET_SECONDS = 55
@@ -55,9 +55,8 @@ def settings(config):
         raise ValueError("halt_criteria is not a non-empty list of commands")
     if any(PLACEHOLDER.match(c) for c in criteria):
         raise ValueError("halt_criteria holds a README placeholder, not a command")
-    window = config.get("monitoring_window_minutes", 60)
-    if isinstance(window, bool) or not isinstance(window, int) or window < 1:
-        raise ValueError("monitoring_window_minutes is not a positive whole number")
+    window = positive_int("monitoring_window_minutes",
+                          config.get("monitoring_window_minutes", 60))
     return criteria, window
 
 

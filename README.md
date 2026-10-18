@@ -1,9 +1,10 @@
 # delivery-kit
 
 The shared half of the phased-delivery workflow: stage skills, adversary agents, the
-universal gates, and the two hooks, plus two standalone skills, `readme-docs` and
-`incident-review`. Projects keep only what is genuinely theirs — the commands, thresholds
-and job names — in `.claude/project.json` and a pair of mechanics gate files.
+universal gates, and the two hooks, plus four standalone skills, `readme-docs`,
+`incident-review`, `maintenance-review`, and `retire-system`. Projects keep only what is
+genuinely theirs — the commands, thresholds and job names — in `.claude/project.json` and
+a pair of mechanics gate files.
 
 ## Why this exists
 
@@ -29,7 +30,8 @@ skills/                plan-project, write-tickets, deliver, plan-work,
                        implement-phases, branch-review, ship-pr, ci-green;
                        release-readiness and release (once per release, after the
                        merges);
-                       readme-docs and incident-review (standalone)
+                       readme-docs, incident-review, maintenance-review, and
+                       retire-system (standalone)
 agents/                ticket-, design-, commit-, ci-failure-, greptile- adversaries
 gates/                 status-report.md, definition-of-done.md, pre-push.md,
                        read-only-agent.md (the universal halves only),
@@ -38,7 +40,9 @@ gates/                 status-report.md, definition-of-done.md, pre-push.md,
                        scripts/sarif_gate.py builds the scanners' git inputs and reads
                        their reports into the gates' verdicts; scripts/project_rules.py
                        holds the project.json rules and self-test helpers the release,
-                       review, and incident scripts share
+                       review, incident, maintenance, and retirement scripts share;
+                       scripts/_vendor holds PyYAML, which the maintenance check reads
+                       alert rules with
 hooks/                 hooks.json + the two hooks and their self-tests
 scripts/ci/            the CI checks, runnable locally; all.sh runs every one
 reference/             software-engineering-rule-book.md, the source the rules
@@ -51,7 +55,7 @@ than proceed on a gate it could not read.
 
 ## Standalone skills
 
-These are not delivery stages: neither runs inside `deliver`, and `readme-docs` works with
+These are not delivery stages: none runs inside `deliver`, and `readme-docs` works with
 or without the rest of the kit.
 
 - **`readme-docs`** — loads on its own, by description. It writes, rewrites, or audits a
@@ -71,6 +75,27 @@ or without the rest of the kit.
   without pushing. Each follow-up becomes a Jira ticket labeled `incident-follow-up` only
   once the service owner approves it. It refuses to start while a delivery plan is running
   and not paused, since the branch guard would undo its branch switch.
+
+- **`maintenance-review`** — runs only when invoked by name, since it creates tickets:
+  `/delivery-kit:maintenance-review`, the rule book's Phase 7 ongoing checks. It reports, in
+  the session, the service owner and on-call rota, open issues by maintenance type
+  (`corrective`, `adaptive`, `perfective`, `preventive`) and those carrying none, the
+  `preventive` share of the last iteration's resolved issues, outdated dependencies,
+  Dependabot alerts past the patch SLA, runbooks last committed more than 90 days ago, alert
+  routes whose target is no one on call, and `incident-follow-up` issues open more than 30
+  days, plus each named discipline's maintenance addendum. It writes no file and commits
+  nothing, and each ticket it proposes is created only once the service owner approves it.
+
+- **`retire-system`** — runs only when invoked by name, since it commits:
+  `/delivery-kit:retire-system <name>`, the rule book's Phase 7 step 7. It writes
+  `retirements_dir/<name>.md` with `User notice`, `Data`, `Infrastructure`, and
+  `Credentials` sections, each a checklist with a `Status: pending` or `Status: done` line,
+  drafts the notice, and lists every data store, resource, and credential the repository
+  names — by name and location, never a value. A section becomes `done` only once the
+  service owner confirms every item in it, and the record is committed on `retire/<name>`,
+  without pushing, only once all four are. It runs no removal and sends no notice: every
+  teardown and revocation is the service owner's. Like `incident-review`, it refuses to start
+  while a delivery plan is running and not paused.
 
 ## Installing in a project
 
@@ -184,7 +209,14 @@ The stage skills carry the procedure; the commands, paths and thresholds come fr
   "reviewers": "<comma-separated GitHub logins or org/team slugs, or none>",
   "merge_method": "<merge, squash, or rebase>",
   "done_transition": "<name of the Jira transition into the done state>",
-  "incident_reviews_dir": "<directory incident reviews are committed to, e.g. docs/incidents, or none>"
+  "incident_reviews_dir": "<directory incident reviews are committed to, e.g. docs/incidents, or none>",
+  "iteration_days": 14,
+  "debt_share_target": "<percent of resolved issues that should be preventive, e.g. 15, or none>",
+  "dependency_outdated_command": "<command listing outdated dependencies, e.g. npm outdated, or none>",
+  "patch_sla_days": "<days a vulnerability may stay unpatched, e.g. 30, or none>",
+  "runbooks_dir": "<directory holding the runbooks, e.g. docs/runbooks, or none>",
+  "alert_routes_command": "<command printing one `<rule> <target>` line per alert route, or none>",
+  "retirements_dir": "<directory retirement records are committed to, e.g. docs/retirements, or none>"
 }
 ```
 
@@ -219,6 +251,25 @@ review. It must be a relative path inside the repository, outside `.git`, starti
 letter, digit, or `_` and made only of letters, digits, `.`, `_`, `-`, and `/`, and not
 gitignored, since the review is committed.
 Default `none`, under which `incident-review` stops and names the key.
+
+`iteration_days`, `debt_share_target`, `dependency_outdated_command`, `patch_sla_days`,
+`runbooks_dir`, and `alert_routes_command` serve rule book Phase 7 steps 2, 4, 5, and 6 and
+its ongoing checks, in `maintenance-review`. `iteration_days` is a whole number of days,
+default `14`, over which the share of resolved issues labeled `preventive` is measured;
+`debt_share_target` is the percent, from 0 to 100, that share should reach — the rule book
+calls 10–20% "a common starting point" and leaves the figure to the project. `patch_sla_days`
+is the whole number of days an open Dependabot alert may age before it is past its SLA.
+`runbooks_dir` follows `incident_reviews_dir`'s path rule and needs a full clone, since a
+shallow one gives every file the boundary commit's date; a runbook's age is from the last
+commit touching it, a rename or reformat included. `alert_routes_command` prints one
+`<rule> <target>` line per alert route, read against `on_call`. Each defaults to `none`,
+under which its section of the report says it is unset, except `iteration_days`, and
+except that `security` makes `patch_sla_days` required.
+
+`retirements_dir` serves rule book Phase 7 step 7: where `retire-system` commits each
+retirement record. It follows `incident_reviews_dir`'s rule — a relative path inside the
+repository, outside `.git`, of the same characters, and not gitignored, since the record is
+committed. Default `none`, under which `retire-system` stops and names the key.
 
 `secret_scan_command` and `sast_command` serve rule book R12 and Appendix B1's scans. Each
 writes SARIF 2.1.0 to standard output, redacted, with inline suppression comments ignored;
@@ -344,12 +395,12 @@ restarts the push gate — a project whose selector resolves a diff to affected 
 re-run that set and have a real verdict; one without a selector has no such answer and its
 only honest re-verification is everything.
 
-Five more keys tailor the workflow to the project, per the rule book's "Tailoring and
+Six more keys tailor the workflow to the project, per the rule book's "Tailoring and
 exceptions" section and its Appendices A through C, and the block also holds the keys
-`disciplines` brings in. The five are optional, and each bullet below gives its default;
-the `roles` and `exceptions_log` values are placeholders, not defaults. The keys after
-`disciplines` in the block are its addenda's: required once their discipline is named, with
-no default, and placeholders here.
+`disciplines` brings in. The six are optional, and each bullet below gives its default;
+the `roles`, `on_call`, and `exceptions_log` values are placeholders, not defaults. The
+keys between `disciplines` and `roles` in the block are its addenda's: required once their
+discipline is named, with no default, and placeholders here.
 
 ```json
 {
@@ -359,6 +410,8 @@ no default, and placeholders here.
   "data_quality_command": "<command exiting non-zero when a data-quality check fails>",
   "model_eval_command": "<command reading <metric> <minimum> lines on stdin, exiting non-zero below one>",
   "model_eval_thresholds": ["<metric> <minimum>, e.g. precision 0.92>"],
+  "drift_check_command": "<command printing the current drift as one number>",
+  "drift_threshold": "<number above which drift triggers retraining or rollback, e.g. 0.25>",
   "device_matrix": ["<os> <version>, e.g. ios 16.4>", "<os> <version>, e.g. android 10>"],
   "device_test_command": "<command taking <os> <version>, exiting non-zero on failure>",
   "hil_test_command": "<command running the hardware-in-the-loop suite, exiting non-zero on failure>",
@@ -366,6 +419,7 @@ no default, and placeholders here.
   "api_compat_command": "<command taking the minimum app version, exiting non-zero when the API breaks it>",
   "min_supported_app_version": "<oldest app version still supported, e.g. 4.2>",
   "error_budget_command": "<command printing the remaining error budget as one number>",
+  "alert_rules_dir": "<directory holding the Prometheus alerting rules, e.g. ops/alerts>",
   "roles": {
     "sponsor": "<handle>",
     "product_owner": "<handle>",
@@ -375,6 +429,7 @@ no default, and placeholders here.
     "security": "<handle>",
     "service_owner": "<handle>"
   },
+  "on_call": ["<handle>", "<handle>"],
   "exceptions_log": "<path to the project's rule-book exceptions register>"
 }
 ```
@@ -417,18 +472,36 @@ no default, and placeholders here.
   - `sre` at release: `error_budget_command` prints the remaining error budget as one
     number. At `0` or below, the release stops unless every ticket in scope carries the
     `reliability` label.
+  - `security` at maintenance: `patch_sla_days` is required, and `maintenance-review` lists
+    the Critical alerts past it in their own section, Appendix B1's patch rule.
+  - `data-ml` at maintenance: `drift_check_command` prints the current drift as one decimal
+    number, and `drift_threshold` is a JSON number; drift above it is reported, Appendix B2's
+    trigger for retraining or rollback.
+  - `sre` at maintenance: `alert_rules_dir` holds Prometheus rule files or
+    prometheus-operator `PrometheusRule`s, relative to the repository as `incident_reviews_dir`
+    is. `maintenance_check.py alert-rules` reports each alerting rule naming no SLO — an `slo`
+    or `sloth_slo` label or annotation — or no runbook — a non-blank `runbook_url` or
+    `runbook` annotation — saying which it lacks. Appendix B5 asks that every alert map to
+    an SLO or a documented failure mode and link to a runbook; an alert mapped to a failure
+    mode instead is listed `no SLO` for the service owner to judge.
 - `roles` — a map from each role above to the person who holds it. `{{roles.<role>}}` in a
   skill resolves to that role's entry in `roles`, so `{{roles.tech_lead}}` names the tech
   lead. `plan-project` waits on the sponsor, `write-tickets` on the product owner after QA
-  confirms each `Must` ticket's ACs are testable, `release-readiness` on the product owner's
-  review of the test summary, `release` on the release manager before staging and before
-  each production stage, `plan-work` on the tech lead after QA approves the test strategy,
-  `ship-pr` hands QA the verification charter, and `ci-green` and `deliver` send rule-book
-  exceptions to the tech lead, as `ci-green` does the merge question. Default: a role absent
-  from `roles` is the person running the session, and the skill addresses that person
-  directly. That is the absent-key rule above applied per role, so a missing role never
-  resolves to `none`, and a project with no `roles` key at all has the person running the
-  session in every role.
+  confirms each `Must` ticket's ACs are testable, `release-readiness` on the product
+  owner's review of the test summary, `release` on the release manager before staging and
+  before each production stage, `plan-work` on the tech lead after QA approves the test
+  strategy, `ship-pr` hands QA the verification charter, `incident-review` and
+  `maintenance-review` wait on the service owner before creating a ticket, `retire-system`
+  before marking each section done, and `ci-green` and `deliver` send rule-book exceptions
+  to the tech lead, as `ci-green` does the merge question. Default: a role absent from
+  `roles` is the person running the session, and the skill addresses that person directly.
+  That is the absent-key rule above applied per role, so a missing role never resolves to
+  `none`, and a project with no `roles` key at all has the person running the session in
+  every role.
+- `on_call` — the handles of the people on the on-call rota, each one word. A route from
+  `alert_routes_command` reaches a person only when its target equals one exactly, case
+  included. Default `none`, under which `maintenance-review` reports the rota unset and every
+  route as reaching no person.
 - `exceptions_log` — the project's register of rule-book exceptions, in the format
   `gates/exceptions.md` defines. Default `none`, under which a run stops rather than skip
   a "must" step.

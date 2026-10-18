@@ -408,6 +408,24 @@ def imports_of(tree):
     return names
 
 
+def grammar_and_imports(sources):
+    """(syntax errors, imported names): a file the Python 3.8 grammar rejects is an error, and
+    one this interpreter cannot read either yields no imports rather than a crash."""
+    syntax_errors, imported = [], set()
+    for source in sources:
+        text = source.read_text(encoding="utf-8")
+        try:
+            tree = ast.parse(text, feature_version=(3, 8))
+        except SyntaxError as error:
+            syntax_errors.append(f"{source.name}: {error}")
+            try:
+                tree = ast.parse(text)
+            except SyntaxError:
+                continue
+        imported |= imports_of(tree)
+    return syntax_errors, imported
+
+
 def self_test():
     """Each fixture's first line declares the error and warning codes it must produce."""
     failures = 0
@@ -467,17 +485,13 @@ def self_test():
     # standard library, the vendored packages, or linkify_it, which markdown-it imports
     # inside a try block and the checker never enables.
     vendored = {entry.name for entry in VENDOR.iterdir() if entry.is_dir()}
-    sources = [Path(__file__)] + sorted(VENDOR.rglob("*.py"))
-    syntax_errors, imported = [], set()
-    for source in sources:
-        text = source.read_text(encoding="utf-8")
-        try:
-            tree = ast.parse(text, feature_version=(3, 8))
-        except SyntaxError as error:
-            syntax_errors.append(f"{source.name}: {error}")
-            tree = ast.parse(text)
-        imported |= imports_of(tree)
+    syntax_errors, imported = grammar_and_imports([Path(__file__)] + sorted(VENDOR.rglob("*.py")))
     result(not syntax_errors, "parses with the Python 3.8 grammar", "; ".join(syntax_errors))
+    with tempfile.TemporaryDirectory() as scratch:
+        broken = Path(scratch) / "broken.py"
+        broken.write_text("x = = 1\n", encoding="utf-8")
+        errors, _ = grammar_and_imports([broken])
+        result(len(errors) == 1, "a file no Python parses is one error, not a crash", str(errors))
     stdlib = getattr(sys, "stdlib_module_names", None)
     if stdlib is None:
         print("skip stdlib-only imports: needs Python 3.10+ to enumerate the standard library")

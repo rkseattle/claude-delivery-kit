@@ -1,8 +1,11 @@
 # Vendored parser
 
 `check_readme.py` parses Markdown with markdown-it-py, a pure-Python CommonMark parser, so
-it needs nothing installed. The packages are copied unmodified from their wheels, minus
-`markdown_it/cli`, the command-line entry point the checker does not use.
+it needs nothing installed. `gates/scripts/project_rules.py`'s `fence_split` loads the same
+copy, so `release-readiness`'s and `retire-system`'s checks find code fences as CommonMark
+does; a copy of `readme-docs` taken alone keeps its parser with it. The packages are copied
+unmodified from their wheels, minus `markdown_it/cli`, the command-line entry point the
+checker does not use.
 
 | Package | Version | License | Wheel SHA-256 |
 | --- | --- | --- | --- |
@@ -10,4 +13,5 @@ it needs nothing installed. The packages are copied unmodified from their wheels
 | mdurl | 0.1.2 | MIT (`mdurl/LICENSE`) | `84008a41e51615a49fc9966191ff91509e3c40b939176e643fd50a5c2196b8f8` |
 
 To upgrade, download both wheels with `pip download --no-deps`, check their hashes against
-PyPI, replace these directories, and run `check_readme.py --self-test`.
+PyPI, replace these directories, and run `bash scripts/ci/all.sh`, which runs every
+self-test that reads Markdown through it.
