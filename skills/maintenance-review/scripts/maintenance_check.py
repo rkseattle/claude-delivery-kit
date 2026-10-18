@@ -157,14 +157,17 @@ def git_paths(*arguments):
 
 def last_commit_dates(directory):
     """{path: the UTC date of the newest commit touching it} under directory, from one
-    `git log` pass, newest first, so a path's first appearance is its last commit."""
+    `git log` pass, newest first, so a path's first appearance is its last commit. Paths are
+    relative to the current directory, as `git ls-files` prints them, and NUL-separated, so
+    a project root below the repository's top level, or a quote in a name, still matches."""
     dates, current = {}, None
-    for line in git_paths("-c", "core.quotePath=false", "log", "--format=\x01%cd",
-                          "--date=format-local:%Y-%m-%d", "--name-only", "--", directory):
-        if line.startswith("\x01"):
-            current = line[1:]
-        elif current:
-            dates.setdefault(line, current)
+    for token in git_paths("log", "-z", "--relative", "--format=\x01%cd",
+                           "--date=format-local:%Y-%m-%d", "--name-only", "--", directory):
+        token = token.lstrip("\n")
+        if token.startswith("\x01"):
+            current = token[1:]
+        elif token and current:
+            dates.setdefault(token, current)
     return dates
 
 
@@ -263,7 +266,7 @@ def rule_groups(document, path):
                                 else "rules that are not a list"))
         for rule in group.get("rules") or []:
             if not isinstance(rule, dict) or len({"alert", "record"} & set(rule)) != 1 \
-                    or set(rule) - RULE_KEYS:
+                    or set(rule) - RULE_KEYS or not rule.get("expr"):
                 raise ValueError(f"{path}'s group {group['name']} holds {rule!r:.60}, not one "
                                  "alerting or recording rule of rulefmt's fields")
     return groups
@@ -315,7 +318,8 @@ def unlinked_row(rule, path):
     slos = [source[key] for source in (labels, annotations) for key in SLO_KEYS
             if key in source]
     if any(not (isinstance(slo, str) and slo.split() == [slo]) for slo in slos):
-        raise ValueError(f"{path}'s alert {name} names its SLO {slos[0]!r}, not one word of "
+        bad = next(slo for slo in slos if not (isinstance(slo, str) and slo.split() == [slo]))
+        raise ValueError(f"{path}'s alert {name} names its SLO {bad!r}, not one word of "
                          "text; quote it, as YAML reads yes or 1.10 as something else")
     lacks = [what for what, present in (
         ("no SLO", slos),
@@ -495,6 +499,24 @@ def runbook_cases():
             failures += report("runbooks", "a runbook named with a * is read literally",
                                [row for row in rows if row.startswith("runbooks/a")],
                                ["runbooks/a*.md\t2026-01-01"])
+            write('we"ird.md')
+            git("add", "--", 'runbooks/we"ird.md')
+            git("commit", "-q", "-m", "quote", date="2026-01-02T12:00:00Z")
+            rows = result_of(stale_runbooks, {"runbooks_dir": "runbooks"}, "2026-10-17")
+            failures += report("runbooks", "a quote in a runbook's name",
+                               [row for row in rows if "ird" in row],
+                               ['runbooks/we"ird.md\t2026-01-02'])
+            os.makedirs(os.path.join(root, "svc", "runbooks"))
+            with open(os.path.join(root, "svc", "runbooks", "deep.md"), "w",
+                      encoding="utf-8") as handle:
+                handle.write("deep")
+            git("add", "--", "svc/runbooks/deep.md")
+            git("commit", "-q", "-m", "deep", date="2026-01-03T12:00:00Z")
+            os.chdir(os.path.join(root, "svc"))
+            failures += report("runbooks", "a project root below the repository's top level",
+                               result_of(stale_runbooks, {"runbooks_dir": "runbooks"},
+                                         "2026-10-17"), ["runbooks/deep.md\t2026-01-03"])
+            os.chdir(root)
             shallow = os.path.join(root, "shallow")
             subprocess.run(["git", "clone", "-q", "--depth", "1", f"file://{root}", shallow],
                            env=environment, capture_output=True, check=True)
@@ -514,11 +536,14 @@ ALERT_RULE_FILES = {
 - name: api
   rules:
   - alert: HighErrorRate
+    expr: up == 0
     labels: {slo: api-availability}
     annotations: {runbook_url: "https://runbooks.example.test/api"}
   - alert: HighLatency
+    expr: up == 0
     labels: {sloth_slo: api-latency}
   - alert: DiskFull
+    expr: up == 0
     annotations: {summary: disk}
   - record: job:requests:rate5m
     expr: rate(requests[5m])
@@ -531,8 +556,10 @@ ALERT_RULE_FILES = {
 - name: blank
   rules:
   - alert: BlankRunbook
+    expr: up == 0
     annotations: {runbook_url: ""}
   - alert: SpaceRunbook
+    expr: up == 0
     annotations: {runbook: "  "}
 """,
     "ops/alerts/multi.yml": """groups:
@@ -540,8 +567,10 @@ ALERT_RULE_FILES = {
 - name: by-annotation
   rules:
   - alert: CertExpiry
+    expr: up == 0
     annotations: {slo: tls-validity}
   - alert: Both
+    expr: up == 0
     labels: {slo: from-labels}
     annotations: {slo: from-annotations}
 ---
@@ -555,8 +584,10 @@ spec:
   - name: queue
     rules:
     - alert: QueueBacklog
+      expr: up == 0
       annotations: {runbook: docs/runbooks/queue.md}
     - alert: QueueStalled
+      expr: up == 0
   - name: thanos
     partial_response_strategy: warn
     rules: []
@@ -590,31 +621,37 @@ def alert_rule_cases():
                                ("a Python object tag safe_load refuses",
                                 "groups: !!python/object/apply:os.system [true]\n"),
                                ("annotations as a list",
-                                "groups:\n- name: g\n  rules:\n  - alert: A\n    annotations: [x]\n"),
+                                "groups:\n- name: g\n  rules:\n  - alert: A\n    expr: up\n"
+                                "    annotations: [x]\n"),
                                ("labels as a string",
-                                "groups:\n- name: g\n  rules:\n  - alert: A\n    labels: x\n"),
-                               ("an alert with no name", "groups:\n- name: g\n  rules:\n  - alert:\n"),
+                                "groups:\n- name: g\n  rules:\n  - alert: A\n    expr: up\n"
+                                "    labels: x\n"),
+                               ("an alert with no name",
+                                "groups:\n- name: g\n  rules:\n  - alert:\n    expr: up\n"),
+                               ("an alert with no expr",
+                                "groups:\n- name: g\n  rules:\n  - alert: A\n"),
                                ("an alert name with a tab",
-                                "groups:\n- name: g\n  rules:\n  - alert: \"A\\tB\"\n"),
+                                "groups:\n- name: g\n  rules:\n  - alert: \"A\\tB\"\n"
+                                "    expr: up\n"),
                                ("a file that is not UTF-8", b"groups: [\xe9]\n"),
                                ("a rule that is not a map",
                                 "groups:\n- name: g\n  rules:\n  - alert X\n"),
                                ("a rule neither alert nor record",
                                 "groups:\n- name: g\n  rules:\n  - alrt: Typo\n"),
                                ("a misspelled rules key",
-                                "groups:\n- name: g\n  rule:\n  - alert: A\n"),
+                                "groups:\n- name: g\n  rule:\n  - alert: A\n    expr: up\n"),
                                ("a group that is not a map", "groups:\n- g\n"),
                                ("rules that are not a list",
                                 "groups:\n- name: g\n  rules: {alert: A}\n"),
                                ("a PrometheusRule with no spec", "kind: PrometheusRule\n"),
                                ("an SLO across two lines", "groups:\n- name: g\n  rules:\n"
-                                "  - alert: A\n    labels: {slo: \"a\\nb\"}\n"),
+                                "  - alert: A\n    expr: up\n    labels: {slo: \"a\\nb\"}\n"),
                                ("an SLO YAML reads as a boolean", "groups:\n- name: g\n"
-                                "  rules:\n  - alert: A\n    labels: {slo: yes}\n"),
+                                "  rules:\n  - alert: A\n    expr: up\n    labels: {slo: yes}\n"),
                                ("an operator-only field in a plain rule file",
                                 "groups:\n- name: g\n  partial_response_strategy: warn\n"),
                                ("an impossible date", "groups:\n- name: g\n  rules:\n"
-                                "  - alert: A\n    labels: {d: 2026-13-01}\n")]:
+                                "  - alert: A\n    expr: up\n    labels: {d: 2026-13-01}\n")]:
                 with open("ops/alerts/bad.yml", "wb") as handle:
                     handle.write(text if isinstance(text, bytes) else text.encode())
                 failures += report("alert-rules", name, result_of(unlinked_alerts, config),
@@ -659,7 +696,7 @@ def vendored_code_cases():
     sources = [os.path.abspath(__file__), rules] + sorted(
         os.path.join(root, name) for root, _, names in os.walk(YAML_VENDOR)
         for name in names if name.endswith(".py"))
-    allowed = {"project_rules"} | {entry for vendor in (YAML_VENDOR, MARKDOWN_VENDOR)
+    allowed = {"project_rules", "check_readme"} | {entry for vendor in (YAML_VENDOR, MARKDOWN_VENDOR)
                                    for entry in os.listdir(vendor)
                                    if os.path.isdir(os.path.join(vendor, entry))}
     syntax_errors, foreign = foreign_code(sources, allowed)
@@ -669,6 +706,16 @@ def vendored_code_cases():
     else:
         failures += report("vendored", "imports only the standard library and _vendor/",
                            foreign, [])
+    # check_readme.py keeps its own copy of the import walker, so readme-docs works alone;
+    # this pins the two copies to one answer.
+    readme_scripts = os.path.join(here, "..", "..", "readme-docs", "scripts")
+    vendored(readme_scripts)
+    import ast
+    import check_readme
+    from project_rules import imports_of
+    sample = ast.parse("import os, yaml.nodes\nfrom markdown_it import x\nfrom . import y\n")
+    failures += report("vendored", "check_readme.py's import walker agrees with the shared one",
+                       check_readme.imports_of(sample), imports_of(sample))
     with tempfile.TemporaryDirectory() as directory:
         for name, text, expected in [
                 ("a 3.10 match statement is caught",

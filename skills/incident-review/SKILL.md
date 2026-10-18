@@ -192,7 +192,8 @@ as every commit.
 
 Anything but `clean` stops the skill before the commit: report each `rule file:line` it
 printed, never the text, and rewrite those lines to name the credential rather than hold it.
-A re-run finishes the commit as Step 1 describes, scanning again. Then:
+A re-run finishes the commit as Step 1 describes: it stages the rewritten file again with
+`git add`, since the scan reads the index, then scans again. Then:
 
 ```bash
 git commit -m "Record the incident review <date>-<slug>" -- {{incident_reviews_dir}}/<date>-<slug>.md
