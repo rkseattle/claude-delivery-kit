@@ -1,14 +1,15 @@
 """The project.json rules, the record-parsing rules, and the self-test helpers, the kit's
 release, review, incident, maintenance, and retirement scripts share. Standard library only,
 except fence_split, which loads the CommonMark parser vendored beside the README checker,
-and YAML_VENDOR, the PyYAML the maintenance check loads.
+and YAML_VENDOR, the PyYAML the maintenance check and scripts/ci/actions-pinned.sh load.
 
 Imported by skills/release/scripts/halt_watch.py,
 skills/release-readiness/scripts/readiness_check.py, skills/ci-green/scripts/review_gate.py,
 skills/incident-review/scripts/incident_check.py,
 skills/maintenance-review/scripts/maintenance_check.py,
 skills/retire-system/scripts/retire_check.py, gates/scripts/sarif_gate.py, and, for
-the discipline rule alone, skills/write-tickets/scripts/lint_draft.py, so no two of
+the discipline rule alone, skills/write-tickets/scripts/lint_draft.py, and, for the YAML
+vendor alone, scripts/ci/actions-pinned.sh, so no two of
 them can disagree on what an unset key, a placeholder, a discipline, a date, a printed
 number, a branch slug, or a code fence is. Each importer's self-test covers the rules it
 uses; this module has no entry point of its own.

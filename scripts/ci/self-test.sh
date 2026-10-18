@@ -47,7 +47,8 @@ for path in "$here"/*.sh; do
 done
 
 mkdir -p "$tmp/empty"
-for check in json-parses.sh bundled-refs.sh no-leaks.sh frontmatter-names.sh line-budget.sh shellcheck.sh; do
+for check in json-parses.sh bundled-refs.sh no-leaks.sh frontmatter-names.sh line-budget.sh shellcheck.sh \
+             actions-pinned.sh; do
   expect fail "a root with nothing to scan" "$check" "$tmp/empty"
 done
 
@@ -171,6 +172,40 @@ expect fail "an action whose step name contains run:" ci-steps-mirrored.sh
 fresh_copy; sed -i.bak '/No project-specific tokens/d' "$tmp/repo/.claude/gates/pre-push-mechanics.md"
 printf '%s\n' "Also see \`bash scripts/ci/no-leaks.sh\`." >> "$tmp/repo/.claude/gates/pre-push-mechanics.md"
 expect fail "a command mentioned in prose but missing from the table" ci-steps-mirrored.sh
+
+# Each workflow line is assembled by printf at runtime rather than written out.
+sha=11d5960a326750d5838078e36cf38b85af677262
+for ref in "v4|a tag" "${sha:0:7}|a 7-character short SHA" "main|a branch name" "${sha}0|a 41-character ref"; do
+  fresh_copy; printf '      - uses: %s@%s\n' actions/checkout "${ref%%|*}" >> "$tmp/repo/.github/workflows/ci.yml"
+  expect_saying "a uses: line naming ${ref#*|}" actions-pinned.sh "NOT PINNED"
+done
+fresh_copy; printf '      - uses: "%s@%s"\n' actions/checkout v4 >> "$tmp/repo/.github/workflows/ci.yml"
+expect_saying "a quoted uses: line naming a tag" actions-pinned.sh "NOT PINNED"
+fresh_copy; printf '  %s:\n    uses: %s@%s\n' reuse org/repo/.github/workflows/build.yml main \
+  >> "$tmp/repo/.github/workflows/ci.yml"
+expect_saying "a job-level reusable workflow on a branch" actions-pinned.sh "NOT PINNED"
+fresh_copy; printf 'on: push\njobs:\n  x:\n    runs-on: ubuntu-latest\n    steps:\n      - uses: %s@%s\n' \
+  actions/checkout v4 > "$tmp/repo/.github/workflows/other.yaml"
+expect_saying "a .yaml workflow naming a tag" actions-pinned.sh "NOT PINNED"
+fresh_copy; printf '      # - uses: %s@%s\n' actions/checkout v4 >> "$tmp/repo/.github/workflows/ci.yml"
+expect pass "a commented-out uses: line" actions-pinned.sh
+fresh_copy; printf '      - uses: %s\n      - uses: "%s"\n      - uses: %s   #  v4\n' \
+  "actions/checkout@$sha" "actions/checkout@$sha" "actions/checkout@$sha" >> "$tmp/repo/.github/workflows/ci.yml"
+expect pass "a pinned line bare, quoted, and with a spaced comment" actions-pinned.sh
+for form in "uses : |@v4|a space before the colon" "{uses: |@v4}|a flow mapping" \
+            "uses: |@v4 # was uses: actions/checkout@$sha|a pinned ref only in its comment" \
+            "uses: docker://|:3.20|a docker image by tag" "uses: [|@v4]|a uses: that is not a string"; do
+  IFS='|' read -r before after name <<< "$form"
+  fresh_copy; printf '      - %s%s%s\n' "$before" actions/checkout "$after" >> "$tmp/repo/.github/workflows/ci.yml"
+  expect_saying "a uses: line with $name" actions-pinned.sh "NOT PINNED"
+done
+fresh_copy; printf '      - uses: ./%s\n      - uses: docker://alpine@sha256:%s\n      - run: |\n          uses: %s@%s\n' \
+  .github/actions/local "$(printf 'a%.0s' {1..64})" actions/checkout v4 >> "$tmp/repo/.github/workflows/ci.yml"
+expect pass "a local action, a docker digest, and uses: text inside a run: block" actions-pinned.sh
+fresh_copy; printf '      - uses: "%s@%s'"'"'\n' actions/checkout "$sha" >> "$tmp/repo/.github/workflows/ci.yml"
+expect_saying "a workflow YAML cannot parse" actions-pinned.sh "UNPARSEABLE"
+fresh_copy; printf 'on: push\n' > "$tmp/repo/.github/workflows/other.yml"
+expect_saying "a workflow with no jobs: mapping" actions-pinned.sh "UNPARSEABLE"
 
 fresh_copy; sed -i.bak '/^    if: always()$/d' "$tmp/repo/.github/workflows/ci.yml"
 expect fail "the aggregate job without if: always()" all-jobs-passed.sh

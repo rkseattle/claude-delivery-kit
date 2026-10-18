@@ -112,6 +112,9 @@ jobs:
       - name: No project-specific tokens leaked into shared files
         run: bash scripts/ci/no-leaks.sh
 
+      - name: Actions are pinned to commit SHAs
+        run: bash scripts/ci/actions-pinned.sh
+
       - name: Every CI step has a local equivalent
         run: bash scripts/ci/ci-steps-mirrored.sh
 
