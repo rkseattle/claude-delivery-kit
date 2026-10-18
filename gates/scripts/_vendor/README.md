@@ -12,4 +12,5 @@ with PyYAML's pure-Python package, so it needs nothing installed. `yaml/` is the
 
 To upgrade, download the sdist with `pip download --no-deps --no-binary :all: PyYAML`, check
 its hash against PyPI, replace `yaml/` with its `lib/yaml` and `LICENSE`, and run
-`bash scripts/ci/all.sh`.
+`bash scripts/ci/all.sh`: `maintenance_check.py --self-test` fails on a release that needs
+a newer Python grammar or a package beyond the standard library.

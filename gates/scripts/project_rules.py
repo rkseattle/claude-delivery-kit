@@ -11,6 +11,7 @@ them can disagree on what an unset key, a placeholder, a discipline, a date, a p
 number, a branch slug, or a code fence is. Each importer's self-test covers the rules it
 uses; this module has no entry point of its own.
 """
+import ast
 import datetime
 import json
 import math
@@ -170,6 +171,39 @@ def check_command(key, value):
     if not isinstance(value, str):
         raise ValueError(f"{key} is not a command")
     return value
+
+
+def imports_of(tree):
+    """Top-level module names an AST imports absolutely. check_readme.py keeps its own copy
+    of this and of foreign_code, so readme-docs still works copied without the rest of the
+    kit; a fix to either lands in both."""
+    names = {alias.name.split(".")[0] for node in ast.walk(tree)
+             if isinstance(node, ast.Import) for alias in node.names}
+    names |= {node.module.split(".")[0] for node in ast.walk(tree)
+              if isinstance(node, ast.ImportFrom) and node.module and not node.level}
+    return names
+
+
+def foreign_code(sources, allowed):
+    """(syntax errors, foreign imports) over the source files: a file that does not parse
+    with the Python 3.8 grammar, and each module imported that is neither the standard
+    library nor in allowed. Foreign imports are None before Python 3.10, which is the first
+    to list the standard library."""
+    syntax_errors, imported = [], set()
+    for source in sources:
+        with open(source, encoding="utf-8") as handle:
+            text = handle.read()
+        try:
+            tree = ast.parse(text, feature_version=(3, 8))
+        except SyntaxError as error:
+            syntax_errors.append(f"{os.path.basename(source)}: {error}")
+            try:
+                tree = ast.parse(text)
+            except SyntaxError:
+                continue  # this interpreter cannot read it either, so it yields no imports
+        imported |= imports_of(tree)
+    stdlib = getattr(sys, "stdlib_module_names", None)
+    return syntax_errors, (None if stdlib is None else sorted(imported - stdlib - set(allowed)))
 
 
 def report(kind, name, got, expected):

@@ -50,9 +50,10 @@ import tempfile
 sys.dont_write_bytecode = True
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)),
                                 "..", "..", "..", "gates", "scripts"))
-from project_rules import (YAML_VENDOR, check_command, check_repo_path,  # noqa: E402
-                           is_unset, json_number, parse_date, positive_int, read_config,
-                           report, result_of, single_number, vendored)
+from project_rules import (MARKDOWN_VENDOR, YAML_VENDOR, check_command,  # noqa: E402
+                           check_repo_path, foreign_code, is_unset, json_number, parse_date,
+                           positive_int, read_config, report, result_of, single_number,
+                           vendored)
 
 RUNBOOK_MAX_AGE = 90
 DEFAULTS = {"on_call": "none", "iteration_days": 14, "debt_share_target": "none",
@@ -629,6 +630,53 @@ def alert_rule_cases():
     return failures
 
 
+def vendored_code_cases():
+    """This script, the shared rules it imports, and the PyYAML it vendors keep to the Python
+    3.8 grammar and import only the standard library and the vendored packages — the rule
+    check_readme.py holds its own vendored parser to — so a PyYAML upgrade needing more
+    fails here, not on a user's machine."""
+    failures = 0
+    here = os.path.dirname(os.path.abspath(__file__))
+    rules = os.path.join(here, "..", "..", "..", "gates", "scripts", "project_rules.py")
+    sources = [os.path.abspath(__file__), rules] + sorted(
+        os.path.join(root, name) for root, _, names in os.walk(YAML_VENDOR)
+        for name in names if name.endswith(".py"))
+    allowed = {"project_rules"} | {entry for vendor in (YAML_VENDOR, MARKDOWN_VENDOR)
+                                   for entry in os.listdir(vendor)
+                                   if os.path.isdir(os.path.join(vendor, entry))}
+    syntax_errors, foreign = foreign_code(sources, allowed)
+    failures += report("vendored", "parses with the Python 3.8 grammar", syntax_errors, [])
+    if foreign is None:
+        print("skip vendored: stdlib-only imports need Python 3.10+ to list the standard library")
+    else:
+        failures += report("vendored", "imports only the standard library and _vendor/",
+                           foreign, [])
+    with tempfile.TemporaryDirectory() as directory:
+        for name, text, expected in [
+                ("a 3.10 match statement is caught",
+                 "match x:\n    case 1:\n        pass\n", ("syntax", True)),
+                ("a third-party import is caught", "import requests\n", ("foreign", True)),
+                ("a file no Python parses is one error, not a crash", "x = = 1\n",
+                 ("syntax", True)),
+                ("vendored, relative, and stdlib imports pass",
+                 "import yaml\nfrom markdown_it import MarkdownIt\nfrom . import sibling\n"
+                 "import os\n", ("clean", True))]:
+            path = os.path.join(directory, "fixture.py")
+            with open(path, "w", encoding="utf-8") as handle:
+                handle.write(text)
+            errors, imports = foreign_code([path], allowed)
+            if expected[0] == "foreign" and imports is None:
+                print(f"skip vendored: {name} needs Python 3.10+")
+                continue
+            if expected[0] == "clean" and imports is None:
+                found = not errors
+            else:
+                found = {"syntax": len(errors) == 1, "foreign": imports == ["requests"],
+                         "clean": not errors and imports == []}[expected[0]]
+            failures += report("vendored", name, found, True)
+    return failures
+
+
 def cli_cases():
     failures = 0
     script = os.path.abspath(__file__)
@@ -686,6 +734,7 @@ def self_test():
         failures += report("config", name, result_of(resolve_config, config), expected)
     failures += runbook_cases()
     failures += alert_rule_cases()
+    failures += vendored_code_cases()
     failures += cli_cases()
     return 1 if failures else 0
 
