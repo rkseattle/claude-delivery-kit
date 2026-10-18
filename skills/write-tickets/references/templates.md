@@ -26,8 +26,7 @@ Jira:
 - **Handoff** — the label `plan-work` will be run with. Required on Story, Task, and Bug;
   a handoff group stays within `plan-work`'s handoff limit, in build order.
 - **Priority** — `Must`, `Should`, `Could`, or `Won't`, with a straight apostrophe
-  (MoSCoW). Required on Story, Task, and Bug; optional on an Epic. `Won't` records work
-  deliberately left out.
+  (MoSCoW). Required on Story, Task, and Bug; optional on an Epic.
 - **Severity** — a Bug header line, required there and nowhere else: `Critical` (data
   loss, security breach, outage), `High` (core function broken, no workaround), `Medium`
   (workaround exists), or `Low` (cosmetic). It rates the defect; BLOCKER to MINOR rate
@@ -58,9 +57,6 @@ Jira:
 - <key or ID> scope: <what moves to or from it>   (Change impact)
 ```
 
-Commas and semicolons inside an AC make separate `plan-work` rows. Use them only between
-clauses that are each verifiable; keep lists of values inside backticks.
-
 An NFR line's threshold is its first comparator — `<`, `<=`, `>`, `>=`, `=`, `≤`, or `≥`,
 never a word — then a number and its unit: `p95 response < 300 ms at 200 requests/second`,
 not `p95 stays low over 24 hours`. Numbers in the metric name or the condition do not
@@ -89,6 +85,12 @@ none: `- None`.
 
 An Epic or a Story may add **Non-functional requirements**, after Success measures or
 Behavior: one NFR line per quality threshold, in the format above.
+
+`{{disciplines}}` adds rule book Appendix B's fields, checked by `--disciplines`. `data-ml`:
+a Story labeled `data` adds **Data** before its ACs: filled `- Sources:`, `- Retention:`,
+and `- Privacy:` lines; a `model` Story has an NFR naming its holdout set, `Recall >= 0.8 on
+holdout: churn-q3`. `embedded`: an Epic's NFRs name `memory`, `power`, and `timing`. `sre`:
+an NFR naming `availability` or `latency` states its window as `over <n> days`.
 
 Every type may add **Implementation notes** — constraints with a reason, never steps. A
 design written there is a proposal `plan-work` checks against real implementations, not a

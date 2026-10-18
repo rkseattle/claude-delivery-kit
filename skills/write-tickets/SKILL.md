@@ -17,9 +17,9 @@ prevents each one. Read it and
 Read `${CLAUDE_PROJECT_DIR}/.claude/project.json` first: `{{ticket_prefix}}`,
 `{{jira_project}}`, `{{registry_file}}`, `{{source_roots}}`, `{{verification_tiers}}`,
 `{{plan_rules_file}}`, `{{build_command}}`, `{{parent_branch_default}}`, `{{brief_file}}`,
-and `{{roles.*}}` all come from it. Read `${CLAUDE_PLUGIN_ROOT}/gates/project-config.md`
-and follow it exactly: tickets written against invented tiers and roots fail at
-`plan-work` for reasons nobody can see.
+`{{disciplines}}`, and `{{roles.*}}` all come from it. Read
+`${CLAUDE_PLUGIN_ROOT}/gates/project-config.md` and follow it exactly: tickets written
+against invented tiers and roots fail at `plan-work` for reasons nobody can see.
 
 No ticket is created, edited, or transitioned before Step 7's approval. The only file this
 skill writes before then is the draft.
@@ -95,11 +95,12 @@ templates' format, blockers before dependents.
 ## Step 5 — Lint
 
 ```bash
-python3 ${CLAUDE_PLUGIN_ROOT}/skills/write-tickets/scripts/lint_draft.py docs/tickets/<slug>.md --repo "${CLAUDE_PROJECT_DIR}"
+python3 ${CLAUDE_PLUGIN_ROOT}/skills/write-tickets/scripts/lint_draft.py docs/tickets/<slug>.md --repo "${CLAUDE_PROJECT_DIR}" \
+  --disciplines "<{{disciplines}} joined with commas, empty for []>"
 ```
 
 Fix every ERROR. For each WARN, fix it or confirm the flagged text is concrete. Re-run
-until it exits 0.
+until it exits 0. Exit 2 is an unreadable draft or a discipline the flag refuses: stop.
 
 ## Step 6 — Adversarial ticket review
 
