@@ -224,8 +224,8 @@ def metric(text):
     return text[:cmp.start()] if cmp else text
 
 
-def lint(items, repo, disciplines, is_tracked):
-    """(errors, warnings). is_tracked is project_rules' tracked_path_matcher(repo)."""
+def lint(items, disciplines, is_tracked):
+    """(errors, warnings). is_tracked is project_rules' tracked_path_matcher for the repo."""
     errors, warns = [], []
     err = lambda i, c, m: errors.append(f"ERROR {i['id']} [{c}] {m}")
     warn = lambda i, c, m: warns.append(f"WARN  {i['id']} [{c}] {m}")
@@ -634,7 +634,7 @@ def disciplines_test(here, repo, is_tracked):
              ("an unknown discipline in a header is refused",
               isinstance(declared_disciplines("<!-- expect disciplines=data-ml,Mobile -->"), str))]
     for name in DISCIPLINES:
-        errors, _ = lint(parse(on), repo, [name], is_tracked)
+        errors, _ = lint(parse(on), [name], is_tracked)
         codes = DISCIPLINE_CODES.get(name, ())
         owned = {c: n for c, n in want.items() if c in codes}
         cases.append((f"--disciplines {name} reports {' '.join(codes) or 'no code'} and nothing else",
@@ -711,7 +711,7 @@ def self_test():
             if isinstance(disciplines, str):
                 errors, warns, (ok, why) = [], [], (False, disciplines)
             else:
-                errors, warns = lint(parse(text), repo, disciplines, is_tracked)
+                errors, warns = lint(parse(text), disciplines, is_tracked)
                 ok, why = fixture_matches(text, errors + warns)
             print(f"{'ok  ' if ok else 'FAIL'} {name}: {why}")
             if not ok:
@@ -848,7 +848,7 @@ def main(argv=None):
     except ValueError as e:
         print(f"UNPARSEABLE: {e}")
         return 2
-    errors, warns = lint(items, repo, disciplines, is_tracked)
+    errors, warns = lint(items, disciplines, is_tracked)
     print("\n".join(errors + warns))
     print(f"SUMMARY: {len(items)} tickets, {len(errors)} errors, {len(warns)} warnings")
     return 1 if errors else 0

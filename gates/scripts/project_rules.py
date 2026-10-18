@@ -126,10 +126,15 @@ def tracked_files(root):
     case-insensitive disk, or climbing out of the repo, as it is in a fresh checkout. A file
     inside a submodule is not listed; the submodule's own path is. Raises ValueError where
     git cannot list root."""
-    listing = subprocess.run(["git", "-C", root, "ls-files", "-z"], stdout=subprocess.PIPE,
-                             stderr=subprocess.PIPE)
+    try:
+        listing = subprocess.run(["git", "-C", root, "ls-files", "-z"], stdout=subprocess.PIPE,
+                                 stderr=subprocess.PIPE)
+    except OSError as error:
+        raise ValueError(f"cannot list the tracked files under {root}: {error.strerror}")
     if listing.returncode != 0:
-        raise ValueError(f"cannot list the tracked files under {root}")
+        why = os.fsdecode(listing.stderr).strip().splitlines()
+        raise ValueError(f"cannot list the tracked files under {root}"
+                         + (f": {why[0]}" if why else ""))
     return {os.fsdecode(name) for name in listing.stdout.split(b"\0") if name}
 
 

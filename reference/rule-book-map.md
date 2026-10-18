@@ -19,7 +19,7 @@ cited here updates its row in the same commit.
 
 | ID | Rule | Applied by | Step or section | Excepted by |
 | --- | --- | --- | --- | --- |
-| R1 | Everything in version control; every change traceable to a ticket | `skills/implement-phases/SKILL.md`; `gates/pre-push.md`; `skills/ship-pr/SKILL.md`; `gates/exceptions.md` | 2d. Definition of Done, then commit; PR conventions, and step 11, a clean-checkout build; Step 4 — Push and open the PR. Plans and decision records stay out of version control, excepted | Rule book R1 and R11 |
+| R1 | Everything in version control; every change traceable to a ticket | `skills/implement-phases/SKILL.md`; `gates/pre-push.md`; `skills/ship-pr/SKILL.md` | 2d. Definition of Done, then commit; PR conventions, and step 11, a clean-checkout build; Step 4 — Push and open the PR. Plans and decision records stay out of version control, excepted | Rule book R1 and R11 |
 | R2 | Review by someone other than the author before main | `skills/ship-pr/SKILL.md`; `skills/ci-green/SKILL.md`; `skills/ci-green/scripts/review_gate.py` | Step 4 — Push and open the PR (the reviewer set); Step 5 — Loop (the approval, or the per-project R2 exception); the reviewer-set and approval subcommands | |
 | R3 | One stated responsibility and a documented interface per module | `skills/plan-work/SKILL.md`; `gates/rule-book-review.md`; `gates/definition-of-done.md` | Components and interfaces; Module boundaries — R3, R4, checks 6 and 7; Cross-cutting obligations, the public-interface row | |
 | R4 | No reaching into another module's internals or data store | `gates/rule-book-review.md`; `skills/plan-work/SKILL.md`; `agents/greptile-reviewer.md` | Module boundaries — R3, R4, check 6; Data ownership; Review dimensions, item 5 | |
@@ -29,8 +29,8 @@ cited here updates its row in the same commit.
 | R8 | Errors handled or surfaced; input validated at trust boundaries | `gates/rule-book-review.md`; `gates/definition-of-done.md`; `agents/greptile-reviewer.md` | Errors and input — R8, checks 4 and 5; Domain subsystems, failure modes of a new outbound call; Review dimensions, items 1 and 3 | |
 | R9 | Small increments; a PR reviewable in under an hour | `gates/pre-push.md`; `skills/plan-work/SKILL.md`; `skills/ship-pr/SKILL.md` | Pre-push checklist, step 2, diff size; Size: at most 6 phases; Step 4 — Push and open the PR | |
 | R10 | One-command build from a clean checkout; pinned dependencies | `gates/pre-push.md`; `gates/planning-exit.md`; `gates/definition-of-done.md`; `scripts/ci/actions-pinned.sh` | Pre-push checklist, step 11, a clean-checkout build; What settles each one, criterion 4; Cross-cutting obligations, the dependency row; and, for this repo's own CI only, actions pinned to SHAs | |
-| R11 | Decision records for costly-to-reverse choices | `skills/write-tickets/references/templates.md`; `skills/write-tickets/SKILL.md`; `gates/exceptions.md` | Sections by type, a spike Task's decision record; Step 1 — Settle the decisions. A plan's own choices are excepted | Rule book R1 and R11 |
-| R12 | Secrets never committed; use the project's secret store | `gates/definition-of-done.md`; `gates/pre-push.md`; `gates/exceptions.md` | The gate, step 7, secret scan; Pre-push checklist, step 8, secret scan. The secret store is excepted | Rule book R12 |
+| R11 | Decision records for costly-to-reverse choices | `skills/write-tickets/references/templates.md`; `skills/write-tickets/SKILL.md` | Sections by type, a spike Task's decision record; Step 1 — Settle the decisions. A plan's own choices are excepted | Rule book R1 and R11 |
+| R12 | Secrets never committed; use the project's secret store | `gates/definition-of-done.md`; `gates/pre-push.md` | The gate, step 7, secret scan; Pre-push checklist, step 8, secret scan. The secret store is excepted | Rule book R12 |
 
 ## Phase exit criteria
 
@@ -40,12 +40,12 @@ cited here updates its row in the same commit.
 | P1.2 | Non-goals stated | `gates/planning-exit.md`; `skills/plan-project/SKILL.md` | What settles each one, criterion 2; Step 2 — Write the brief | |
 | P1.3 | Risk list with owners exists | `gates/planning-exit.md`; `skills/plan-project/SKILL.md` | What settles each one, criterion 3; Step 2 — Write the brief | |
 | P1.4 | Repository and CI run a passing empty build | `gates/planning-exit.md`; `skills/plan-project/SKILL.md` | What settles each one, criterion 4; Step 3 — Confirm the repository and CI | |
-| P2.1 | Must requirements' ACs reviewed by QA | `skills/write-tickets/SKILL.md`; `skills/write-tickets/references/rubric.md`; `gates/exceptions.md` | Step 7 — Present for approval (QA confirms every Must ticket's ACs); rubric R12 Prioritized. Only the AC form is excepted; the QA review applies | Phase 2 step 2 |
+| P2.1 | Must requirements' ACs reviewed by QA | `skills/write-tickets/SKILL.md` | Step 7 — Present for approval (QA confirms every Must ticket's ACs). Only the AC form is excepted; the QA review applies | Phase 2 step 2 |
 | P2.2 | NFRs have numeric thresholds | `skills/write-tickets/references/rubric.md`; `skills/write-tickets/scripts/lint_draft.py`; `agents/ticket-adversary.md` | rubric R13 Measurable non-functional requirements; the linter's R13 finding; What to attack, per ticket | |
 | P2.3 | Every requirement links to a goal | `skills/write-tickets/references/rubric.md`; `skills/write-tickets/SKILL.md`; `skills/write-tickets/scripts/lint_draft.py` | rubric R14 Traceable to a goal; Step 4 — Draft; the linter's R14 finding | |
 | P2.4 | Product owner signs off on the baseline | `skills/write-tickets/SKILL.md`; `skills/write-tickets/references/rubric.md` | Step 7 — Present for approval; rubric R15 Change impact recorded | |
 | P3.1 | Component diagram and interfaces reviewed | `skills/plan-work/SKILL.md`; `agents/design-adversary.md` | Components and interfaces, and Step 6 — Present for approval (the tech lead); Completeness | |
-| P3.2 | Decision records exist for irreversible choices | `skills/plan-work/SKILL.md`; `gates/exceptions.md` | Rejected alternatives. Committed records are excepted | Rule book R1 and R11 |
+| P3.2 | Decision records exist for irreversible choices | `skills/plan-work/SKILL.md` | Rejected alternatives. Committed records are excepted | Rule book R1 and R11 |
 | P3.3 | Test strategy approved by QA | `skills/plan-work/SKILL.md`; `agents/design-adversary.md` | Test strategy, and Step 6 — Present for approval (QA); Completeness | |
 | P3.4 | Each NFR has a design element | `skills/plan-work/SKILL.md`; `agents/design-adversary.md` | NFR coverage; Output, BLOCKER | |
 | P4.1 | CI green: build, lint, unit and integration tests | `skills/ci-green/SKILL.md`; `gates/pre-push.md` | Step 5 — Loop; Pre-push checklist, steps 3, 5, 6 and 11 | |
@@ -77,14 +77,14 @@ cited here updates its row in the same commit.
 | X1 | A "must" rule is waived only by the tech lead, or the sponsor for Phase 1 and 2 rules | `skills/deliver/SKILL.md`; `skills/ci-green/SKILL.md` | Invariants across every stage, a skipped "must" step is a recorded exception; Step 5 — Loop | |
 | X2 | Record each exception: rule, reason, risk, expiry, remediation | `gates/exceptions.md`; `skills/deliver/SKILL.md`; `skills/release-readiness/scripts/readiness_check.py` | Format; Invariants across every stage; the exceptions reader | |
 | X3 | Review open exceptions each iteration; remediate or renew expired ones | `skills/deliver/SKILL.md`; `gates/exceptions.md` | Step 0 — Resume or start fresh, expired rows; Format. Review of unexpired rows is excepted | Rule book Section 10 exception rule 3 |
-| X4 | In a production emergency, act first and file the exception within one working day | `gates/exceptions.md` | Kit-wide exceptions, the row in Excepted by; no other kit file applies it | Rule book Section 10 exception rule 4 |
+| X4 | In a production emergency, act first and file the exception within one working day | — | No kit file applies it | Rule book Section 10 exception rule 4 |
 
 ## Appendix B addenda
 
 | ID | Item | Applied by | Step or section | Excepted by |
 | --- | --- | --- | --- | --- |
 | B1.D | Security, Design: threat model; High threats mitigated | `skills/plan-work/SKILL.md`; `agents/design-adversary.md` | Threat model; Completeness, and Output, BLOCKER | |
-| B1.I | Security, Implementation: scans in CI; a new High blocks merge | `gates/definition-of-done.md`; `gates/pre-push.md`; `gates/scripts/sarif_gate.py`; `gates/exceptions.md` | The gate, steps 6 and 8; Pre-push checklist, steps 7 and 9; the new-findings subcommand both call. Running them in CI is excepted | Rule book Appendix B1 Implementation |
+| B1.I | Security, Implementation: scans in CI; a new High blocks merge | `gates/definition-of-done.md`; `gates/pre-push.md`; `gates/scripts/sarif_gate.py` | The gate, steps 6 and 8; Pre-push checklist, steps 7 and 9; the new-findings subcommand both call. Running them in CI is excepted | Rule book Appendix B1 Implementation |
 | B1.R | Security, Deployment: sign-off for auth, authz or data-handling changes | `gates/release.md`; `skills/release/SKILL.md` | Discipline addenda, security; Step 2 — The scope | |
 | B1.M | Security, Maintenance: Critical vulnerabilities patched within SLA | `skills/maintenance-review/SKILL.md`; `gates/exceptions.md` | Step 3 — Report, Critical vulnerabilities past the patch SLA; Format, for exceptions | |
 | B2.Q | Data and ML, Requirements: sources, retention, privacy; model thresholds | `skills/write-tickets/references/templates.md`; `skills/write-tickets/references/rubric.md`; `skills/write-tickets/scripts/lint_draft.py` | Sections by type; D1–D4 Discipline fields; the D1 and D2 findings | |
