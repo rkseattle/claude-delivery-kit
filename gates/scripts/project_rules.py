@@ -110,13 +110,15 @@ def is_date(value):
     return True
 
 
-def fence_split(text):
+def fence_split(text, markers="`~", indented=True):
     """([(line, fenced)], unclosed): fenced is true for every line of a fenced or indented
     code block, its marker lines included, exactly as a CommonMark renderer shows them as
     code; unclosed is true when a fence runs to the end of its container without closing.
     Line ends are normalized as markdown-it normalizes them. Read
     by the vendored markdown-it-py, never a hand-rolled fence rule, so no line the renderer
-    shows as text can be taken for code."""
+    shows as text can be taken for code. markers limits the fences read to those opened by
+    the characters it names, and indented=False leaves indented code blocks as text, for a
+    reader such as Jira's that keeps only backtick fences."""
     vendored(MARKDOWN_VENDOR)
     from markdown_it import MarkdownIt
     # markdown-it reads a lone \r as a line end too, so line numbers match only once both
@@ -127,7 +129,8 @@ def fence_split(text):
     # Parsed with a final newline, which a Jira description usually lacks, so the content
     # count below is the same whether the source ends in one or not.
     for token in MarkdownIt("commonmark").parse(text if text.endswith("\n") else text + "\n"):
-        if token.type not in ("fence", "code_block") or not token.map:
+        if not token.map or not (token.type == "fence" and token.markup[0] in markers
+                                 or token.type == "code_block" and indented):
             continue
         start, end = token.map
         for number in range(start, min(end, len(lines))):
