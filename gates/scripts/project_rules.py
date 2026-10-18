@@ -7,7 +7,8 @@ Imported by skills/release/scripts/halt_watch.py,
 skills/release-readiness/scripts/readiness_check.py, skills/ci-green/scripts/review_gate.py,
 skills/incident-review/scripts/incident_check.py,
 skills/maintenance-review/scripts/maintenance_check.py,
-skills/retire-system/scripts/retire_check.py, and gates/scripts/sarif_gate.py, so no two of
+skills/retire-system/scripts/retire_check.py, gates/scripts/sarif_gate.py, and, for
+the discipline rule alone, skills/write-tickets/scripts/lint_draft.py, so no two of
 them can disagree on what an unset key, a placeholder, a discipline, a date, a printed
 number, a branch slug, or a code fence is. Each importer's self-test covers the rules it
 uses; this module has no entry point of its own.
