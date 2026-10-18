@@ -214,6 +214,21 @@ expect pass "no exceptions register, and no row citing one" rule-book-map.sh
 mkdir -p "$tmp/nogit/reference" && cp "$root/$map" "$tmp/nogit/$map"
 expect_saying "a map in a root git cannot list" rule-book-map.sh "cannot list the tracked files" "$tmp/nogit"
 
+fresh_copy; printf 'x\n' > "$tmp/repo/gates/untracked.md"
+printf '%s\n' "Read \${CLAUDE_PLUGIN_ROOT}/gates/untracked.md here." >> "$tmp/repo/gates/pre-push.md"
+expect_saying "a reference to a file on disk that git does not track" bundled-refs.sh "BROKEN: \${CLAUDE_PLUGIN_ROOT}/gates/untracked.md"
+fresh_copy; printf '%s\n' "Read \${CLAUDE_PLUGIN_ROOT}/Gates/pre-push.md here." >> "$tmp/repo/gates/pre-push.md"
+expect_saying "a reference to a tracked file cased wrongly" bundled-refs.sh "BROKEN: \${CLAUDE_PLUGIN_ROOT}/Gates/pre-push.md"
+fresh_copy; printf '%s\n' "Read \${CLAUDE_PLUGIN_ROOT}/gate/ here." >> "$tmp/repo/gates/pre-push.md"
+expect_saying "a directory reference no tracked file sits under" bundled-refs.sh "BROKEN: \${CLAUDE_PLUGIN_ROOT}/gate/"
+fresh_copy; printf '%s\n' "Read \${CLAUDE_PLUGIN_ROOT}/gate here." >> "$tmp/repo/gates/pre-push.md"
+expect_saying "a reference that only prefixes a tracked directory" bundled-refs.sh "BROKEN: \${CLAUDE_PLUGIN_ROOT}/gate"
+fresh_copy; printf '%s\n' "Read \${CLAUDE_PLUGIN_ROOT}/gates/scripts here." >> "$tmp/repo/gates/pre-push.md"
+expect pass "a directory reference with no trailing slash" bundled-refs.sh
+mkdir -p "$tmp/nogitrefs/gates" "$tmp/nogitrefs/skills" "$tmp/nogitrefs/agents"
+printf '%s\n' "Read \${CLAUDE_PLUGIN_ROOT}/gates/a.md here." > "$tmp/nogitrefs/gates/a.md"
+expect_saying "references in a root git cannot list" bundled-refs.sh "cannot list the tracked files" "$tmp/nogitrefs"
+
 fresh_copy; printf '%s\n' 'Run xcodebuild test.' >> "$tmp/repo/gates/pre-push.md"
 expect fail "a build-tool invocation in a shared file" no-leaks.sh
 fresh_copy; printf '%s\n' 'See ABC-123.' >> "$tmp/repo/gates/pre-push.md"
