@@ -10,10 +10,11 @@ skills/incident-review/scripts/incident_check.py,
 skills/maintenance-review/scripts/maintenance_check.py,
 skills/retire-system/scripts/retire_check.py, gates/scripts/sarif_gate.py, and, for
 the discipline rule alone, skills/write-tickets/scripts/lint_draft.py, and, for the YAML
-vendor alone, scripts/ci/actions-pinned.sh, and, for the Markdown vendor and its loader
-alone, scripts/ci/rule-book-map.sh, so no two of
+vendor alone, scripts/ci/actions-pinned.sh, and, for the Markdown vendor and the register
+row rule, scripts/ci/rule-book-map.sh, so no two of
 them can disagree on what an unset key, a placeholder, a discipline, a date, a printed
-number, a branch slug, a code fence, or a Markdown field's value is. Each importer's self-test covers the rules it
+number, a branch slug, a code fence, a Markdown field's value, or an exceptions-register
+header or complete row is. Each importer's self-test covers the rules it
 uses; this module has no entry point of its own.
 """
 import ast
@@ -116,6 +117,27 @@ def parse_date(value):
         return datetime.date.fromisoformat(value)
     except ValueError:
         raise ValueError(f"{value!r} is not a calendar date")
+
+
+# The exceptions register's columns, in order, as gates/exceptions.md's Format defines them.
+REGISTER_COLUMNS = ("Rule", "Reason", "Risk", "Expiry", "Remediation")
+
+
+def is_register_header(cells):
+    """Whether a table's header opens with the register's columns; a register may add
+    columns after them."""
+    return tuple(cells[:len(REGISTER_COLUMNS)]) == REGISTER_COLUMNS
+
+
+def complete_register_row(row):
+    """Whether a register body row, its cells in REGISTER_COLUMNS order, records an
+    exception at all: every cell filled, none a separator, and Expiry a date. Whether it has
+    expired is the caller's question; a row missing its reason, risk, or remediation records
+    none, since nothing says why the waiver holds or how it ends."""
+    return (len(row) >= len(REGISTER_COLUMNS)
+            and all(row[n] and not re.fullmatch(r":?-+:?", row[n])
+                    for n in range(len(REGISTER_COLUMNS)))
+            and is_date(row[REGISTER_COLUMNS.index("Expiry")]))
 
 
 def is_date(value):

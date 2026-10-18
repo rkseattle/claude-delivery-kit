@@ -163,6 +163,54 @@ fresh_copy; printf '# Map\nNo %spaths%s here.\n' "$bt" "$bt" > "$tmp/repo/$map"
 expect_saying "a map naming no path" rule-book-map.sh "names no path"
 fresh_copy; printf '| Z1 | %sgates/pre-push.md%s | \377 |\n' "$bt" "$bt" >> "$tmp/repo/$map"
 expect_saying "a map holding an invalid UTF-8 byte" rule-book-map.sh "is not UTF-8"
+# Each exception case cites a fixture row it appends to the Kit-wide table, which ends the
+# register, so renewing or remediating a live row never rewrites these cases.
+ex=gates/exceptions.md
+row() { printf '| Z1 | x | %sgates/exceptions.md%s | x | %s |\n' "$bt" "$bt" "$1" >> "$tmp/repo/$map"; }
+fixture() {  # fixture [expiry] [remediation]: the Rule book R90 row, cited by the map
+  printf '| Rule book R90: fixture | x | x | %s | %s |\n' "${1:-2099-01-01}" "${2-x}" >> "$tmp/repo/$ex"
+  row 'Rule book R90'
+}
+fresh_copy; fixture
+expect pass "a cited fixture row" rule-book-map.sh
+fresh_copy; row 'Rule book R90'
+expect_saying "the cited row absent" rule-book-map.sh "MISSING ROW: Rule book R90 starts"
+fresh_copy; fixture; row 'Rule book R9'
+expect_saying "a name that only prefixes another row" rule-book-map.sh "MISSING ROW: Rule book R9 starts"
+fresh_copy; fixture; row 'Rule book R90; Rule book R97'
+expect_saying "a bad name beside a good one in one cell" rule-book-map.sh "MISSING ROW: Rule book R97 starts"
+fresh_copy; fixture; row 'Rule book R90;'
+expect pass "a trailing semicolon in an Excepted by cell" rule-book-map.sh
+fresh_copy; fixture; row 'Rule book    R90'
+expect pass "a name with a run of spaces" rule-book-map.sh
+fresh_copy; printf '| Rule book   R90: fixture | x | x | 2099-01-01 | x |\n' >> "$tmp/repo/$ex"; row 'Rule book R90'
+expect pass "a Rule cell with a run of spaces" rule-book-map.sh
+fresh_copy; fixture 2099-01-01 ''
+expect_saying "the cited row with its Remediation cell empty" rule-book-map.sh "MISSING ROW: Rule book R90 starts"
+fresh_copy; fixture 2099-01-01 ---
+expect_saying "the cited row with a separator for its Remediation" rule-book-map.sh "MISSING ROW: Rule book R90 starts"
+fresh_copy; fixture TBD
+expect_saying "the cited row with an Expiry that is no date" rule-book-map.sh "MISSING ROW: Rule book R90 starts"
+fresh_copy; fixture 2000-01-01
+expect pass "the cited row expired, which deliver reports instead" rule-book-map.sh
+fresh_copy; printf '\n## Elsewhere\n\n| Rule | Reason | Risk | Expiry | Remediation |\n| --- | --- | --- | --- | --- |\n| Rule book R90: x | x | x | 2099-01-01 | x |\n' \
+  >> "$tmp/repo/$ex"; row 'Rule book R90'
+expect_saying "the cited name only in a complete row outside Kit-wide exceptions" rule-book-map.sh \
+  "MISSING ROW: Rule book R90 starts"
+fresh_copy; awk '/^\| Rule \| Reason \|/ && !done { print "### Held"; print ""; done = 1 } { print }' \
+  "$root/$ex" > "$tmp/repo/$ex"; fixture
+expect pass "a sub-heading inside Kit-wide exceptions" rule-book-map.sh
+fresh_copy; sed -i.bak 's/^| Rule | Reason | Risk | Expiry | Remediation |$/| Reason | Rule | Risk | Expiry | Remediation |/' \
+  "$tmp/repo/$ex"; fixture
+expect_saying "a Kit-wide table with its columns reordered" rule-book-map.sh "NOT A REGISTER"
+fresh_copy; printf '\n| ID | Rule |\n| --- | --- |\n| Z1 | x |\n' >> "$tmp/repo/$map"
+expect_saying "a map table with no Excepted by column" rule-book-map.sh "NO EXCEPTED BY COLUMN"
+fresh_copy; printf '\nExcepted under the kit-wide row "Rule book R99".\n' >> "$tmp/repo/$map"
+expect pass "an exception named in prose, which is no citation" rule-book-map.sh
+fresh_copy; rm "$tmp/repo/$ex"
+expect_saying "no exceptions register" rule-book-map.sh "no exceptions register"
+sed -i.bak -E 's/^(\| [A-Z][0-9][0-9.A-Z]* \|.*\|) [^|]+ \|$/\1  |/' "$tmp/repo/$map"
+expect pass "no exceptions register, and no row citing one" rule-book-map.sh
 mkdir -p "$tmp/nogit/reference" && cp "$root/$map" "$tmp/nogit/$map"
 expect_saying "a map in a root git cannot list" rule-book-map.sh "cannot list the tracked files" "$tmp/nogit"
 

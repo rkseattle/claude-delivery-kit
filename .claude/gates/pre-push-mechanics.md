@@ -59,11 +59,16 @@ in full. It takes under a minute, so there is no subset worth trusting instead.
   commit SHA with the tag as a trailing comment. `UNPARSEABLE` — a workflow is not YAML
   with a `jobs:` mapping.
 - `MISSING: <path>` — a `reference/rule-book-map.md` row names a path git does not track,
-  exactly as written; point the row at the file that now applies the rule, `git add` a new
-  one, or move prose holding a slash outside backticks. A path holding a space was wrapped
-  across lines inside its backticks, or padded on one side only; rejoin or trim it.
-  `no rule-book map at`, `names no path`, or `is not UTF-8` — the map is gone, emptied, or
-  corrupted; restore it. `cannot list the tracked files` — run from a
+  exactly as written; point the row at the file that now applies the rule, `git add` a
+  new one, or move prose holding a slash outside backticks. A path holding a space was
+  wrapped across lines inside its backticks, or padded on one side only; rejoin or trim
+  it. `no rule-book map at`, `no exceptions register at`, `names no path`, or `is not
+  UTF-8` — the map or `gates/exceptions.md`, as named, is gone, emptied, or corrupted;
+  restore it. `MISSING ROW:` — an Excepted by name starts no complete kit-wide row's
+  `Rule` cell, up to its colon; point the map row at what now applies the rule, or at
+  the renamed row. `NO EXCEPTED BY COLUMN:` — a map table lacks the column; add it. `NOT
+  A REGISTER:` — a table under Kit-wide exceptions is not headed Rule | Reason | Risk |
+  Expiry | Remediation; restore its header. `cannot list the tracked files` — run from a
   checkout git can read.
 - `FAIL <check>: <case>` from `self-test.sh` — a check stopped catching its defect; fix the
   check, never the case.

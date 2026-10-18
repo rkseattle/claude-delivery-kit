@@ -66,8 +66,10 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)),
 from lint_draft import NFR_SECTION, VERIFY_TAG  # noqa: E402  what write-tickets writes
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)),
                                 "..", "..", "..", "gates", "scripts"))
-from project_rules import (BARE_FRAGMENT, DECIMAL, PLACEHOLDER, check_command,  # noqa: E402
-                           check_repo_path, fence_split, is_date, is_unset, json_number,
+from project_rules import (BARE_FRAGMENT, DECIMAL, PLACEHOLDER, REGISTER_COLUMNS,  # noqa: E402
+                           check_command, check_repo_path, complete_register_row,
+                           is_register_header,
+                           fence_split, is_unset, json_number,
                            markdown_value,
                            named_disciplines,
                            positive_int, read_config as load_config, report,
@@ -207,27 +209,20 @@ def nfrs(description, key):
     return found, problems
 
 
-REGISTER_COLUMNS = ("Rule", "Reason", "Risk", "Expiry", "Remediation")
-
-
 def exceptions(path, today):
     """{Rule: Expiry} for every unexpired, complete row in a register table, in the format
-    gates/exceptions.md defines: a row missing its reason, risk, or remediation records no
-    exception, since nothing says why the waiver holds or how it ends."""
+    gates/exceptions.md defines; complete_register_row says which rows record one."""
     if not path:
         return {}
     with open(path, encoding="utf-8") as handle:
         rows = [[cell.strip() for cell in line.strip().strip("|").split("|")]
                 for line in handle if line.lstrip().startswith("|")]
-    if not rows or tuple(rows[0][:len(REGISTER_COLUMNS)]) != REGISTER_COLUMNS:
+    if not rows or not is_register_header(rows[0]):
         raise ValueError("the exceptions register's header is not "
                          + " | ".join(REGISTER_COLUMNS))
     rule, expiry = 0, REGISTER_COLUMNS.index("Expiry")
     return {row[rule]: row[expiry] for row in rows[1:]
-            if len(row) >= len(REGISTER_COLUMNS)
-            and all(row[n] and not re.fullmatch(r":?-+:?", row[n])
-                    for n in range(len(REGISTER_COLUMNS)))
-            and is_date(row[expiry]) and row[expiry] >= today}
+            if complete_register_row(row) and row[expiry] >= today}
 
 
 def settle(in_scope, output, excepted_rules):
@@ -808,6 +803,12 @@ def release_checks_cases(directory, summary_file, good):
                               "impossible.md")
     failures += report("settle", "a row expiring on no calendar date records no exception",
                        exceptions(impossible, "2026-01-01"), {})
+    partial = summary_file("| Rule | Reason | Risk | Expiry | Remediation | Owner |\n| --- | --- | "
+                           "--- | --- | --- | --- |\n| AB-1 NFR2 | r | r | 2026-12-31 |\n"
+                           "| AB-1 NFR3 | r | --- | 2026-12-31 | t | o |\n"
+                           "| AB-1 NFR4 | r | r | 2026-12-31 | t | o |\n", "partial.md")
+    failures += report("settle", "a short row and a separator cell record none; a sixth column is "
+                       "allowed", exceptions(partial, "2026-01-01"), {"AB-1 NFR4": "2026-12-31"})
     in_scope = ["AB-1 NFR1", "AB-1 NFR2", "AB-1 NFR3", "AB-1 NFR4", "AB-1 NFR5"]
     output = ("AB-1 NFR1 pass\nAB-1 NFR2 fail\nAB-1 NFR3 pass\nAB-1 NFR3 fail\n"
               "AB-1 NFR5 maybe\nAB-9 NFR1 fail\nAB-1 NFR10 pass\n")
