@@ -278,7 +278,12 @@ def unlinked_alerts(config):
     directory = existing_dir("alert_rules_dir", config["alert_rules_dir"])
     vendored(YAML_VENDOR)
     import yaml
-    paths = sorted(os.path.join(root, name) for root, _, names in os.walk(directory)
+    def unreadable(error):
+        raise ValueError(f"{error.filename} is unreadable, so its rules went unchecked: "
+                         f"{error.strerror}")
+
+    paths = sorted(os.path.join(root, name)
+                   for root, _, names in os.walk(directory, onerror=unreadable)
                    for name in names if name.endswith((".yml", ".yaml")))
     if not paths:
         raise ValueError(f"alert_rules_dir {directory!r} holds no .yml or .yaml file")
@@ -657,6 +662,17 @@ def alert_rule_cases():
                 failures += report("alert-rules", name, result_of(unlinked_alerts, config),
                                    "ValueError")
             os.remove("ops/alerts/bad.yml")
+            os.makedirs("ops/alerts/locked")
+            os.chmod("ops/alerts/locked", 0)
+            try:
+                if os.access("ops/alerts/locked", os.R_OK):
+                    print("skip alert-rules: an unreadable directory needs a non-root user")
+                else:
+                    failures += report("alert-rules", "an unreadable subdirectory fails the read",
+                                       result_of(unlinked_alerts, config), "ValueError")
+            finally:
+                os.chmod("ops/alerts/locked", 0o755)
+                os.rmdir("ops/alerts/locked")
             os.makedirs("manifests")
             with open("manifests/kustomization.yaml", "w", encoding="utf-8") as handle:
                 handle.write("kind: Kustomization\n")

@@ -19,9 +19,7 @@ import sys
 import tempfile
 
 from jira_roundtrip import PROBES, roundtrip
-sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)),
-                                "..", "..", "..", "gates", "scripts"))
-from project_rules import fence_split  # noqa: E402  CommonMark fences, shared with readiness
+from mcp_atlassian_adf import markdown_to_adf  # noqa: E402  on the path jira_roundtrip sets
 
 SUMMARY_MAX = 100
 
@@ -123,21 +121,23 @@ def body(lines):
     return [l.strip() for l in lines if l.strip() and not l.strip().startswith("<!--")]
 
 
+# The vendored markdown_to_adf's code-block rule, so a line is fenced exactly when Jira stores
+# it as code: a line starting ``` at column 0 opens a block, the next such line closes it, and
+# nothing else does — no ~~~ fence, whose tildes the read pairs as subscript, and no indent.
 FENCE = re.compile(r"^```")
 
 
 def unfenced(lines):
-    """(line, fenced) for each line: prose as body() keeps it, and a fenced block's lines
-    verbatim, blank and indented ones included, since a fenced block is literal. Fences are
-    read as CommonMark reads them, as release-readiness reads the same descriptions, but
-    backtick fences only: a ~~~ fence's tildes are text the read pairs as subscript, and
-    Jira keeps no indented code block."""
-    rows, _ = fence_split("\n".join(line.rstrip("\r\n") for line in lines), markers="`",
-                          indented=False)
-    out = []
-    for line, fenced in rows:
-        if fenced:
-            out.append((line.strip() if FENCE.match(line.strip()) else line, True))
+    """(line, fenced) for each line: prose as body() keeps it, and a code block's lines
+    verbatim, blank and indented ones included, since Jira stores a code block literally."""
+    fenced, out = False, []
+    for line in lines:
+        line = line.rstrip("\r\n")
+        if FENCE.match(line):
+            out.append((line.strip(), True))
+            fenced = not fenced
+        elif fenced:
+            out.append((line, True))
         else:
             out += [(l, False) for l in body([line])]
     return out
@@ -577,17 +577,29 @@ def self_test():
                 print("\n".join("     " + l for l in got or []))
         failed += readback_cli_test(cases, repo)
         failed += counts_test()
-        # Fences are read as CommonMark reads them, backticks only, so no prose is hidden.
+        # Code blocks are found as the vendored markdown_to_adf finds them, so the lint sees
+        # exactly the lines Jira will store as code.
         for case, lines, want in [
-                ("a backtick in an opener's info string opens no fence",
-                 ["```x`y", "- AC1: shown"], ["```x`y", "- AC1: shown"]),
-                ("a closer with an info string closes nothing",
-                 ["```", "```x", "```", "- AC1: shown"], ["- AC1: shown"]),
+                ("any line starting ``` at column 0 opens a block, as the converter's does",
+                 ["```x`y", "- AC9: code", "```", "- AC1: shown"], ["- AC1: shown"]),
+                ("a line starting ``` closes a block, info string or not",
+                 ["```", "code", "```x", "- AC1: shown"], ["- AC1: shown"]),
+                ("an indented ``` is prose, as the converter reads it",
+                 ["  ```", "- AC1: shown"], ["```", "- AC1: shown"]),
                 ("a tilde fence is prose, as Jira reads it", ["~~~", "- AC1: shown", "~~~"],
-                 ["~~~", "- AC1: shown", "~~~"])]:
+                 ["~~~", "- AC1: shown", "~~~"]),
+                ("a backtick block between tilde lines stays code",
+                 ["~~~", "```", "- AC9: [verify: ci @ example]", "```", "~~~"],
+                 ["~~~", "~~~"])]:
             got = [line for line, fenced in unfenced(lines) if not fenced]
-            ok = got == want
-            print(f"{'ok  ' if ok else 'FAIL'} fences: {case}")
+            code = [line for block in markdown_to_adf("\n".join(lines))["content"]
+                    if block["type"] == "codeBlock"
+                    for line in block["content"][0]["text"].split("\n") if block["content"]]
+            agrees = code == [line for line, fenced in unfenced(lines)
+                              if fenced and not FENCE.match(line)]
+            ok = got == want and agrees
+            print(f"{'ok  ' if ok else 'FAIL'} fences: {case}"
+                  + ("" if agrees else " — disagrees with markdown_to_adf"))
             failed += not ok
         # Pins the pieces of the round trip not vendored to what Jira Cloud returned.
         for n, (sent, live) in enumerate(PROBES, 1):

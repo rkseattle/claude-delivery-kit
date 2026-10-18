@@ -199,15 +199,17 @@ From the report, propose one ticket per finding below, numbered, each with its t
 its finding key, the summary its row gives, and one acceptance criterion with a
 `[verify: <tier> @ <evidence>]` tag, its tier one `{{verification_tiers}}` declares. The
 finding key is what an earlier review's ticket is found by, so it is written exactly as the
-row gives it, never reworded. More than ten outdated packages get the one `dependencies`
-ticket **instead of** a ticket each:
+row gives it, never reworded. More than ten untracked outdated packages get one combined
+ticket **instead of** a ticket each, carrying every one of their `dependency <package>` keys,
+so whichever way the count moves between reviews, each package is tracked by exactly one
+open ticket:
 
 | Finding | Type | Finding key | Summary |
 | --- | --- | --- | --- |
 | an alert past its SLA | `corrective` | `alert <package> <advisory> <manifest>` | Patch `<package>` for `<advisory>` in `<manifest>` |
 | drift over its threshold | `corrective` | `drift` | Retrain or roll back the model past its drift threshold |
 | an outdated dependency | `adaptive` | `dependency <package>` | Update `<package>` |
-| more than ten outdated | `adaptive` | `dependencies` | Update the outdated dependencies |
+| more than ten untracked outdated | `adaptive` | each package's `dependency <package>` | Update the outdated dependencies |
 | a stale runbook | `preventive` | `runbook <path>` | Review the runbook `<path>` |
 | a route to no person | `preventive` | `route <rule>` | Route the alert `<rule>` to a person on call |
 | an alert rule lacking an SLO or a runbook | `preventive` | `alert-rule <file> <name>` | Give the alert `<name>` what it lacks: an SLO, a runbook, or both |
@@ -219,9 +221,9 @@ command's output to fix, and the second exists only in this checkout.
 **Before presenting, find what is already tracked.** Search
 `project = {{jira_project}} AND labels = maintenance-review AND statusCategory != Done`,
 paging as Step 2's queries do, and read each result's description with `jira_get_issue`. A
-proposal whose finding key is exactly the code span on an open ticket's `Finding:` line is
-already tracked:
-list it with that key and propose no ticket for it. The query names no finding key, so no
+finding key that is exactly the code span on one of an open ticket's `Finding:` lines is
+already tracked: list it with that ticket's key and propose nothing for it. Decide the
+combined dependency ticket only after this, from the packages no open ticket tracks. The query names no finding key, so no
 character in a path or alert name can break it or widen it into a wildcard. A failed search
 is a failed read, and then no ticket is proposed at all, since none can be shown not to
 exist already.
@@ -247,15 +249,15 @@ and use `Task`, never a guessed name or ID. Give it:
 - the approved summary;
 - the labels `<type>` and `maintenance-review`;
 - a description of `## Context`, naming the report's date and its finding line, then
-  ``Finding: `<finding key>` `` on a line of its own — the key inside a code span, which
-  the Atlassian connector's read conversion keeps verbatim, as `write-tickets` relies on —
-  and
+  ``Finding: `<finding key>` `` on a line of its own for each of its finding keys — the key
+  inside a code span, which the Atlassian connector's read conversion keeps verbatim, as
+  `write-tickets` relies on — and
   `## Acceptance criteria` holding the approved criterion as one `- AC1:` line ending in
   its `[verify: <tier> @ <evidence>]` tag, the tag inside a code span as `write-tickets`
   writes it.
 
 Read each ticket back with `jira_get_issue` and confirm it carries both labels, its
-`[verify: …]` tag whole, and its `Finding:` code span exactly; fix any once if it does not,
+`[verify: …]` tag whole, and each `Finding:` code span exactly; fix any once if it does not,
 and report it if it still does not. Then report each approved ticket with its key, and each
 declined or held one with its answer. Nothing else changes: no file, no commit, no other
 Jira write.
