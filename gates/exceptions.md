@@ -20,8 +20,9 @@ A register is one Markdown table with these columns, in this order:
 
 A row has expired when its `Expiry` is before today's local date. An expired row is
 remediated — the waived rule is followed again and the row comes out — or renewed with a
-new `Expiry`, in a commit that says why it still holds. A project register starts with the
-same header row.
+new `Expiry`, in a commit that says why it still holds. Removing or renaming a kit-wide
+row updates, in the same commit, each `reference/rule-book-map.md` row that cites it. A
+project register starts with the same header row.
 
 ## Kit-wide exceptions
 

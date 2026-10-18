@@ -17,7 +17,7 @@ the same commit.
 | ID | Rule | Applied by | Step or section |
 | --- | --- | --- | --- |
 | R1 | Everything in version control; every change traceable to a ticket | `skills/implement-phases/SKILL.md`; `gates/pre-push.md`; `skills/ship-pr/SKILL.md`; `gates/exceptions.md` | 2d. Definition of Done, then commit; PR conventions, and step 11, a clean-checkout build; Step 4 — Push and open the PR. Plans and decision records stay out of version control under the kit-wide row "Rule book R1 and R11" |
-| R2 | Review by someone other than the author before main | `skills/ship-pr/SKILL.md`; `skills/ci-green/SKILL.md`; `skills/ci-green/scripts/review_gate.py` | Step 4 — Push and open the PR (the reviewer set); Step 5 — Loop (the approval, or the per-project R2 exception) |
+| R2 | Review by someone other than the author before main | `skills/ship-pr/SKILL.md`; `skills/ci-green/SKILL.md`; `skills/ci-green/scripts/review_gate.py` | Step 4 — Push and open the PR (the reviewer set); Step 5 — Loop (the approval, or the per-project R2 exception); the reviewer-set and approval subcommands |
 | R3 | One stated responsibility and a documented interface per module | `skills/plan-work/SKILL.md`; `gates/rule-book-review.md`; `gates/definition-of-done.md` | Components and interfaces; Module boundaries — R3, R4, checks 6 and 7; Cross-cutting obligations, the public-interface row |
 | R4 | No reaching into another module's internals or data store | `gates/rule-book-review.md`; `skills/plan-work/SKILL.md`; `agents/greptile-reviewer.md` | Module boundaries — R3, R4, check 6; Data ownership; Review dimensions, item 5 |
 | R5 | One authoritative definition; extract on the third occurrence | `gates/rule-book-review.md`; `gates/definition-of-done.md`; `agents/commit-adversary.md` | Duplication — R5, checks 1–3; Before git add; Substance |
@@ -49,13 +49,13 @@ the same commit.
 | P4.2 | At least one approving review | `skills/ci-green/SKILL.md`; `skills/ci-green/scripts/review_gate.py` | Step 5 — Loop, the approval; the approval subcommand |
 | P4.3 | Acceptance criteria demonstrably met | `skills/branch-review/SKILL.md`; `agents/greptile-reviewer.md`; `skills/implement-phases/SKILL.md` | Step 5 — Verify the acceptance criteria table; Acceptance criteria check; 2d. Definition of Done, then commit |
 | P4.4 | Docs and interface definitions updated | `gates/definition-of-done.md`; `gates/rule-book-review.md`; `agents/commit-adversary.md` | Cross-cutting obligations, the public-interface and Behavior a user can see rows; Module boundaries — R3, R4, check 7; Substance |
-| P5.1 | All Must acceptance tests pass | `gates/release-readiness.md`; `skills/release-readiness/SKILL.md`; `skills/release-readiness/scripts/readiness_check.py` | What settles each one, criterion 1; Step 3 — Run the suites, and Step 4 — Jira and the merged PRs |
+| P5.1 | All Must acceptance tests pass | `gates/release-readiness.md`; `skills/release-readiness/SKILL.md`; `skills/release-readiness/scripts/readiness_check.py` | What settles each one, criterion 1; Step 3 — Run the suites, and Step 4 — Jira and the merged PRs; the criteria subcommand |
 | P5.2 | Zero open Critical or High defects | `gates/release-readiness.md`; `skills/release-readiness/SKILL.md` | What settles each one, criterion 2; Step 4 — Jira and the merged PRs |
 | P5.3 | Non-functional thresholds met or exception recorded | `gates/release-readiness.md`; `skills/release-readiness/scripts/readiness_check.py` | What settles each one, criterion 3; the settle subcommand |
 | P5.4 | Test summary reviewed by product owner | `gates/release-readiness.md`; `skills/release-readiness/SKILL.md` | What settles each one, criterion 4; Step 6 — Stop for the product owner, and Step 7 — Record the review |
 | P6.1 | Rollback tested in staging | `gates/release.md`; `skills/release/SKILL.md` | What settles each one, criterion 1; Step 5 — Staging, then each production stage |
 | P6.2 | Smoke tests pass in production | `gates/release.md`; `skills/release/SKILL.md` | What settles each one, criterion 2; Step 5 — Staging, then each production stage |
-| P6.3 | No halt criterion triggered during the monitoring window | `gates/release.md`; `skills/release/SKILL.md`; `skills/release/scripts/halt_watch.py` | What settles each one, criterion 3; Step 5 — Staging, then each production stage |
+| P6.3 | No halt criterion triggered during the monitoring window | `gates/release.md`; `skills/release/SKILL.md`; `skills/release/scripts/halt_watch.py` | What settles each one, criterion 3; Step 5 — Staging, then each production stage; the watch it runs per stage |
 | P6.4 | Release notes published | `gates/release.md`; `skills/release/SKILL.md` | What settles each one, criterion 4; Step 4 — Write the release notes, and Step 6 — Publish and update the tickets |
 
 ## Phase 7 ongoing checks
@@ -81,7 +81,7 @@ the same commit.
 | ID | Item | Applied by | Step or section |
 | --- | --- | --- | --- |
 | B1.D | Security, Design: threat model; High threats mitigated | `skills/plan-work/SKILL.md`; `agents/design-adversary.md` | Threat model; Completeness, and Output, BLOCKER |
-| B1.I | Security, Implementation: scans in CI; a new High blocks merge | `gates/definition-of-done.md`; `gates/pre-push.md`; `gates/scripts/sarif_gate.py`; `gates/exceptions.md` | The gate, steps 6 and 8; Pre-push checklist, steps 7 and 9. Running them in CI is excepted under the kit-wide row "Rule book Appendix B1 Implementation" |
+| B1.I | Security, Implementation: scans in CI; a new High blocks merge | `gates/definition-of-done.md`; `gates/pre-push.md`; `gates/scripts/sarif_gate.py`; `gates/exceptions.md` | The gate, steps 6 and 8; Pre-push checklist, steps 7 and 9; the new-findings subcommand both call. Running them in CI is excepted under the kit-wide row "Rule book Appendix B1 Implementation" |
 | B1.R | Security, Deployment: sign-off for auth, authz or data-handling changes | `gates/release.md`; `skills/release/SKILL.md` | Discipline addenda, security; Step 2 — The scope |
 | B1.M | Security, Maintenance: Critical vulnerabilities patched within SLA | `skills/maintenance-review/SKILL.md`; `gates/exceptions.md` | Step 3 — Report, Critical vulnerabilities past the patch SLA; Format, for exceptions |
 | B2.Q | Data and ML, Requirements: sources, retention, privacy; model thresholds | `skills/write-tickets/references/templates.md`; `skills/write-tickets/references/rubric.md`; `skills/write-tickets/scripts/lint_draft.py` | Sections by type; D1–D4 Discipline fields; the D1 and D2 findings |
