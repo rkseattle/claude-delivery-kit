@@ -7,3 +7,7 @@ updates:
     directory: /
     schedule:
       interval: weekly
+    # A release waits a week before its PR, so a compromised tag is likelier caught first,
+    # as zizmor's dependabot-cooldown audit asks.
+    cooldown:
+      default-days: 7

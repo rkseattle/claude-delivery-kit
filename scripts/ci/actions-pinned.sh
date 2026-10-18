@@ -25,8 +25,8 @@ import yaml  # noqa: E402
 
 PINNED = re.compile(r"^[^@\s]+@[0-9a-fA-F]{40}$")
 DIGEST = re.compile(r"^docker://[^@\s]+@sha256:[0-9a-fA-F]{64}$")
-workflows = sorted(glob.glob(os.path.join(root, ".github", "workflows", "*.yml"))
-                   + glob.glob(os.path.join(root, ".github", "workflows", "*.yaml")))
+workflows = sorted(glob.glob(os.path.join(glob.escape(root), ".github", "workflows", "*.yml"))
+                   + glob.glob(os.path.join(glob.escape(root), ".github", "workflows", "*.yaml")))
 if not workflows:
     sys.exit(f"no workflow files under {root}/.github/workflows")
 
