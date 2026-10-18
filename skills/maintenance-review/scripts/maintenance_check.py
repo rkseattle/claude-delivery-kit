@@ -27,8 +27,9 @@ reads its keys from project.json itself, so no value passes through shell text.
     maintenance_check.py drift --config PATH < OUTPUT
         `within <n>` or `over <n>`, against drift_threshold, for the one number printed
     maintenance_check.py alert-rules --config PATH
-        one `<file>\t<alert>\tno runbook\t<SLO or none>` line per Prometheus alerting rule
-        under alert_rules_dir with no `runbook_url` or `runbook` annotation, Appendix B5's rule
+        one `<file>\t<alert>\t<lacks>` line per Prometheus alerting rule under alert_rules_dir
+        naming no SLO, no runbook, or neither — `no SLO`, `no runbook`, or both, joined by
+        `, ` — the two halves of Appendix B5's rule
     maintenance_check.py --self-test     runs every case below; exit 0 only if each one matches
 
 A failed check prints `INVALID: <what>` to standard error and exits 1; exit 2 is usage.
@@ -154,6 +155,19 @@ def git_paths(*arguments):
     return [line for line in run.stdout.split("\0" if "-z" in arguments else "\n") if line]
 
 
+def last_commit_dates(directory):
+    """{path: the UTC date of the newest commit touching it} under directory, from one
+    `git log` pass, newest first, so a path's first appearance is its last commit."""
+    dates, current = {}, None
+    for line in git_paths("-c", "core.quotePath=false", "log", "--format=\x01%cd",
+                          "--date=format-local:%Y-%m-%d", "--name-only", "--", directory):
+        if line.startswith("\x01"):
+            current = line[1:]
+        elif current:
+            dates.setdefault(line, current)
+    return dates
+
+
 def stale_runbooks(config, today):
     """Each runbook on disk whose last commit is more than 90 days before today, or none."""
     directory = existing_dir("runbooks_dir", required(config, "runbooks_dir"))
@@ -164,17 +178,15 @@ def stale_runbooks(config, today):
     rows = [f"{path}\tuncommitted"
             for path in git_paths("ls-files", "-z", "--others", "--exclude-standard", "--",
                                   directory)]
-    for path in git_paths("ls-files", "-z", "--", directory):
-        if not os.path.exists(path):
-            continue
-        dates = git_paths("log", "-1", "--format=%cd", "--date=format-local:%Y-%m-%d", "--",
-                          path)
-        if not dates:
+    tracked = [path for path in git_paths("ls-files", "-z", "--", directory)
+               if os.path.exists(path)]
+    last = last_commit_dates(directory)
+    for path in tracked:
+        if path not in last:
             rows.append(f"{path}\tuncommitted")
-        elif (today - parse_date(dates[0])).days > RUNBOOK_MAX_AGE:
-            rows.append(f"{path}\t{dates[0]}")
-    if not rows and not any(os.path.exists(path) for path in
-                            git_paths("ls-files", "-z", "--", directory)):
+        elif (today - parse_date(last[path])).days > RUNBOOK_MAX_AGE:
+            rows.append(f"{path}\t{last[path]}")
+    if not rows and not tracked:
         raise ValueError(f"runbooks_dir {directory!r} holds no runbook git can see — empty, "
                          "or gitignored")
     return sorted(rows)
@@ -258,7 +270,7 @@ def rule_groups(document, path):
 
 
 def unlinked_alerts(config):
-    """Each alerting rule with no runbook annotation, by file and alert, with its SLO."""
+    """Each alerting rule naming no SLO or no runbook, by file and alert, with what it lacks."""
     check_repo_path("alert_rules_dir", config.get("alert_rules_dir"))
     directory = existing_dir("alert_rules_dir", config["alert_rules_dir"])
     vendored(YAML_VENDOR)
@@ -290,8 +302,8 @@ def unlinked_alerts(config):
 
 
 def unlinked_row(rule, path):
-    """The row for an alerting rule with no runbook annotation; None for one with one, or for
-    a recording rule. A field Prometheus would reject is INVALID, never a row."""
+    """The row for an alerting rule lacking an SLO or a runbook; None for one naming both, or
+    for a recording rule. A field Prometheus would reject is INVALID, never a row."""
     if "alert" not in rule:
         return None
     name, annotations, labels = (rule["alert"], rule.get("annotations") or {},
@@ -300,14 +312,16 @@ def unlinked_row(rule, path):
         raise ValueError(f"{path} holds an alert named {name!r}, not one word")
     if not (isinstance(annotations, dict) and isinstance(labels, dict)):
         raise ValueError(f"{path}'s alert {name} has labels or annotations that are not maps")
-    if any(annotations.get(key) for key in RUNBOOK_KEYS):
-        return None
-    slo = next((source[key] for source in (labels, annotations) for key in SLO_KEYS
-                if source.get(key)), "none")
-    if not (isinstance(slo, str) and slo.split() == [slo]):
-        raise ValueError(f"{path}'s alert {name} names its SLO {slo!r}, not one word of text; "
-                         "quote it, as YAML reads yes or 1.10 as something else")
-    return f"{path}\t{name}\tno runbook\t{slo}"
+    slos = [source[key] for source in (labels, annotations) for key in SLO_KEYS
+            if key in source]
+    if any(not (isinstance(slo, str) and slo.split() == [slo]) for slo in slos):
+        raise ValueError(f"{path}'s alert {name} names its SLO {slos[0]!r}, not one word of "
+                         "text; quote it, as YAML reads yes or 1.10 as something else")
+    lacks = [what for what, present in (
+        ("no SLO", slos),
+        ("no runbook", any(isinstance(annotations.get(key), str) and annotations[key].strip()
+                           for key in RUNBOOK_KEYS))) if not present]
+    return f"{path}\t{name}\t{', '.join(lacks)}" if lacks else None
 
 
 def drift(config, output):
@@ -518,6 +532,8 @@ ALERT_RULE_FILES = {
   rules:
   - alert: BlankRunbook
     annotations: {runbook_url: ""}
+  - alert: SpaceRunbook
+    annotations: {runbook: "  "}
 """,
     "ops/alerts/multi.yml": """groups:
 - name: empty
@@ -559,14 +575,16 @@ def alert_rule_cases():
                 with open(path, "w", encoding="utf-8") as handle:
                     handle.write(text)
             config = {"alert_rules_dir": "ops/alerts"}
-            failures += report("alert-rules", "alerts with no runbook, with their SLO",
+            failures += report("alert-rules", "alerts naming no SLO, no runbook, or neither",
                                result_of(unlinked_alerts, config),
-                               ["ops/alerts/api.yml\tHighLatency\tno runbook\tapi-latency",
-                                "ops/alerts/api.yml\tDiskFull\tno runbook\tnone",
-                                "ops/alerts/empty-runbook.yml\tBlankRunbook\tno runbook\tnone",
-                                "ops/alerts/multi.yml\tCertExpiry\tno runbook\ttls-validity",
-                                "ops/alerts/multi.yml\tBoth\tno runbook\tfrom-labels",
-                                "ops/alerts/operator.yaml\tQueueStalled\tno runbook\tnone"])
+                               ["ops/alerts/api.yml\tHighLatency\tno runbook",
+                                "ops/alerts/api.yml\tDiskFull\tno SLO, no runbook",
+                                "ops/alerts/empty-runbook.yml\tBlankRunbook\tno SLO, no runbook",
+                                "ops/alerts/empty-runbook.yml\tSpaceRunbook\tno SLO, no runbook",
+                                "ops/alerts/multi.yml\tCertExpiry\tno runbook",
+                                "ops/alerts/multi.yml\tBoth\tno runbook",
+                                "ops/alerts/operator.yaml\tQueueBacklog\tno SLO",
+                                "ops/alerts/operator.yaml\tQueueStalled\tno SLO, no runbook"])
             for name, text in [("a file that is not rule groups", "alerts: []\n"),
                                ("a YAML syntax error", "groups: [\n"),
                                ("a Python object tag safe_load refuses",
@@ -615,7 +633,7 @@ def alert_rule_cases():
                                  capture_output=True, text=True, check=False)
             failures += report("cli", "alert-rules prints its rows",
                                (run.returncode, run.stdout.splitlines()[:1]),
-                               (0, ["ops/alerts/api.yml\tHighLatency\tno runbook\tapi-latency"]))
+                               (0, ["ops/alerts/api.yml\tHighLatency\tno runbook"]))
             os.makedirs("empty")
             failures += report("alert-rules", "a directory with no rule file",
                                result_of(unlinked_alerts, {"alert_rules_dir": "empty"}),

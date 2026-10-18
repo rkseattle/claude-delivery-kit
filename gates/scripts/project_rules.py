@@ -1,6 +1,7 @@
 """The project.json rules, the record-parsing rules, and the self-test helpers, the kit's
 release, review, incident, maintenance, and retirement scripts share. Standard library only,
-except fence_split, which loads the CommonMark parser vendored beside the README checker.
+except fence_split, which loads the CommonMark parser vendored beside the README checker,
+and YAML_VENDOR, the PyYAML the maintenance check loads.
 
 Imported by skills/release/scripts/halt_watch.py,
 skills/release-readiness/scripts/readiness_check.py, skills/ci-green/scripts/review_gate.py,
@@ -19,7 +20,6 @@ import os
 import re
 import sys
 
-# markdown-it-py, vendored beside the README checker; only fence_split loads it.
 GATES_SCRIPTS = os.path.dirname(os.path.abspath(__file__))
 # markdown-it-py, vendored beside the README checker so that skill can be copied alone; PyYAML,
 # vendored here. Each loads only when a function needs it.
@@ -124,7 +124,9 @@ def fence_split(text):
     text = text.replace("\r\n", "\n").replace("\r", "\n")
     lines = text.split("\n")
     fenced, unclosed = [False] * len(lines), False
-    for token in MarkdownIt("commonmark").parse(text):
+    # Parsed with a final newline, which a Jira description usually lacks, so the content
+    # count below is the same whether the source ends in one or not.
+    for token in MarkdownIt("commonmark").parse(text if text.endswith("\n") else text + "\n"):
         if token.type not in ("fence", "code_block") or not token.map:
             continue
         start, end = token.map
@@ -175,8 +177,8 @@ def check_command(key, value):
 
 def imports_of(tree):
     """Top-level module names an AST imports absolutely. check_readme.py keeps its own copy
-    of this and of foreign_code, so readme-docs still works copied without the rest of the
-    kit; a fix to either lands in both."""
+    and of foreign_code (its grammar_and_imports), so readme-docs still works copied without
+    the rest of the kit; a fix to either lands in both."""
     names = {alias.name.split(".")[0] for node in ast.walk(tree)
              if isinstance(node, ast.Import) for alias in node.names}
     names |= {node.module.split(".")[0] for node in ast.walk(tree)

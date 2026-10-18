@@ -185,18 +185,10 @@ git switch -c incident/<date>-<slug> origin/{{parent_branch_default}}
 git add {{incident_reviews_dir}}/<date>-<slug>.md
 ```
 
-Before the commit, unless `{{secret_scan_command}}` is `none`, scan what is staged, as
-`gates/definition-of-done.md` step 7 scans every commit:
-
-```bash
-(
-  gate="${CLAUDE_PLUGIN_ROOT}/gates/scripts/sarif_gate.py"; patch=$(mktemp)
-  secrets_sarif=$(mktemp); trap 'rm -f "$patch" "$secrets_sarif"' EXIT
-  python3 "$gate" patch --staged > "$patch" || exit 2
-  ( {{secret_scan_command}} ) < "$patch" > "$secrets_sarif"
-  python3 "$gate" secrets "$secrets_sarif"
-)
-```
+Before the commit, unless `{{secret_scan_command}}` is `none`, run
+`${CLAUDE_PLUGIN_ROOT}/gates/definition-of-done.md` step 7's secret scan of the staged
+additions, its block exactly as that step writes it, so the record is held to the same scan
+as every commit.
 
 Anything but `clean` stops the skill before the commit: report each `rule file:line` it
 printed, never the text, and rewrite those lines to name the credential rather than hold it.

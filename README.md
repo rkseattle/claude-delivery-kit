@@ -260,7 +260,8 @@ default `14`, over which the share of resolved issues labeled `preventive` is me
 calls 10–20% "a common starting point" and leaves the figure to the project. `patch_sla_days`
 is the whole number of days an open Dependabot alert may age before it is past its SLA.
 `runbooks_dir` follows `incident_reviews_dir`'s path rule and needs a full clone, since a
-shallow one gives every file the boundary commit's date. `alert_routes_command` prints one
+shallow one gives every file the boundary commit's date; a runbook's age is from the last
+commit touching it, a rename or reformat included. `alert_routes_command` prints one
 `<rule> <target>` line per alert route, read against `on_call`. Each defaults to `none`,
 under which its section of the report says it is unset, except `iteration_days`, and
 except that `security` makes `patch_sla_days` required.
@@ -478,11 +479,11 @@ discipline is named, with no default, and placeholders here.
     trigger for retraining or rollback.
   - `sre` at maintenance: `alert_rules_dir` holds Prometheus rule files or
     prometheus-operator `PrometheusRule`s, relative to the repository as `incident_reviews_dir`
-    is. `maintenance_check.py alert-rules` reports each alerting rule lacking a `runbook_url`
-    or `runbook` annotation, with whether it names an SLO by an `slo` or `sloth_slo` label or
-    annotation: Appendix B5's rule that every alert maps to an SLO or a
-    documented failure mode and links to a runbook, the runbook documenting the failure mode
-    where no SLO is named.
+    is. `maintenance_check.py alert-rules` reports each alerting rule naming no SLO — an `slo`
+    or `sloth_slo` label or annotation — or no runbook — a non-blank `runbook_url` or
+    `runbook` annotation — saying which it lacks. Appendix B5 asks that every alert map to
+    an SLO or a documented failure mode and link to a runbook; an alert mapped to a failure
+    mode instead is listed `no SLO` for the service owner to judge.
 - `roles` — a map from each role above to the person who holds it. `{{roles.<role>}}` in a
   skill resolves to that role's entry in `roles`, so `{{roles.tech_lead}}` names the tech
   lead. `plan-project` waits on the sponsor, `write-tickets` on the product owner after QA

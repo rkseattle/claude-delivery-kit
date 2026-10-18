@@ -81,13 +81,15 @@ read, except where the first bullet says otherwise.
   whole. Exit 0, and exit 1 with output listing packages, are results: `npm outdated`,
   `yarn outdated`, and `bundle outdated` exit 1 when anything is outdated. Any other exit,
   and exit 1 whose output is an error rather than a package list, is a failed read, so a
-  missing tool or a broken lockfile never reads as a list of dependencies.
+  missing tool or a broken lockfile never reads as a list of dependencies. This output is
+  the one check read by eye, since each dependency tool prints its own table.
 - **Vulnerabilities past the SLA**, with `patch_sla_days` set:
 
   ```bash
   ( set -o pipefail; gh api --paginate --slurp "repos/{{repo_slug}}/dependabot/alerts?state=open&per_page=100" | python3 "${CLAUDE_PLUGIN_ROOT}/skills/maintenance-review/scripts/maintenance_check.py" alerts --config "<project root>/.claude/project.json" --today <today> )
   ```
 
+  `--slurp` needs `gh` 2.48 or later; an older `gh` fails with a usage error, a failed read.
   Each line is `<severity>`, `<age in days>`, `<package>`, `<advisory>`, `<manifest>`,
   `<url>`, by tabs,
   Critical first, then oldest first. A `gh` error — a 403 for a token without
@@ -127,16 +129,13 @@ read, except where the first bullet says otherwise.
   ```
 
   It reads every `.yml` and `.yaml` file under `{{alert_rules_dir}}` as Prometheus rule
-  groups, or a prometheus-operator `PrometheusRule`, and prints each alerting rule with no
-  `runbook_url` annotation, the kube-prometheus convention, nor `runbook`, as `<file>`,
-  `<alert>`, `no runbook`, and the SLO it names by an `slo` label or annotation, Pyrra's, or
-  `sloth_slo`, Sloth's, or `none`. With no SLO, a linked runbook is the documented failure
-  mode B5 accepts in an SLO's place, so the rule every alert must meet is the runbook link.
+  groups, or a prometheus-operator `PrometheusRule`, and prints each alerting rule naming no
+  SLO or no runbook, as `<file>`, `<alert>`, and what it lacks: `no SLO`, `no runbook`, or
+  both. An SLO is an `slo` label or annotation, Pyrra's, or `sloth_slo`, Sloth's; a runbook
+  is a non-blank `runbook_url` annotation, the kube-prometheus convention, or `runbook`.
   Another Kubernetes manifest beside them, such as a kustomization, is skipped. An
   `INVALID:` line — no such directory, no rule group in it, a file that is not UTF-8 YAML
   rule groups, or a rule Prometheus would reject — is a failed read, never `none found`.
-  Reading the outdated-dependency output is the one check by eye, since each dependency tool
-  prints its own table.
 
 ## Step 3 — Report
 
@@ -211,7 +210,7 @@ ticket **instead of** a ticket each:
 | more than ten outdated | `adaptive` | `dependencies` | Update the outdated dependencies |
 | a stale runbook | `preventive` | `runbook <path>` | Review the runbook `<path>` |
 | a route to no person | `preventive` | `route <rule>` | Route the alert `<rule>` to a person on call |
-| an alert rule with no runbook | `preventive` | `alert-rule <file> <name>` | Link the alert `<name>` to a runbook |
+| an alert rule lacking an SLO or a runbook | `preventive` | `alert-rule <file> <name>` | Give the alert `<name>` what it lacks: an SLO, a runbook, or both |
 
 Drift's ticket is the retraining or rollback Appendix B2 asks a threshold to trigger. A
 `malformed` route line and an `uncommitted` runbook get no ticket: the first is the routes

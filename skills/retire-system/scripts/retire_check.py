@@ -274,6 +274,8 @@ RECORD_CASES = [
     ("a tilde line inside a backtick fence does not close it",
      first_section_with("```\n~~~\n## Data\n```"), "done"),
     ("a fence that never closes", first_section_with("```\n## Notes"), "ValueError"),
+    ("a fence left open at a record's end with no final newline",
+     record([DONE] * 4).rstrip("\n") + "\n```\n- [ ] hidden", "ValueError"),
     ("a marker indented four spaces is no fence",
      first_section_with("\n    ```\n\n- [ ] revoke key\n\n    ```"), "ValueError"),
     ("a backtick in the opener's info string is no fence",
