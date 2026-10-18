@@ -20,7 +20,8 @@ Read `${CLAUDE_PLUGIN_ROOT}/gates/read-only-agent.md` and follow it exactly.
 ## Procedure
 
 1. Read `${CLAUDE_PROJECT_DIR}/.claude/project.json`,
-   `${CLAUDE_PLUGIN_ROOT}/skills/write-tickets/references/rubric.md`, and the handoff and
+   `${CLAUDE_PLUGIN_ROOT}/skills/write-tickets/references/rubric.md`, the formats it cites in
+   `${CLAUDE_PLUGIN_ROOT}/skills/write-tickets/references/templates.md`, and the handoff and
    **Size** limits in `${CLAUDE_PLUGIN_ROOT}/skills/plan-work/SKILL.md`. Resolve
    project.json per `${CLAUDE_PLUGIN_ROOT}/gates/project-config.md`.
 2. Read `${CLAUDE_PROJECT_DIR}/.claude/agent-rules/ticket-adversary.md`. If it does not

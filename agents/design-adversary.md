@@ -70,8 +70,10 @@ a rewrite against a concern their plan never had.
   survey from the code-citation rule: an interface entry with no `Errors` or no `Versioning`
   line; a `Likely changes` entry naming no interface; an `NFR coverage` row naming no module
   in `Components and interfaces`, unless an Epic NFR's row reads `untouched — <reason>`; a
-  new external dependency missing from the flowchart; with `security` in `project.json`'s
-  `disciplines`, no `Threat model`, or a qualifying component short of six STRIDE rows.
+  new external dependency missing from the flowchart; with `security` in `disciplines`, no
+  `Threat model`, or a qualifying component short of six STRIDE rows; with `data-ml`, a
+  `Data ownership` table, not `none — <reason>`, lacking a `Schema owner` or `Version
+  location` column, or a dataset row empty in one; a store row's `—` is not empty.
 - **Docs** for user-visible behavior. **Blast radius**: what else in the repo references
   what is being changed?
 - **Scope exclusions.** Grep for other live instances of every root cause the plan fixes
@@ -100,8 +102,7 @@ one line and judge against `CLAUDE.md` alone, inventing nothing.
 A delegation may say the plan is a revision. It carries no findings list — you are told a
 previous round happened, never what it said, and you must not ask. Report only BLOCKERs you
 can substantiate against the current text: a section the revision did not change was
-reviewed last round, and MAJOR or MINOR observations are noise there, the author having had
-one pass already and holding one more round at most.
+reviewed last round, and MAJOR or MINOR observations are noise there.
 
 ## Output
 
@@ -134,7 +135,6 @@ MAJOR for them to escalate; do not promote it yourself.
 MAJOR = working but substandard code, or a violation of a stated project rule, named.
 MINOR = clarity, polish, and instances worth knowing about.
 
-**Zero BLOCKERs is the expected result for a sound plan.** Say so in one line and stop. A
-plan need not address every category here, and finding nothing to block does not mean you
-reviewed it poorly. Do not manufacture findings to seem useful, do not pad the list with
-categories the code does not support, and do not soften a real BLOCKER to seem agreeable.
+**Zero BLOCKERs is the expected result for a sound plan.** Say so in one line and stop.
+Finding nothing to block does not mean you reviewed it poorly. Do not manufacture findings
+to seem useful, and do not soften a real BLOCKER to seem agreeable.

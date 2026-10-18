@@ -33,6 +33,7 @@ installed one differs.
 | `manifest` · Line budget | `bash scripts/ci/line-budget.sh` |
 | `manifest` · Bundled-file references | `bash scripts/ci/bundled-refs.sh` |
 | `manifest` · No project-specific tokens | `bash scripts/ci/no-leaks.sh` |
+| `manifest` · Actions are pinned to commit SHAs | `bash scripts/ci/actions-pinned.sh` |
 | `manifest` · Every CI step has a local equivalent | `bash scripts/ci/ci-steps-mirrored.sh` |
 | `manifest` · CI scripts pass shellcheck | `bash scripts/ci/shellcheck.sh` |
 | `manifest` · CI checks fail on their defects | `bash scripts/ci/self-test.sh` |
@@ -53,6 +54,9 @@ in full. It takes under a minute, so there is no subset worth trusting instead.
   table lost a row, repeated one, or holds a cap that is not a whole number; fix the table.
 - `BROKEN: <path>` — a malformed JSON file or a `${CLAUDE_PLUGIN_ROOT}` reference to a
   missing file.
+- `NOT PINNED` — a workflow's `uses:` names a tag, branch, or short SHA; pin it to the full
+  commit SHA with the tag as a trailing comment. `UNPARSEABLE` — a workflow is not YAML
+  with a `jobs:` mapping.
 - `FAIL <check>: <case>` from `self-test.sh` — a check stopped catching its defect; fix the
   check, never the case.
 - A hook self-test count mismatch — the hook's behavior changed; read the named case.

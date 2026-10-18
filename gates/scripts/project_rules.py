@@ -1,15 +1,17 @@
 """The project.json rules, the record-parsing rules, and the self-test helpers, the kit's
 release, review, incident, maintenance, and retirement scripts share. Standard library only,
 except fence_split, which loads the CommonMark parser vendored beside the README checker,
-and YAML_VENDOR, the PyYAML the maintenance check loads.
+and YAML_VENDOR, the PyYAML the maintenance check and scripts/ci/actions-pinned.sh load.
 
 Imported by skills/release/scripts/halt_watch.py,
 skills/release-readiness/scripts/readiness_check.py, skills/ci-green/scripts/review_gate.py,
 skills/incident-review/scripts/incident_check.py,
 skills/maintenance-review/scripts/maintenance_check.py,
-skills/retire-system/scripts/retire_check.py, and gates/scripts/sarif_gate.py, so no two of
+skills/retire-system/scripts/retire_check.py, gates/scripts/sarif_gate.py, and, for
+the discipline rule alone, skills/write-tickets/scripts/lint_draft.py, and, for the YAML
+vendor alone, scripts/ci/actions-pinned.sh, so no two of
 them can disagree on what an unset key, a placeholder, a discipline, a date, a printed
-number, a branch slug, or a code fence is. Each importer's self-test covers the rules it
+number, a branch slug, a code fence, or a Markdown field's value is. Each importer's self-test covers the rules it
 uses; this module has no entry point of its own.
 """
 import ast
@@ -54,6 +56,19 @@ def is_unset(value):
                 or PLACEHOLDER.match(value) is not None)
     return isinstance(value, list) and any(isinstance(entry, str) and PLACEHOLDER.match(entry)
                                            for entry in value)
+
+
+# Inline emphasis and code-span markers, which change how a Markdown value renders, not what
+# it says: a snake_case underscore is not one, being inside a word. CommonMark's backslash
+# escape of ASCII punctuation renders as the punctuation alone.
+INLINE_MARKUP = re.compile(r"`|\*|~~|(?<!\w)_|_(?!\w)")
+BACKSLASH_ESCAPE = re.compile(r"\\([!-/:-@\[-`{-~])")
+
+
+def markdown_value(text):
+    """A Markdown field's value as its reader sees it, without inline emphasis, code-span
+    markers, or backslash escapes, so `none`, **<flag>** or \\<flag\\> is judged as what it shows."""
+    return INLINE_MARKUP.sub("", BACKSLASH_ESCAPE.sub(r"\1", text)).strip()
 
 
 def read_config(config_path):

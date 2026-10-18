@@ -70,12 +70,10 @@ left out, so excluded work is visible as excluded. `Labels:` holds no `moscow-*`
 Prevents: a release with no Must set to check "All Must acceptance tests pass" against.
 
 **R13 Measurable non-functional requirements.** Epic and Story only; a Task or Bug carries
-no NFR section. Each line of `## Non-functional requirements` is `- NFR<n>:` with a symbol
-comparator, number, and unit before a `[verify: <tier> @ <evidence>]` tag, as R7 requires
-of an AC — "p95 < 300 ms at 200 requests/second", not "fast". `plan-work` gives each line a
-coverage row of its own. The linter checks the comparator and number; the unit is this
-review's to check. Prevents: a non-functional requirement no design element or test can be
-checked against.
+no NFR section. Each line is in templates.md's NFR format — "p95 < 300 ms at 200
+requests/second", not "fast" — and `plan-work` gives each its own coverage row. The linter
+checks the comparator and number; the unit is this review's to check. Prevents: a
+non-functional requirement no design element or test can be checked against.
 
 **R14 Traceable to a goal.** A Story or Task with no `Parent:` carries `Goal:`, one sentence
 naming the outcome it serves, held to R6, R7, and R10 like the sections. Bugs are exempt,
@@ -83,11 +81,15 @@ and an Epic states its goal in `## Goal`; neither carries the header. With an ap
 brief, a goal restates one of the brief's `## Goals`, and work serving none is removed.
 Prevents: work that serves no goal reaching a plan unchallenged.
 
+**D1–D4 Discipline fields.** Only for each discipline `{{disciplines}}` names, none for `[]`:
+templates.md's D1 Data, D2 holdout NFR, D3 Epic hardware budgets, D4 SLO window. Prevents:
+a rule book Appendix B field missing when `plan-work` designs against it.
+
 **R15 Change impact recorded.** A ticket whose `Baseline:` line is filled is a rewrite of
-a baselined ticket. It carries `## Change impact`: each AC added,
-removed, or changed, and each other ticket whose scope moves; or, when neither moves, one
-line on what changed. Any other ticket carries none. Prevents: a baselined ticket changing
-under a plan with no record of what moved.
+a baselined ticket. It carries `## Change impact`: each AC added, removed, or changed — on
+an Epic, each success measure or child — and each other ticket whose scope moves; or, when
+neither moves, one line on what changed. Any other ticket carries none. Prevents: a
+baselined ticket changing under a plan with no record of what moved.
 
 ## Bug, in addition
 
@@ -113,9 +115,6 @@ demonstrate it.
 **E3** Every child maps to a success measure or carries the `enabling` label.
 **E4** Blocked-by links form no cycle; Children is in build order.
 **E5** Out of scope is present and non-empty.
-**R13** applies to an Epic's `## Non-functional requirements` as to a Story's.
-**R15** applies to a rewritten Epic, its `## Change impact` listing each success measure or
-child added, removed, or changed.
 
 ## Severity
 
