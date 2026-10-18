@@ -24,7 +24,7 @@ accountable owner before they are tracked.
 
 Read `${CLAUDE_PROJECT_DIR}/.claude/project.json`: every `{{key}}` below comes from it.
 Read `${CLAUDE_PLUGIN_ROOT}/gates/project-config.md` and follow it exactly; this skill's
-optional keys are `incident_reviews_dir` and `roles`.
+optional keys are `incident_reviews_dir`, `secret_scan_command`, and `roles`.
 
 `$ARGUMENTS` is the incident, in a few words, then its date, the UTC date it began; with
 either missing, ask for it in one line before anything else. The slug is those words in lowercase kebab-case. The
@@ -183,6 +183,19 @@ from the freshly fetched parent and commit the review alone:
 ```bash
 git switch -c incident/<date>-<slug> origin/{{parent_branch_default}}
 git add {{incident_reviews_dir}}/<date>-<slug>.md
+```
+
+Before the commit, unless `{{secret_scan_command}}` is `none`, run
+`${CLAUDE_PLUGIN_ROOT}/gates/definition-of-done.md` step 7's secret scan of the staged
+additions, its block exactly as that step writes it, so the record is held to the same scan
+as every commit.
+
+Anything but `clean` stops the skill before the commit: report each `rule file:line` it
+printed, never the text, and rewrite those lines to name the credential rather than hold it.
+A re-run finishes the commit as Step 1 describes: it stages the rewritten file again with
+`git add`, since the scan reads the index, then scans again. Then:
+
+```bash
 git commit -m "Record the incident review <date>-<slug>" -- {{incident_reviews_dir}}/<date>-<slug>.md
 ```
 
