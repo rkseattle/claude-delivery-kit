@@ -59,14 +59,16 @@ def is_unset(value):
 
 
 # Inline emphasis and code-span markers, which change how a Markdown value renders, not what
-# it says: a snake_case underscore is not one, being inside a word.
+# it says: a snake_case underscore is not one, being inside a word. CommonMark's backslash
+# escape of ASCII punctuation renders as the punctuation alone.
 INLINE_MARKUP = re.compile(r"`|\*|~~|(?<!\w)_|_(?!\w)")
+BACKSLASH_ESCAPE = re.compile(r"\\([!-/:-@\[-`{-~])")
 
 
 def markdown_value(text):
-    """A Markdown field's value as its reader sees it, without inline emphasis or code-span
-    markers, so `none` or **<flag>** is judged as none or <flag>."""
-    return INLINE_MARKUP.sub("", text).strip()
+    """A Markdown field's value as its reader sees it, without inline emphasis, code-span
+    markers, or backslash escapes, so `none`, **<flag>** or \\<flag\\> is judged as what it shows."""
+    return INLINE_MARKUP.sub("", BACKSLASH_ESCAPE.sub(r"\1", text)).strip()
 
 
 def read_config(config_path):

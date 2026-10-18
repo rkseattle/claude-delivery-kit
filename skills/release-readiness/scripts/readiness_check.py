@@ -1038,6 +1038,11 @@ def discipline_cases(directory, summary_file):
     failures += report("flags", "a placeholder flag in a code span",
                        _error(check_flags, summary_file("## Remote flags\n- AB-1: `<flag>`\n",
                                                         "spanned.md"), ["AB-1"]), "ValueError")
+    failures += report("flags", "a placeholder flag in emphasis or backslash escapes",
+                       [_error(check_flags, summary_file(f"## Remote flags\n- AB-1: {value}\n",
+                                                         "marked.md"), ["AB-1"])
+                        for value in ("**<flag>**", "_<flag>_", "\\<flag\\>")],
+                       ["ValueError"] * 3)
     failures += report("flags", "a flag name in a code span",
                        _error(check_flags, summary_file("## Remote flags\n- AB-1: `new_checkout`\n",
                                                         "named.md"), ["AB-1"]), "ok")

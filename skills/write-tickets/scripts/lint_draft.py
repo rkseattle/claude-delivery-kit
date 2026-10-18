@@ -349,7 +349,7 @@ def lint(items, repo, disciplines=()):
             if "data" in labels:
                 for problem in data_problems(i["sections"]):
                     err(i, "D1", problem)
-            sets = [m[1] for m in (HOLDOUT.search(text.replace("`", "")) for _, text in nfrs) if m]
+            sets = [markdown_value(m[1]) for m in (HOLDOUT.search(markdown_value(text)) for _, text in nfrs) if m]
             if "model" in labels and not any(not is_unset(name) for name in sets):
                 err(i, "D2", "a Story labeled 'model' has no NFR naming 'holdout: <set>', the evaluation set")
         if "embedded" in disciplines and t == "Epic":
