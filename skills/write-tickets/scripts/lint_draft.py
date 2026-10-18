@@ -4,8 +4,10 @@
     lint_draft.py DRAFT.md [--repo ROOT] [--disciplines NAMES]
                                            exit 0 clean, 1 errors, 2 unparseable, or
                                            ROOT/.claude/project.json missing, unreadable,
-                                           or naming an unknown discipline; NAMES, comma-
-                                           separated, overrides project.json
+                                           or naming an unknown discipline, or ROOT not a
+                                           checkout git can list; NAMES, comma-separated,
+                                           overrides project.json. A cited path counts only
+                                           when git tracks it exactly as written
     lint_draft.py DRAFT.md --readback ID FETCHED.md
                                            exit 0 if Jira kept every line of ticket ID, 1 if not
     lint_draft.py --self-test              runs the fixtures; exit 0 only if every count matches
@@ -20,6 +22,7 @@ import json
 import os
 import re
 import shutil
+import subprocess
 import sys
 import tempfile
 
@@ -32,7 +35,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)),
                                 "..", "..", "..", "gates", "scripts"))
 # The discipline rules plan-work and the release scripts apply.
 from project_rules import (DISCIPLINES, is_unset, markdown_value, named_disciplines,  # noqa: E402
-                           read_config)
+                           read_config, tracked_path_matcher)
 
 SUMMARY_MAX = 100
 
@@ -174,10 +177,10 @@ def prose_lines(lines):
     return [l for l, fenced in unfenced(lines) if not fenced]
 
 
-def evidence_missing(repo, evidence):
-    # The named path itself must exist: a file whose directory exists but whose name is a
+def evidence_missing(is_tracked, evidence):
+    # The named path itself must be tracked: a file whose directory exists but whose name is a
     # typo is exactly the unfillable `Verified by` cell this catches. Prose evidence has no '/'.
-    return "/" in evidence and not os.path.exists(os.path.join(repo, evidence))
+    return "/" in evidence and not is_tracked(evidence)
 
 
 def has_threshold(text):
@@ -221,7 +224,8 @@ def metric(text):
     return text[:cmp.start()] if cmp else text
 
 
-def lint(items, repo, disciplines=()):
+def lint(items, repo, disciplines, is_tracked):
+    """(errors, warnings). is_tracked is project_rules' tracked_path_matcher(repo)."""
     errors, warns = [], []
     err = lambda i, c, m: errors.append(f"ERROR {i['id']} [{c}] {m}")
     warn = lambda i, c, m: warns.append(f"WARN  {i['id']} [{c}] {m}")
@@ -231,7 +235,7 @@ def lint(items, repo, disciplines=()):
             err(i, "FORMAT", f"duplicate ID at line {i['line']}")
         by_id[i["id"]] = i
 
-    created = {i["id"]: {m.group(1) for m in (TOUCH.match(l) for l in body(i["sections"].get("Touch points", [])))
+    created = {i["id"]: {m.group(1).rstrip("/") for m in (TOUCH.match(l) for l in body(i["sections"].get("Touch points", [])))
                          if m and m.group(2) == "new"} for i in items}
 
     def upstream(iid, seen):
@@ -342,8 +346,8 @@ def lint(items, repo, disciplines=()):
                 err(i, "R13", f"NFR{num} has no [verify: tier @ evidence] tag")
             if not has_threshold(rest[:tag.start()] if tag else rest):
                 err(i, "R13", f"NFR{num} has no '<metric> <comparator> <number>' threshold")
-            if tag and evidence_missing(repo, tag.group(2)):
-                err(i, "R13", f"NFR{num} evidence {tag.group(2)} does not exist in the repo")
+            if tag and evidence_missing(is_tracked, tag.group(2)):
+                err(i, "R13", f"NFR{num} evidence {tag.group(2)} is not tracked by git as written")
         labels = ids(i["meta"].get("Labels"))
         if "data-ml" in disciplines and t == "Story":
             if "data" in labels:
@@ -404,8 +408,8 @@ def lint(items, repo, disciplines=()):
             clauses = len(re.findall(r"[,;]", CODE_SPAN.sub("", text))) + 1
             if clauses > 1:
                 warn(i, "R7", f"AC{num} is {clauses} plan-work rows (split on , and ;) — each needs its own verification")
-            if evidence_missing(repo, evidence):
-                err(i, "R7", f"AC{num} evidence {evidence} does not exist in the repo")
+            if evidence_missing(is_tracked, evidence):
+                err(i, "R7", f"AC{num} evidence {evidence} is not tracked by git as written")
         if t == "Bug" and not any(re.search(r"\bRegression:", l) for l in acs):
             err(i, "B2", "no AC marked 'Regression:'")
 
@@ -416,12 +420,12 @@ def lint(items, repo, disciplines=()):
                 err(i, "R3", f"not '- path (modify|new|delete): purpose': {line[:80]}")
                 continue
             path, kind = m.group(1), m.group(2)
-            full = os.path.join(repo, path)
-            if kind in ("modify", "delete") and not os.path.exists(full) \
-                    and not any(path in created[u] for u in mine):
-                err(i, "R3", f"{path} ({kind}) does not exist and no Blocked-by ticket creates it")
-            if kind == "new" and os.path.exists(full):
-                err(i, "R3", f"{path} is marked (new) but exists")
+            exists = is_tracked(path)
+            if kind in ("modify", "delete") and not exists \
+                    and not any(path.rstrip("/") in created[u] for u in mine):
+                err(i, "R3", f"{path} ({kind}) is not tracked by git as written and no Blocked-by ticket creates it")
+            if kind == "new" and exists:
+                err(i, "R3", f"{path} is marked (new) but git already tracks it")
 
     limit = handoff_limit()
     for h, members in handoffs.items():
@@ -618,7 +622,7 @@ def counts_test():
     return failed
 
 
-def disciplines_test(here, repo):
+def disciplines_test(here, repo, is_tracked):
     """The flag's edges, and each discipline's rules firing only under that discipline."""
     on, off = (read_text(os.path.join(here, n))
                for n in ("disciplines.md", "disciplines-off.md"))
@@ -630,7 +634,7 @@ def disciplines_test(here, repo):
              ("an unknown discipline in a header is refused",
               isinstance(declared_disciplines("<!-- expect disciplines=data-ml,Mobile -->"), str))]
     for name in DISCIPLINES:
-        errors, _ = lint(parse(on), repo, [name])
+        errors, _ = lint(parse(on), repo, [name], is_tracked)
         codes = DISCIPLINE_CODES.get(name, ())
         owned = {c: n for c, n in want.items() if c in codes}
         cases.append((f"--disciplines {name} reports {' '.join(codes) or 'no code'} and nothing else",
@@ -673,6 +677,12 @@ def self_test():
     """Each fixture declares its exact count per code on line 1: <!-- expect R12=2 warn:R7=1 -->."""
     here = os.path.join(os.path.dirname(os.path.abspath(__file__)), "fixtures")
     repo = tempfile.mkdtemp()
+    # An inherited GIT_DIR, GIT_INDEX_FILE or config would aim every git call, the lint's own
+    # reads included, at another repository, so none survives while the cases run.
+    saved = dict(os.environ)
+    for key in [k for k in os.environ if k.startswith("GIT_")]:
+        del os.environ[key]
+    os.environ.update(GIT_CONFIG_NOSYSTEM="1", GIT_CONFIG_GLOBAL=os.devnull)
     try:
         # Every path the fixtures cite and expect to exist. A fixture citing anything else
         # is asserting that the path is absent — `tests/missing/dir/hash.test.ts` in
@@ -686,6 +696,12 @@ def self_test():
                   "tests/contacts/import.test.ts"):
             os.makedirs(os.path.join(repo, os.path.dirname(f)), exist_ok=True)
             open(os.path.join(repo, f), "w").close()
+        subprocess.run(["git", "-C", repo, "init", "-q"], check=True)
+        subprocess.run(["git", "-C", repo, "add", "-A", "--force"], check=True)
+        # On disk but never added: paths.md cites them and expects them absent.
+        for f in ("tests/auth/untracked.test.ts", "src/auth/untracked.ts"):
+            open(os.path.join(repo, f), "w").close()
+        is_tracked = tracked_path_matcher(repo)
         failed = 0
         for name in sorted(os.listdir(here)):
             if name.startswith(".") or os.path.isdir(os.path.join(here, name)):
@@ -695,7 +711,7 @@ def self_test():
             if isinstance(disciplines, str):
                 errors, warns, (ok, why) = [], [], (False, disciplines)
             else:
-                errors, warns = lint(parse(text), repo, disciplines)
+                errors, warns = lint(parse(text), repo, disciplines, is_tracked)
                 ok, why = fixture_matches(text, errors + warns)
             print(f"{'ok  ' if ok else 'FAIL'} {name}: {why}")
             if not ok:
@@ -715,8 +731,24 @@ def self_test():
                 failed += 1
                 print("\n".join("     " + l for l in got or []))
         failed += readback_cli_test(cases, repo)
+        # A --repo git cannot list is unparseable, not a draft whose every path is missing.
+        nogit, ceiling = tempfile.mkdtemp(), os.environ.get("GIT_CEILING_DIRECTORIES")
+        os.environ["GIT_CEILING_DIRECTORIES"] = os.path.dirname(nogit)
+        try:
+            out = io.StringIO()
+            with contextlib.redirect_stdout(out):
+                code = main([os.path.join(here, "clean.md"), "--repo", nogit, "--disciplines", ""])
+            ok = code == 2 and "UNPARSEABLE: cannot list the tracked files" in out.getvalue()
+        finally:
+            shutil.rmtree(nogit)
+            if ceiling is None:
+                os.environ.pop("GIT_CEILING_DIRECTORIES")
+            else:
+                os.environ["GIT_CEILING_DIRECTORIES"] = ceiling
+        print(f"{'ok  ' if ok else 'FAIL'} cli: a --repo git cannot list exits 2")
+        failed += not ok
         failed += counts_test()
-        failed += disciplines_test(here, repo)
+        failed += disciplines_test(here, repo, is_tracked)
         # Code blocks are found as the vendored markdown_to_adf finds them, so the lint sees
         # exactly the lines Jira will store as code.
         for case, lines, want in [
@@ -750,6 +782,8 @@ def self_test():
         return 1 if failed else 0
     finally:
         shutil.rmtree(repo)
+        os.environ.clear()
+        os.environ.update(saved)
 
 
 def discipline_list(value):
@@ -809,7 +843,12 @@ def main(argv=None):
         except ValueError as e:
             print(f"UNPARSEABLE: {e}")
             return 2
-    errors, warns = lint(items, repo, disciplines)
+    try:
+        is_tracked = tracked_path_matcher(repo)
+    except ValueError as e:
+        print(f"UNPARSEABLE: {e}")
+        return 2
+    errors, warns = lint(items, repo, disciplines, is_tracked)
     print("\n".join(errors + warns))
     print(f"SUMMARY: {len(items)} tickets, {len(errors)} errors, {len(warns)} warnings")
     return 1 if errors else 0

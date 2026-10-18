@@ -19,8 +19,8 @@ Prevents: split proposal.
 builds on its own under `{{build_command}}` — fits the phase limit. Tickets sharing a
 `Handoff:` label fit the handoff limit. Prevents: split proposal at Step 1 or at Size.
 
-**R3 Grounded.** Every `(modify)`/`(delete)` touch point exists, or a Blocked-by ticket
-creates it. Every function, type, route, table, config key, or UI element the ticket
+**R3 Grounded.** Every `(modify)`/`(delete)` touch point is tracked by git, or a Blocked-by
+ticket creates it. Every function, type, route, table, config key, or UI element the ticket
 names exists and behaves as stated — checked in the code, not inferred from file names.
 Prevents: design-adversary BLOCKER on a false "X currently does Y", then a re-plan.
 
@@ -44,7 +44,7 @@ Prevents: an open question at the approval gate.
 one row per clause. Each clause is observable with concrete values — status codes, error
 bodies, field names, counts, UI text — and each AC ends `[verify: <tier> @ <evidence>]`
 with `<tier>` from `{{verification_tiers}}`. For an automated tier, evidence is a test
-path whose file or directory exists and holds tests of that tier. A clause only an
+path whose file or directory git tracks and holds tests of that tier. A clause only an
 out-of-band tier can settle says so, so it surfaces at approval, not at ship.
 Prevents: an unphased clause, or a `Verified by` cell the plan cannot fill.
 
