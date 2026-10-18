@@ -35,6 +35,7 @@ targets a behavior whose absence produces a *plausible run* rather than an error
 | `design-adversary-catches-an-unmapped-nfr` | A plan that phases every NFR but never says which design element meets one, or leaves an affected Epic NFR unphased, passes review | not yet measured |
 | `design-adversary-flags-incomplete-design-sections` | A plan whose interfaces, likely changes, NFR rows, or new dependencies are incomplete passes review, because no finding can cite code | not yet measured |
 | `design-adversary-catches-an-unmitigated-threat` | A plan under the security discipline rates a threat `High` and names no phase that mitigates it, and review passes it | not yet measured |
+| `design-adversary-flags-missing-dataset-ownership` | A plan under the data-ml discipline names no schema owner or version location for its dataset, and review passes it | not yet measured |
 | `design-adversary-flags-an-unsurveyed-design` | A plan that cites a source for each piece of the ticket's design passes, though nobody asked how real systems solve the whole problem | not yet measured |
 | `readme-docs-updates-an-existing-readme` | An update that regenerates the README from the template, dropping custom sections and carrying stale versions over | not yet measured |
 | `stops-on-missing-required-key` | A guessed parent branch that the run then branches from and pushes against | +1.00 |
@@ -50,7 +51,7 @@ the transcript. The two missing-key cases, `readme-docs-updates-an-existing-read
 `release-readiness-stops-without-system-suite`, and all three `ci-failure-adversary-*`
 cases do.
 `write-tickets-stops-without-config` has a `tool_used` grader that cannot fail, since Write
-is not in its allowlist, and `refuses-without-project-json` and all six `design-adversary-*`
+is not in its allowlist, and `refuses-without-project-json` and all seven `design-adversary-*`
 cases grade the reply only.
 
 **Δ is the number that matters, not the score.** A case scoring 1.00 in both arms is

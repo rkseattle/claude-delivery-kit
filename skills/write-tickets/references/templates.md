@@ -86,7 +86,7 @@ none: `- None`.
 An Epic or a Story may add **Non-functional requirements**, after Success measures or
 Behavior: one NFR line per quality threshold, in the format above.
 
-`{{disciplines}}` adds rule book Appendix B's fields, checked by `--disciplines`. `data-ml`:
+`{{disciplines}}` adds rule book Appendix B's fields, which the linter checks. `data-ml`:
 a Story labeled `data` adds **Data** before its ACs: filled `- Sources:`, `- Retention:`,
 and `- Privacy:` lines; a `model` Story has an NFR naming its holdout set, `Recall >= 0.8 on
 holdout: churn-q3`. `embedded`: an Epic's NFRs name `memory`, `power`, and `timing`. `sre`:

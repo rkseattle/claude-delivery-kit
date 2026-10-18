@@ -11,7 +11,7 @@ The gateway flags accounts likely to churn within 30 days.
 - SM1: Each account on the gateway carries a churn score [children: S1, S2, S3, S4, S5, S6, S7]
 
 ## Non-functional requirements
-- NFR1: Gateway memory < 256 MB at 50 connected sensors [verify: automated @ tests/auth/login.test.ts]
+- NFR1: Gateway memory < 256 MB at 50 connected sensors in low power mode [verify: automated @ tests/auth/login.test.ts]
 - NFR2: Score API availability >= 99.9% per calendar month [verify: out-of-band @ monthly uptime report]
 - NFR3: Score API p95 latency < 200 ms over 28 days [verify: out-of-band @ monthly uptime report]
 
@@ -124,7 +124,7 @@ The gateway writes a salted hash in place of each account ID.
 
 ## Data
 - Sources: gateway session logs
-- Retention: 90 days
+- Retention: none
 - Privacy:
 
 ## Acceptance criteria

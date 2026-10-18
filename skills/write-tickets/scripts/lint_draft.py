@@ -2,8 +2,10 @@
 """Lint a write-tickets draft. Standard library only.
 
     lint_draft.py DRAFT.md [--repo ROOT] [--disciplines NAMES]
-                                           exit 0 clean, 1 errors, 2 unparseable or an
-                                           unknown discipline; NAMES is comma-separated
+                                           exit 0 clean, 1 errors, 2 unparseable, or a
+                                           `disciplines` in ROOT/.claude/project.json that
+                                           names an unknown discipline; NAMES, comma-
+                                           separated, overrides project.json
     lint_draft.py DRAFT.md --readback ID FETCHED.md
                                            exit 0 if Jira kept every line of ticket ID, 1 if not
     lint_draft.py --self-test              runs the fixtures; exit 0 only if every count matches
@@ -14,6 +16,7 @@ import argparse
 import contextlib
 import difflib
 import io
+import json
 import os
 import re
 import shutil
@@ -27,7 +30,8 @@ from mcp_atlassian_adf import markdown_to_adf  # noqa: E402  on the path jira_ro
 # The path is set here, not left to an importer: readiness_check.py imports this module first.
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)),
                                 "..", "..", "..", "gates", "scripts"))
-from project_rules import DISCIPLINES, named_disciplines  # noqa: E402  as plan-work and release read them
+from project_rules import (DISCIPLINES, is_unset, named_disciplines,  # noqa: E402  as plan-work
+                           read_config)  # and release read them
 
 SUMMARY_MAX = 100
 
@@ -36,6 +40,11 @@ SUMMARY_MAX = 100
 PLAN_WORK_SKILL = os.path.join(os.path.dirname(os.path.abspath(__file__)),
                                os.pardir, os.pardir, "plan-work", "SKILL.md")
 HANDOFF_LIMIT_SENTENCE = re.compile(r"working limit for a single\s+handoff is (\d+)")
+
+
+def read_text(path):
+    with open(path, encoding="utf8") as f:
+        return f.read()
 
 
 def handoff_limit(skill_path=PLAN_WORK_SKILL):
@@ -197,10 +206,17 @@ def data_problems(sections):
     for line in prose_lines(sections[DATA_SECTION]):
         m = DATA_LINE.match(line)
         if m:
-            found[m[1]] = found.get(m[1]) or m[2]
+            found[m[1]] = m[2] if is_unset(found.get(m[1])) else found[m[1]]
     return [f"'## {DATA_SECTION}' has no '- {name}:' line" if name not in found
-            else f"'- {name}:' in '## {DATA_SECTION}' is empty"
-            for name in DATA_LINES if not found.get(name)]
+            else f"'- {name}:' in '## {DATA_SECTION}' is empty, `none`, or a placeholder"
+            for name in DATA_LINES if is_unset(found.get(name))]
+
+
+def metric(text):
+    """An NFR's text before its threshold comparator: the metric, without the condition."""
+    masked = CODE_SPAN.sub(lambda m: "x" * len(m[0]), text)
+    cmp = COMPARATOR.search(masked)
+    return text[:cmp.start()] if cmp else text
 
 
 def lint(items, repo, disciplines=()):
@@ -335,13 +351,13 @@ def lint(items, repo, disciplines=()):
                 err(i, "D2", "a Story labeled 'model' has no NFR naming 'holdout: <set>', the evaluation set")
         if "embedded" in disciplines and t == "Epic":
             for budget in HARDWARE_BUDGETS:
-                if not any(re.search(rf"\b{budget}\b", text, re.I) for _, text in nfrs):
+                if not any(re.search(rf"\b{budget}\b", metric(text), re.I) for _, text in nfrs):
                     err(i, "D3", f"no NFR names {budget}; an embedded Epic states its {budget} budget")
         if "sre" in disciplines:
             for num, text in nfrs:
-                metric = SLO_METRIC.search(text)
-                if metric and not SLO_WINDOW.search(text):
-                    err(i, "D4", f"NFR{num} names {metric[1].lower()} with no 'over <n> days' measurement window")
+                slo = SLO_METRIC.search(metric(text))
+                if slo and not SLO_WINDOW.search(text):
+                    err(i, "D4", f"NFR{num} names {slo[1].lower()} with no 'over <n> days' measurement window")
         for ref in ids(i["meta"].get("Blocked by")) + ids(i["meta"].get("Parent")):
             if LOCAL.match(ref):
                 if ref not in by_id:
@@ -495,7 +511,7 @@ def readback_cli_test(cases, scratch):
     rewritten one, keyed the same, whose `## Change impact` Step 8 posts as a comment rather
     than in the description; and on one whose header still holds a local ID, found by its
     `Jira:` line."""
-    draft_text = open(os.path.join(cases, "_draft.md"), encoding="utf8").read()
+    draft_text = read_text(os.path.join(cases, "_draft.md"))
     keyed = os.path.join(scratch, "keyed.md")
     with open(keyed, "w", encoding="utf8") as f:
         f.write(draft_text.replace("[S1]", "[AB-2]").replace("[E1]", "[AB-1]"))
@@ -601,7 +617,7 @@ def counts_test():
 
 def disciplines_test(here, repo):
     """The flag's edges, and each discipline's rules firing only under that discipline."""
-    on, off = (open(os.path.join(here, n), encoding="utf8").read()
+    on, off = (read_text(os.path.join(here, n))
                for n in ("disciplines.md", "disciplines-off.md"))
     want = declared_counts(on)
     cases = [("disciplines-off.md holds the tickets of disciplines.md",
@@ -616,17 +632,32 @@ def disciplines_test(here, repo):
         owned = {c: n for c, n in want.items() if c in codes}
         cases.append((f"--disciplines {name} reports {' '.join(codes) or 'no code'} and nothing else",
                       code_counts(errors) == owned))
-    # Through main, so the flag is shown to reach lint() from the command line.
-    for name, flag, exit_code, counts in (("clean.md", "", 0, {}), ("clean.md", "data-ml,mobil", 2, {}),
-                                          ("disciplines.md", ",".join(DISCIPLINE_CODES), 1, want)):
+    # Through main, so the flag, or project.json without it, is shown to reach lint().
+    config = os.path.join(repo, ".claude", "project.json")
+    for name, flag, project, exit_code, counts in (
+            ("clean.md", "", None, 0, {}), ("clean.md", "data-ml,mobil", None, 2, {}),
+            ("disciplines.md", ",".join(DISCIPLINE_CODES), None, 1, want),
+            ("disciplines.md", None, {"disciplines": sorted(DISCIPLINE_CODES)}, 1, want),
+            ("disciplines.md", None, {}, 0, {}),
+            ("disciplines.md", None, {"disciplines": "data-ml"}, 2, {}),
+            ("disciplines.md", None, None, 2, {})):
+        if project is not None:
+            os.makedirs(os.path.dirname(config), exist_ok=True)
+            with open(config, "w", encoding="utf8") as f:
+                json.dump(project, f)
         out = io.StringIO()
         with contextlib.redirect_stdout(out), contextlib.redirect_stderr(io.StringIO()):
             try:
-                got = main([os.path.join(here, name), "--repo", repo, "--disciplines", flag])
+                got = main([os.path.join(here, name), "--repo", repo]
+                           + ([] if flag is None else ["--disciplines", flag]))
             except SystemExit as e:
                 got = e.code
+        if os.path.exists(config):
+            os.remove(config)
         printed = code_counts(l for l in out.getvalue().splitlines() if FINDING.match(l))
-        cases.append((f"--disciplines '{flag}' on {name} exits {exit_code} printing its counts",
+        source = (f"--disciplines '{flag}'" if flag is not None else
+                  f"project.json {json.dumps(project)}" if project is not None else "no project.json")
+        cases.append((f"{source} on {name} exits {exit_code} printing its counts",
                       got == exit_code and printed == counts))
     failed = 0
     for name, ok in cases:
@@ -656,7 +687,7 @@ def self_test():
         for name in sorted(os.listdir(here)):
             if name.startswith(".") or os.path.isdir(os.path.join(here, name)):
                 continue  # editor metadata, and readback/ below; any other file is a fixture
-            text = open(os.path.join(here, name), encoding="utf8").read()
+            text = read_text(os.path.join(here, name))
             disciplines = declared_disciplines(text)
             if isinstance(disciplines, str):
                 errors, warns, (ok, why) = [], [], (False, disciplines)
@@ -670,9 +701,9 @@ def self_test():
         # Each readback case is a description as `jira_get_issue` returns it for an item in
         # _draft.md: <!-- expect id=S1 missing=N -->. probe-*.md are captured responses.
         cases = os.path.join(here, "readback")
-        draft = {i["id"]: i for i in parse(open(os.path.join(cases, "_draft.md"), encoding="utf8").read())}
+        draft = {i["id"]: i for i in parse(read_text(os.path.join(cases, "_draft.md")))}
         for name in sorted(n for n in os.listdir(cases) if not n.startswith((".", "_"))):
-            text = open(os.path.join(cases, name), encoding="utf8").read()
+            text = read_text(os.path.join(cases, name))
             want = re.match(r"<!-- expect id=(\S+) missing=(\d+) -->", text)
             got = readback(draft[want.group(1)], text) if want and want.group(1) in draft else None
             ok = got is not None and len(got) == int(want.group(2))
@@ -731,7 +762,8 @@ def arg_parser():
     ap = argparse.ArgumentParser()
     ap.add_argument("draft", nargs="?")
     ap.add_argument("--repo", default=os.getcwd())
-    ap.add_argument("--disciplines", type=discipline_list, default=[], metavar="NAMES")
+    ap.add_argument("--disciplines", type=discipline_list, metavar="NAMES",
+                    help="override the disciplines read from REPO/.claude/project.json")
     ap.add_argument("--self-test", action="store_true")
     ap.add_argument("--readback", nargs=2, metavar=("ID", "FETCHED"))
     return ap
@@ -745,8 +777,8 @@ def main(argv=None):
     if not a.draft:
         ap.error("a draft path is required")
     try:
-        items = parse(open(a.draft, encoding="utf8").read())
-        fetched = open(a.readback[1], encoding="utf8").read() if a.readback else None
+        items = parse(read_text(a.draft))
+        fetched = read_text(a.readback[1]) if a.readback else None
     except OSError as e:
         print(f"UNPARSEABLE: {e}")
         return 2
@@ -765,7 +797,16 @@ def main(argv=None):
             print(f"MISSING {a.readback[0]}: {m}")
         print(f"SUMMARY: {a.readback[0]}, missing from {a.readback[1]}: {len(missing)}")
         return 1 if missing else 0
-    errors, warns = lint(items, os.path.abspath(a.repo), a.disciplines)
+    repo = os.path.abspath(a.repo)
+    disciplines = a.disciplines
+    if disciplines is None:
+        # Read from the file, not passed through shell text, as the kit's release scripts read it.
+        try:
+            disciplines = named_disciplines(read_config(os.path.join(repo, ".claude", "project.json")))
+        except ValueError as e:
+            print(f"UNPARSEABLE: {e}")
+            return 2
+    errors, warns = lint(items, repo, disciplines)
     print("\n".join(errors + warns))
     print(f"SUMMARY: {len(items)} tickets, {len(errors)} errors, {len(warns)} warnings")
     return 1 if errors else 0

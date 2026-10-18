@@ -95,12 +95,12 @@ templates' format, blockers before dependents.
 ## Step 5 — Lint
 
 ```bash
-python3 ${CLAUDE_PLUGIN_ROOT}/skills/write-tickets/scripts/lint_draft.py docs/tickets/<slug>.md --repo "${CLAUDE_PROJECT_DIR}" \
-  --disciplines "<{{disciplines}} joined with commas, empty for []>"
+python3 ${CLAUDE_PLUGIN_ROOT}/skills/write-tickets/scripts/lint_draft.py docs/tickets/<slug>.md --repo "${CLAUDE_PROJECT_DIR}"
 ```
 
-Fix every ERROR. For each WARN, fix it or confirm the flagged text is concrete. Re-run
-until it exits 0. Exit 2 is an unreadable draft or a discipline the flag refuses: stop.
+It reads `{{disciplines}}` from the repo's project.json itself. Fix every ERROR; fix each
+WARN or confirm the flagged text is concrete. Re-run until it exits 0. Exit 2 is an
+unreadable draft or project.json, or a `disciplines` it refuses: stop.
 
 ## Step 6 — Adversarial ticket review
 

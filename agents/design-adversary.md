@@ -72,7 +72,7 @@ a rewrite against a concern their plan never had.
   in `Components and interfaces`, unless an Epic NFR's row reads `untouched — <reason>`; a
   new external dependency missing from the flowchart; with `security` in `disciplines`, no
   `Threat model`, or a qualifying component short of six STRIDE rows; with `data-ml`, a
-  `Data ownership` without `Schema owner` and `Version location`, or a dataset row empty there.
+  `Data ownership` table missing the `Schema owner` or `Version location` column or cell.
 - **Docs** for user-visible behavior. **Blast radius**: what else in the repo references
   what is being changed?
 - **Scope exclusions.** Grep for other live instances of every root cause the plan fixes
