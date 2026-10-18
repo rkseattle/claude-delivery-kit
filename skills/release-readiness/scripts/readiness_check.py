@@ -68,6 +68,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)),
                                 "..", "..", "..", "gates", "scripts"))
 from project_rules import (BARE_FRAGMENT, DECIMAL, PLACEHOLDER, check_command,  # noqa: E402
                            check_repo_path, fence_split, is_date, is_unset, json_number,
+                           markdown_value,
                            named_disciplines,
                            positive_int, read_config as load_config, report,
                            single_number)
@@ -483,7 +484,7 @@ def check_flags(notes_path, keys):
         section.append(line)
     def names(line, key):
         return (re.match(rf"^- {re.escape(key)}: \S", line) is not None
-                and not PLACEHOLDER.match(line.split(": ", 1)[1]))
+                and not PLACEHOLDER.match(markdown_value(line.split(": ", 1)[1])))
 
     missing = [key for key in keys if not any(names(line, key) for line in section)]
     if missing:
@@ -1034,6 +1035,12 @@ def discipline_cases(directory, summary_file):
     failures += report("flags", "a placeholder flag",
                        _error(check_flags, summary_file("## Remote flags\n- AB-1: <flag>\n",
                                                         "placeholder.md"), ["AB-1"]), "ValueError")
+    failures += report("flags", "a placeholder flag in a code span",
+                       _error(check_flags, summary_file("## Remote flags\n- AB-1: `<flag>`\n",
+                                                        "spanned.md"), ["AB-1"]), "ValueError")
+    failures += report("flags", "a flag name in a code span",
+                       _error(check_flags, summary_file("## Remote flags\n- AB-1: `new_checkout`\n",
+                                                        "named.md"), ["AB-1"]), "ok")
     failures += report("flags", "the notes check reads spaced keys",
                        _error(check_notes, summary_file(
                            "## Changes\n## Migrations\n## Known issues\n## Rollback\n"

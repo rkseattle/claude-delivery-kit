@@ -31,7 +31,8 @@ from mcp_atlassian_adf import markdown_to_adf  # noqa: E402  on the path jira_ro
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)),
                                 "..", "..", "..", "gates", "scripts"))
 # The discipline rules plan-work and the release scripts apply.
-from project_rules import DISCIPLINES, is_unset, named_disciplines, read_config  # noqa: E402
+from project_rules import (DISCIPLINES, is_unset, markdown_value, named_disciplines,  # noqa: E402
+                           read_config)
 
 SUMMARY_MAX = 100
 
@@ -206,8 +207,7 @@ def data_problems(sections):
     for line in prose_lines(sections[DATA_SECTION]):
         m = DATA_LINE.match(line)
         if m:
-            # A value in a code span is the same answer: unwrap it before judging it unset.
-            value = m[2].replace("`", "").strip()
+            value = markdown_value(m[2])
             found[m[1]] = value if is_unset(found.get(m[1])) else found[m[1]]
     return [f"'## {DATA_SECTION}' has no '- {name}:' line" if name not in found
             else f"'- {name}:' in '## {DATA_SECTION}' is empty, `none`, or a placeholder"

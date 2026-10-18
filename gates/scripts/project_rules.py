@@ -11,7 +11,7 @@ skills/retire-system/scripts/retire_check.py, gates/scripts/sarif_gate.py, and, 
 the discipline rule alone, skills/write-tickets/scripts/lint_draft.py, and, for the YAML
 vendor alone, scripts/ci/actions-pinned.sh, so no two of
 them can disagree on what an unset key, a placeholder, a discipline, a date, a printed
-number, a branch slug, or a code fence is. Each importer's self-test covers the rules it
+number, a branch slug, a code fence, or a Markdown field's value is. Each importer's self-test covers the rules it
 uses; this module has no entry point of its own.
 """
 import ast
@@ -56,6 +56,17 @@ def is_unset(value):
                 or PLACEHOLDER.match(value) is not None)
     return isinstance(value, list) and any(isinstance(entry, str) and PLACEHOLDER.match(entry)
                                            for entry in value)
+
+
+# Inline emphasis and code-span markers, which change how a Markdown value renders, not what
+# it says: a snake_case underscore is not one, being inside a word.
+INLINE_MARKUP = re.compile(r"`|\*|~~|(?<!\w)_|_(?!\w)")
+
+
+def markdown_value(text):
+    """A Markdown field's value as its reader sees it, without inline emphasis or code-span
+    markers, so `none` or **<flag>** is judged as none or <flag>."""
+    return INLINE_MARKUP.sub("", text).strip()
 
 
 def read_config(config_path):
