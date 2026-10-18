@@ -1,4 +1,4 @@
-<!-- expect disciplines=data-ml,embedded,sre D1=4 D2=3 D3=2 D4=2 -->
+<!-- expect disciplines=data-ml,embedded,sre D1=6 D2=3 D3=2 D4=2 -->
 # [E1] Score churn risk on the sensor gateway
 Type: Epic
 Blocked by: None
@@ -8,7 +8,7 @@ Jira:
 The gateway flags accounts likely to churn within 30 days.
 
 ## Success measures
-- SM1: Each account on the gateway carries a churn score [children: S1, S2, S3, S4, S5, S6, S7]
+- SM1: Each account on the gateway carries a churn score [children: S1, S2, S3, S4, S5, S6, S7, S10]
 
 ## Non-functional requirements
 - NFR1: Gateway memory < 256 MB at 50 connected sensors in low power mode [verify: automated @ tests/auth/login.test.ts]
@@ -25,7 +25,7 @@ The gateway flags accounts likely to churn within 30 days.
 - Scores for accounts off the gateway (not planned)
 
 ## Children
-- S1, S2, S3, S4, S5, S6, S7
+- S1, S2, S3, S4, S5, S6, S7, S10
 
 # [E2] Run the scoring model on battery power
 Type: Epic
@@ -319,6 +319,38 @@ The gateway scores accounts with an 8-bit quantized model.
 
 ## Out of scope
 - Quantizing other models (not planned)
+
+## Dependencies
+- None
+
+# [S10] Export churn scores to the warehouse
+Type: Story
+Parent: E1
+Blocked by: None
+Handoff: churn-pr-04
+Priority: Must
+Labels: data
+Jira:
+
+## Context
+Analysts read churn scores from the warehouse.
+
+## Behavior
+A nightly job copies each account's churn score to the warehouse.
+
+## Data
+- Sources: `<source>`
+- Retention: `none`
+- Privacy: account hashes only
+
+## Acceptance criteria
+- AC1: The nightly job writes one row per scored account to `churn_scores` [verify: automated @ tests/auth/login.test.ts]
+
+## Touch points
+- src/auth/routes.ts (modify): expose the export trigger
+
+## Out of scope
+- Real-time export (not planned)
 
 ## Dependencies
 - None

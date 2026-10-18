@@ -206,7 +206,9 @@ def data_problems(sections):
     for line in prose_lines(sections[DATA_SECTION]):
         m = DATA_LINE.match(line)
         if m:
-            found[m[1]] = m[2] if is_unset(found.get(m[1])) else found[m[1]]
+            # A value in a code span is the same answer: unwrap it before judging it unset.
+            value = m[2].replace("`", "").strip()
+            found[m[1]] = value if is_unset(found.get(m[1])) else found[m[1]]
     return [f"'## {DATA_SECTION}' has no '- {name}:' line" if name not in found
             else f"'- {name}:' in '## {DATA_SECTION}' is empty, `none`, or a placeholder"
             for name in DATA_LINES if is_unset(found.get(name))]
