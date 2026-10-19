@@ -24,8 +24,7 @@ Before the release is tagged, each of these stops it and names the key or the ch
 - `{{release_artifact_command}}`, `{{deploy_command}}`, `{{smoke_test_command}}`,
   `{{rollback_command}}`, or `{{release_dir}}` of `none`;
 - `{{halt_criteria}}` of `none`, anything but a JSON list of strings, an empty list, or an
-  entry that is empty, only spaces, or a placeholder wholly in
-  angle brackets (`<...>`);
+  entry that is empty, only spaces, or a `<placeholder>`;
 - `{{monitoring_window_minutes}}` that is not a positive whole number;
 - `{{rollout_stages}}` that is neither `none` nor a JSON list of strings, an empty list, or
   a list with an entry that is blank, repeated, named `staging` (which would count staging

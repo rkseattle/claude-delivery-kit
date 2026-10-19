@@ -2,7 +2,7 @@
 
 ## Run the checks
 
-Every CI step has a local equivalent. They need git, Python 3, `jq`, `curl`, and `shasum`
+Every CI step has a local equivalent. They need git, Python 3.8 or later, `jq`, `curl`, and `shasum`
 (`shellcheck.sh` downloads a pinned shellcheck). Run them all, in CI's order, from the repo
 root after `git add` (`json-parses.sh` reads tracked files only):
 

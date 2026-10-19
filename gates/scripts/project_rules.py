@@ -51,7 +51,7 @@ SLUG = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
 
 
 def is_unset(value):
-    """Absent, blank, `none` in any case, or a placeholder wholly in `<...>`: a key nothing was
+    """Absent, blank, `none` in any case, or a `<placeholder>`: a key nothing was
     configured for."""
     if value is None:
         return True

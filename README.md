@@ -8,8 +8,8 @@ its own commands and thresholds, in `.claude/project.json`.
 
 Requires:
 
-- Claude Code with plugin support
-- git, Python 3, and `jq` on `PATH`; the hooks and every check script use them
+- Claude Code with plugin support <!-- TODO: confirm the minimum Claude Code version -->
+- git and Python 3.8 or later on `PATH`, and `jq` for the hooks
 - the GitHub CLI `gh`, authenticated, for pushing, PRs, and CI
 - an Atlassian MCP server connected to the project's Jira, for tickets and transitions
 
@@ -36,7 +36,8 @@ copy sits unused behind `/delivery-kit:deliver`.
 ## Usage
 
 1. Add `.claude/project.json` to the project; see
-   [Configure a project](#configure-a-project).
+   [Configure a project](#configure-a-project). Add `.claude/state/` and `docs/plans/` to
+   its `.gitignore`: runs write their working state there.
 2. Run a ticket end to end (`plan-work` asks to split more than three tickets):
 
    ```text
@@ -46,11 +47,12 @@ copy sits unused behind `/delivery-kit:deliver`.
 3. Approve the plan when it stops and asks. The run then implements, reviews, pushes,
    opens the PR, and watches CI, stopping only for decisions that need you, such as an
    oversized PR or a verification only you can run.
-4. Say yes to the merge once CI is green and the PR is approved.
+4. Say yes to the merge once CI is green and the PR is approved, or, with no reviewers
+   configured, once you approve the recorded review exception.
 
 A run's state lives in `.claude/state/current-plan.json`. A session that is interrupted
-picks up where it stopped the next time `/delivery-kit:deliver` runs. At the end, `ci-green`
-reports the friction and citations it recorded. Friction items are proposed changes to the
+picks up where it stopped the next time `/delivery-kit:deliver` runs. Every stage records
+friction and citations as it goes, and `ci-green` reports them at the end. Friction items are proposed changes to the
 kit, applied only on your yes; citations record the standards the run followed.
 
 Each stage can also run on its own as `/delivery-kit:<stage>`. Use `write-tickets` before
@@ -91,15 +93,15 @@ Every skill except `readme-docs` runs only when invoked by name.
 - **Standalone**
   - `readme-docs` — writes or audits a README and its linked docs, checked by
     `check_readme.py`. Loads on its own when you ask about docs. To use it without the
-    plugin, copy `skills/readme-docs/` to `.claude/skills/` or `~/.claude/skills/`.
+    plugin, copy `skills/readme-docs/` to `.claude/skills/` or `~/.claude/skills/`; a copy
+    there takes the bare name `readme-docs` over the plugin's.
   - `incident-review` `<incident> <YYYY-MM-DD>` — a blameless review after an incident,
     committed on its own branch.
   - `maintenance-review` — reports ownership, dependency, vulnerability, runbook, and alert
     health. Writes nothing.
   - `retire-system` `<name>` — the record and checklist for shutting a system down.
-
-    `incident-review` and `retire-system` refuse to start while a delivery plan is running
-    and not paused.
+  - `incident-review` and `retire-system` both refuse to start while a delivery plan is
+    running and not paused.
 
 Agents (each reads `read-only-agent.md` and never changes the repo):
 
@@ -144,7 +146,7 @@ A project keeps only what is its own:
   rules, the grep target most often missed, the behavior the automated suite cannot reach
   and the gate covering it, and any environmental exception `ci-failure-adversary` may
   accept. A missing file is fine; the agent reviews against `CLAUDE.md` alone.
-- `.claude/state/` — run state, gitignored.
+- `.claude/state/` — run state; keep it gitignored.
 
 The kit's rules are measured against
 [reference/software-engineering-rule-book.md](reference/software-engineering-rule-book.md).
