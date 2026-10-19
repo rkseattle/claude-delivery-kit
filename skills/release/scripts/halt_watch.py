@@ -54,7 +54,7 @@ def settings(config):
             and all(isinstance(c, str) and c.strip() for c in criteria)):
         raise ValueError("halt_criteria is not a non-empty list of commands")
     if any(PLACEHOLDER.match(c) for c in criteria):
-        raise ValueError("halt_criteria holds a README placeholder, not a command")
+        raise ValueError("halt_criteria holds an example placeholder, not a command")
     window = positive_int("monitoring_window_minutes",
                           config.get("monitoring_window_minutes", 60))
     return criteria, window
@@ -236,7 +236,7 @@ LOAD_CASES = [
     ("not json", "not json", "ValueError"),
     ("a json list", [1], "ValueError"),
     ("a missing file", None, "ValueError"),
-    ("a README placeholder", {"halt_criteria": ["<shell command exiting non-zero>"]},
+    ("an example placeholder", {"halt_criteria": ["<shell command exiting non-zero>"]},
      "ValueError"),
 ]
 

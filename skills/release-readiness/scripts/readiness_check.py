@@ -400,7 +400,7 @@ FORMATS = {"device_matrix": device_matrix, "model_eval_thresholds": model_thresh
 
 def discipline_problems(config_path, gate=None):
     """Every problem with `disciplines` and, for a gate, with each key a named discipline
-    needs there: absent, `none`, blank, a README placeholder, or not in its format."""
+    needs there: absent, `none`, blank, an example `<placeholder>`, or not in its format."""
     config = load_config(config_path)
     try:
         named = named_disciplines(config)
@@ -469,8 +469,8 @@ def error_budget(output):
 
 
 def check_flags(notes_path, keys):
-    """Each key has a `- <KEY>: <flag>` line under `## Remote flags`, the flag no README
-    placeholder."""
+    """Each key has a `- <KEY>: <flag>` line under `## Remote flags`, the flag no example
+    `<placeholder>`."""
     with open(notes_path, encoding="utf-8") as handle:
         lines = [line.rstrip() for line in handle]
     if FLAGS_HEADING not in lines:
