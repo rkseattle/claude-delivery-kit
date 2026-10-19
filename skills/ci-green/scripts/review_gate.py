@@ -217,7 +217,7 @@ REVIEWER_SET_CASES = [
     ("none", "none", "rob", []),
     ("an empty value", "", "rob", []),
     ("a missing key", None, "rob", []),
-    ("a README placeholder", "<comma-separated GitHub logins or org/team slugs, or none>", "rob", []),
+    ("a <placeholder>", "<comma-separated GitHub logins or org/team slugs, or none>", "rob", []),
     ("whitespace around entries", " ana , org/team ", "rob", ["ana", "org/team"]),
     ("the author, in another case", "ROB,ana", "rob", ["ana"]),
     ("only the author", "rob", "Rob", []),

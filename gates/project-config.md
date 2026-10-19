@@ -9,15 +9,17 @@ Every `{{key}}` in a skill, gate, or agent of this plugin resolves from
 `build_command`, `push_command`, `unit_test_scope`, `post_fix_verification_scope`,
 `verification_tiers`.
 
-If the file is absent, or any of these keys is missing, empty, `none`, or still a README
-placeholder in angle brackets, **stop before acting on any key** and name each one. None of them has a default: a guessed parent branch
-or build command runs something the project never asked for, and nothing reports it.
+If the file is absent, or any of these keys is missing, empty, `none`, or a
+`<placeholder>` — any value wholly in angle brackets, like the examples in
+`${CLAUDE_PLUGIN_ROOT}/reference/project-json.md` — **stop before acting on any key** and
+name each one. None of them has a default: a guessed parent branch or build command runs
+something the project never asked for, and nothing reports it.
 
 ## Every other key
 
 A missing key resolves to the default stated in the prose of
-`${CLAUDE_PLUGIN_ROOT}/README.md`'s `project.json` section, or to `none` where it states
-none. A value shown in that section's example blocks is an illustration, never a default.
+`${CLAUDE_PLUGIN_ROOT}/reference/project-json.md`, or to `none` where it states none. A
+value shown in that file's example blocks is an illustration, never a default.
 
 A key only a discipline's addendum reads is used only when `disciplines` names that
 discipline; otherwise it is neither read nor announced.

@@ -51,7 +51,7 @@ SLUG = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
 
 
 def is_unset(value):
-    """Absent, blank, `none` in any case, or a README placeholder: a key nothing was
+    """Absent, blank, `none` in any case, or a `<placeholder>`: a key nothing was
     configured for."""
     if value is None:
         return True
@@ -88,7 +88,7 @@ def read_config(config_path):
 
 
 def named_disciplines(config):
-    """The `disciplines` list, matched with case; absent is the README's default, []."""
+    """The `disciplines` list, matched with case; absent is the documented default, []."""
     value = config.get("disciplines", [])
     if not (isinstance(value, list) and all(isinstance(name, str) for name in value)):
         raise ValueError("disciplines is not a list of names")
