@@ -8,6 +8,10 @@ root="$(cd "${1:-.}" && pwd)"
 here="$(cd "$(dirname "$0")" && pwd)"
 tmp="$(mktemp -d)"
 trap 'rm -rf "$tmp"' EXIT
+# An inherited GIT_DIR, GIT_INDEX_FILE or config would aim every fixture repository at another
+# one, and a temp dir inside some repository must not let git find it from a non-git root.
+while IFS= read -r var; do unset "$var"; done < <(env | sed -n 's/^\(GIT_[A-Za-z0-9_]*\)=.*/\1/p')
+export GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null GIT_CEILING_DIRECTORIES="$tmp"
 fail=0
 
 fresh_copy() {
@@ -48,7 +52,7 @@ done
 
 mkdir -p "$tmp/empty"
 for check in json-parses.sh bundled-refs.sh no-leaks.sh frontmatter-names.sh line-budget.sh shellcheck.sh \
-             actions-pinned.sh; do
+             actions-pinned.sh rule-book-map.sh; do
   expect fail "a root with nothing to scan" "$check" "$tmp/empty"
 done
 
@@ -119,6 +123,122 @@ fresh_copy; printf '%s\377\n' "Read \${CLAUDE_PLUGIN_ROOT}/gates/does-not-exist.
 expect fail "a broken reference on a line with an invalid UTF-8 byte" bundled-refs.sh
 fresh_copy; printf '%s\0\n' "Read \${CLAUDE_PLUGIN_ROOT}/gates/does-not-exist.md here." >> "$tmp/repo/gates/pre-push.md"
 expect fail "a broken reference in a file grep calls binary" bundled-refs.sh
+
+# Each map line is assembled by printf at runtime, its backticks passed in as arguments.
+map=reference/rule-book-map.md bt='`'
+fresh_copy; printf '| Z1 | x | %sgates/does-not-exist.md%s | x |\n' "$bt" "$bt" >> "$tmp/repo/$map"
+expect_saying "a map row naming a missing path" rule-book-map.sh "MISSING: gates/does-not-exist.md"
+fresh_copy; printf '| Z1 | x | %sgates/does-not-exist.md%s | x |\n' "$bt$bt" "$bt$bt" >> "$tmp/repo/$map"
+expect_saying "a missing path in a double-backtick span" rule-book-map.sh "MISSING: gates/does-not-exist.md"
+fresh_copy; printf '| Z1 | %sgates/pre-push.md%s | %sgates/does-not-exist.md%s |\n' "$bt" "$bt" "$bt" "$bt" >> "$tmp/repo/$map"
+expect_saying "a missing path in a line's second span" rule-book-map.sh "MISSING: gates/does-not-exist.md"
+fresh_copy; printf '| Z1 | %sx%sgates/does-not-exist.md%s | x |\n' "$bt$bt" "$bt" "$bt$bt" >> "$tmp/repo/$map"
+expect_saying "a span holding a shorter backtick run" rule-book-map.sh "MISSING: x${bt}gates/does-not-exist.md"
+fresh_copy; printf '\nSee %sgates/does-not-\nexist.md%s here.\n' "$bt" "$bt" >> "$tmp/repo/$map"
+expect_saying "a span broken across lines, read as one" rule-book-map.sh "MISSING: gates/does-not- exist.md"
+fresh_copy; printf '| Z1 | \\%sgates/does-not-exist.md%s | x |\n' "$bt$bt" "$bt" >> "$tmp/repo/$map"
+expect_saying "a two-backtick run whose first is escaped, opening a one-backtick span" rule-book-map.sh \
+  "MISSING: gates/does-not-exist.md"
+fresh_copy; printf '| Z1 | \\\\%sgates/does-not-exist.md%s | x |\n' "$bt" "$bt" >> "$tmp/repo/$map"
+expect_saying "an escaped backslash before a span, which still opens" rule-book-map.sh \
+  "MISSING: gates/does-not-exist.md"
+for climb in ../ gates/../../x; do
+  fresh_copy; printf '| Z1 | %s%s%s | x |\n' "$bt" "$climb" "$bt" >> "$tmp/repo/$map"
+  expect_saying "a path $climb climbing out of the repo" rule-book-map.sh "MISSING: $climb"
+done
+fresh_copy; printf '| Z1 | %s gates/pre-push.md%s | x |\n' "$bt" "$bt" >> "$tmp/repo/$map"
+expect_saying "a span padded on one side only, which keeps its space" rule-book-map.sh "MISSING:  gates/pre-push.md"
+fresh_copy; printf 'x\n' > "$tmp/repo/gates/untracked.md"
+printf '| Z1 | %sgates/untracked.md%s | x |\n' "$bt" "$bt" >> "$tmp/repo/$map"
+expect_saying "a path on disk that git does not track" rule-book-map.sh "MISSING: gates/untracked.md"
+fresh_copy; printf '| Z1 | %sGates/pre-push.md%s | x |\n' "$bt" "$bt" >> "$tmp/repo/$map"
+expect_saying "a tracked path cased wrongly" rule-book-map.sh "MISSING: Gates/pre-push.md"
+fresh_copy; printf '| Z1 | %sgates/scripts%s | %sgates/scripts/%s | x |\n' "$bt" "$bt" "$bt" "$bt" >> "$tmp/repo/$map"
+expect pass "a tracked directory, with and without its trailing slash" rule-book-map.sh
+fresh_copy; printf '| Z1 | %sgates/does-not-exist/%s | x |\n' "$bt" "$bt" >> "$tmp/repo/$map"
+expect_saying "a directory no tracked file sits under" rule-book-map.sh "MISSING: gates/does-not-exist/"
+fresh_copy; printf '| Z1 | %s.github/workflows/ci.yml%s | x |\n' "$bt" "$bt" >> "$tmp/repo/$map"
+expect pass "a tracked path under a dot-directory" rule-book-map.sh
+fresh_copy; printf '| Z1 | %s gates/pre-push.md %s | x |\n' "$bt" "$bt" >> "$tmp/repo/$map"
+expect pass "a path span padded with one space each side" rule-book-map.sh
+fresh_copy; printf '| Z1 | %sno-such-token%s | gates/does-not-exist.md | x |\n' "$bt" "$bt" >> "$tmp/repo/$map"
+expect pass "a backticked token with no slash, and a missing path outside backticks" rule-book-map.sh
+fresh_copy; printf '| Z1 | \\%s %sgates/does-not-exist.md%s | x |\n' "$bt" "$bt" "$bt" >> "$tmp/repo/$map"
+expect_saying "an escaped backtick before a span" rule-book-map.sh "MISSING: gates/does-not-exist.md"
+fresh_copy; printf '%s%s%s\ngates/does-not-exist.md\n%s%s%s\n' "$bt" "$bt" "$bt" "$bt" "$bt" "$bt" >> "$tmp/repo/$map"
+expect pass "a missing path inside a fenced block, which is no span" rule-book-map.sh
+fresh_copy; printf '# Map\nNo %spaths%s here.\n' "$bt" "$bt" > "$tmp/repo/$map"
+expect_saying "a map naming no path" rule-book-map.sh "names no path"
+fresh_copy; printf '| Z1 | %sgates/pre-push.md%s | \377 |\n' "$bt" "$bt" >> "$tmp/repo/$map"
+expect_saying "a map holding an invalid UTF-8 byte" rule-book-map.sh "is not UTF-8"
+# Each exception case cites a fixture row it appends to the Kit-wide table, which ends the
+# register, so renewing or remediating a live row never rewrites these cases.
+ex=gates/exceptions.md
+row() { printf '| Z1 | x | %sgates/exceptions.md%s | x | %s |\n' "$bt" "$bt" "$1" >> "$tmp/repo/$map"; }
+fixture() {  # fixture [expiry] [remediation]: the Rule book R90 row, cited by the map
+  printf '| Rule book R90: fixture | x | x | %s | %s |\n' "${1:-2099-01-01}" "${2-x}" >> "$tmp/repo/$ex"
+  row 'Rule book R90'
+}
+fresh_copy; fixture
+expect pass "a cited fixture row" rule-book-map.sh
+fresh_copy; row 'Rule book R90'
+expect_saying "the cited row absent" rule-book-map.sh "MISSING ROW: Rule book R90 starts"
+fresh_copy; fixture; row 'Rule book R9'
+expect_saying "a name that only prefixes another row" rule-book-map.sh "MISSING ROW: Rule book R9 starts"
+fresh_copy; fixture; row 'Rule book R90; Rule book R97'
+expect_saying "a bad name beside a good one in one cell" rule-book-map.sh "MISSING ROW: Rule book R97 starts"
+fresh_copy; fixture; row 'Rule book R90;'
+expect pass "a trailing semicolon in an Excepted by cell" rule-book-map.sh
+fresh_copy; fixture; row 'Rule book    R90'
+expect pass "a name with a run of spaces" rule-book-map.sh
+fresh_copy; sed -i.bak 's/^| ID | Rule | Applied by | Step or section | Excepted by |$/| ID | Rule | Applied by | Step or section | Excepted   by |/' \
+  "$tmp/repo/$map"; fixture
+expect pass "a header cell with a run of spaces" rule-book-map.sh
+fresh_copy; printf '| Rule book   R90: fixture | x | x | 2099-01-01 | x |\n' >> "$tmp/repo/$ex"; row 'Rule book R90'
+expect pass "a Rule cell with a run of spaces" rule-book-map.sh
+fresh_copy; fixture 2099-01-01 ''
+expect_saying "the cited row with its Remediation cell empty" rule-book-map.sh "MISSING ROW: Rule book R90 starts"
+fresh_copy; fixture 2099-01-01 ---
+expect_saying "the cited row with a separator for its Remediation" rule-book-map.sh "MISSING ROW: Rule book R90 starts"
+fresh_copy; fixture TBD
+expect_saying "the cited row with an Expiry that is no date" rule-book-map.sh "MISSING ROW: Rule book R90 starts"
+fresh_copy; fixture 2000-01-01
+expect pass "the cited row expired, which deliver reports instead" rule-book-map.sh
+fresh_copy; printf '\n## Elsewhere\n\n| Rule | Reason | Risk | Expiry | Remediation |\n| --- | --- | --- | --- | --- |\n| Rule book R90: x | x | x | 2099-01-01 | x |\n' \
+  >> "$tmp/repo/$ex"; row 'Rule book R90'
+expect_saying "the cited name only in a complete row outside Kit-wide exceptions" rule-book-map.sh \
+  "MISSING ROW: Rule book R90 starts"
+fresh_copy; awk '/^\| Rule \| Reason \|/ && !done { print "### Held"; print ""; done = 1 } { print }' \
+  "$root/$ex" > "$tmp/repo/$ex"; fixture
+expect pass "a sub-heading inside Kit-wide exceptions" rule-book-map.sh
+fresh_copy; sed -i.bak 's/^| Rule | Reason | Risk | Expiry | Remediation |$/| Reason | Rule | Risk | Expiry | Remediation |/' \
+  "$tmp/repo/$ex"; fixture
+expect_saying "a Kit-wide table with its columns reordered" rule-book-map.sh "NOT A REGISTER"
+fresh_copy; printf '\n| ID | Rule |\n| --- | --- |\n| Z1 | x |\n' >> "$tmp/repo/$map"
+expect_saying "a map table with no Excepted by column" rule-book-map.sh "NO EXCEPTED BY COLUMN"
+fresh_copy; printf '\nExcepted under the kit-wide row "Rule book R99".\n' >> "$tmp/repo/$map"
+expect pass "an exception named in prose, which is no citation" rule-book-map.sh
+fresh_copy; rm "$tmp/repo/$ex"
+expect_saying "no exceptions register" rule-book-map.sh "no exceptions register"
+sed -i.bak -E 's/^(\| [A-Z][0-9][0-9.A-Z]* \|.*\|) [^|]+ \|$/\1  |/' "$tmp/repo/$map"
+expect pass "no exceptions register, and no row citing one" rule-book-map.sh
+mkdir -p "$tmp/nogit/reference" && cp "$root/$map" "$tmp/nogit/$map"
+expect_saying "a map in a root git cannot list" rule-book-map.sh "cannot list the tracked files" "$tmp/nogit"
+
+fresh_copy; printf 'x\n' > "$tmp/repo/gates/untracked.md"
+printf '%s\n' "Read \${CLAUDE_PLUGIN_ROOT}/gates/untracked.md here." >> "$tmp/repo/gates/pre-push.md"
+expect_saying "a reference to a file on disk that git does not track" bundled-refs.sh "BROKEN: \${CLAUDE_PLUGIN_ROOT}/gates/untracked.md"
+fresh_copy; printf '%s\n' "Read \${CLAUDE_PLUGIN_ROOT}/Gates/pre-push.md here." >> "$tmp/repo/gates/pre-push.md"
+expect_saying "a reference to a tracked file cased wrongly" bundled-refs.sh "BROKEN: \${CLAUDE_PLUGIN_ROOT}/Gates/pre-push.md"
+fresh_copy; printf '%s\n' "Read \${CLAUDE_PLUGIN_ROOT}/gate/ here." >> "$tmp/repo/gates/pre-push.md"
+expect_saying "a directory reference no tracked file sits under" bundled-refs.sh "BROKEN: \${CLAUDE_PLUGIN_ROOT}/gate/"
+fresh_copy; printf '%s\n' "Read \${CLAUDE_PLUGIN_ROOT}/gate here." >> "$tmp/repo/gates/pre-push.md"
+expect_saying "a reference that only prefixes a tracked directory" bundled-refs.sh "BROKEN: \${CLAUDE_PLUGIN_ROOT}/gate"
+fresh_copy; printf '%s\n' "Read \${CLAUDE_PLUGIN_ROOT}/gates/scripts here." >> "$tmp/repo/gates/pre-push.md"
+expect pass "a directory reference with no trailing slash" bundled-refs.sh
+mkdir -p "$tmp/nogitrefs/gates" "$tmp/nogitrefs/skills" "$tmp/nogitrefs/agents"
+printf '%s\n' "Read \${CLAUDE_PLUGIN_ROOT}/gates/a.md here." > "$tmp/nogitrefs/gates/a.md"
+expect_saying "references in a root git cannot list" bundled-refs.sh "cannot list the tracked files" "$tmp/nogitrefs"
 
 fresh_copy; printf '%s\n' 'Run xcodebuild test.' >> "$tmp/repo/gates/pre-push.md"
 expect fail "a build-tool invocation in a shared file" no-leaks.sh

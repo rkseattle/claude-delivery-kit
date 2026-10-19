@@ -20,8 +20,9 @@ A register is one Markdown table with these columns, in this order:
 
 A row has expired when its `Expiry` is before today's local date. An expired row is
 remediated — the waived rule is followed again and the row comes out — or renewed with a
-new `Expiry`, in a commit that says why it still holds. A project register starts with the
-same header row.
+new `Expiry`, in a commit that says why it still holds. Removing or renaming a kit-wide
+row updates, in the same commit, each `reference/rule-book-map.md` row that cites it. A
+project register starts with the same header row.
 
 ## Kit-wide exceptions
 
@@ -32,3 +33,7 @@ These apply to every project using the kit.
 | Phase 2 step 2: ACs in Given/When/Then form | Each AC is already a testable clause ending `[verify: <tier> @ <evidence>]`, and `lint_draft.py` parses that format | A precondition a Given clause would state can go unwritten | 2027-04-08 | At expiry, renew, or file a CDK ticket to adopt Given/When/Then |
 | Phase 5 step 6: quarantine flaky tests | The kit root-causes every failure; a quarantine path lets a real failure be skipped as noise | A nondeterministic test blocks commits until it is root-caused | 2027-04-08 | At expiry, renew, or file a CDK ticket for a quarantine path |
 | Rule book R1 and R11: project docs and decision records in version control | Plans and ticket drafts are working state; commits and the PR body carry the record | Rejected alternatives and design reasoning are gone after delivery | 2027-04-08 | At expiry, renew, or file a CDK ticket to commit decision records |
+| Rule book R12: use the project's secret store | The kit holds no secrets and cannot name a project's store; its secret scans block a committed secret at every commit and push | A project keeps secrets outside any store, in an untracked file, unnoticed | 2027-04-18 | At expiry, renew, or file a CDK ticket to check for a named secret store |
+| Rule book Appendix B1 Implementation: dependency and static-analysis scans in CI | The kit runs both scans at every commit and push, for every project, and blocks a new High; which jobs a project's CI runs is its mechanics gate | A push that bypasses the local gates reaches merge unscanned | 2027-04-18 | At expiry, renew, or file a CDK ticket to require the scans in CI |
+| Rule book Section 10 exception rule 3: review open exceptions each iteration | `deliver` Step 0 lists every expired row at the start of each run; an unexpired row is reviewed at its expiry | An exception whose reason has lapsed stands until it expires | 2027-04-18 | At expiry, renew, or file a CDK ticket to review open rows each iteration |
+| Rule book Section 10 exception rule 4: file an emergency exception within one working day | The kit has no production-emergency path to file one from; `release` rolls back first and reports | An emergency action taken outside the kit goes unrecorded | 2027-04-18 | At expiry, renew, or file a CDK ticket for an emergency-exception path |

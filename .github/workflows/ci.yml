@@ -115,6 +115,9 @@ jobs:
       - name: Bundled-file references resolve
         run: bash scripts/ci/bundled-refs.sh
 
+      - name: Rule-book map paths resolve
+        run: bash scripts/ci/rule-book-map.sh
+
       - name: No project-specific tokens leaked into shared files
         run: bash scripts/ci/no-leaks.sh
 

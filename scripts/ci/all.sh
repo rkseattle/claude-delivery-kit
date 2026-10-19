@@ -22,6 +22,7 @@ bash scripts/ci/json-parses.sh
 bash scripts/ci/frontmatter-names.sh
 bash scripts/ci/line-budget.sh
 bash scripts/ci/bundled-refs.sh
+bash scripts/ci/rule-book-map.sh
 bash scripts/ci/no-leaks.sh
 bash scripts/ci/actions-pinned.sh
 bash scripts/ci/ci-steps-mirrored.sh

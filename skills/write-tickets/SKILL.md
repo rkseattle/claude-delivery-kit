@@ -100,7 +100,7 @@ python3 ${CLAUDE_PLUGIN_ROOT}/skills/write-tickets/scripts/lint_draft.py docs/ti
 
 It reads `{{disciplines}}` from the repo's project.json itself. Fix every ERROR; fix each
 WARN or confirm the flagged text is concrete. Re-run until it exits 0. Exit 2 is an
-unreadable draft or project.json, or a `disciplines` it refuses: stop.
+unreadable draft or project.json, a refused `disciplines`, or a `--repo` git cannot list: stop.
 
 ## Step 6 — Adversarial ticket review
 
