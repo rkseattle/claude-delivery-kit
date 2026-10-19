@@ -2,8 +2,9 @@
 
 ## Run the checks
 
-Every CI step has a local equivalent. Run them all, in CI's order, from the repo root after
-`git add` (`json-parses.sh` reads tracked files only):
+Every CI step has a local equivalent. They need git, Python 3, `jq`, `curl`, and `shasum`
+(`shellcheck.sh` downloads a pinned shellcheck). Run them all, in CI's order, from the repo
+root after `git add` (`json-parses.sh` reads tracked files only):
 
 ```sh
 bash scripts/ci/all.sh
@@ -23,17 +24,9 @@ than proceed on a gate it could not read.
 .claude-plugin/
   plugin.json          the manifest
   marketplace.json     this repo is also its own marketplace
-skills/                plan-project, write-tickets, deliver, plan-work,
-                       implement-phases, branch-review, ship-pr, ci-green;
-                       release-readiness and release (once per release, after the
-                       merges);
-                       readme-docs, incident-review, maintenance-review, and
-                       retire-system (standalone)
-agents/                ticket-, design-, commit-, ci-failure-, greptile- adversaries
-gates/                 status-report.md, definition-of-done.md, pre-push.md,
-                       read-only-agent.md (the universal halves only),
-                       project-config.md, exceptions.md, rule-book-review.md,
-                       planning-exit.md, release-readiness.md, and release.md;
+skills/                one directory per skill; the README lists them
+agents/                the five reviewers; the README lists them
+gates/                 the universal halves of the gates, listed in the README;
                        scripts/sarif_gate.py builds the scanners' git inputs and reads
                        their reports into the gates' verdicts; scripts/project_rules.py
                        holds the project.json rules and self-test helpers the release,
@@ -91,7 +84,7 @@ copy plans against a cap that does not exist.
 A skill's cap covers its `references/` files, counted together with the body. The split
 exists to cut what loads per invocation, not to create room the budget cannot see.
 
-`design-adversary.md` sits at its cap. It absorbed two projects' worth of rules, so it is
+`design-adversary.md` sits at its cap. It absorbed several projects' worth of rules, so it is
 the likeliest to want to grow; the pressure is the cap working as intended, and the place
 for per-dimension detail is `agent-rules/`, not `agents/design-adversary.md`.
 

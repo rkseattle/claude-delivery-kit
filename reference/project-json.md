@@ -232,7 +232,7 @@ none. `extra_gates` defaults to `[]`. `gates/project-config.md` names the requir
 and holds the procedure every skill and agent follows, including how a run reports the
 value each absent key took.
 
-Two keys exist because the projects hold genuinely different policy on the same question,
+Two keys exist because projects hold genuinely different policy on the same question,
 and each states its reasoning rather than just its answer. `unit_test_scope` is the
 whole-target-versus-changed-workspaces trade: matching CI exactly, against a suite slow
 enough that the cost is real. `post_fix_verification_scope` is whether a fix commit

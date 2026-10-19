@@ -6,6 +6,13 @@ its own commands and thresholds, in `.claude/project.json`.
 
 ## Install
 
+Requires:
+
+- Claude Code with plugin support
+- git, Python 3, and `jq` on `PATH`; the hooks and every check script use them
+- the GitHub CLI `gh`, authenticated, for pushing, PRs, and CI
+- an Atlassian MCP server connected to the project's Jira, for tickets and transitions
+
 Add the marketplace and enable the plugin in the project's `.claude/settings.json`:
 
 ```json
@@ -28,7 +35,8 @@ copy sits unused behind `/delivery-kit:deliver`.
 
 ## Usage
 
-1. Add `.claude/project.json` to the project (see [Configure a project](#configure-a-project)).
+1. Add `.claude/project.json` to the project; see
+   [Configure a project](#configure-a-project).
 2. Run a ticket end to end (`plan-work` asks to split more than three tickets):
 
    ```text
@@ -61,6 +69,8 @@ Every skill except `readme-docs` runs only when invoked by name.
   - `write-tickets` — turns a request into Jira tickets that `plan-work` can plan as
     written. Agent: `ticket-adversary`.
 - **`deliver`** — runs the five stages below in order and resumes an interrupted run.
+  Every stage reads `project-config.md` and reports per `status-report.md`; `deliver`
+  records rule-book exceptions in the `exceptions.md` format.
   1. `plan-work` — reads the tickets and the code, writes a phased plan, and stops for
      approval. Agent: `design-adversary`.
   2. `implement-phases` — branches, moves Jira to In Progress, and commits each phase.
@@ -71,27 +81,31 @@ Every skill except `readme-docs` runs only when invoked by name.
   4. `ship-pr` — pushes, opens the PR, requests reviewers, and moves Jira to In Review.
      Gate: `pre-push.md`.
   5. `ci-green` — loops on CI failures and review comments until green and approved, then
-     merges on the tech lead's yes. Agents: `ci-failure-adversary`, `commit-adversary`.
-     Gate: `pre-push.md` before each re-push.
+     merges on the tech lead's yes. Agent: `ci-failure-adversary`. Gate: `pre-push.md`
+     before each re-push.
 - **After the merges**
-  - `release-readiness` — the release gate: system, integration, and non-functional suites
-    and open defects. Gate: `release-readiness.md`.
-  - `release` — tags, builds once, and rolls out stage by stage with a tested rollback.
-    Gate: `release.md`.
+  - `release-readiness` `<version>` — the release gate: system, integration, and
+    non-functional suites and open defects. Gate: `release-readiness.md`.
+  - `release` `<version>` — tags, builds once, and rolls out stage by stage with a tested
+    rollback. Gate: `release.md`.
 - **Standalone**
   - `readme-docs` — writes or audits a README and its linked docs, checked by
     `check_readme.py`. Loads on its own when you ask about docs. To use it without the
     plugin, copy `skills/readme-docs/` to `.claude/skills/` or `~/.claude/skills/`.
-  - `incident-review` — a blameless review after an incident, committed on its own branch.
+  - `incident-review` `<incident> <YYYY-MM-DD>` — a blameless review after an incident,
+    committed on its own branch.
   - `maintenance-review` — reports ownership, dependency, vulnerability, runbook, and alert
     health. Writes nothing.
-  - `retire-system` — the record and checklist for shutting a system down.
+  - `retire-system` `<name>` — the record and checklist for shutting a system down.
+
+    `incident-review` and `retire-system` refuse to start while a delivery plan is running
+    and not paused.
 
 Agents (each reads `read-only-agent.md` and never changes the repo):
 
 - `design-adversary` — attacks a plan before approval.
-- `commit-adversary` — attacks a diff before it is committed, or a claim that a defect is
-  safe to defer.
+- `commit-adversary` — attacks a diff before it is committed, or, from any stage, a claim
+  that a defect is safe to defer.
 - `greptile-reviewer` — reviews a whole branch cold before the PR.
 - `ci-failure-adversary` — checks that a CI fix addresses the root cause.
 - `ticket-adversary` — checks that a ticket draft can be planned as written.
