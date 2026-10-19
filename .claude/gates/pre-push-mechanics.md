@@ -32,6 +32,7 @@ installed one differs.
 | `manifest` · Frontmatter names | `bash scripts/ci/frontmatter-names.sh` |
 | `manifest` · Line budget | `bash scripts/ci/line-budget.sh` |
 | `manifest` · Bundled-file references | `bash scripts/ci/bundled-refs.sh` |
+| `manifest` · Rule-book map paths resolve | `bash scripts/ci/rule-book-map.sh` |
 | `manifest` · No project-specific tokens | `bash scripts/ci/no-leaks.sh` |
 | `manifest` · Actions are pinned to commit SHAs | `bash scripts/ci/actions-pinned.sh` |
 | `manifest` · Every CI step has a local equivalent | `bash scripts/ci/ci-steps-mirrored.sh` |
@@ -52,11 +53,24 @@ in full. It takes under a minute, so there is no subset worth trusting instead.
 - `OVER CAP <file>` — a line budget breach; the change names what comes out.
 - `UNPARSEABLE cap table` — `skills/deliver/references/invariants.md` is missing, or its cap
   table lost a row, repeated one, or holds a cap that is not a whole number; fix the table.
-- `BROKEN: <path>` — a malformed JSON file or a `${CLAUDE_PLUGIN_ROOT}` reference to a
-  missing file.
+- `BROKEN: <path>` — a malformed JSON file, or a `${CLAUDE_PLUGIN_ROOT}` reference git does
+  not track exactly as written: a missing file, one not yet `git add`ed, or a wrong case.
+  `cannot list the tracked files` from either reference check — run from a checkout git can
+  read.
 - `NOT PINNED` — a workflow's `uses:` names a tag, branch, or short SHA; pin it to the full
   commit SHA with the tag as a trailing comment. `UNPARSEABLE` — a workflow is not YAML
   with a `jobs:` mapping.
+- `MISSING: <path>` — a `reference/rule-book-map.md` row names a path git does not track,
+  exactly as written; point the row at the file that now applies the rule, `git add` a
+  new one, or move prose holding a slash outside backticks. A path holding a space was
+  wrapped across lines inside its backticks, or padded on one side only; rejoin or trim
+  it. `no rule-book map at`, `no exceptions register at`, `names no path`, or `is not
+  UTF-8` — the map or `gates/exceptions.md`, as named, is gone, emptied, or corrupted;
+  restore it. `MISSING ROW:` — an Excepted by name starts no complete kit-wide row's
+  `Rule` cell, up to its colon; point the map row at what now applies the rule, or at
+  the renamed row. `NO EXCEPTED BY COLUMN:` — a map table lacks the column; add it. `NOT
+  A REGISTER:` — a table under Kit-wide exceptions is not headed Rule | Reason | Risk |
+  Expiry | Remediation; restore its header.
 - `FAIL <check>: <case>` from `self-test.sh` — a check stopped catching its defect; fix the
   check, never the case.
 - A hook self-test count mismatch — the hook's behavior changed; read the named case.

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """The release gates' deterministic checks, so no skill applies them by eye. Standard library
-only, but for the CommonMark parser project_rules.fence_split loads.
+only, but for the CommonMark parser project_rules' fence_split and markdown_tokens load.
 
 Called by skills/release-readiness/SKILL.md (Steps 1 to 4, 7), skills/release/SKILL.md
 (Steps 1 to 5), and, for its maintenance discipline keys, skills/maintenance-review/SKILL.md
@@ -66,8 +66,10 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)),
 from lint_draft import NFR_SECTION, VERIFY_TAG  # noqa: E402  what write-tickets writes
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)),
                                 "..", "..", "..", "gates", "scripts"))
-from project_rules import (BARE_FRAGMENT, DECIMAL, PLACEHOLDER, check_command,  # noqa: E402
-                           check_repo_path, fence_split, is_date, is_unset, json_number,
+from project_rules import (BARE_FRAGMENT, DECIMAL, PLACEHOLDER, REGISTER_COLUMNS,  # noqa: E402
+                           check_command, check_repo_path, complete_register_row,
+                           is_register_header, markdown_tables, markdown_tokens, words,
+                           fence_split, is_unset, json_number,
                            markdown_value,
                            named_disciplines,
                            positive_int, read_config as load_config, report,
@@ -106,7 +108,7 @@ def declared_tiers(config_path):
     while re.search(r"\([^()]*\)", plain):
         plain = re.sub(r"\([^()]*\)", "", plain)
     plain = plain.replace("`", "")
-    tiers = {" ".join(part.split()).lower()
+    tiers = {words(part).lower()
              for part in re.split(r"[·,;]|\b(?:and|or)\b", plain, flags=re.I)} - {""}
     if not tiers:
         raise ValueError("verification_tiers declares no tiers")
@@ -154,7 +156,7 @@ def criteria(description, tiers):
         if not tag:
             rows.append((entry[1], "-", "-", "no-tag"))
             continue
-        tier = " ".join(tag.group(1).split())
+        tier = words(tag.group(1))
         evidence = re.sub(r"\\(.)", r"\1", tag.group(2).strip())
         rows.append((entry[1], tier, evidence,
                      "ok" if tier.lower() in tiers else "undeclared-tier"))
@@ -207,27 +209,23 @@ def nfrs(description, key):
     return found, problems
 
 
-REGISTER_COLUMNS = ("Rule", "Reason", "Risk", "Expiry", "Remediation")
-
-
 def exceptions(path, today):
     """{Rule: Expiry} for every unexpired, complete row in a register table, in the format
-    gates/exceptions.md defines: a row missing its reason, risk, or remediation records no
-    exception, since nothing says why the waiver holds or how it ends."""
+    gates/exceptions.md defines; complete_register_row says which rows record one."""
     if not path:
         return {}
     with open(path, encoding="utf-8") as handle:
-        rows = [[cell.strip() for cell in line.strip().strip("|").split("|")]
-                for line in handle if line.lstrip().startswith("|")]
-    if not rows or tuple(rows[0][:len(REGISTER_COLUMNS)]) != REGISTER_COLUMNS:
-        raise ValueError("the exceptions register's header is not "
+        tables = markdown_tables(markdown_tokens(handle.read()))
+    # gates/exceptions.md: a register is one table, starting with the register's header row.
+    if not tables or not is_register_header(tables[0][0]):
+        raise ValueError("the exceptions register's first table is not headed "
                          + " | ".join(REGISTER_COLUMNS))
+    if sum(is_register_header(header) for header, _ in tables) > 1:
+        raise ValueError("the exceptions register holds more than one register table")
+    register = tables[0][1]
     rule, expiry = 0, REGISTER_COLUMNS.index("Expiry")
-    return {row[rule]: row[expiry] for row in rows[1:]
-            if len(row) >= len(REGISTER_COLUMNS)
-            and all(row[n] and not re.fullmatch(r":?-+:?", row[n])
-                    for n in range(len(REGISTER_COLUMNS)))
-            and is_date(row[expiry]) and row[expiry] >= today}
+    return {row[rule]: row[expiry] for row in register
+            if complete_register_row(row) and row[expiry] >= today}
 
 
 def settle(in_scope, output, excepted_rules):
@@ -808,6 +806,29 @@ def release_checks_cases(directory, summary_file, good):
                               "impossible.md")
     failures += report("settle", "a row expiring on no calendar date records no exception",
                        exceptions(impossible, "2026-01-01"), {})
+    partial = summary_file("| Rule | Reason | Risk | Expiry | Remediation | Owner |\n| --- | --- | "
+                           "--- | --- | --- | --- |\n| AB-1 NFR2 | r | r | 2026-12-31 |\n"
+                           "| AB-1 NFR3 | r | --- | 2026-12-31 | t | o |\n"
+                           "| AB-1 NFR4 | r | r | 2026-12-31 | t | o |\n", "partial.md")
+    failures += report("settle", "a short row and a separator cell record none; a sixth column is "
+                       "allowed", exceptions(partial, "2026-01-01"), {"AB-1 NFR4": "2026-12-31"})
+    rendered = summary_file("| Rule | Reason | Risk | Expiry | Remediation |\n| --- | --- | --- | "
+                            "--- | --- |\n| AB-1 NFR2 | a \\| b | r | 2026-12-31 | t |\n\n"
+                            "```\n| AB-1 NFR5 | r | r | 2026-12-31 | t |\n```\n\n"
+                            "| Rule | Note |\n| --- | --- |\n| AB-1 NFR6 | r |\n", "rendered.md")
+    failures += report("settle", "an escaped pipe splits no cell; a fenced row and a second table "
+                       "record none", exceptions(rendered, "2026-01-01"), {"AB-1 NFR2": "2026-12-31"})
+    header_row = "| Rule | Reason | Risk | Expiry | Remediation |\n| --- | --- | --- | --- | --- |\n"
+    for case, text in [("another table before the register",
+                        "| Note |\n| --- |\n| x |\n\n" + header_row + "| AB-1 NFR2 | r | r | 2026-12-31 | t |\n"),
+                       ("two register tables",
+                        header_row + "| AB-1 NFR2 | r | r | 2026-12-31 | t |\n\n"
+                        + header_row + "| AB-1 NFR3 | r | r | 2026-12-31 | t |\n")]:
+        failures += report("settle", f"a register with {case}",
+                           _error(exceptions, summary_file(text, "split.md"), "2026-01-01"), "ValueError")
+    spaced = summary_file(header_row + "| AB-1  NFR2 | r | r | 2026-12-31 | t |\n", "spaced.md")
+    failures += report("settle", "a Rule cell is read exactly, its inner spaces kept",
+                       exceptions(spaced, "2026-01-01"), {"AB-1  NFR2": "2026-12-31"})
     in_scope = ["AB-1 NFR1", "AB-1 NFR2", "AB-1 NFR3", "AB-1 NFR4", "AB-1 NFR5"]
     output = ("AB-1 NFR1 pass\nAB-1 NFR2 fail\nAB-1 NFR3 pass\nAB-1 NFR3 fail\n"
               "AB-1 NFR5 maybe\nAB-9 NFR1 fail\nAB-1 NFR10 pass\n")
@@ -828,7 +849,7 @@ def release_checks_cases(directory, summary_file, good):
     failures += report("settle", "a row missing its reason, risk, or remediation excepts nothing",
                        exceptions(partial, "2026-10-16"), {})
     failures += report("settle", "a register with only Rule and Expiry columns", _error(
-        exceptions, summary_file("| Rule | Expiry |\n| AB-1 NFR2 | 2026-12-31 |\n", "two.md"),
+        exceptions, summary_file("| Rule | Expiry |\n| --- | --- |\n| AB-1 NFR2 | 2026-12-31 |\n", "two.md"),
         "2026-10-16"), "ValueError")
     failures += report("settle", "a register with no header", _error(
         exceptions, summary_file("| a | b |\n", "noheader.md"), "2026-10-16"), "ValueError")

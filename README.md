@@ -19,6 +19,8 @@ A single source removes the class. What cannot be shared is declared, not duplic
 
 The kit's rules are measured against one source:
 `reference/software-engineering-rule-book.md`. A ticket that quotes a rule cites it there.
+`reference/rule-book-map.md` names the kit file that applies each rule and exit criterion,
+or the `gates/exceptions.md` row recording why none does.
 
 ## Layout
 
@@ -46,7 +48,9 @@ gates/                 status-report.md, definition-of-done.md, pre-push.md,
 hooks/                 hooks.json + the two hooks and their self-tests
 scripts/ci/            the CI checks, runnable locally; all.sh runs every one
 reference/             software-engineering-rule-book.md, the source the rules
-                       are measured against
+                       are measured against; rule-book-map.md, the kit file
+                       that applies each rule, or the exception recording why
+                       none does
 ```
 
 The skills reference `${CLAUDE_PLUGIN_ROOT}/gates/*.md`. A reference that resolves to

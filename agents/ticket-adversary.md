@@ -48,7 +48,7 @@ Read `${CLAUDE_PLUGIN_ROOT}/gates/read-only-agent.md` and follow it exactly.
   is a MAJOR.
 - **Clauses.** Split every AC on commas and semicolons as `plan-work` will, and take each
   NFR line whole. Each clause: concrete, observable, a tier from `{{verification_tiers}}`,
-  and evidence that exists — for an automated tier, a test path in a directory holding
+  and evidence git tracks — for an automated tier, a test path in a directory holding
   tests of that tier. A clause you could not assign to a phase, or whose `Verified by` you
   could not fill, is a BLOCKER. A clause only out-of-band verification can settle, not
   marked as such, is a MAJOR.
