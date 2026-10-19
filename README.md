@@ -53,6 +53,7 @@ after the merges.
 
 Skills are the procedures, agents are the read-only reviewers they call, gates are the
 checklists they must pass, and hooks keep a run from stopping early or leaving its branch.
+Every skill except `readme-docs` runs only when invoked by name.
 
 - **Before delivery**
   - `plan-project` — writes the project brief and waits for the sponsor's decision.
@@ -81,7 +82,6 @@ checklists they must pass, and hooks keep a run from stopping early or leaving i
   - `readme-docs` — writes or audits a README and its linked docs, checked by
     `check_readme.py`. Loads on its own when you ask about docs. To use it without the
     plugin, copy `skills/readme-docs/` to `.claude/skills/` or `~/.claude/skills/`.
-  - The three below run only when invoked by name.
   - `incident-review` — a blameless review after an incident, committed on its own branch.
   - `maintenance-review` — reports ownership, dependency, vulnerability, runbook, and alert
     health. Writes nothing.
@@ -96,19 +96,26 @@ Agents (each reads `read-only-agent.md` and never changes the repo):
 - `ci-failure-adversary` — checks that a CI fix addresses the root cause.
 - `ticket-adversary` — checks that a ticket draft can be planned as written.
 
-Gates shared by several stages:
+Gates:
 
 - `project-config.md` — how every skill reads `project.json` and resolves missing keys.
+- `definition-of-done.md` — the checks before every commit.
+- `pre-push.md` — the checks before every push and PR.
 - `status-report.md` — the report printed at every phase and stage boundary.
+- `read-only-agent.md` — the rule that keeps every agent from changing the repo.
 - `rule-book-review.md` — the rule-book checks the commit, branch, and CI reviewers apply.
 - `exceptions.md` — the format of a project's rule-book exceptions register.
+- `planning-exit.md` — the rule book's Phase 1 gate: no implementation before the brief
+  is approved.
+- `release-readiness.md` — the rule book's Phase 5 gate a version must pass to release.
+- `release.md` — the rule book's Phase 6 gate: tag, staged rollout, and rollback.
 
 Hooks (`hooks/hooks.json`):
 
 - `block-false-stop.sh` — on Stop, refuses to end a turn while the plan has unfinished
   phases, unless the run set `"paused": true`.
 - `protect-plan-branch.sh` — after each Bash command, puts HEAD back on the plan's branch
-  if the command moved it.
+  if the command moved it, unless the run set `"paused": true`.
 
 ## Configure a project
 
