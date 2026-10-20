@@ -61,7 +61,9 @@ The stage skills carry the procedure; the commands, paths and thresholds come fr
   "patch_sla_days": "<days a vulnerability may stay unpatched, e.g. 30, or none>",
   "runbooks_dir": "<directory holding the runbooks, e.g. docs/runbooks, or none>",
   "alert_routes_command": "<command printing one `<rule> <target>` line per alert route, or none>",
-  "retirements_dir": "<directory retirement records are committed to, e.g. docs/retirements, or none>"
+  "retirements_dir": "<directory retirement records are committed to, e.g. docs/retirements, or none>",
+  "design_dir": "<directory feature design docs are committed to, e.g. docs/design, or none>",
+  "adr_dir": "<directory decision records are committed to, e.g. docs/adr, or none>"
 }
 ```
 
@@ -115,6 +117,11 @@ except that `security` makes `patch_sla_days` required.
 retirement record. It follows `incident_reviews_dir`'s rule — a relative path inside the
 repository, outside `.git`, of the same characters, and not gitignored, since the record is
 committed. Default `none`, under which `retire-system` stops and names the key.
+
+`design_dir` and `adr_dir` serve rule book Phase 3 and R11: where a feature's design doc
+and its decision records are committed. Each follows `incident_reviews_dir`'s rule — a
+relative path inside the repository, outside `.git`, of the same characters, and not
+gitignored, since both are committed. Each defaults to `none`.
 
 `secret_scan_command` and `sast_command` serve rule book R12 and Appendix B1's scans. Each
 writes SARIF 2.1.0 to standard output, redacted, with inline suppression comments ignored;

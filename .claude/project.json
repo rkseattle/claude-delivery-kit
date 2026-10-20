@@ -35,5 +35,7 @@
     "service_owner": "rkseattle"
   },
   "reviewers": "none",
-  "exceptions_log": "reference/exceptions-log.md"
+  "exceptions_log": "reference/exceptions-log.md",
+  "design_dir": "docs/design",
+  "adr_dir": "docs/adr"
 }

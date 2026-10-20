@@ -36,8 +36,8 @@ copy sits unused behind `/delivery-kit:deliver`.
 ## Usage
 
 1. Add `.claude/project.json` to the project; see
-   [Configure a project](#configure-a-project). Add `.claude/state/` and `docs/plans/` to
-   its `.gitignore`: runs write their working state there.
+   [Configure a project](#configure-a-project). Add `.claude/state/`, `docs/plans/`, and
+   `docs/tickets/` to its `.gitignore`: runs write their working state there.
 2. Run a ticket end to end (`plan-work` asks to split more than three tickets):
 
    ```text
