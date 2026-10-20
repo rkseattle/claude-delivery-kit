@@ -68,13 +68,13 @@ a rewrite against a concern their plan never had.
   from what only out-of-band verification reaches is claiming coverage it will not have.
 - **Design sections.** Each is a MAJOR cited against its plan section, exempt like the
   survey from the code-citation rule: an interface entry lacking any of its six lines, or
-  a `Layer` not naming exactly one of the four layers; a `Likely changes` entry naming no
-  interface; an `NFR coverage` row naming no module in `Components and interfaces`, unless
-  an Epic NFR's row reads `untouched — <reason>`; a new external dependency missing from
-  the flowchart; with `security` in `disciplines`, no `Threat model`, or a qualifying
-  component short of six STRIDE rows; with `data-ml`, a `Data ownership` table, not `none
-  — <reason>`, lacking a `Schema owner` or `Version location` column, or a dataset row
-  empty in one; a store row's `—` is not empty.
+  a `Layer` not one of the four layers nor an `— existing` pair; a `Likely changes` entry
+  naming no interface; an `NFR coverage` row naming no module in `Components and
+  interfaces`, unless an Epic NFR's row reads `untouched — <reason>`; a new external
+  dependency missing from the flowchart; with `security` in `disciplines`, no `Threat
+  model`, or a qualifying component short of six STRIDE rows; with `data-ml`, a `Data
+  ownership` table, not `none — <reason>`, lacking a `Schema owner` or `Version location`
+  column, or a dataset row empty in one; a store row's `—` is not empty.
 - **Docs** for user-visible behavior. **Blast radius**: what else in the repo references
   what is being changed?
 - **Scope exclusions.** Grep for other live instances of every root cause the plan fixes

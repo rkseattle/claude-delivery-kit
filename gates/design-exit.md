@@ -6,11 +6,11 @@ gate applies it to a whole feature or epic, before its tickets are written. Its 
 criteria are the four below, quoted from
 `${CLAUDE_PLUGIN_ROOT}/reference/software-engineering-rule-book.md`. Read this file before
 writing, reviewing, or presenting a design, and check every rule against the design doc at
-`{{design_dir}}/<slug>.md` — `<slug>` the design's title in lowercase kebab-case — its ADRs
-under `{{adr_dir}}`, and the repository, its git history included — never against memory of
-what was written. With `{{design_dir}}` `none` there is no design doc, and the
-gate cannot pass; with `{{adr_dir}}` `none`, a design holding a `- Costly to reverse:` line
-fails.
+`{{design_dir}}/<slug>.md` — `<slug>` the design's title in lowercase kebab-case — its
+ADRs under `{{adr_dir}}`, and the repository, its git history included — never against
+memory of what was written. With `{{design_dir}}` `none` there is no design doc, and the
+gate cannot pass; with `{{adr_dir}}` `none`, a design holding a `- Costly to reverse:`
+line fails.
 
 The sections build on the Kubernetes KEP template's — summary, motivation, goals and
 non-goals, proposal, risks, test plan, rollout and rollback, drawbacks, alternatives — with
@@ -35,12 +35,14 @@ syntax experimental.
    - rule book Phase 3 step 8's design review, by at least one engineer outside the
      immediate team, checked against the requirements and non-functional thresholds.
 
-   The commit recording the decision carries a `Reviewed-by: Name <email>` trailer per
-   step 8 reviewer, the Linux kernel's and Gerrit's form, `Name` being the reviewer's
-   `roles` handle or git `user.name`, so `git log` holds who reviewed it. A project with no
+   The commit recording the decision carries a `Reviewed-by: <name>` trailer per step 8
+   reviewer, the Linux kernel's and Gerrit's trailer, so `git log` holds who reviewed it.
+   `<name>` is asked for in the session, never defaulted, since an outside reviewer holds
+   no role; the kit records no email, so the trailer carries none. A project with no
    engineer outside the team records a rule-book exception for step 8, per
-   `${CLAUDE_PLUGIN_ROOT}/gates/exceptions.md`; the criterion then passes on the cold
-   review while that row is unexpired.
+   `${CLAUDE_PLUGIN_ROOT}/gates/exceptions.md`, in `{{exceptions_log}}`; the criterion then
+   passes on the cold review while that row is unexpired. The kit-wide step 8 row covers
+   `plan-work` plans, never a design.
 2. **Decision records exist for irreversible choices** — every `- Costly to reverse:` line
    in `## Proposal` names an ADR path that exists and passes the ADR rules below.
 3. **Test strategy approved by QA** — `{{roles.qa}}` approved `## Test strategy`, and the
@@ -90,7 +92,8 @@ a rule below requires content.
 - **`Non-goals`** — passes criterion 2 of `${CLAUDE_PLUGIN_ROOT}/gates/planning-exit.md`.
 - **`Success measures`** — each line in the form
   `- SM<n>: <Measure>: <target> by <date or milestone>`, with `SM1`, `SM2`, … unique in the
-  doc; a design with an `Epic:` line keeps the Epic's `SM<n>` IDs for its measures. Rule 2 of `${CLAUDE_PLUGIN_ROOT}/skills/plan-project/SKILL.md` Step 2 applies to the
+  doc; a design with an `Epic:` line keeps the Epic's `SM<n>` IDs for its measures. Rule 2
+  of `${CLAUDE_PLUGIN_ROOT}/skills/plan-project/SKILL.md` Step 2 applies to the
   text after `SM<n>: `: a line whose target holds no number is rejected, and a milestone
   stands where rule 2 names a date.
 - **`Current state`** — the existing features and code the new one overlaps or depends on,
@@ -115,7 +118,8 @@ a rule below requires content.
   Then one `###` per module, each carrying the `Responsibility`, `Inputs`, `Outputs`,
   `Errors`, `Versioning`, and `Layer` lines in the form of the `Components and interfaces`
   template of `${CLAUDE_PLUGIN_ROOT}/skills/plan-work/SKILL.md`; `Layer` is rule book
-  Phase 3 step 4, and a module spanning two layers is two modules.
+  Phase 3 step 4, and a new or restructured module spanning two layers is two modules; an
+  existing one keeps both, in `plan-work`'s `— existing` form.
 - **`Likely changes`** — in the form of that template's `Likely changes` list.
 - **`Data model and ownership`** — first the data model, rule book Phase 3 step 5: for each
   entity or store the feature adds or changes, its fields, keys, and relations to other
@@ -130,8 +134,7 @@ a rule below requires content.
   a number and its unit.
 
   In these three sections, each interface, owning module, or `<module>` named is a `###`
-  of `Components and interfaces`, or an existing module the feature leaves unchanged, named
-  by its file path.
+  of `Components and interfaces`, changed or not, so it appears on the diagram there too.
 - **`Threat model`** — with `security` in `{{disciplines}}`, the STRIDE form of the
   `Threat model` section of `${CLAUDE_PLUGIN_ROOT}/skills/plan-work/SKILL.md`, with a
   `Mitigating handoff` column naming a `Work plan` handoff in place of `Mitigating phase`.
@@ -201,6 +204,8 @@ names its files; `NNNN` is four digits.
   `origin/{{parent_branch_default}}`. Two designs in flight on different branches can take
   the same numbers, as with adr-tools; criterion 2 is checked again against
   `origin/{{parent_branch_default}}` before the design's branch merges.
+- **A rejected design's ADRs** are committed with it, `status: rejected`, keeping their
+  numbers, as a rejected brief is committed as the record of the stop.
 - **Superseding is out of scope:** a design whose choice would reverse an `accepted` ADR
   fails criterion 2, since superseding one needs its own review and approval.
 
