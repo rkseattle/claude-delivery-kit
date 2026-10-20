@@ -36,9 +36,11 @@ syntax experimental.
      immediate team, checked against the requirements and non-functional thresholds.
 
    The commit recording the decision carries a `Reviewed-by: Name <email>` trailer per
-   step 8 reviewer, the Linux kernel's and Gerrit's form, so `git log` holds who reviewed
-   it. A project with no engineer outside the team records a rule-book exception for step
-   8, per `${CLAUDE_PLUGIN_ROOT}/gates/exceptions.md`, rather than passing this criterion.
+   step 8 reviewer, the Linux kernel's and Gerrit's form, `Name` being the reviewer's
+   `roles` handle or git `user.name`, so `git log` holds who reviewed it. A project with no
+   engineer outside the team records a rule-book exception for step 8, per
+   `${CLAUDE_PLUGIN_ROOT}/gates/exceptions.md`; the criterion then passes on the cold
+   review while that row is unexpired.
 2. **Decision records exist for irreversible choices** — every `- Costly to reverse:` line
    in `## Proposal` names an ADR path that exists and passes the ADR rules below.
 3. **Test strategy approved by QA** — `{{roles.qa}}` approved `## Test strategy`, and the
@@ -88,7 +90,7 @@ a rule below requires content.
 - **`Non-goals`** — passes criterion 2 of `${CLAUDE_PLUGIN_ROOT}/gates/planning-exit.md`.
 - **`Success measures`** — each line in the form
   `- SM<n>: <Measure>: <target> by <date or milestone>`, with `SM1`, `SM2`, … unique in the
-  doc. Rule 2 of `${CLAUDE_PLUGIN_ROOT}/skills/plan-project/SKILL.md` Step 2 applies to the
+  doc; a design with an `Epic:` line keeps the Epic's `SM<n>` IDs for its measures. Rule 2 of `${CLAUDE_PLUGIN_ROOT}/skills/plan-project/SKILL.md` Step 2 applies to the
   text after `SM<n>: `: a line whose target holds no number is rejected, and a milestone
   stands where rule 2 names a date.
 - **`Current state`** — the existing features and code the new one overlaps or depends on,
@@ -114,8 +116,12 @@ a rule below requires content.
   `Errors`, `Versioning`, and `Layer` lines in the form of the `Components and interfaces`
   template of `${CLAUDE_PLUGIN_ROOT}/skills/plan-work/SKILL.md`; `Layer` is rule book
   Phase 3 step 4, and a module spanning two layers is two modules.
-- **`Likely changes`** and **`Data model and ownership`** — in the form of that template's
-  `Likely changes` list and `Data ownership` table, one row per store the feature touches.
+- **`Likely changes`** — in the form of that template's `Likely changes` list.
+- **`Data model and ownership`** — first the data model, rule book Phase 3 step 5: for each
+  entity or store the feature adds or changes, its fields, keys, and relations to other
+  entities. Then the ownership table in the form of that template's `Data ownership`
+  table, or its `data-ml` form with `data-ml` in `{{disciplines}}`, one row per store the
+  feature touches. With no store touched, the section holds `none — <reason>`.
 - **`Non-functional requirements`** — each line
   `- NFR<n>: <threshold> — <module>: <mechanism>`, with `NFR<n>` unique in the doc. A
   design with an `Epic:` line carries one line per NFR line of that Epic, keeping its
@@ -124,7 +130,8 @@ a rule below requires content.
   a number and its unit.
 
   In these three sections, each interface, owning module, or `<module>` named is a `###`
-  of `Components and interfaces`.
+  of `Components and interfaces`, or an existing module the feature leaves unchanged, named
+  by its file path.
 - **`Threat model`** — with `security` in `{{disciplines}}`, the STRIDE form of the
   `Threat model` section of `${CLAUDE_PLUGIN_ROOT}/skills/plan-work/SKILL.md`, with a
   `Mitigating handoff` column naming a `Work plan` handoff in place of `Mitigating phase`.
@@ -132,8 +139,8 @@ a rule below requires content.
 - **`Rollout and rollback`** — the rollout as numbered steps, each naming the rollback step
   that undoes it. A rollout step with no rollback step fails.
 - **`Observability`** — how the feature's failures are seen: logs, metrics, or alerts.
-- **`Test strategy`** — which levels (unit, integration, system, acceptance) cover which
-  risks, and the coverage target with what it counts.
+- **`Test strategy`** — in the form of the `Test strategy` table and coverage-target line
+  of `${CLAUDE_PLUGIN_ROOT}/skills/plan-work/SKILL.md`.
 - **`Drawbacks`** — why the feature should not be built.
 - **`Risks`** — passes criterion 3 of `${CLAUDE_PLUGIN_ROOT}/gates/planning-exit.md`.
 - **`Work plan`** — the handoffs, per the rules below.
@@ -171,7 +178,8 @@ Estimated changed lines: <n>
 - The handoff fits `plan-work`'s handoff limit, in its Step 1, and its phase limit, in its
   **Size** section, read from `${CLAUDE_PLUGIN_ROOT}/skills/plan-work/SKILL.md` so there is
   one number to change. The phase limit applies to the sum of the handoff's tickets' phases,
-  since a handoff is one `plan-work` run.
+  since a handoff is one `plan-work` run. Over a limit, the handoff is split here, where the
+  design is approved, so `plan-work` never has to propose the split.
 - `Estimated changed lines:` is at most `{{pr_review_limit_lines}}`. Under `none` the line
   is omitted and no limit applies.
 
@@ -179,12 +187,22 @@ Estimated changed lines: <n>
 
 One ADR per `- Costly to reverse:` line, in MADR 4.0 form, at
 `{{adr_dir}}/NNNN-<title>.md`. `<title>` is the choice in lowercase kebab-case, as MADR
-names its files. `NNNN` is four digits, the next number unused under `{{adr_dir}}` on
-`origin/{{parent_branch_default}}` and in the working tree — one above the highest in
-either, as adr-tools numbers from the highest file present — and a design's own ADRs take
-consecutive numbers in `## Proposal` order. `origin/{{parent_branch_default}}` is read
-after `git fetch`. Criterion 2 fails a design whose ADR shares its number with any other
-file under `{{adr_dir}}`, on its branch or on `origin/{{parent_branch_default}}`.
+names its files; `NNNN` is four digits.
+
+- **Numbering, when the design's ADRs are written:** they take consecutive numbers in
+  `## Proposal` order, starting one above the highest number under `{{adr_dir}}` on
+  `origin/{{parent_branch_default}}`, read after `git fetch`, and in the working tree
+  outside this design — as adr-tools numbers from the highest file present. Rework that
+  adds or removes a `- Costly to reverse:` line renumbers the design's ADRs the same way;
+  none is on `origin/{{parent_branch_default}}` yet, so no number is reused.
+- **What criterion 2 checks:** each of the design's ADRs exists at the path its line names,
+  their numbers are consecutive in `## Proposal` order, and none shares its number with
+  another file under `{{adr_dir}}` on the design's branch or on
+  `origin/{{parent_branch_default}}`. Two designs in flight on different branches can take
+  the same numbers, as with adr-tools; criterion 2 is checked again against
+  `origin/{{parent_branch_default}}` before the design's branch merges.
+- **Superseding is out of scope:** a design whose choice would reverse an `accepted` ADR
+  fails criterion 2, since superseding one needs its own review and approval.
 
 ```markdown
 ---
@@ -200,9 +218,13 @@ decision-makers: <tech lead>
 ## Considered Options
 
 ## Decision Outcome
+
+### Consequences
 ```
 
 - `## Considered Options` lists at least two options.
+- `### Consequences` lists the choice's good and bad consequences, as rule book R11
+  requires; MADR makes it optional, this gate does not.
 - `status` reads `proposed` until the design is decided, then `accepted` once the design is
   approved, or `rejected` once it is rejected. `date` is when the decision was last
   updated, as MADR defines it, so it changes with `status`.
@@ -217,9 +239,9 @@ approves, `{{roles.qa}}` approves `## Test strategy` and `{{roles.product_owner}
 rework on the section they reject, not a decision; only the tech lead rejects a design.
 The tech lead's answers are those of `plan-project` Step 4: approve, reject, rework, or
 hold. An approval is given in the session and is written down only in `## Decision`, so a
-session that ends first asks again. An edit to the design after its cold review re-runs
-the review; an edit to an approved section voids that approval and goes back to its
-approver, as a new commit dismisses a stale pull-request approval.
+session that ends first asks again. An edit to the design after a review re-runs that
+review, the cold one and step 8's alike; an edit to an approved section voids that approval
+and goes back to its approver, as a new commit dismisses a stale pull-request approval.
 
 Each approver's name written below is the handle `roles` holds, or, for a role `roles`
 leaves out, the git `user.name` of the person running the session — asked for when unset —
