@@ -123,6 +123,8 @@ Gates:
 - `exceptions.md` — the format of a project's rule-book exceptions register.
 - `planning-exit.md` — the rule book's Phase 1 gate: no implementation before the brief
   is approved.
+- `design-exit.md` — the rule book's Phase 3 gate at feature scale: the design doc's
+  sections, its ADRs, and who approves it.
 - `release-readiness.md` — the rule book's Phase 5 gate a version must pass to release.
 - `release.md` — the rule book's Phase 6 gate: tag, staged rollout, and rollback.
 

@@ -119,9 +119,10 @@ repository, outside `.git`, of the same characters, and not gitignored, since th
 committed. Default `none`, under which `retire-system` stops and names the key.
 
 `design_dir` and `adr_dir` serve rule book Phase 3 and R11: where a feature's design doc
-and its decision records are committed. Each follows `incident_reviews_dir`'s rule — a
-relative path inside the repository, outside `.git`, of the same characters, and not
-gitignored, since both are committed. Each defaults to `none`.
+and its decision records are committed, in the form `gates/design-exit.md` defines. Each
+follows `incident_reviews_dir`'s rule — a relative path inside the repository, outside
+`.git`, of the same characters, and not gitignored, since both are committed. Each
+defaults to `none`, under which the gate fails as it states.
 
 `secret_scan_command` and `sast_command` serve rule book R12 and Appendix B1's scans. Each
 writes SARIF 2.1.0 to standard output, redacted, with inline suppression comments ignored;
