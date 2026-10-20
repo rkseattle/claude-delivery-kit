@@ -79,6 +79,7 @@ flowchart LR
 - Outputs: a 200 once the event is recorded and its job enqueued.
 - Errors: a missing, invalid, or stale signature returns a 400 and records nothing.
 - Versioning: the endpoint pins the Stripe API version in the dashboard; a new version is a new endpoint secret.
+- Layer: presentation
 
 ### StripeEvent (new, `app/models/stripe_event.rb`)
 
@@ -87,6 +88,7 @@ flowchart LR
 - Outputs: the stored row, read by `StripeEventJob`.
 - Errors: a duplicate event ID violates the unique index; the controller treats that as already recorded and returns a 200.
 - Versioning: the payload is stored as JSON, so new fields need no migration.
+- Layer: data access
 
 ### StripeEventJob (new, `app/jobs/stripe_event_job.rb`)
 
@@ -95,6 +97,7 @@ flowchart LR
 - Outputs: the order's payment state updated.
 - Errors: an event naming an unknown order is logged and left unapplied; the nightly reconciliation catches it.
 - Versioning: unknown event types are ignored.
+- Layer: domain logic
 
 ## Likely changes
 

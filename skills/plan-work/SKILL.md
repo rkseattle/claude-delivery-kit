@@ -190,6 +190,7 @@ flowchart LR
 - Outputs: <what it returns or emits>
 - Errors: <each failure, and how a caller sees it>
 - Versioning: <how the interface changes without breaking its callers>
+- Layer: <presentation, domain logic, data access, or integration>
 
 ## Likely changes
 
@@ -246,21 +247,22 @@ introduces does not build, and the claim is then false.
 ## Ticket gaps
 ````
 
-The five sections from `Components and interfaces` to `NFR coverage` carry rule book Phase
-3 steps 1–3, 5 and 7 and its NFR exit criterion. `Components and interfaces` opens with a
+The five sections from `Components and interfaces` to `NFR coverage` carry rule book Phase 3
+steps 1–5 and 7 and its NFR exit criterion. `Components and interfaces` opens with a
 flowchart of every module the plan changes, or an NFR row relies on, and what each depends
-on, any new package included, then gives each module all five fields. Each `Likely changes`
-entry names one interface; a decision spread across two is not hidden. `Data ownership`
-names one owning module per store the plan touches. With `data-ml` in `{{disciplines}}`, it
-takes the `data-ml` form, one row per store or dataset the plan touches: each dataset names
-who owns its schema and where it, its features and its models are versioned beside the code
-(rule book Appendix B2), and a store holding none reads `—` there. `Test strategy` names
-the risks each level covers, or `none` and a reason in that level's row, and a coverage
-target saying what it counts. `NFR coverage` has one row per ticket and `NFR<n>` pair,
-across the covering tickets and their parent Epic, and each row traces to a module in
-`Components and interfaces` and the mechanism in it that meets the threshold. A parent-Epic
-NFR this branch does not affect reads `untouched — <reason>` instead. The AC table says
-which phase meets a threshold; this one says which design element does.
+on, any new package included, then gives each module all six fields, a module spanning two
+layers split in two. Each `Likely changes` entry names one interface; a decision spread
+across two is not hidden. `Data ownership` names one owning module per store the plan
+touches. With `data-ml` in `{{disciplines}}`, it takes the `data-ml` form, one row per store
+or dataset the plan touches: each dataset names who owns its schema and where it, its
+features and its models are versioned beside the code (rule book Appendix B2), and a store
+holding none reads `—` there. `Test strategy` names the risks each level covers, or `none`
+and a reason in that level's row, and a coverage target saying what it counts. `NFR
+coverage` has one row per ticket and `NFR<n>` pair, across the covering tickets and their
+parent Epic, and each row traces to a module in `Components and interfaces` and the
+mechanism in it that meets the threshold. A parent-Epic NFR this branch does not affect
+reads `untouched — <reason>` instead. The AC table says which phase meets a threshold; this
+one says which design element does.
 
 **Any of these five sections with nothing to list holds `none` and a one-line reason** —
 `none — no data store is touched` — never an empty heading, which reads the same as a
@@ -397,8 +399,9 @@ item below, either fix it or satisfy yourself it holds:
 7. **Every NFR in the covering tickets and their parent Epic** — has an `NFR coverage` row
    naming a module from `Components and interfaces`, or for an Epic NFR this branch does
    not affect, `untouched — <reason>`.
-8. **All five design sections are present** — each filled, or `none — <reason>`; with
-   `data-ml`, every dataset row names its schema owner and version location.
+8. **All five design sections are present** — each filled, or `none — <reason>`; every
+   module has a `Layer` line naming one layer; with `data-ml`, every dataset row names its
+   schema owner and version location.
 9. **`Threat model` matches `{{disciplines}}`** — present with six rated rows per qualifying
    component and a phase on every `High` when it contains `security`, absent when it does not.
 10. **The phases fit `{{pr_review_limit_lines}}`** — or the plan proposes the split.

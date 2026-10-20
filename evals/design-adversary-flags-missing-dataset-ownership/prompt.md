@@ -73,6 +73,7 @@ flowchart LR
 - Outputs: one Parquet snapshot per run.
 - Errors: an empty window fails the run and promotes nothing.
 - Versioning: the snapshot schema is the column list in `jobs/snapshot.py`.
+- Layer: data access
 
 ### TrainJob (new, `jobs/train.py`)
 
@@ -81,6 +82,7 @@ flowchart LR
 - Outputs: a model in `ModelStore`, promoted or not.
 - Errors: recall below 0.80 keeps the promoted model and logs the score.
 - Versioning: each model is stored under its training date.
+- Layer: domain logic
 
 ## Likely changes
 

@@ -75,6 +75,7 @@ flowchart LR
 - Outputs: a map of path to blob sha.
 - Errors: a GitHub API error raises `SyncError` to the calling push or pull.
 - Versioning: a new internal class; keyword arguments for later options.
+- Layer: integration
 
 ### GithubPush (new, `app/sync/github_push.rb`)
 
@@ -83,6 +84,7 @@ flowchart LR
 - Outputs: the new blob sha, recorded in `sync_shas` through `GithubTree`.
 - Errors: a network failure queues the edit locally; an API error raises `SyncError`.
 - Versioning: a new internal class.
+- Layer: integration
 
 ### GithubPull (new, `app/sync/github_pull.rb`)
 
@@ -91,6 +93,7 @@ flowchart LR
 - Outputs: updated notes in the app.
 - Errors: an API error raises `SyncError`; the pull runs again on next focus.
 - Versioning: a new internal class.
+- Layer: integration
 
 ## Likely changes
 

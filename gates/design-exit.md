@@ -111,10 +111,9 @@ a rule below requires content.
   component-level diagram in its own `flowchart` block, on which every module of that
   container appears with an edge to each module it depends on — rule book Phase 3 step 1.
   Then one `###` per module, each carrying the `Responsibility`, `Inputs`, `Outputs`,
-  `Errors`, and `Versioning` lines in the form of the `Components and interfaces` template
-  of `${CLAUDE_PLUGIN_ROOT}/skills/plan-work/SKILL.md`, and one more line, which a plan's modules do not carry:
-  `- Layer: <presentation, domain logic, data access, or integration>` — rule book Phase 3
-  step 4; a module spanning two layers is two modules.
+  `Errors`, `Versioning`, and `Layer` lines in the form of the `Components and interfaces`
+  template of `${CLAUDE_PLUGIN_ROOT}/skills/plan-work/SKILL.md`; `Layer` is rule book
+  Phase 3 step 4, and a module spanning two layers is two modules.
 - **`Likely changes`** and **`Data model and ownership`** — in the form of that template's
   `Likely changes` list and `Data ownership` table, one row per store the feature touches.
 - **`Non-functional requirements`** — each line

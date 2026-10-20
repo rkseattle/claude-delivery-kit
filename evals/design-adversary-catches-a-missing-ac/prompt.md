@@ -69,6 +69,7 @@ flowchart LR
 - Outputs: an ordered, lazily enumerated relation of deliveries.
 - Errors: none of its own; a database error propagates to the controller.
 - Versioning: a new query object with one caller; keyword arguments for later filters.
+- Layer: data access
 
 ### DeliveryExport (new, `app/exports/delivery_export.rb`)
 
@@ -77,6 +78,7 @@ flowchart LR
 - Outputs: an enumerator of CSV lines.
 - Errors: a failure mid-stream ends the response; the client sees a truncated download.
 - Versioning: column order is the contract; a new column is appended, never inserted.
+- Layer: presentation
 
 ### DeliveriesController#export (`app/controllers/deliveries_controller.rb`)
 
@@ -85,6 +87,7 @@ flowchart LR
 - Outputs: a streamed `text/csv` response with `Content-Disposition: attachment`.
 - Errors: unauthenticated requests get the controller's existing 401.
 - Versioning: a new route; no existing route changes.
+- Layer: presentation
 
 ## Likely changes
 

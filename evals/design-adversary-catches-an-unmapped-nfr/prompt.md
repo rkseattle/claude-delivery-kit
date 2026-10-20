@@ -75,6 +75,7 @@ flowchart LR
 - Errors: raises `InvalidCursor` on a cursor that does not decode.
 - Versioning: the cursor is opaque to clients, so its encoding can change; keyword
   arguments for later filters.
+- Layer: data access
 
 ### Api::DeliveriesController#index (`app/controllers/api/deliveries_controller.rb`)
 
@@ -84,6 +85,7 @@ flowchart LR
 - Errors: `InvalidCursor` becomes a 400; a `limit` above 100 is clamped to 100.
 - Versioning: breaking for clients that read the whole history in one response; the API
   changelog announces it, and those clients follow `next_cursor` to read the rest.
+- Layer: presentation
 
 ## Likely changes
 
