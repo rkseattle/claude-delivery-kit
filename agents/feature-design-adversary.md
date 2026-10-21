@@ -41,9 +41,10 @@ it is allowed.
    systems that solve the design's whole problem, to compare its `Survey`, `Options`, and
    `Proposal` against. This is your survey, not a check of theirs.
 7. Then read the code, the git history, and the Jira keys the design cites, verifying every
-   claim `## Current state` makes. Run `git fetch origin {{parent_branch_default}}` before
-   checking ADR numbers against it; if the fetch fails, only the parent-branch half of that
-   check is UNVERIFIABLE, and the rest still runs.
+   claim `## Current state` makes. Run `git fetch origin {{parent_branch_default}}`, then
+   `python3 "${CLAUDE_PLUGIN_ROOT}/gates/scripts/adr_numbers.py" --config
+   "${CLAUDE_PROJECT_DIR}/.claude/project.json" --against origin/{{parent_branch_default}}`:
+   exit 1 is a shared number, and a failed fetch or exit 2 makes that check UNVERIFIABLE.
 8. Only then judge.
 
 ## Approval state
@@ -63,9 +64,10 @@ the gate gives only after this review.
   with an existing feature the section does not mention is a finding: grep for it.
 - **Survey and options.** Whether the systems named are real and solve the whole problem,
   not one component; whether each option's reason to win or lose holds against yours.
-- **ADRs.** Each `- Costly to reverse:` path exists, passes the gate's ADR rules, and its
-  number collides with no record on the branch or on the fetched parent. A choice in
-  `Proposal` that is costly to reverse and has no line is a finding.
+- **ADRs.** Each `- Costly to reverse:` path exists and passes the gate's ADR rules. The
+  script settles committed numbers; by hand, check only what it cannot see — an ADR not yet
+  committed, and numbers consecutive in `## Proposal` order. A choice in `Proposal` that is
+  costly to reverse and has no line is a finding.
 - **Rollout and rollback.** Each numbered rollout step names the step that undoes it, and
   that step would actually undo it.
 - **Work plan.** Each handoff against the limits read in Procedure step 4, the tickets in an
