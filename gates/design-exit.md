@@ -122,10 +122,10 @@ a rule below requires content.
   existing one keeps both, in `plan-work`'s `— existing` form.
 - **`Likely changes`** — in the form of that template's `Likely changes` list.
 - **`Data model and ownership`** — first the data model, rule book Phase 3 step 5: for each
-  entity or store the feature adds or changes, its fields, keys, and relations to other
-  entities. Then the ownership table in the form of that template's `Data ownership`
-  table, or its `data-ml` form with `data-ml` in `{{disciplines}}`, one row per store the
-  feature touches. With no store touched, the section holds `none — <reason>`.
+  entity, store, or dataset the feature adds or changes, its fields, keys, and relations to
+  other entities. Then a `Data ownership` table under that template's rule for it, its
+  `data-ml` form, filled cells, and `none — <reason>` included, read for the feature in
+  place of the plan.
 - **`Non-functional requirements`** — each line
   `- NFR<n>: <threshold> — <module>: <mechanism>`, with `NFR<n>` unique in the doc. A
   design with an `Epic:` line carries one line per NFR line of that Epic, keeping its
