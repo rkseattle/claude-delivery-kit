@@ -28,7 +28,8 @@ skills/                one directory per skill; the README lists them
 agents/                the five reviewers; the README lists them
 gates/                 the universal halves of the gates, listed in the README;
                        scripts/sarif_gate.py builds the scanners' git inputs and reads
-                       their reports into the gates' verdicts; scripts/project_rules.py
+                       their reports into the gates' verdicts; scripts/adr_numbers.py
+                       fails decision records sharing a number; scripts/project_rules.py
                        holds the project.json rules and self-test helpers the release,
                        review, incident, maintenance, and retirement scripts share;
                        scripts/_vendor holds PyYAML, which the maintenance check reads

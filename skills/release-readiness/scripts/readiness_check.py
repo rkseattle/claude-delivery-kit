@@ -67,6 +67,7 @@ from lint_draft import NFR_SECTION, VERIFY_TAG  # noqa: E402  what write-tickets
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)),
                                 "..", "..", "..", "gates", "scripts"))
 from project_rules import (BARE_FRAGMENT, DECIMAL, PLACEHOLDER, REGISTER_COLUMNS,  # noqa: E402
+                           isolated_git_environment, process_state, run_git,
                            check_command, check_repo_path, complete_register_row,
                            is_register_header, markdown_tables, markdown_tokens, words,
                            fence_split, is_unset, json_number,
@@ -446,11 +447,7 @@ def sensitive_paths(config_path, scope_range):
     root = os.path.dirname(os.path.dirname(os.path.abspath(config_path)))
 
     def git(*arguments):
-        run = subprocess.run(["git", "-c", "core.quotePath=false", *arguments], cwd=root,
-                             capture_output=True, text=True, check=False)
-        if run.returncode != 0:
-            raise ValueError(f"git {arguments[0]} failed: {run.stderr.strip()}")
-        return run.stdout
+        return run_git(root, "-c", "core.quotePath=false", *arguments)
 
     if ".." in scope_range:
         revisions = [scope_range]
@@ -1085,6 +1082,13 @@ def discipline_cases(directory, summary_file):
 
 
 def sensitive_cases(directory):
+    """sensitive_paths against a real repository, its own git calls and the fixture's alike
+    deaf to an inherited GIT_DIR, GIT_INDEX_FILE or config."""
+    with process_state(isolated_git_environment()):
+        return sensitive_repository_cases(directory)
+
+
+def sensitive_repository_cases(directory):
     """sensitive_paths against a real repository: one commit per change, tagged between."""
     failures = 0
     for pattern, expected in [("*.pem", [":(glob)**/*.pem", ":(glob)**/*.pem/**"]),

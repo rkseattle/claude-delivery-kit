@@ -67,13 +67,14 @@ a rewrite against a concern their plan never had.
 - **Test strategy.** A plan saying "add tests" without separating what the suite covers
   from what only out-of-band verification reaches is claiming coverage it will not have.
 - **Design sections.** Each is a MAJOR cited against its plan section, exempt like the
-  survey from the code-citation rule: an interface entry with no `Errors` or no `Versioning`
-  line; a `Likely changes` entry naming no interface; an `NFR coverage` row naming no module
-  in `Components and interfaces`, unless an Epic NFR's row reads `untouched — <reason>`; a
-  new external dependency missing from the flowchart; with `security` in `disciplines`, no
-  `Threat model`, or a qualifying component short of six STRIDE rows; with `data-ml`, a
-  `Data ownership` table, not `none — <reason>`, lacking a `Schema owner` or `Version
-  location` column, or a dataset row empty in one; a store row's `—` is not empty.
+  survey from the code-citation rule: an interface entry lacking any of its six lines, or
+  a `Layer` not one of the four layers nor an `— existing` pair; a `Likely changes` entry
+  naming no interface; an `NFR coverage` row naming no module in `Components and
+  interfaces`, unless an Epic NFR's row reads `untouched — <reason>`; a new external
+  dependency missing from the flowchart; with `security` in `disciplines`, no `Threat
+  model`, or a qualifying component short of six STRIDE rows; with `data-ml`, a `Data
+  ownership` table, not `none — <reason>`, lacking a `Schema owner` or `Version location`
+  column, or a dataset row empty in one; a store row's `—` is not empty.
 - **Docs** for user-visible behavior. **Blast radius**: what else in the repo references
   what is being changed?
 - **Scope exclusions.** Grep for other live instances of every root cause the plan fixes
@@ -136,5 +137,4 @@ MAJOR = working but substandard code, or a violation of a stated project rule, n
 MINOR = clarity, polish, and instances worth knowing about.
 
 **Zero BLOCKERs is the expected result for a sound plan.** Say so in one line and stop.
-Finding nothing to block does not mean you reviewed it poorly. Do not manufacture findings
-to seem useful, and do not soften a real BLOCKER to seem agreeable.
+Do not manufacture findings to seem useful, or soften a real BLOCKER to seem agreeable.

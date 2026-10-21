@@ -67,6 +67,7 @@ flowchart LR
 - Inputs: a user ID, from `DeliveryExport`.
 - Outputs: a lazily enumerated relation of deliveries, 1,000 rows per batch.
 - Errors: none of its own; a database error propagates to the controller.
+- Layer: data access
 
 ### DeliveryExport (new, `app/exports/delivery_export.rb`)
 
@@ -74,6 +75,7 @@ flowchart LR
 - Inputs: a user ID, from `DeliveriesController#export`.
 - Outputs: an enumerator of zip chunks.
 - Versioning: column order is the contract; a new column is appended, never inserted.
+- Layer: presentation and data access
 
 ### DeliveriesController#export (`app/controllers/deliveries_controller.rb`)
 

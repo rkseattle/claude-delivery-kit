@@ -82,6 +82,7 @@ flowchart LR
   `attempt` reaches five.
 - Errors: raises `ArgumentError` on an `attempt` below one; each caller increments first.
 - Versioning: keyword arguments, so a new parameter takes a default and no caller changes.
+- Layer: domain logic
 
 ### DeliveryWorker (`app/workers/delivery_worker.rb`)
 
@@ -90,6 +91,7 @@ flowchart LR
 - Outputs: a rescheduled job with a `Backoff` delay, or a dead-letter entry.
 - Errors: 5xx and timeout reschedule; 4xx, or `nil` from `Backoff`, routes to dead-letter.
 - Versioning: job arguments unchanged, so jobs enqueued before the deploy still run.
+- Layer: integration
 
 ### PaymentRetry (`app/services/payment_retry.rb`)
 
@@ -98,6 +100,7 @@ flowchart LR
 - Outputs: unchanged.
 - Errors: unchanged; payments already stop at five attempts, where `Backoff` returns `nil`.
 - Versioning: public interface unchanged.
+- Layer: domain logic
 
 ### DeliveryDetailView (`app/views/deliveries/show.html.erb`)
 
@@ -106,6 +109,7 @@ flowchart LR
 - Outputs: the detail table, now with an attempts row.
 - Errors: none new; `delivery_attempts` defaults to zero and is never nil.
 - Versioning: not an interface other code calls.
+- Layer: presentation
 
 ## Likely changes
 

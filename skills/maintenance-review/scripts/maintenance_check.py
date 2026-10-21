@@ -52,8 +52,9 @@ sys.dont_write_bytecode = True
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)),
                                 "..", "..", "..", "gates", "scripts"))
 from project_rules import (MARKDOWN_VENDOR, YAML_VENDOR, check_command,  # noqa: E402
-                           check_repo_path, foreign_code, is_unset, json_number, parse_date,
-                           positive_int, read_config, report, result_of, single_number,
+                           check_repo_path, foreign_code, is_unset,
+                           isolated_git_environment, json_number, parse_date, positive_int,
+                           process_state, read_config, report, result_of, run_git, single_number,
                            vendored)
 
 RUNBOOK_MAX_AGE = 90
@@ -63,7 +64,7 @@ DEFAULTS = {"on_call": "none", "iteration_days": 14, "debt_share_target": "none"
 TIMESTAMP = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:Z|[+-]\d{2}:\d{2})$")
 # Read-only git, deaf to a global log.showSignature, which would print signature lines
 # before the date, and reading each path literally, so a `*` in a runbook's name is no glob.
-GIT = ["git", "-c", "log.showSignature=false", "--literal-pathspecs"]
+GIT_OPTIONS = ["-c", "log.showSignature=false", "--literal-pathspecs"]
 
 
 def check_on_call(value):
@@ -148,11 +149,8 @@ def stale_alerts(config, pages, today):
 
 
 def git_paths(*arguments):
-    run = subprocess.run([*GIT, *arguments], capture_output=True, text=True, check=False,
-                         env=dict(os.environ, TZ="UTC"))
-    if run.returncode:
-        raise ValueError(f"git {' '.join(arguments)} failed: {run.stderr.strip()}")
-    return [line for line in run.stdout.split("\0" if "-z" in arguments else "\n") if line]
+    output = run_git(None, *GIT_OPTIONS, *arguments, environment=dict(os.environ, TZ="UTC"))
+    return [line for line in output.split("\0" if "-z" in arguments else "\n") if line]
 
 
 def last_commit_dates(directory):
@@ -444,11 +442,7 @@ def runbook_cases():
     fixtures are, holding runbooks at 90 and 91 days, one 91 days old in UTC but 90 in the
     fixture's Tokyo time, one untracked, one staged, one deleted."""
     failures = 0
-    environment = {key: value for key, value in os.environ.items()
-                   if not key.startswith("GIT_")}
-    environment.update(GIT_CONFIG_NOSYSTEM="1", GIT_CONFIG_GLOBAL=os.devnull,
-                       GIT_AUTHOR_NAME="t", GIT_AUTHOR_EMAIL="t@t", GIT_COMMITTER_NAME="t",
-                       GIT_COMMITTER_EMAIL="t@t", TZ="Asia/Tokyo")
+    environment = isolated_git_environment(TZ="Asia/Tokyo")
     with tempfile.TemporaryDirectory() as root:
         def git(*arguments, date=None):
             dated = dict(environment, GIT_AUTHOR_DATE=date, GIT_COMMITTER_DATE=date) \
@@ -473,11 +467,7 @@ def runbook_cases():
         write("draft.md")
         write("staged.md")
         git("add", "--", "runbooks/staged.md")
-        here, inherited = os.getcwd(), dict(os.environ)
-        os.chdir(root)
-        os.environ.clear()
-        os.environ.update(environment)
-        try:
+        with process_state(environment, root):
             failures += report("runbooks", "91 days and uncommitted are listed; 90 and deleted "
                                "are not",
                                result_of(stale_runbooks, {"runbooks_dir": "runbooks"},
@@ -529,10 +519,6 @@ def runbook_cases():
             failures += report("runbooks", "a shallow clone is refused",
                                result_of(stale_runbooks, {"runbooks_dir": "runbooks"},
                                          "2026-10-17"), "ValueError")
-        finally:
-            os.chdir(here)
-            os.environ.clear()
-            os.environ.update(inherited)
     return failures
 
 
