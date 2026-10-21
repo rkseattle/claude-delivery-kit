@@ -113,11 +113,12 @@ whether each is a live defect or benign in its context and why.
   that explicitly and state what evidence would settle it. Do not invent a plausible
   mechanism.
 
-Any environmental exception is narrow, and only the project defines one:
-`${CLAUDE_PROJECT_DIR}/.claude/agent-rules/ci-failure-adversary.md`. Read it before
-accepting any environmental explanation. An exception with its documented mitigation
-already in place is a finding, not an environment problem. If the file does not exist,
-there are no environmental exceptions — say so and treat every failure as a real one.
+Any environmental exception is narrow, and only the project defines one, in
+`${CLAUDE_PROJECT_DIR}/.claude/agent-rules/ci-failure-adversary.md`: read it per
+`${CLAUDE_PLUGIN_ROOT}/gates/agent-rules.md` before accepting any environmental
+explanation. An exception with its documented mitigation already in place is a finding,
+not an environment problem. If the file does not exist, there are no environmental
+exceptions — treat every failure as a real one.
 
 ## Output
 

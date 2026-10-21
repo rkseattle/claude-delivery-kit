@@ -88,8 +88,8 @@ a rewrite against a concern their plan never had.
 
 Before judging completeness, read `disciplines` in
 `${CLAUDE_PROJECT_DIR}/.claude/project.json` (`[]` if absent) and this project's rules in
-`${CLAUDE_PROJECT_DIR}/.claude/agent-rules/design-adversary.md`. No rules file: say so in
-one line and judge against `CLAUDE.md` alone, inventing nothing.
+`${CLAUDE_PROJECT_DIR}/.claude/agent-rules/design-adversary.md`, per
+`${CLAUDE_PLUGIN_ROOT}/gates/agent-rules.md`.
 
 ### Sequencing
 

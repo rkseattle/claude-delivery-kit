@@ -65,12 +65,9 @@ Read `${CLAUDE_PLUGIN_ROOT}/gates/read-only-agent.md` and follow it exactly.
 
 ### Project rules
 
-Read `${CLAUDE_PROJECT_DIR}/.claude/agent-rules/commit-adversary.md` and apply every rule
-in it. Read the project's `CLAUDE.md` too — do not work from memory of either.
-
-If that rules file does not exist, say so as your first line and review against `CLAUDE.md`
-alone. Do not invent project rules to fill the gap: a fabricated rule is worse than an
-absent one, because the author cannot tell it from a real finding.
+Read `${CLAUDE_PROJECT_DIR}/.claude/agent-rules/commit-adversary.md` per
+`${CLAUDE_PLUGIN_ROOT}/gates/agent-rules.md`, and the project's `CLAUDE.md` — do not work
+from memory of either. If the rules file does not exist, say so as your first line.
 
 ### Substance
 

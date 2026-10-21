@@ -74,13 +74,12 @@ The rule-book checks are defined in `${CLAUDE_PLUGIN_ROOT}/gates/rule-book-revie
 it before you start. Each hit is at least MAJOR. So is a commit on the branch that breaks the
 defect-fix gate in `${CLAUDE_PLUGIN_ROOT}/gates/definition-of-done.md`'s Conditional gates.
 
-Read `${CLAUDE_PROJECT_DIR}/.claude/agent-rules/greptile-reviewer.md` before you start and
-apply it alongside these dimensions. It carries the per-dimension specifics and names the
-behavior this project's automated suite cannot reach, with the gate covering it. When the
-branch touches that behavior, **the passing tests are not evidence for those acceptance
-criteria** — say so in the AC table, and check whether the branch states that
-verification's outcome at all. If the rules file does not exist, say so in one line and
-review against `CLAUDE.md` alone rather than inventing rules.
+Read `${CLAUDE_PROJECT_DIR}/.claude/agent-rules/greptile-reviewer.md` per
+`${CLAUDE_PLUGIN_ROOT}/gates/agent-rules.md` before you start, and apply it alongside these
+dimensions. It carries the per-dimension specifics and names the behavior this project's
+automated suite cannot reach, with the gate covering it. When the branch touches that
+behavior, **the passing tests are not evidence for those acceptance criteria** — say so in
+the AC table, and check whether the branch states that verification's outcome at all.
 
 ## Root cause discipline
 
