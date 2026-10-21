@@ -41,7 +41,7 @@ import urllib.parse
 
 sys.dont_write_bytecode = True
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from project_rules import report  # noqa: E402  the kit's shared self-test line
+from project_rules import isolated_git_environment, report, run_git  # noqa: E402
 
 HIGH_SEVERITY = 7.0  # GitHub code scanning: High is 7.0-8.9, Critical 9.0 and above
 
@@ -241,13 +241,7 @@ GIT_ENVIRONMENT = None  # the self-test's isolated environment; None is the call
 
 def git(*arguments, cwd=None):
     """git's stdout as bytes, or ValueError naming the subcommand that failed."""
-    completed = subprocess.run(["git", *arguments], cwd=cwd, capture_output=True, check=False,
-                               env=GIT_ENVIRONMENT)
-    if completed.returncode != 0:
-        message = completed.stderr.decode("utf8", "replace").strip().splitlines()
-        command = next((a for a in arguments if not a.startswith("-")), arguments[0])
-        raise ValueError(f"git {command} failed: {message[-1] if message else completed.returncode}")
-    return completed.stdout
+    return run_git(cwd, *arguments, environment=GIT_ENVIRONMENT, text=False)
 
 
 def added_lines(patch):
@@ -476,9 +470,7 @@ def git_cases():
     global GIT_ENVIRONMENT
     # An inherited GIT_DIR, GIT_INDEX_FILE or GIT_CONFIG_PARAMETERS would aim the fixture at
     # another repository or configuration, so none survives.
-    GIT_ENVIRONMENT = {key: value for key, value in os.environ.items() if not key.startswith("GIT_")}
-    GIT_ENVIRONMENT.update(GIT_CONFIG_NOSYSTEM="1", GIT_CONFIG_GLOBAL=os.devnull, GIT_AUTHOR_NAME="t",
-                           GIT_AUTHOR_EMAIL="t@t", GIT_COMMITTER_NAME="t", GIT_COMMITTER_EMAIL="t@t")
+    GIT_ENVIRONMENT = isolated_git_environment()
     try:
         with tempfile.TemporaryDirectory() as scratch:
             repo = os.path.join(scratch, "repo")

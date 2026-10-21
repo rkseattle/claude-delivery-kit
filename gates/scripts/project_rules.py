@@ -5,20 +5,22 @@ the README checker, and YAML_VENDOR, the PyYAML the maintenance check and
 scripts/ci/actions-pinned.sh load.
 
 Imported by skills/release/scripts/halt_watch.py,
-skills/release-readiness/scripts/readiness_check.py,
-skills/ci-green/scripts/review_gate.py, skills/incident-review/scripts/incident_check.py,
+skills/release-readiness/scripts/readiness_check.py, skills/ci-green/scripts/review_gate.py,
+skills/incident-review/scripts/incident_check.py,
 skills/maintenance-review/scripts/maintenance_check.py,
 skills/retire-system/scripts/retire_check.py, gates/scripts/sarif_gate.py,
-gates/scripts/adr_numbers.py, and, for the
-discipline and tracked-file rules, skills/write-tickets/scripts/lint_draft.py, and, for
-the YAML vendor alone, scripts/ci/actions-pinned.sh, and, for the Markdown table, register
-and tracked-file rules, scripts/ci/rule-book-map.sh, so no two of them can disagree on
-what an unset key, a placeholder, a discipline, a date, a printed number, a branch slug, a
-code fence, a Markdown field's value, a Markdown table, a register header, a complete
-exceptions-register row, or a tracked path is. Each importer's self-test covers the rules
-it uses; this module has no entry point of its own.
+gates/scripts/adr_numbers.py, and, for the discipline, tracked-file and self-test git rules,
+skills/write-tickets/scripts/lint_draft.py, and, for the YAML vendor alone,
+scripts/ci/actions-pinned.sh, and, for the Markdown table, register and tracked-file rules,
+scripts/ci/rule-book-map.sh, so no two of them can disagree on what an unset key, a
+placeholder, a discipline, a date, a printed number, a branch slug, a code fence, a Markdown
+field's value, a Markdown table, a register header, a complete exceptions-register row, a
+tracked path, or a git call and its failure is, and so no self-test's scratch repository
+inherits the caller's git. Each importer's self-test covers the rules it uses; this module
+has no entry point of its own.
 """
 import ast
+import contextlib
 import datetime
 import json
 import math
@@ -26,6 +28,7 @@ import os
 import re
 import subprocess
 import sys
+from unittest import mock
 
 GATES_SCRIPTS = os.path.dirname(os.path.abspath(__file__))
 # markdown-it-py, vendored beside the README checker so that skill can be copied alone; PyYAML,
@@ -121,30 +124,64 @@ def parse_date(value):
         raise ValueError(f"{value!r} is not a calendar date")
 
 
-def isolated_git_environment():
+def isolated_git_environment(**overrides):
     """The caller's environment for a self-test's scratch repository: no inherited GIT_DIR,
     GIT_INDEX_FILE or GIT_CONFIG_PARAMETERS to aim it at another repository or
-    configuration, no user or system config, and a fixed identity."""
+    configuration, no user or system config, a fixed identity, then overrides."""
     environment = {key: value for key, value in os.environ.items() if not key.startswith("GIT_")}
     environment.update(GIT_CONFIG_NOSYSTEM="1", GIT_CONFIG_GLOBAL=os.devnull, GIT_AUTHOR_NAME="t",
                        GIT_AUTHOR_EMAIL="t@t", GIT_COMMITTER_NAME="t", GIT_COMMITTER_EMAIL="t@t")
+    environment.update(overrides)
     return environment
 
 
-def git_text(root, *arguments, environment=None):
-    """git's stdout as text, run in root, or ValueError naming the subcommand that failed;
-    environment None is the caller's."""
-    command = next((a for a in arguments if not a.startswith("-")), arguments[0])
+@contextlib.contextmanager
+def process_state(environment, directory=None):
+    """Run the block with os.environ replaced by environment and, given a directory, from
+    it, for code under test that calls git with the caller's environment; both are put back
+    however the block ends."""
+    here = os.getcwd()
+    with mock.patch.dict(os.environ, environment, clear=True):
+        try:
+            if directory is not None:
+                os.chdir(directory)
+            yield
+        finally:
+            os.chdir(here)
+
+
+# git's global options whose value may follow as a separate word.
+GIT_VALUE_OPTIONS = ("-c", "-C", "--git-dir", "--work-tree", "--namespace", "--config-env",
+                     "--attr-source")
+
+
+def git_subcommand(arguments):
+    """The subcommand in a git argument list: the first word that is neither an option nor
+    the separate value of one; None when there is none."""
+    words = iter(arguments)
+    for word in words:
+        if word in GIT_VALUE_OPTIONS:
+            next(words, None)
+        elif not word.startswith("-"):
+            return word
+    return None
+
+
+def run_git(root, *arguments, environment=None, text=True):
+    """git's stdout, run in root, as text or with text False as bytes, or ValueError naming
+    the subcommand that failed and git's last line of stderr; environment None is the
+    caller's."""
+    command = " ".join(filter(None, ("git", git_subcommand(arguments))))
     try:
         completed = subprocess.run(["git", *arguments], cwd=root, capture_output=True,
-                                   text=True, check=False, env=environment)
+                                   check=False, env=environment)
     except OSError as error:
-        raise ValueError(f"git {command} failed: {error.strerror}")
+        raise ValueError(f"{command} failed: {error.strerror}")
     if completed.returncode != 0:
-        message = completed.stderr.strip().splitlines()
-        raise ValueError(f"git {command} failed: "
+        message = os.fsdecode(completed.stderr).strip().splitlines()
+        raise ValueError(f"{command} failed: "
                          f"{message[-1] if message else completed.returncode}")
-    return completed.stdout
+    return completed.stdout.decode("utf8", "surrogateescape") if text else completed.stdout
 
 
 def tracked_files(root):
@@ -154,15 +191,10 @@ def tracked_files(root):
     inside a submodule is not listed; the submodule's own path is. Raises ValueError where
     git cannot list root."""
     try:
-        listing = subprocess.run(["git", "-C", root, "ls-files", "-z"], stdout=subprocess.PIPE,
-                                 stderr=subprocess.PIPE)
-    except OSError as error:
-        raise ValueError(f"cannot list the tracked files under {root}: {error.strerror}")
-    if listing.returncode != 0:
-        why = os.fsdecode(listing.stderr).strip().splitlines()
-        raise ValueError(f"cannot list the tracked files under {root}"
-                         + (f": {why[0]}" if why else ""))
-    return {os.fsdecode(name) for name in listing.stdout.split(b"\0") if name}
+        listing = run_git(None, "-C", root, "ls-files", "-z", text=False)
+    except ValueError as error:
+        raise ValueError(f"cannot list the tracked files under {root}: {error}")
+    return {os.fsdecode(name) for name in listing.split(b"\0") if name}
 
 
 def tracked_path_matcher(root):

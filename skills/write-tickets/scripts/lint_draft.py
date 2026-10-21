@@ -34,8 +34,9 @@ from mcp_atlassian_adf import markdown_to_adf  # noqa: E402  on the path jira_ro
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)),
                                 "..", "..", "..", "gates", "scripts"))
 # The discipline rules plan-work and the release scripts apply.
-from project_rules import (DISCIPLINES, is_unset, markdown_value, named_disciplines,  # noqa: E402
-                           read_config, tracked_path_matcher, words)
+from project_rules import (DISCIPLINES, is_unset, isolated_git_environment,  # noqa: E402
+                           markdown_value, named_disciplines, process_state, read_config,
+                           tracked_path_matcher, words)
 
 SUMMARY_MAX = 100
 
@@ -679,111 +680,103 @@ def self_test():
     repo = tempfile.mkdtemp()
     # An inherited GIT_DIR, GIT_INDEX_FILE or config would aim every git call, the lint's own
     # reads included, at another repository, so none survives while the cases run.
-    saved = dict(os.environ)
-    for key in [k for k in os.environ if k.startswith("GIT_")]:
-        del os.environ[key]
-    os.environ.update(GIT_CONFIG_NOSYSTEM="1", GIT_CONFIG_GLOBAL=os.devnull)
     try:
-        # Every path the fixtures cite and expect to exist. A fixture citing anything else
-        # is asserting that the path is absent — `tests/missing/dir/hash.test.ts` in
-        # clauses.md and `tests/perf/coldstart.test.ts` in nfr.md are deliberately not
-        # here, and clean.md must cite only these.
-        for f in ("src/auth/routes.ts", "src/auth/config.ts", "src/auth/tokens.ts",
-                  "tests/auth/button.test.ts", "tests/auth/empty.test.ts",
-                  "tests/auth/export.test.ts", "tests/auth/limit.test.ts",
-                  "tests/auth/login.test.ts", "tests/auth/refresh.test.ts",
-                  "tests/auth/signin.test.ts", "tests/auth/tokens-table.test.ts",
-                  "tests/contacts/import.test.ts"):
-            os.makedirs(os.path.join(repo, os.path.dirname(f)), exist_ok=True)
-            open(os.path.join(repo, f), "w").close()
-        subprocess.run(["git", "-C", repo, "init", "-q"], check=True)
-        subprocess.run(["git", "-C", repo, "add", "-A", "--force"], check=True)
-        # On disk but never added: paths.md cites them and expects them absent.
-        for f in ("tests/auth/untracked.test.ts", "src/auth/untracked.ts"):
-            open(os.path.join(repo, f), "w").close()
-        is_tracked = tracked_path_matcher(repo)
-        failed = 0
-        for name in sorted(os.listdir(here)):
-            if name.startswith(".") or os.path.isdir(os.path.join(here, name)):
-                continue  # editor metadata, and readback/ below; any other file is a fixture
-            text = read_text(os.path.join(here, name))
-            disciplines = declared_disciplines(text)
-            if isinstance(disciplines, str):
-                errors, warns, (ok, why) = [], [], (False, disciplines)
-            else:
-                errors, warns = lint(parse(text), disciplines, is_tracked)
-                ok, why = fixture_matches(text, errors + warns)
-            print(f"{'ok  ' if ok else 'FAIL'} {name}: {why}")
-            if not ok:
-                failed += 1
-                print("\n".join("     " + l for l in errors + warns))
-        # Each readback case is a description as `jira_get_issue` returns it for an item in
-        # _draft.md: <!-- expect id=S1 missing=N -->. probe-*.md are captured responses.
-        cases = os.path.join(here, "readback")
-        draft = {i["id"]: i for i in parse(read_text(os.path.join(cases, "_draft.md")))}
-        for name in sorted(n for n in os.listdir(cases) if not n.startswith((".", "_"))):
-            text = read_text(os.path.join(cases, name))
-            want = re.match(r"<!-- expect id=(\S+) missing=(\d+) -->", text)
-            got = readback(draft[want.group(1)], text) if want and want.group(1) in draft else None
-            ok = got is not None and len(got) == int(want.group(2))
-            print(f"{'ok  ' if ok else 'FAIL'} readback/{name}: missing={'?' if got is None else len(got)}")
-            if not ok:
-                failed += 1
-                print("\n".join("     " + l for l in got or []))
-        failed += readback_cli_test(cases, repo)
-        # A --repo git cannot list is unparseable, not a draft whose every path is missing.
-        nogit, ceiling = tempfile.mkdtemp(), os.environ.get("GIT_CEILING_DIRECTORIES")
-        os.environ["GIT_CEILING_DIRECTORIES"] = os.path.dirname(nogit)
-        try:
-            out = io.StringIO()
-            with contextlib.redirect_stdout(out):
-                code = main([os.path.join(here, "clean.md"), "--repo", nogit, "--disciplines", ""])
-            ok = code == 2 and "UNPARSEABLE: cannot list the tracked files" in out.getvalue()
-        finally:
-            shutil.rmtree(nogit)
-            if ceiling is None:
+        with process_state(isolated_git_environment()):
+            # Every path the fixtures cite and expect to exist. A fixture citing anything else
+            # is asserting that the path is absent — `tests/missing/dir/hash.test.ts` in
+            # clauses.md and `tests/perf/coldstart.test.ts` in nfr.md are deliberately not
+            # here, and clean.md must cite only these.
+            for f in ("src/auth/routes.ts", "src/auth/config.ts", "src/auth/tokens.ts",
+                      "tests/auth/button.test.ts", "tests/auth/empty.test.ts",
+                      "tests/auth/export.test.ts", "tests/auth/limit.test.ts",
+                      "tests/auth/login.test.ts", "tests/auth/refresh.test.ts",
+                      "tests/auth/signin.test.ts", "tests/auth/tokens-table.test.ts",
+                      "tests/contacts/import.test.ts"):
+                os.makedirs(os.path.join(repo, os.path.dirname(f)), exist_ok=True)
+                open(os.path.join(repo, f), "w").close()
+            subprocess.run(["git", "-C", repo, "init", "-q"], check=True)
+            subprocess.run(["git", "-C", repo, "add", "-A", "--force"], check=True)
+            # On disk but never added: paths.md cites them and expects them absent.
+            for f in ("tests/auth/untracked.test.ts", "src/auth/untracked.ts"):
+                open(os.path.join(repo, f), "w").close()
+            is_tracked = tracked_path_matcher(repo)
+            failed = 0
+            for name in sorted(os.listdir(here)):
+                if name.startswith(".") or os.path.isdir(os.path.join(here, name)):
+                    continue  # editor metadata, and readback/ below; any other file is a fixture
+                text = read_text(os.path.join(here, name))
+                disciplines = declared_disciplines(text)
+                if isinstance(disciplines, str):
+                    errors, warns, (ok, why) = [], [], (False, disciplines)
+                else:
+                    errors, warns = lint(parse(text), disciplines, is_tracked)
+                    ok, why = fixture_matches(text, errors + warns)
+                print(f"{'ok  ' if ok else 'FAIL'} {name}: {why}")
+                if not ok:
+                    failed += 1
+                    print("\n".join("     " + l for l in errors + warns))
+            # Each readback case is a description as `jira_get_issue` returns it for an item in
+            # _draft.md: <!-- expect id=S1 missing=N -->. probe-*.md are captured responses.
+            cases = os.path.join(here, "readback")
+            draft = {i["id"]: i for i in parse(read_text(os.path.join(cases, "_draft.md")))}
+            for name in sorted(n for n in os.listdir(cases) if not n.startswith((".", "_"))):
+                text = read_text(os.path.join(cases, name))
+                want = re.match(r"<!-- expect id=(\S+) missing=(\d+) -->", text)
+                got = readback(draft[want.group(1)], text) if want and want.group(1) in draft else None
+                ok = got is not None and len(got) == int(want.group(2))
+                print(f"{'ok  ' if ok else 'FAIL'} readback/{name}: missing={'?' if got is None else len(got)}")
+                if not ok:
+                    failed += 1
+                    print("\n".join("     " + l for l in got or []))
+            failed += readback_cli_test(cases, repo)
+            # A --repo git cannot list is unparseable, not a draft whose every path is missing.
+            nogit = tempfile.mkdtemp()
+            os.environ["GIT_CEILING_DIRECTORIES"] = os.path.dirname(nogit)
+            try:
+                out = io.StringIO()
+                with contextlib.redirect_stdout(out):
+                    code = main([os.path.join(here, "clean.md"), "--repo", nogit, "--disciplines", ""])
+                ok = code == 2 and "UNPARSEABLE: cannot list the tracked files" in out.getvalue()
+            finally:
+                shutil.rmtree(nogit)
                 os.environ.pop("GIT_CEILING_DIRECTORIES")
-            else:
-                os.environ["GIT_CEILING_DIRECTORIES"] = ceiling
-        print(f"{'ok  ' if ok else 'FAIL'} cli: a --repo git cannot list exits 2")
-        failed += not ok
-        failed += counts_test()
-        failed += disciplines_test(here, repo, is_tracked)
-        # Code blocks are found as the vendored markdown_to_adf finds them, so the lint sees
-        # exactly the lines Jira will store as code.
-        for case, lines, want in [
-                ("any line starting ``` at column 0 opens a block, as the converter's does",
-                 ["```x`y", "- AC9: code", "```", "- AC1: shown"], ["- AC1: shown"]),
-                ("a line starting ``` closes a block, info string or not",
-                 ["```", "code", "```x", "- AC1: shown"], ["- AC1: shown"]),
-                ("an indented ``` is prose, as the converter reads it",
-                 ["  ```", "- AC1: shown"], ["```", "- AC1: shown"]),
-                ("a tilde fence is prose, as Jira reads it", ["~~~", "- AC1: shown", "~~~"],
-                 ["~~~", "- AC1: shown", "~~~"]),
-                ("a backtick block between tilde lines stays code",
-                 ["~~~", "```", "- AC9: [verify: ci @ example]", "```", "~~~"],
-                 ["~~~", "~~~"])]:
-            got = [line for line, fenced in unfenced(lines) if not fenced]
-            code = [line for block in markdown_to_adf("\n".join(lines))["content"]
-                    if block["type"] == "codeBlock"
-                    for line in block["content"][0]["text"].split("\n") if block["content"]]
-            agrees = code == [line for line, fenced in unfenced(lines)
-                              if fenced and not FENCE.match(line)]
-            ok = got == want and agrees
-            print(f"{'ok  ' if ok else 'FAIL'} fences: {case}"
-                  + ("" if agrees else " — disagrees with markdown_to_adf"))
+            print(f"{'ok  ' if ok else 'FAIL'} cli: a --repo git cannot list exits 2")
             failed += not ok
-        # Pins the pieces of the round trip not vendored to what Jira Cloud returned.
-        for n, (sent, live) in enumerate(PROBES, 1):
-            model = roundtrip(sent)
-            ok = changed_lines(sent, model) == changed_lines(sent, live)
-            print(f"{'ok  ' if ok else 'FAIL'} jira round trip agrees with live probe {n} on every line")
-            failed += not ok
-        return 1 if failed else 0
+            failed += counts_test()
+            failed += disciplines_test(here, repo, is_tracked)
+            # Code blocks are found as the vendored markdown_to_adf finds them, so the lint sees
+            # exactly the lines Jira will store as code.
+            for case, lines, want in [
+                    ("any line starting ``` at column 0 opens a block, as the converter's does",
+                     ["```x`y", "- AC9: code", "```", "- AC1: shown"], ["- AC1: shown"]),
+                    ("a line starting ``` closes a block, info string or not",
+                     ["```", "code", "```x", "- AC1: shown"], ["- AC1: shown"]),
+                    ("an indented ``` is prose, as the converter reads it",
+                     ["  ```", "- AC1: shown"], ["```", "- AC1: shown"]),
+                    ("a tilde fence is prose, as Jira reads it", ["~~~", "- AC1: shown", "~~~"],
+                     ["~~~", "- AC1: shown", "~~~"]),
+                    ("a backtick block between tilde lines stays code",
+                     ["~~~", "```", "- AC9: [verify: ci @ example]", "```", "~~~"],
+                     ["~~~", "~~~"])]:
+                got = [line for line, fenced in unfenced(lines) if not fenced]
+                code = [line for block in markdown_to_adf("\n".join(lines))["content"]
+                        if block["type"] == "codeBlock"
+                        for line in block["content"][0]["text"].split("\n") if block["content"]]
+                agrees = code == [line for line, fenced in unfenced(lines)
+                                  if fenced and not FENCE.match(line)]
+                ok = got == want and agrees
+                print(f"{'ok  ' if ok else 'FAIL'} fences: {case}"
+                      + ("" if agrees else " — disagrees with markdown_to_adf"))
+                failed += not ok
+            # Pins the pieces of the round trip not vendored to what Jira Cloud returned.
+            for n, (sent, live) in enumerate(PROBES, 1):
+                model = roundtrip(sent)
+                ok = changed_lines(sent, model) == changed_lines(sent, live)
+                print(f"{'ok  ' if ok else 'FAIL'} jira round trip agrees with live probe {n} on every line")
+                failed += not ok
+            return 1 if failed else 0
     finally:
         shutil.rmtree(repo)
-        os.environ.clear()
-        os.environ.update(saved)
 
 
 def discipline_list(value):

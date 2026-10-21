@@ -42,6 +42,7 @@ sys.dont_write_bytecode = True
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)),
                                 "..", "..", "..", "gates", "scripts"))
 from project_rules import (check_repo_path, check_slug, error_of, fence_split,  # noqa: E402
+                           isolated_git_environment, process_state,
                            is_unset, parse_date, read_config, report, result_of)
 
 SECTIONS = ("User notice", "Data", "Infrastructure", "Credentials")
@@ -309,7 +310,6 @@ def owner_fallback_cases():
     """git's user.name stands in for an absent role, read from a throwaway global config as
     sarif_gate.py's fixtures isolate git; with neither, the check refuses."""
     failures = 0
-    inherited = dict(os.environ)
     with tempfile.TemporaryDirectory() as directory:
         named = os.path.join(directory, "named.gitconfig")
         with open(named, "w", encoding="utf-8") as handle:
@@ -319,18 +319,9 @@ def owner_fallback_cases():
                 ("a blank role reads git's user.name",
                  {"roles": {"service_owner": "  "}}, named, "Rob K"),
                 ("no role and no git name", {}, os.devnull, "ValueError")]:
-            os.environ.clear()
-            os.environ.update({key: value for key, value in inherited.items()
-                               if not key.startswith("GIT_")},
-                              GIT_CONFIG_NOSYSTEM="1", GIT_CONFIG_GLOBAL=config_file)
-            here = os.getcwd()
-            os.chdir(directory)
-            try:
+            with process_state(isolated_git_environment(GIT_CONFIG_GLOBAL=config_file),
+                               directory):
                 failures += report("owner", name, result_of(service_owner, config), expected)
-            finally:
-                os.chdir(here)
-                os.environ.clear()
-                os.environ.update(inherited)
     return failures
 
 

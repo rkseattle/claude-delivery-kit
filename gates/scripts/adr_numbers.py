@@ -29,7 +29,7 @@ import tempfile
 
 sys.dont_write_bytecode = True
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from project_rules import (check_repo_path, git_text, is_unset,  # noqa: E402
+from project_rules import (check_repo_path, git_subcommand, is_unset, run_git,  # noqa: E402
                            isolated_git_environment, read_config, report)
 
 RECORD = re.compile(r"^(\d+)-[^/]+\.md$")
@@ -37,7 +37,7 @@ GIT_ENVIRONMENT = None  # the self-test's isolated environment; None is the call
 
 
 def git(root, *arguments):
-    return git_text(root, *arguments, environment=GIT_ENVIRONMENT)
+    return run_git(root, *arguments, environment=GIT_ENVIRONMENT)
 
 
 def records(root, ref, adr_dir):
@@ -100,9 +100,30 @@ def check(config, against=None, head_ref="HEAD"):
                                              for number, held in sorted(shared.items())] + skipped
 
 
+def error_message(call):
+    """The ValueError message the call raises, or "" when it returns."""
+    try:
+        call()
+    except ValueError as error:
+        return str(error)
+    return ""
+
+
 def self_test():
     global GIT_ENVIRONMENT
     failures = 0
+    for name, arguments, expected in [
+            ("a bare subcommand", ["log"], "log"),
+            ("past -c and -C and their values", ["-C", ".", "-c", "k.v=1", "log"], "log"),
+            ("past a separated --git-dir value", ["--git-dir", "/x", "log"], "log"),
+            ("past a joined --git-dir value", ["--git-dir=/x", "log"], "log"),
+            ("a trailing -c with no value", ["-c"], None),
+            ("options only", ["--version"], None),
+            ("no arguments", [], None)]:
+        failures += report("git_subcommand", name, git_subcommand(arguments), expected)
+    GIT_ENVIRONMENT = isolated_git_environment(GIT_AUTHOR_NAME="override")
+    failures += report("isolated_git_environment", "an override beats the defaults",
+                       GIT_ENVIRONMENT["GIT_AUTHOR_NAME"], "override")
     GIT_ENVIRONMENT = isolated_git_environment()
     with tempfile.TemporaryDirectory() as root:
         def write(path, text="x\n"):
@@ -192,6 +213,13 @@ def self_test():
         failures += report("check", "a REF git cannot resolve", run("no-such-ref"), 2)
         git(root, "checkout", "--quiet", "rival")
         failures += report("check", "a ref read as an option", run("--output=x"), 2)
+        failures += report("run_git", "a failure names the subcommand past -c and -C",
+                           error_message(lambda: git(root, "-C", ".", "-c", "k.v=1", "log",
+                                                     "no-such-ref")).split(" failed")[0],
+                           "git log")
+        failures += report("run_git", "bytes when text is False",
+                           run_git(root, "rev-parse", "--git-dir", environment=GIT_ENVIRONMENT,
+                                   text=False), b".git\n")
         branch("adds-nothing", "padding")
         write("notes.md")
         commit("adds-nothing")
