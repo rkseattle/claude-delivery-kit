@@ -25,7 +25,7 @@ than proceed on a gate it could not read.
   plugin.json          the manifest
   marketplace.json     this repo is also its own marketplace
 skills/                one directory per skill; the README lists them
-agents/                the five reviewers; the README lists them
+agents/                the six reviewers; the README lists them
 gates/                 the universal halves of the gates, listed in the README;
                        scripts/sarif_gate.py builds the scanners' git inputs and reads
                        their reports into the gates' verdicts; scripts/adr_numbers.py

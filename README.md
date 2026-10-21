@@ -106,6 +106,8 @@ Every skill except `readme-docs` runs only when invoked by name.
 Agents (each reads `read-only-agent.md` and never changes the repo):
 
 - `design-adversary` — attacks a plan before approval.
+- `feature-design-adversary` — attacks a feature design doc against `design-exit.md` before
+  approval.
 - `commit-adversary` — attacks a diff before it is committed, or, from any stage, a claim
   that a defect is safe to defer.
 - `greptile-reviewer` — reviews a whole branch cold before the PR.
