@@ -96,13 +96,15 @@ jobs:
         run: python3 skills/retire-system/scripts/retire_check.py --self-test
 
       # One case per way two decision records could merge holding one number: a rival
-      # branch's record, a zero-padded twin; and per way a rename or deletion could read as
-      # a collision; ci-green's merge step calls this script against the PR's base.
+      # branch's record, a zero-padded twin; and per way a rename, a deletion, or a duplicate
+      # already on the base could fail a branch that did not cause it; ci-green's merge step
+      # calls this script against the PR's base.
       - name: ADR number check self-test
         run: python3 gates/scripts/adr_numbers.py --self-test
 
       # On a pull request this checkout is the merge result, so two branches that each
-      # took the next ADR number fail here even when each passed alone.
+      # took the next ADR number fail here even when each passed alone. With no --against it
+      # checks the whole tree, so a duplicate already on main fails here too, as on main.
       - name: ADR numbers are unique
         run: python3 gates/scripts/adr_numbers.py
 

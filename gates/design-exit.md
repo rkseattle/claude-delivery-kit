@@ -204,7 +204,8 @@ names its files; `NNNN` is four digits.
   a number, on the design's branch or on `origin/{{parent_branch_default}}`. Two designs
   in flight on different branches can take the same numbers, as with adr-tools, so
   `ci-green`'s merge step runs `${CLAUDE_PLUGIN_ROOT}/gates/scripts/adr_numbers.py`
-  against the PR's base, failing a number two records share in the merged result.
+  against the PR's base, failing a number one of the branch's added records shares with
+  another record in the merged result.
 - **A rejected design's ADRs** are committed with it, `status: rejected`, keeping their
   numbers, as a rejected brief is committed as the record of the stop.
 - **Superseding is out of scope:** a design whose choice would reverse an `accepted` ADR
@@ -247,7 +248,9 @@ The tech lead's answers are those of `plan-project` Step 4: approve, reject, rew
 hold. An approval is given in the session and is written down only in `## Decision`, so a
 session that ends first asks again. An edit to the design after a review re-runs that
 review, the cold one and step 8's alike; an edit to an approved section voids that approval
-and goes back to its approver, as a new commit dismisses a stale pull-request approval.
+and goes back to its approver, as a new commit dismisses a stale pull-request approval. A
+renumber under the ADR rules above changes no choice, so it re-runs criterion 2's checks
+but no review, and voids no approval.
 
 Each approver's name written below is the handle `roles` holds, or, for a role `roles`
 leaves out, the git `user.name` of the person running the session — asked for when unset —

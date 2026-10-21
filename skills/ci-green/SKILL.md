@@ -323,7 +323,7 @@ approval or a summary with no finding is not. A failed fetch is no answer: repor
   base, and a failed fetch or any other exit is no answer: report it and stop. Then
   `python3 "${CLAUDE_PLUGIN_ROOT}/gates/scripts/adr_numbers.py" --config
   "${CLAUDE_PROJECT_DIR}/.claude/project.json" --against origin/<base> --head <sha>`: exit 0
-  passes, 1 is two decision records sharing a number once merged — renumber the branch's ADRs
+  passes, 1 is a number one of the branch's decision records shares once merged — renumber the branch's ADRs
   per `${CLAUDE_PLUGIN_ROOT}/gates/design-exit.md` — and 2 is no answer, reported
   as a stop. Last, the feedback re-read above, nearest the merge. A verdict other than
   `approved` (or a lapsed R2 row), a moved head, a check not green, a moved base, a shared

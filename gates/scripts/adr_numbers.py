@@ -13,8 +13,9 @@ criterion 2 names, and by this repository's CI on its own `adr_dir`.
     adr_numbers.py --self-test     runs every case below; exit 0 only if each one matches
 
 A record is a file directly under `adr_dir` named `NNNN-<title>.md`, its number read as an
-integer so `0003` and `003` collide. Prints `unique N`, or `duplicate N` and one
-`<number> <path> <path>...` line per shared number; exit 0 only if unique. `adr_dir` unset
+integer so `0003` and `003` collide. Against a ref, only a number one of the head's added
+records shares counts. Prints `unique N`, or `duplicate N` and one `<number> <path>
+<path>...` line per shared number; exit 0 only if unique. `adr_dir` unset
 prints `adr_dir not configured` and exits 0, since nothing can collide. Exit 2 is no
 answer: an unreadable project.json, an invalid `adr_dir`, or a git failure.
 """
@@ -47,16 +48,17 @@ def records(root, ref, adr_dir):
 
 
 def merged_records(root, adr_dir, against, head_ref="HEAD"):
-    """The head's records alone, or what merging the head into against would leave."""
+    """(records, added): the head's records alone, or what merging the head into against
+    would leave; added is what the head added since the merge base, or None alone."""
     for ref in (head_ref, against) if against else (head_ref,):
         if ref.startswith("-"):
             raise ValueError(f"{ref!r} is not a ref")
         git(root, "rev-parse", "--verify", "--quiet", f"{ref}^{{commit}}")
     head = records(root, head_ref, adr_dir)
     if against is None:
-        return head
+        return head, None
     base = records(root, git(root, "merge-base", against, head_ref).strip(), adr_dir)
-    return (records(root, against, adr_dir) | (head - base)) - (base - head)
+    return (records(root, against, adr_dir) | (head - base)) - (base - head), head - base
 
 
 def duplicates(paths):
@@ -83,12 +85,19 @@ def check(config, against=None, head_ref="HEAD"):
     adr_dir = adr_dir_of(config)
     if adr_dir is None:
         return 0, ["adr_dir not configured"]
-    paths = merged_records(root, adr_dir, against, head_ref)
-    shared = duplicates(paths)
+    paths, added = merged_records(root, adr_dir, against, head_ref)
+    # Against a ref, only a number one of the head's own records shares is the branch's to
+    # fix; a duplicate already on the ref fails that ref's own check, not every branch.
+    every = duplicates(paths)
+    shared = {number: held for number, held in every.items()
+              if added is None or added.intersection(held)}
+    skipped = [f"already on {against}: {number:04d} {' '.join(held)}"
+               for number, held in sorted(every.items()) if number not in shared]
     if not shared:
-        return 0, [f"unique {len(paths)}"]
+        return 0, [f"unique {len(paths)}" if not skipped else
+                   f"unique to the head, {len(skipped)} already duplicated on {against}"] + skipped
     return 1, [f"duplicate {len(shared)}"] + [f"{number:04d} {' '.join(held)}"
-                                             for number, held in sorted(shared.items())]
+                                             for number, held in sorted(shared.items())] + skipped
 
 
 def self_test():
@@ -183,6 +192,18 @@ def self_test():
         failures += report("check", "a REF git cannot resolve", run("no-such-ref"), 2)
         git(root, "checkout", "--quiet", "rival")
         failures += report("check", "a ref read as an option", run("--output=x"), 2)
+        branch("adds-nothing", "padding")
+        write("notes.md")
+        commit("adds-nothing")
+        failures += report("check", "a duplicate already on REF, the branch adding none",
+                           run("padding"), 0)
+        branch("adds-one", "padding")
+        write("docs/adr/0001-m.md")
+        commit("adds-one")
+        failures += report("cli output", "only the head's number fails, REF's is named apart",
+                           check(config, "padding"),
+                           (1, ["duplicate 1", "0001 docs/adr/0001-a.md docs/adr/0001-m.md",
+                                "already on padding: 0002 docs/adr/0002-b.md docs/adr/002-c.md"]))
 
         def cli(*arguments):
             completed = subprocess.run([sys.executable, os.path.abspath(__file__), "--config",
