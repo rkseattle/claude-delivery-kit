@@ -111,8 +111,8 @@ rewrite that moves neither says in one line what changed. Step 8 posts it as a c
 the issue, never in the description. Any other ticket carries none. The linter checks
 the section is present, non-empty, and Jira-safe; its lines are checked in review.
 
-A spike Task has one AC: a decision record committed at a named path, stating the option
-chosen and why.
+A spike Task has one AC: a decision record committed at a named path, stating rule book
+R11's context, at least two options considered, the one chosen and why, and consequences.
 
 ## Example
 
