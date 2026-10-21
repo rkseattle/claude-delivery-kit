@@ -320,11 +320,16 @@ approval or a summary with no finding is not. A failed fetch is no answer: repor
   anything else is red. Then GitHub's "require branches to be up to date" check, against the
   PR's own base: read `gh pr view <pr> --json baseRefName`, `git fetch origin <base>`, and
   `git merge-base --is-ancestor origin/<base> <sha>` — exit 0 is up to date, 1 is a moved
-  base, and a failed fetch or any other exit is no answer: report it and stop. Last, the
-  feedback re-read above, nearest the merge. A verdict other than `approved` (or a lapsed R2
-  row), a moved head, a check not green, a moved base, or unaddressed feedback returns the
-  run to the loop — `stage_step` back to Step 5, a moved base rebased onto `origin/<base>`
-  and pushed per Step 3 item 7 — and asks again once green. Then set `"paused": true` — the
+  base, and a failed fetch or any other exit is no answer: report it and stop. Then
+  `python3 "${CLAUDE_PLUGIN_ROOT}/gates/scripts/adr_numbers.py" --config
+  "${CLAUDE_PROJECT_DIR}/.claude/project.json" --against origin/<base> --head <sha>`: exit 0
+  passes, 1 is two decision records sharing a number once merged — renumber the branch's ADRs
+  per `${CLAUDE_PLUGIN_ROOT}/gates/design-exit.md` — and 2 is no answer, reported
+  as a stop. Last, the feedback re-read above, nearest the merge. A verdict other than
+  `approved` (or a lapsed R2 row), a moved head, a check not green, a moved base, a shared
+  ADR number, or unaddressed feedback returns the run to the loop — `stage_step` back to
+  Step 5, a moved base rebased onto `origin/<base>` and pushed per Step 3 item 7 — and asks
+  again once green. Then set `"paused": true` — the
   merge deletes the branch the guard would restore — and run
   `gh pr merge <pr> --{{merge_method}} --delete-branch --match-head-commit <sha>`.
 

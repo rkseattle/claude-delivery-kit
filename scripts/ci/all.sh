@@ -18,6 +18,8 @@ python3 skills/release-readiness/scripts/readiness_check.py --self-test
 python3 skills/incident-review/scripts/incident_check.py --self-test
 python3 skills/maintenance-review/scripts/maintenance_check.py --self-test
 python3 skills/retire-system/scripts/retire_check.py --self-test
+python3 gates/scripts/adr_numbers.py --self-test
+python3 gates/scripts/adr_numbers.py
 bash scripts/ci/json-parses.sh
 bash scripts/ci/frontmatter-names.sh
 bash scripts/ci/line-budget.sh

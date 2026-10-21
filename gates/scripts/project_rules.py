@@ -8,7 +8,8 @@ Imported by skills/release/scripts/halt_watch.py,
 skills/release-readiness/scripts/readiness_check.py,
 skills/ci-green/scripts/review_gate.py, skills/incident-review/scripts/incident_check.py,
 skills/maintenance-review/scripts/maintenance_check.py,
-skills/retire-system/scripts/retire_check.py, gates/scripts/sarif_gate.py, and, for the
+skills/retire-system/scripts/retire_check.py, gates/scripts/sarif_gate.py,
+gates/scripts/adr_numbers.py, and, for the
 discipline and tracked-file rules, skills/write-tickets/scripts/lint_draft.py, and, for
 the YAML vendor alone, scripts/ci/actions-pinned.sh, and, for the Markdown table, register
 and tracked-file rules, scripts/ci/rule-book-map.sh, so no two of them can disagree on
@@ -118,6 +119,32 @@ def parse_date(value):
         return datetime.date.fromisoformat(value)
     except ValueError:
         raise ValueError(f"{value!r} is not a calendar date")
+
+
+def isolated_git_environment():
+    """The caller's environment for a self-test's scratch repository: no inherited GIT_DIR,
+    GIT_INDEX_FILE or GIT_CONFIG_PARAMETERS to aim it at another repository or
+    configuration, no user or system config, and a fixed identity."""
+    environment = {key: value for key, value in os.environ.items() if not key.startswith("GIT_")}
+    environment.update(GIT_CONFIG_NOSYSTEM="1", GIT_CONFIG_GLOBAL=os.devnull, GIT_AUTHOR_NAME="t",
+                       GIT_AUTHOR_EMAIL="t@t", GIT_COMMITTER_NAME="t", GIT_COMMITTER_EMAIL="t@t")
+    return environment
+
+
+def git_text(root, *arguments, environment=None):
+    """git's stdout as text, run in root, or ValueError naming the subcommand that failed;
+    environment None is the caller's."""
+    command = next((a for a in arguments if not a.startswith("-")), arguments[0])
+    try:
+        completed = subprocess.run(["git", *arguments], cwd=root, capture_output=True,
+                                   text=True, check=False, env=environment)
+    except OSError as error:
+        raise ValueError(f"git {command} failed: {error.strerror}")
+    if completed.returncode != 0:
+        message = completed.stderr.strip().splitlines()
+        raise ValueError(f"git {command} failed: "
+                         f"{message[-1] if message else completed.returncode}")
+    return completed.stdout
 
 
 def tracked_files(root):

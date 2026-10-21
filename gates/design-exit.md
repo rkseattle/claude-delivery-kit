@@ -198,12 +198,13 @@ names its files; `NNNN` is four digits.
   outside this design — as adr-tools numbers from the highest file present. Rework that
   adds or removes a `- Costly to reverse:` line renumbers the design's ADRs the same way;
   none is on `origin/{{parent_branch_default}}` yet, so no number is reused.
-- **What criterion 2 checks:** each of the design's ADRs exists at the path its line names,
-  their numbers are consecutive in `## Proposal` order, and none shares its number with
-  another file under `{{adr_dir}}` on the design's branch or on
-  `origin/{{parent_branch_default}}`. Two designs in flight on different branches can take
-  the same numbers, as with adr-tools; criterion 2 is checked again against
-  `origin/{{parent_branch_default}}` before the design's branch merges.
+- **What criterion 2 checks:** each of the design's ADRs exists at the path its line
+  names, their numbers are consecutive in `## Proposal` order, and none shares its number
+  with another `<digits>-<title>.md` file directly under `{{adr_dir}}`, its digits read as
+  a number, on the design's branch or on `origin/{{parent_branch_default}}`. Two designs
+  in flight on different branches can take the same numbers, as with adr-tools, so
+  `ci-green`'s merge step runs `${CLAUDE_PLUGIN_ROOT}/gates/scripts/adr_numbers.py`
+  against the PR's base, failing a number two records share in the merged result.
 - **A rejected design's ADRs** are committed with it, `status: rejected`, keeping their
   numbers, as a rejected brief is committed as the record of the stop.
 - **Superseding is out of scope:** a design whose choice would reverse an `accepted` ADR

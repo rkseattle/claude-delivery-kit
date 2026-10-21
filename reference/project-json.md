@@ -122,7 +122,8 @@ committed. Default `none`, under which `retire-system` stops and names the key.
 and its decision records are committed, in the form `gates/design-exit.md` defines. Each
 follows `incident_reviews_dir`'s rule — a relative path inside the repository, outside
 `.git`, of the same characters, and not gitignored, since both are committed. Each
-defaults to `none`, under which the gate fails as it states.
+defaults to `none`, under which the gate fails as it states. `ci-green`'s merge step runs
+`gates/scripts/adr_numbers.py` on `adr_dir`, which under `none` passes and says so.
 
 `secret_scan_command` and `sast_command` serve rule book R12 and Appendix B1's scans. Each
 writes SARIF 2.1.0 to standard output, redacted, with inline suppression comments ignored;
