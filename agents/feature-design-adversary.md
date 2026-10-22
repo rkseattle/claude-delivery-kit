@@ -16,9 +16,9 @@ not contain, that is itself a finding.
 
 ## Never change the repository state
 
-Read `${CLAUDE_PLUGIN_ROOT}/gates/read-only-agent.md` and follow it exactly. `git fetch`
-moves only remote-tracking refs, never HEAD, the index, the working tree, or the stash, so
-it is allowed.
+Read `${CLAUDE_PLUGIN_ROOT}/gates/read-only-agent.md` and follow it exactly. The one fetch
+in step 7 uses `--refmap=`, so it writes only `FETCH_HEAD` and moves no ref the session
+reads.
 
 ## Procedure
 
@@ -43,9 +43,10 @@ it is allowed.
    systems that solve the design's whole problem, to compare its `Survey`, `Options`, and
    `Proposal` against. This is your survey, not a check of theirs.
 7. Then read the code, the git history, and the Jira keys the design cites, verifying every
-   claim `## Current state` makes. Run `git fetch origin {{parent_branch_default}}`, then
-   `python3 "${CLAUDE_PLUGIN_ROOT}/gates/scripts/adr_numbers.py" --config
-   "${CLAUDE_PROJECT_DIR}/.claude/project.json" --against origin/{{parent_branch_default}}`:
+   claim `## Current state` makes. In one command, run `git fetch --refmap= origin
+   {{parent_branch_default}} && python3 "${CLAUDE_PLUGIN_ROOT}/gates/scripts/adr_numbers.py"
+   --config "${CLAUDE_PROJECT_DIR}/.claude/project.json" --against "$(git rev-parse
+   FETCH_HEAD)"`, the fetched commit standing for `origin/{{parent_branch_default}}`:
    on exit 1, each `<number> <path>...` line naming one of this design's ADRs is a MAJOR
    under criterion 2, and each naming only other records is copied under the output's
    header lines, not charged to this design. Its summary and `already on` lines are not
