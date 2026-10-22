@@ -106,6 +106,8 @@ Every skill except `readme-docs` runs only when invoked by name.
 Agents (each reads `read-only-agent.md` and never changes the repo):
 
 - `design-adversary` — attacks a plan before approval.
+- `feature-design-adversary` — attacks a feature design doc against `design-exit.md` before
+  approval.
 - `commit-adversary` — attacks a diff before it is committed, or, from any stage, a claim
   that a defect is safe to defer.
 - `greptile-reviewer` — reviews a whole branch cold before the PR.
@@ -119,6 +121,8 @@ Gates:
 - `pre-push.md` — the checks before every push and PR.
 - `status-report.md` — the report printed at every phase and stage boundary.
 - `read-only-agent.md` — the rule that keeps every agent from changing the repo.
+- `agent-rules.md` — where every agent reads its project's rules, and what an absent file
+  means.
 - `rule-book-review.md` — the rule-book checks the commit, branch, and CI reviewers apply.
 - `exceptions.md` — the format of a project's rule-book exceptions register.
 - `planning-exit.md` — the rule book's Phase 1 gate: no implementation before the brief
@@ -147,7 +151,8 @@ A project keeps only what is its own:
 - `.claude/agent-rules/<agent-name>.md` — the rules each agent attacks: architecture
   rules, the grep target most often missed, the behavior the automated suite cannot reach
   and the gate covering it, and any environmental exception `ci-failure-adversary` may
-  accept. A missing file is fine; the agent reviews against `CLAUDE.md` alone.
+  accept. A missing file is fine; `gates/agent-rules.md` says what the agent judges against
+  instead.
 - `.claude/state/` — run state; keep it gitignored.
 
 The kit's rules are measured against

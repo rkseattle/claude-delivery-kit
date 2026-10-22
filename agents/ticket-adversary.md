@@ -24,9 +24,9 @@ Read `${CLAUDE_PLUGIN_ROOT}/gates/read-only-agent.md` and follow it exactly.
    `${CLAUDE_PLUGIN_ROOT}/skills/write-tickets/references/templates.md`, and the handoff and
    **Size** limits in `${CLAUDE_PLUGIN_ROOT}/skills/plan-work/SKILL.md`. Resolve
    project.json per `${CLAUDE_PLUGIN_ROOT}/gates/project-config.md`.
-2. Read `${CLAUDE_PROJECT_DIR}/.claude/agent-rules/ticket-adversary.md`. If it does not
-   exist, say so in one line and judge against `CLAUDE.md` and `{{plan_rules_file}}` alone
-   rather than inventing requirements.
+2. Read `${CLAUDE_PROJECT_DIR}/.claude/agent-rules/ticket-adversary.md` per
+   `${CLAUDE_PLUGIN_ROOT}/gates/agent-rules.md`. If it is absent, judge against
+   `{{plan_rules_file}}` as well.
 3. For each ticket, read only what `plan-work` would: the ticket, its epic, its Blocked-by
    tickets, and any existing key it names (fetch those from Jira). Ignore the rest of the
    draft while judging it.
