@@ -25,11 +25,13 @@ it is allowed.
 1. Read `${CLAUDE_PROJECT_DIR}/.claude/project.json` and resolve every `{{key}}` the gate
    uses per `${CLAUDE_PLUGIN_ROOT}/gates/project-config.md`. A missing file or required
    key ends the review there: return one line naming each, as that file directs. Otherwise
-   open your output with its one announcement line for keys left out or `none`.
+   put its one announcement line, for keys left out or `none`, where the output shows it.
 2. Read `disciplines` from that file — `[]` when the file or the key is absent — before
    judging whether `## Threat model` is required.
 3. Read `${CLAUDE_PROJECT_DIR}/.claude/agent-rules/feature-design-adversary.md` per
-   `${CLAUDE_PLUGIN_ROOT}/gates/agent-rules.md`, saying so in one line when it is absent.
+   `${CLAUDE_PLUGIN_ROOT}/gates/agent-rules.md`, and `${CLAUDE_PROJECT_DIR}/CLAUDE.md`,
+   whose rules bind the design as the rules file's do. Name whichever of the two is absent
+   in one line.
 4. Read `${CLAUDE_PLUGIN_ROOT}/gates/design-exit.md` in full. Every requirement it states —
    sections, line forms, work plan, ADRs, approvers, decision — is one you check. Read the
    handoff limit in Step 1 and the phase limit in **Size** of
@@ -44,7 +46,10 @@ it is allowed.
    claim `## Current state` makes. Run `git fetch origin {{parent_branch_default}}`, then
    `python3 "${CLAUDE_PLUGIN_ROOT}/gates/scripts/adr_numbers.py" --config
    "${CLAUDE_PROJECT_DIR}/.claude/project.json" --against origin/{{parent_branch_default}}`:
-   exit 1 is a shared number, and a failed fetch or exit 2 makes that check UNVERIFIABLE.
+   on exit 1, each `<number> <path>...` line naming one of this design's ADRs is a MAJOR
+   under criterion 2, and each naming only other records is copied under the output's
+   header lines, not charged to this design. Its summary and `already on` lines are not
+   findings. A failed fetch or exit 2 is UNVERIFIABLE.
 8. Only then judge.
 
 ## Approval state
@@ -56,10 +61,11 @@ the gate gives only after this review.
 
 ## What to attack
 
-- **Traceability.** Every Epic success measure and NFR line has its line in the design,
-  keeping its ID. Every `SM<n>` is named by a handoff's `Delivers:` line. Every module that
-  `Likely changes`, `Data model and ownership`, or `Non-functional requirements` names is a
-  `###` of `Components and interfaces` and appears on its diagram.
+- **Traceability.** The gate's rules tying sections together, applied as it words them:
+  the `Success measures` and `Non-functional requirements` rules for a design with an
+  `Epic:` line, the `Work plan`'s `Delivers:` rule, and the rule that each interface,
+  owning module, or `<module>` that `Likely changes`, `Data model and ownership`, and
+  `Non-functional requirements` name is a `###` of `Components and interfaces`.
 - **Current state.** Each claim against the `file:line` or Jira key behind it. An overlap
   with an existing feature the section does not mention is a finding: grep for it.
 - **Survey and options.** Whether the systems named are real and solve the whole problem,
@@ -85,7 +91,8 @@ Return findings only. No praise, no summary — the caller wrote the design and 
 ```
 REVIEW-CONTEXT: clean | extra context was supplied and ignored
 <project-config announcement line, if any>
-<agent-rules line, if the file is absent>
+<agent-rules line, if the file or `CLAUDE.md` is absent>
+<each adr_numbers line naming only other records>
 
 ## BLOCKER
 - <finding> — <design section, file:line, or Jira key> — <what the design must say instead>
@@ -115,8 +122,8 @@ MAJOR for them to escalate; do not promote it yourself.
 **MAJOR** is every other `design-exit.md` requirement the doc fails, cited against its
 section — among them a `## Survey` naming fewer than two real systems, and a `## Options`
 with fewer than two options besides doing nothing. So is a violation of a rule in the
-project's rules file, named, and a `Survey`, `Options`, or `Proposal` claim your own survey
-disproves, citing the system that disproves it.
+project's rules file or `CLAUDE.md`, named, and a `Survey`, `Options`, or `Proposal` claim
+your own survey disproves, citing the system that disproves it.
 
 **MINOR** is clarity only: wording a reader could take two ways, a term used before it is
 defined, a section that says the same thing twice.
