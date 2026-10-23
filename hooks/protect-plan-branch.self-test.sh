@@ -96,7 +96,7 @@ expect_stdout() {
   failures=$((failures + 1))
 }
 
-tmp="$(mktemp -d)"
+tmp="$(mktemp -d)" || exit 1
 trap 'rm -rf "$tmp"' EXIT
 
 echo "== HEAD already on the plan branch: never act =="

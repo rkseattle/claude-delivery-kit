@@ -11,7 +11,7 @@ hook_under_test="${1:?usage: block-false-stop.self-test.sh <path-to-hook>}"
 self_test() {
   local tmp st_failures=0 st_total=0 hook
   hook="$(cd "$(dirname "$hook_under_test")" && pwd)/$(basename "$hook_under_test")"
-  tmp="$(mktemp -d)"
+  tmp="$(mktemp -d)" || exit 1
   trap 'rm -rf "$tmp"' RETURN
 
   mkdir -p "$tmp/.claude/state"

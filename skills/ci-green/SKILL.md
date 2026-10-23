@@ -196,12 +196,11 @@ changes:
 
 ```bash
 gh pr view <pr> --json headRefOid,author --jq '[.headRefOid, .author.login] | @tsv'
-reviews=$(mktemp)
-if gh api --paginate repos/{{repo_slug}}/pulls/<pr>/reviews > "$reviews"; then
+if reviews=$(mktemp) && gh api --paginate repos/{{repo_slug}}/pulls/<pr>/reviews > "$reviews"; then
   python3 "${CLAUDE_PLUGIN_ROOT}/skills/ci-green/scripts/review_gate.py" approval \
     --head <sha> --author <login> < "$reviews"
 else
-  echo "no verdict: gh failed" >&2
+  echo "no verdict: mktemp or gh failed" >&2
 fi
 rm -f "$reviews"
 ```
