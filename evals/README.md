@@ -43,13 +43,14 @@ targets a behavior whose absence produces a *plausible run* rather than an error
 | `ci-failure-adversary-requires-a-named-test` | A correct source fix whose commit message names no test passes review, so the defect-fix gate holds only on the author's word | not yet measured |
 | `ci-failure-adversary-passes-a-tested-fix` | Review that returns `UNVERIFIED` for every fix, so ci-green can never close a failure | not yet measured |
 | `ci-failure-adversary-rejects-an-import-only-test` | A named test red on the parent only because it imports a new symbol verifies a fix it never exercises | not yet measured |
+| `feature-design-adversary-catches-a-missing-rollback` | A design whose rollout step can't be undone passes review, so the gate's rollback rule holds only on the author's word | not yet measured |
 
 Each case should pair a check on the *result* with a check on *how Claude got there*, per
 the official guidance: a `regex` or `llm` grader on the reply, and a `tool_used` grader on
 the transcript. The two missing-key cases, `readme-docs-updates-an-existing-readme`,
 `plan-project-stops-at-approval`, `release-asks-before-staging`,
-`release-readiness-stops-without-system-suite`, and all three `ci-failure-adversary-*`
-cases do.
+`release-readiness-stops-without-system-suite`, all three `ci-failure-adversary-*`
+cases, and `feature-design-adversary-catches-a-missing-rollback` do.
 `write-tickets-stops-without-config` has a `tool_used` grader that cannot fail, since Write
 is not in its allowlist, and `refuses-without-project-json` and all seven `design-adversary-*`
 cases grade the reply only.
@@ -86,13 +87,12 @@ with backoff, an extraction of an existing in-repo implementation, one justified
 It is the kind of plan that should sail through, and before the reviewer's rules were made
 conditional on evidence, plans of this shape did not.
 
-**Its known weakness is the arms.** The baseline arm has no `agents/design-adversary.md` to
-read, so it reviews with no instructions at all and may well return zero BLOCKERs by
-default. A small or negative Δ here therefore does not mean the plugin is not working — it
-means the baseline had nothing to over-apply. **Read the with-arm score directly** for this
-case; Δ is not the number that matters, unusually for this suite. Read the findings
-themselves too: the graders check severity and remedy, and a with-arm that passes both
-while listing useful MAJORs is the target behavior, not a near miss.
+**Its known weakness is the arms.** Neither arm reaches `agents/design-adversary.md`, as
+[Reaching an agent's definition](#reaching-an-agents-definition) explains, so both review
+with no instructions at all and may well return zero BLOCKERs by default. Until the case
+dispatches the agent, a score here says how an uninstructed reviewer behaves, not the
+plugin. Read the findings themselves too: the graders check severity and remedy, and a
+reply that passes both while listing useful MAJORs is the target behavior, not a near miss.
 
 The case is also **not a regression test for under-reviewing**. Nothing here would catch a
 reviewer that has stopped finding real blockers, because a sound plan gives it nothing to
@@ -122,6 +122,34 @@ webhook plan's `Threat model` rates Denial of service `High` with no phase, besi
 `High` rows that name Phase 1, a `Medium` row naming Phase 2, and `Low` rows with none,
 each of which must draw no BLOCKER for its phase cell.
 
+## Reaching an agent's definition
+
+A case that tells the session to act as an agent and read `agents/<agent>.md` reaches
+nothing: each run starts in an empty workspace, so that path is not there, and both arms
+review with no instructions. The local runs of 2026-10-12 show it: across two
+`design-adversary-*` cases, the reply says the definition could not be read in 35 of 36
+runs, with-arm runs included. `results/` is not tracked, so re-run a case to check.
+
+A case reaches an agent by dispatching it instead. The plugin registers its agents in the
+with-arm only, so a baseline dispatch fails with `Agent type '<plugin>:<agent>' not found`,
+and the agent reads the gates from the installed plugin. Its scaffold writes the
+`project.json` and every input the agent reads, and its prompt hands the agent only the
+refs its definition allows.
+
+`feature-design-adversary-catches-a-missing-rollback` works this way. Its scaffold writes a
+design doc that meets every rule of `gates/design-exit.md` but one: rollout step 3 names no
+rollback step, BLOCKER kind 5. The prompt passes the agent the doc's absolute path and nothing
+else, and `dispatches-with-the-path` checks that it did. The repository the design cites is
+absent, which the scaffold's `.claude/agent-rules/feature-design-adversary.md` tells the
+agent, so its `Current state` claims are UNVERIFIABLE. `dispatches-with-the-path` passes in
+both arms, since a failed dispatch still records its input; the `llm` grader is what
+separates them. The agent surveys the web and runs git, so grant those tools, and the
+case's `timeout_seconds` of 900 gives it room:
+
+```bash
+claude plugin eval . --scaffold --case 'feature-design-adversary-*' --allow-tools Bash WebSearch WebFetch
+```
+
 ## What these cases cannot test
 
 `tool_used: Skill` is the natural grader for "did the plugin fire", and it is
@@ -150,6 +178,8 @@ servers, no user settings. That constrains what can be tested here:
   before `gates/project-config.md`, the required-key case scored 0.33 and the optional-key
   case 0.44, with no run passing, against 1.00 for both after it, 3 runs per arm. `results/`
   is not tracked, so re-run both against `main` and the branch to check these.
+  `feature-design-adversary-catches-a-missing-rollback`'s scaffold writes a `project.json`,
+  the agent's rules file, and a design doc.
   `readme-docs-updates-an-existing-readme`'s scaffold writes a small Python project; the
   `ci-failure-adversary-*` cases, `plan-project-stops-at-approval`,
   `release-asks-before-staging`, and `release-readiness-stops-without-system-suite` build a
