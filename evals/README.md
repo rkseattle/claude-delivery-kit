@@ -44,13 +44,14 @@ targets a behavior whose absence produces a *plausible run* rather than an error
 | `ci-failure-adversary-passes-a-tested-fix` | Review that returns `UNVERIFIED` for every fix, so ci-green can never close a failure | not yet measured |
 | `ci-failure-adversary-rejects-an-import-only-test` | A named test red on the parent only because it imports a new symbol verifies a fix it never exercises | not yet measured |
 | `feature-design-adversary-catches-a-missing-rollback` | A design whose rollout step can't be undone passes review, so the gate's rollback rule holds only on the author's word | not yet measured |
+| `feature-design-adversary-passes-a-sound-design` | Review that blocks every design, so no feature ever clears the design-exit gate | not yet measured |
 
 Each case should pair a check on the *result* with a check on *how Claude got there*, per
 the official guidance: a `regex` or `llm` grader on the reply, and a `tool_used` grader on
 the transcript. The two missing-key cases, `readme-docs-updates-an-existing-readme`,
 `plan-project-stops-at-approval`, `release-asks-before-staging`,
 `release-readiness-stops-without-system-suite`, all three `ci-failure-adversary-*`
-cases, and `feature-design-adversary-catches-a-missing-rollback` do.
+cases, and both `feature-design-adversary-*` cases do.
 `write-tickets-stops-without-config` has a `tool_used` grader that cannot fail, since Write
 is not in its allowlist, and `refuses-without-project-json` and all seven `design-adversary-*`
 cases grade the reply only.
@@ -144,7 +145,17 @@ absent, which the scaffold's `.claude/agent-rules/feature-design-adversary.md` t
 agent, so its `Current state` claims are UNVERIFIABLE. `dispatches-with-the-path` passes in
 both arms, since a failed dispatch still records its input; the `llm` grader is what
 separates them. The agent surveys the web and runs git, so grant those tools, and the
-case's `timeout_seconds` of 900 gives it room:
+case's `timeout_seconds` of 900 gives it room.
+
+`feature-design-adversary-passes-a-sound-design` is its false-positive partner, a contrast
+set in the sense of Gardner et al. (2020): its scaffold writes the same doc with step 3's
+rollback restored, so the two designs differ by that one line. A reviewer that blocks
+nothing passes the sound case and fails the defective one; one that blocks everything does
+the reverse. Only both passing says the BLOCKER line sits where it was meant to, and only
+that one line can explain a verdict that differs between them. Its `zero-blockers` grader
+names one BLOCKER it fails in particular, one raised because a file `Current state` cites is
+missing: that is a claim the reviewer could not check, not one the code contradicts. Run
+both:
 
 ```bash
 claude plugin eval . --scaffold --case 'feature-design-adversary-*' --allow-tools Bash WebSearch WebFetch
@@ -178,8 +189,8 @@ servers, no user settings. That constrains what can be tested here:
   before `gates/project-config.md`, the required-key case scored 0.33 and the optional-key
   case 0.44, with no run passing, against 1.00 for both after it, 3 runs per arm. `results/`
   is not tracked, so re-run both against `main` and the branch to check these.
-  `feature-design-adversary-catches-a-missing-rollback`'s scaffold writes a `project.json`,
-  the agent's rules file, and a design doc.
+  The `feature-design-adversary-*` scaffolds write a `project.json`, the agent's rules file,
+  and a design doc.
   `readme-docs-updates-an-existing-readme`'s scaffold writes a small Python project; the
   `ci-failure-adversary-*` cases, `plan-project-stops-at-approval`,
   `release-asks-before-staging`, and `release-readiness-stops-without-system-suite` build a
