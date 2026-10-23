@@ -49,3 +49,26 @@ Fix total to include the last item
 total() now sums through sum_all().
 Regression test: test_calc.py::test_sum_all
 MSG
+# Untracked, so none of the files below is part of the fix's diff.
+mkdir -p .claude
+cat > .claude/project.json <<'JSON'
+{
+  "ticket_prefix": "ABC",
+  "jira_project": "ABC",
+  "repo_slug": "owner/repo",
+  "parent_branch_default": "main",
+  "source_roots": ".",
+  "build_command": "python3 -c 'import calc'",
+  "push_command": "git push -u --force-with-lease origin <branch>",
+  "unit_test_scope": "the whole target",
+  "post_fix_verification_scope": "everything",
+  "verification_tiers": "ci · inspection"
+}
+JSON
+mkdir -p .claude/agent-rules
+cat > .claude/agent-rules/ci-failure-adversary.md <<'RULES'
+# ci-failure-adversary rules
+
+- Tests are plain Python functions, and pytest is not installed. Run one with
+  `python3 -c 'import <module>; <module>.<test>()'`.
+RULES

@@ -161,6 +161,27 @@ both:
 claude plugin eval . --scaffold --case 'feature-design-adversary-*' --allow-tools Bash WebSearch WebFetch
 ```
 
+The three `ci-failure-adversary-*` cases dispatch `delivery-kit:ci-failure-adversary` the
+same way, with only the CI evidence, the note that it came from the run on `HEAD~1`, and
+the ref `HEAD`. `dispatches-the-agent` checks that the delegation names the agent, carries
+the `FAILED` line and the bare ref, and holds no common test-runner command; nothing checks
+the rest of it. It passes in both arms, as `dispatches-with-the-path` does. Their
+`runs-the-named-test` and `reads-the-dod` graders count calls the dispatched agent makes, so
+they pass only if a run's transcript records a subagent's tool calls, which the plugin-evals
+docs leave unstated. Each scaffold writes `project.json` after the last commit, untracked,
+so it is not in the fix's diff. Two also write `.claude/agent-rules/ci-failure-adversary.md`, the agent's rules file,
+saying how to run a test without pytest. Run them with:
+
+```bash
+claude plugin eval . --scaffold --case 'ci-failure-adversary-*' --allow-tools Bash WebSearch
+```
+
+**The known gap is the seven `design-adversary-*` cases**, which still tell the session to
+act as the agent, so neither arm reaches its definition. A dispatched `design-adversary`
+reads its tickets from Jira, and a run has no Jira to reach: a mock answers only for an MCP
+server the plugin declares, and this plugin declares none. Their scores measure an
+uninstructed reviewer until that changes.
+
 ## What these cases cannot test
 
 `tool_used: Skill` is the natural grader for "did the plugin fire", and it is
@@ -194,10 +215,11 @@ servers, no user settings. That constrains what can be tested here:
   `readme-docs-updates-an-existing-readme`'s scaffold writes a small Python project; the
   `ci-failure-adversary-*` cases, `plan-project-stops-at-approval`,
   `release-asks-before-staging`, and `release-readiness-stops-without-system-suite` build a
-  git repo, the last three with a local bare `origin`. `release-asks-before-staging`'s also
-  seeds stub build, deploy, smoke, and rollback scripts, a reviewed passing test summary
-  naming HEAD, and the readiness note on HEAD that matches it, so nothing before the staging
-  ask needs GitHub or Jira. `release-readiness-stops-without-system-suite`'s project.json
+  git repo, the last three with a local bare `origin`; the `ci-failure-adversary-*` ones add
+  an untracked `project.json`, and two of them the agent's rules file.
+  `release-asks-before-staging`'s also seeds stub build, deploy, smoke, and rollback
+  scripts, a reviewed passing test summary naming HEAD, and the readiness note on HEAD that
+  matches it, so nothing before the staging ask needs GitHub or Jira. `release-readiness-stops-without-system-suite`'s project.json
   sets every required key and `release_dir` but no `system_test_command`, so the run stops
   in Step 1 before any suite, Jira, or GitHub call.
 - **Not testable without more scaffolding**: anything needing Jira, GitHub itself, or a

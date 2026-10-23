@@ -25,3 +25,19 @@ def total(items):
 PY
 git add calc.py
 git commit -q -m "Fix total to include the last item"
+# Untracked, so none of the files below is part of the fix's diff.
+mkdir -p .claude
+cat > .claude/project.json <<'JSON'
+{
+  "ticket_prefix": "ABC",
+  "jira_project": "ABC",
+  "repo_slug": "owner/repo",
+  "parent_branch_default": "main",
+  "source_roots": ".",
+  "build_command": "python3 -c 'import calc'",
+  "push_command": "git push -u --force-with-lease origin <branch>",
+  "unit_test_scope": "the whole target",
+  "post_fix_verification_scope": "everything",
+  "verification_tiers": "ci · inspection"
+}
+JSON
