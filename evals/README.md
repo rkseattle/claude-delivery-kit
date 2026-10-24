@@ -146,8 +146,8 @@ absent, which the scaffold's `.claude/agent-rules/feature-design-adversary.md` t
 agent, so its `Current state` claims are UNVERIFIABLE. `dispatches-with-the-path` passes in
 both arms, since a failed dispatch still records its input; the `llm` grader is what
 separates them. The agent surveys the web and runs git, so grant those tools, and the
-case's `timeout_seconds` of 900 gives it room. The workspace has no `origin`, so the
-agent's `git fetch` always fails, and its step 7 then marks the claim UNVERIFIABLE.
+case's `timeout_seconds` of 900 gives it room. The scaffold makes no git history and no
+`origin`, so the agent's `git fetch` always fails, and its step 7 then marks the claim UNVERIFIABLE.
 
 `feature-design-adversary-passes-a-sound-design` is its false-positive partner, a contrast
 set in the sense of Gardner et al. (2020): its scaffold writes the same doc with step 3's
@@ -227,18 +227,20 @@ servers, no user settings. That constrains what can be tested here:
   an untracked `project.json`, and two of them the agent's rules file.
   `release-asks-before-staging`'s also seeds stub build, deploy, smoke, and rollback
   scripts, a reviewed passing test summary naming HEAD, and the readiness note on HEAD that
-  matches it, so nothing before the staging ask needs GitHub or Jira. `release-readiness-stops-without-system-suite`'s project.json
-  sets every required key and `release_dir` but no `system_test_command`, so the run stops
-  in Step 1 before any suite, Jira, or GitHub call.
+  matches it, so nothing before the staging ask needs GitHub or Jira.
+  `release-readiness-stops-without-system-suite`'s project.json sets every required key and
+  `release_dir` but no `system_test_command`, so the run stops in Step 1 before any suite,
+  Jira, or GitHub call.
 - **`git` may not run inside a run on macOS.** In the 2026-10-23 `ci-failure-adversary-*`
-  run, every with-arm agent reported that `git` failed through the `/usr/bin/git` shim, and
-  rebuilt both commits by decoding `.git/objects` with Python, so the `git archive` export
-  the agent prescribes never ran. A scaffold's git runs before the sandbox and is
-  unaffected. Cases whose session or agent runs git during the run —
-  `plan-project-stops-at-approval`, both `release-*` cases, and the
-  `ci-failure-adversary-*` and `feature-design-adversary-*` cases — are not yet re-measured
-  against this. `results/` is not
-  tracked, so re-run to check it.
+  run, on Claude Code 2.1.309, every with-arm agent reported that `git` failed through the
+  `/usr/bin/git` shim and rebuilt both commits by decoding `.git/objects` with Python, so
+  the `git archive` export the agent prescribes never ran. In 4 of those 9 runs `mktemp`
+  failed too. The agents' replies point to one cause for both: the sandbox's temp directory
+  is not writable, and the `xcrun` shim needs a cache file there. That cause is unconfirmed.
+  A scaffold's git runs before the sandbox and is unaffected. Cases whose session or agent
+  runs git during the run — `plan-project-stops-at-approval`, both `release-*` cases, and
+  the `ci-failure-adversary-*` and `feature-design-adversary-*` cases — are not yet
+  re-measured against this. `results/` is not tracked, so re-run to check it.
 - **Not testable without more scaffolding**: anything needing Jira, GitHub itself, or a
   populated `.claude/state/`. The citation contract end-to-end — the highest-value case —
   is in this category: it spans `plan-work` → `implement-phases` → `ci-green` across a
