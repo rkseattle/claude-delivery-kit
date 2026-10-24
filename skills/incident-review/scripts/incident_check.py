@@ -25,8 +25,8 @@ import sys
 sys.dont_write_bytecode = True
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)),
                                 "..", "..", "..", "gates", "scripts"))
-from project_rules import (check_repo_path, check_slug, cli_case, error_of,  # noqa: E402
-                           parse_date, report, result_of, run_check)
+from project_rules import (check_repo_path, check_slug, cli_case, error_message,  # noqa: E402
+                           error_of, parse_date, report, result_of, run_check)
 
 LATE_AFTER = 5
 
@@ -93,11 +93,8 @@ def self_test():
     # readiness_check.py's self-test covers the path rules; these pin the key and the unset.
     failures += report("reviews-dir", "a relative path",
                        error_of(check_repo_path, "incident_reviews_dir", "docs/incidents"), "ok")
-    try:
-        check_repo_path("incident_reviews_dir", "/tmp/incidents")
-        named = "ok"
-    except ValueError as error:
-        named = str(error).split()[0]
+    named = (error_message(lambda: check_repo_path("incident_reviews_dir", "/tmp/incidents"))
+             or "ok").split()[0]
     failures += report("reviews-dir", "the error names incident_reviews_dir", named,
                        "incident_reviews_dir")
     for value in ("None", "NONE", "none"):

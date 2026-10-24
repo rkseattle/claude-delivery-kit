@@ -68,7 +68,8 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)),
                                 "..", "..", "..", "gates", "scripts"))
 from project_rules import (BARE_FRAGMENT, DECIMAL, PLACEHOLDER, REGISTER_COLUMNS,  # noqa: E402
                            isolated_git_environment, process_state, run_git,
-                           check_command, check_repo_path, complete_register_row,
+                           check_command, check_repo_path, collected_errors,
+                           complete_register_row,
                            is_register_header, markdown_tables, markdown_tokens, words,
                            fence_split, is_unset, json_number,
                            markdown_value,
@@ -407,24 +408,22 @@ def discipline_problems(config_path, gate=None):
         named = named_disciplines(config)
     except ValueError as error:
         return [str(error)]
-    problems = []
-    for discipline in named:
-        for key in GATE_KEYS.get(gate, {}).get(discipline, ()):
-            value = config.get(key)
-            if is_unset(value):
-                problems.append(f"{key} is absent, none, blank, or a placeholder, and "
-                                f"{discipline} needs it")
-            elif key in FORMATS:
-                try:
-                    FORMATS[key](config)
-                except ValueError as error:
-                    problems.append(str(error))
-            else:
-                try:
-                    check_command(key, value)
-                except ValueError as error:
-                    problems.append(str(error))
-    return problems
+    return collected_errors(lambda discipline=discipline, key=key:
+                            check_needed_key(config, discipline, key)
+                            for discipline in named
+                            for key in GATE_KEYS.get(gate, {}).get(discipline, ()))
+
+
+def check_needed_key(config, discipline, key):
+    """Raise ValueError when a key the discipline needs is unset or not in its format."""
+    value = config.get(key)
+    if is_unset(value):
+        raise ValueError(f"{key} is absent, none, blank, or a placeholder, and "
+                         f"{discipline} needs it")
+    if key in FORMATS:
+        FORMATS[key](config)
+    else:
+        check_command(key, value)
 
 
 def oldest_devices(config):

@@ -29,8 +29,8 @@ import tempfile
 
 sys.dont_write_bytecode = True
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from project_rules import (check_repo_path, git_subcommand, is_unset, run_git,  # noqa: E402
-                           isolated_git_environment, read_config, report)
+from project_rules import (check_repo_path, error_message, git_subcommand,  # noqa: E402
+                           is_unset, run_git, isolated_git_environment, read_config, report)
 
 RECORD = re.compile(r"^(\d+)-[^/]+\.md$")
 GIT_ENVIRONMENT = None  # the self-test's isolated environment; None is the caller's
@@ -98,15 +98,6 @@ def check(config, against=None, head_ref="HEAD"):
                    f"unique to the head, {len(skipped)} already duplicated on {against}"] + skipped
     return 1, [f"duplicate {len(shared)}"] + [f"{number:04d} {' '.join(held)}"
                                              for number, held in sorted(shared.items())] + skipped
-
-
-def error_message(call):
-    """The ValueError message the call raises, or "" when it returns."""
-    try:
-        call()
-    except ValueError as error:
-        return str(error)
-    return ""
 
 
 def self_test():

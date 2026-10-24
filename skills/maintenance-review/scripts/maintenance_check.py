@@ -52,7 +52,7 @@ sys.dont_write_bytecode = True
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)),
                                 "..", "..", "..", "gates", "scripts"))
 from project_rules import (MARKDOWN_VENDOR, YAML_VENDOR, check_command,  # noqa: E402
-                           check_repo_path, cli_case, foreign_code, is_unset,
+                           check_repo_path, cli_case, collected_errors, foreign_code, is_unset,
                            isolated_git_environment, json_number, parse_date, positive_int,
                            process_state, read_config, report, result_of, run_git, single_number,
                            vendored)
@@ -92,21 +92,12 @@ CHECKS = {"on_call": check_on_call,
 def resolve_config(config):
     """{key: value} for each general key, unset ones at their default; raise naming every
     key set in the wrong shape."""
-    resolved, problems = {}, []
-    for key, default in DEFAULTS.items():
-        value = config.get(key)
-        if is_unset(value):
-            resolved[key] = default
-            continue
-        try:
-            CHECKS[key](value)
-        except ValueError as error:
-            problems.append(str(error))
-            continue
-        resolved[key] = value
+    problems = collected_errors(lambda key=key: CHECKS[key](config.get(key))
+                                for key in DEFAULTS if not is_unset(config.get(key)))
     if problems:
         raise ValueError("; ".join(problems))
-    return resolved
+    return {key: default if is_unset(config.get(key)) else config.get(key)
+            for key, default in DEFAULTS.items()}
 
 
 def required(config, key):
