@@ -103,8 +103,8 @@ whether each is a live defect or benign in its context and why.
   an error counts only when the test's assertion runs through the causal chain from step 3;
   one that merely imports a new symbol proves nothing. Anything else is `UNVERIFIED`. A
   test that cannot pass on the fix's export either — missing dependencies, a live service,
-  content `git archive` omits such as `export-ignore` paths, submodules or LFS objects —
-  cannot run here: say why in one line and rest the verdict on the rule above.
+  content `git archive` omits (`export-ignore` paths, submodules, LFS) — or any test after
+  exit 2 cannot run here: say why in one line and rest the verdict on the rule above.
 - A failure is never dismissed as a known flake, pre-existing, or unrelated. If the fix's
   defense is that the failure predates the branch and so is not its problem, that defense
   is rejected.

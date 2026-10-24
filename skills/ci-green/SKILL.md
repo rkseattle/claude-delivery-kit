@@ -211,7 +211,7 @@ request review"), and a comment changes nothing — so a later changes request f
 approver cancels an approval, and a fix pushed after one needs a fresh one. Its self-test
 names every case. Read this list, not `reviewDecision`, which GitHub fills only under a
 required-review rule. `blocked <login>` is feedback to address under Step 4.
-`no verdict: gh failed` — possibly after writing some pages — and the script's
+`no verdict: mktemp or gh failed` — possibly after writing some pages — and the script's
 `UNPARSEABLE` (exit 2) are not answers: report it and stop, declared per `deliver`'s
 invariants. Read the head again after an `approved`: if it moved between the two calls, the
 verdict judged a superseded commit, so run both again.

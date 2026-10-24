@@ -170,15 +170,14 @@ ref `HEAD`. `dispatches-the-agent` checks that the delegation names the agent, c
 rest of it. It passes in both arms, as `dispatches-with-the-path` does. Their
 `runs-the-named-test` graders match a Bash call holding the test's run form, and
 `reads-the-dod` a Read of the DoD. Each counts the session's calls and the dispatched
-agent's alike. The 2026-10-23 run suggests the transcript records a subagent's calls at
-least sometimes: one with-arm run of `requires-a-named-test` counted a Read of the DoD in a
-session that made only the dispatch and the reply. Its zero `runs-the-named-test` matches
-came from the grader then requiring `git archive`. Nothing checks that the named test ran on
-both the parent and the fix: the `llm` graders grade the verdict, and `runs-the-named-test`
-cannot tell one run from the other. Each scaffold writes `project.json` after the last
-commit, untracked, so it is not in the fix's diff. Two also write
-`.claude/agent-rules/ci-failure-adversary.md`, the agent's rules file, saying how to run a
-test without pytest. Run them with:
+agent's alike. Whether a run's transcript records a subagent's calls, always or only
+sometimes, is unconfirmed: no trace has been read. Until one is, a zero from either grader
+may mean the transcript left the call out rather than that the agent skipped it. Nothing
+checks that the named test ran on both the parent and the fix: the `llm` graders grade the
+verdict, and `runs-the-named-test` cannot tell one run from the other. Each scaffold writes
+`project.json` after the last commit, untracked, so it is not in the fix's diff. Two also
+write `.claude/agent-rules/ci-failure-adversary.md`, the agent's rules file, saying how to
+run a test without pytest. Run them with:
 
 ```bash
 claude plugin eval . --scaffold --case 'ci-failure-adversary-*' --allow-tools Bash WebSearch
