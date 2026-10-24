@@ -67,9 +67,16 @@ def is_unset(value):
                                            for entry in value)
 
 
-def is_unset_scalar(value):
-    """is_unset for a key holding one value: a list is never unset, but a wrongly typed value."""
-    return not isinstance(value, list) and is_unset(value)
+# The list-valued project.json keys read through is_unset_key, each unset by a list holding a
+# placeholder; halt_criteria, rollout_stages and disciplines are lists whose readers reject a
+# placeholder entry instead, and every other key holds one value.
+LIST_KEYS = ("model_eval_thresholds", "device_matrix", "on_call")
+
+
+def is_unset_key(key, value):
+    """is_unset as the key's documented type reads it: a list holding a placeholder is unset
+    for a key in LIST_KEYS, and for any other key is a set value of the wrong type."""
+    return is_unset(value) and (key in LIST_KEYS or not isinstance(value, list))
 
 
 # Inline emphasis and code-span markers, which change how a Markdown value renders, not what

@@ -71,7 +71,7 @@ from project_rules import (BARE_FRAGMENT, DECIMAL, PLACEHOLDER, REGISTER_COLUMNS
                            check_command, check_repo_path, collected_errors,
                            complete_register_row,
                            is_register_header, markdown_tables, markdown_tokens, words,
-                           fence_split, is_unset, json_number,
+                           fence_split, is_unset, is_unset_key, json_number,
                            markdown_value,
                            named_disciplines,
                            positive_int, read_config as load_config, report,
@@ -417,7 +417,7 @@ def discipline_problems(config_path, gate=None):
 def check_needed_key(config, discipline, key):
     """Raise ValueError when a key the discipline needs is unset or not in its format."""
     value = config.get(key)
-    if is_unset(value):
+    if is_unset_key(key, value):
         raise ValueError(f"{key} is absent, none, blank, or a placeholder, and "
                          f"{discipline} needs it")
     if key in FORMATS:
@@ -929,6 +929,10 @@ def discipline_cases(directory, summary_file):
 
     def problems(value, gate=None):
         return discipline_problems(summary_file(json.dumps(value), "disciplines.json"), gate)
+
+    failures += report("disciplines", "a command list holding a placeholder is mistyped, not "
+                       "absent", problems(dict(RELEASED, error_budget_command=["<command>", "eb"]),
+                                          "release"), ["error_budget_command is not a command"])
 
     for name, value, gate, expected in [
             ("absent disciplines are []", {}, "release", []),

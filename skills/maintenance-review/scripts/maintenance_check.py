@@ -52,8 +52,8 @@ sys.dont_write_bytecode = True
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)),
                                 "..", "..", "..", "gates", "scripts"))
 from project_rules import (MARKDOWN_VENDOR, YAML_VENDOR, check_command,  # noqa: E402
-                           check_repo_path, cli_case, collected_errors, foreign_code, is_unset,
-                           is_unset_scalar,
+                           check_repo_path, cli_case, collected_errors, error_message,
+                           foreign_code, is_unset_key,
                            isolated_git_environment, json_number, parse_date, positive_int,
                            process_state, read_config, report, result_of, run_git, single_number,
                            vendored)
@@ -90,20 +90,14 @@ CHECKS = {"on_call": check_on_call,
           "alert_routes_command": lambda value: check_command("alert_routes_command", value)}
 
 
-def unset_key(config, key):
-    """Whether a general key is unset; only on_call holds a list, so only it is unset by a
-    list holding a placeholder."""
-    return (is_unset if key == "on_call" else is_unset_scalar)(config.get(key))
-
-
 def resolve_config(config):
     """{key: value} for each general key, unset ones at their default; raise naming every
     key set in the wrong shape."""
     problems = collected_errors(lambda key=key: CHECKS[key](config.get(key))
-                                for key in DEFAULTS if not unset_key(config, key))
+                                for key in DEFAULTS if not is_unset_key(key, config.get(key)))
     if problems:
         raise ValueError("; ".join(problems))
-    return {key: default if unset_key(config, key) else config.get(key)
+    return {key: default if is_unset_key(key, config.get(key)) else config.get(key)
             for key, default in DEFAULTS.items()}
 
 
@@ -331,7 +325,7 @@ def unlinked_row(rule, path):
 
 def drift(config, output):
     value = config.get("drift_threshold")
-    if is_unset(value):
+    if is_unset_key("drift_threshold", value):
         raise ValueError("drift_threshold is none, so this check has nothing to compare")
     threshold = json_number("drift_threshold", value)
     value = single_number(output, "drift_check_command")
@@ -771,8 +765,7 @@ def cli_cases():
                            [line for line in run.stdout.splitlines()
                             if line.startswith("alert_routes_command")],
                            ['alert_routes_command\t"routes\\tall"'])
-    run = subprocess.run([sys.executable, script], capture_output=True, text=True, check=False)
-    failures += report("cli", "no subcommand is usage", run.returncode, 2)
+    failures += cli_case(script, "no subcommand is usage", [], "", 2)
     return failures
 
 
@@ -791,6 +784,9 @@ def self_test():
     for name, output, threshold, expected in DRIFT_CASES:
         failures += report("drift", name,
                            result_of(drift, {"drift_threshold": threshold}, output), expected)
+    failures += report("drift", "a threshold list holding a placeholder is mistyped, not none",
+                       error_message(lambda: drift({"drift_threshold": ["<n>", 0.2]}, "0.1\n"))
+                       .startswith("drift_threshold is none"), False)
     for name, config, expected in CONFIG_CASES:
         failures += report("config", name, result_of(resolve_config, config), expected)
     failures += report("config", "a runbooks_dir list holding a placeholder",

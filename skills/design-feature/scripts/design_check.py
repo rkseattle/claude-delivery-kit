@@ -23,17 +23,18 @@ sys.dont_write_bytecode = True
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)),
                                 "..", "..", "..", "gates", "scripts"))
 from project_rules import (check_repo_path, cli_case, collected_errors,  # noqa: E402
-                           error_message, is_unset_scalar, read_config, report, run_check)
+                           error_message, is_unset_key, read_config, report, run_check)
 
 KEYS = ("design_dir", "adr_dir")
-# Keys for which unset is a valid setting, as gates/scripts/adr_numbers.py reads adr_dir.
+# Keys unset may leave: gates/design-exit.md fails an unset adr_dir only for a design with a
+# costly-to-reverse choice, which the gate, not this check, can see.
 OPTIONAL = ("adr_dir",)
 
 
 def check_dirs(config):
     """"ok", with a note per optional key left unset, when every set key passes
     check_repo_path; otherwise ValueError naming each that fails."""
-    unset = [key for key in OPTIONAL if is_unset_scalar(config.get(key))]
+    unset = [key for key in OPTIONAL if is_unset_key(key, config.get(key))]
     errors = collected_errors(lambda key=key: check_repo_path(key, config.get(key))
                               for key in KEYS if key not in unset)
     if errors:
@@ -79,6 +80,14 @@ DIRS_CASES = [
 ]
 
 
+def result_or_message(call):
+    """The call's result, or the message of the ValueError it raises."""
+    try:
+        return call()
+    except ValueError as error:
+        return str(error)
+
+
 def raise_empty():
     raise ValueError("")
 
@@ -87,7 +96,7 @@ def self_test():
     failures = 0
     for name, config, keys in DIRS_CASES:
         failures += report("dirs", name,
-                           error_message(lambda: check_dirs(config)) or check_dirs(config),
+                           result_or_message(lambda: check_dirs(config)),
                            expected_message(config, keys))
     failures += report("collected_errors", "a ValueError with no message still counts",
                        collected_errors([raise_empty, lambda: None]), [""])

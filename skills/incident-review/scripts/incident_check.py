@@ -93,8 +93,8 @@ def self_test():
     # readiness_check.py's self-test covers the path rules; these pin the key and the unset.
     failures += report("reviews-dir", "a relative path",
                        error_of(check_repo_path, "incident_reviews_dir", "docs/incidents"), "ok")
-    named = (error_message(lambda: check_repo_path("incident_reviews_dir", "/tmp/incidents"))
-             or "ok").split()[0]
+    named = error_message(lambda: check_repo_path("incident_reviews_dir", "/tmp/incidents"))
+    named = "ok" if named is None else named.split()[0]
     failures += report("reviews-dir", "the error names incident_reviews_dir", named,
                        "incident_reviews_dir")
     for value in ("None", "NONE", "none"):

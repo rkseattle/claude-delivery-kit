@@ -30,7 +30,7 @@ import tempfile
 sys.dont_write_bytecode = True
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from project_rules import (check_repo_path, error_message, git_subcommand,  # noqa: E402
-                           is_unset_scalar, run_git, isolated_git_environment, read_config,
+                           is_unset_key, run_git, isolated_git_environment, read_config,
                            report)
 
 RECORD = re.compile(r"^(\d+)-[^/]+\.md$")
@@ -73,7 +73,7 @@ def duplicates(paths):
 def adr_dir_of(config):
     """adr_dir from project.json, or None when unset; ValueError when invalid."""
     value = read_config(config).get("adr_dir")
-    if is_unset_scalar(value):
+    if is_unset_key("adr_dir", value):
         return None
     check_repo_path("adr_dir", value)
     return os.path.normpath(value)
