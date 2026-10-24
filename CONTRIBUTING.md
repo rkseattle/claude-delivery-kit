@@ -30,8 +30,9 @@ gates/                 the universal halves of the gates, listed in the README;
                        scripts/sarif_gate.py builds the scanners' git inputs and reads
                        their reports into the gates' verdicts; scripts/adr_numbers.py
                        fails decision records sharing a number; scripts/project_rules.py
-                       holds the project.json rules and self-test helpers the release,
-                       review, incident, maintenance, and retirement scripts share;
+                       holds the project.json rules, check-script entry point, and
+                       self-test helpers the release, review, incident, maintenance,
+                       retirement, and design scripts share;
                        scripts/_vendor holds PyYAML, which the maintenance check reads
                        alert rules with
 hooks/                 hooks.json + the two hooks and their self-tests
