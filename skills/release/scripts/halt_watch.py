@@ -34,8 +34,8 @@ import time
 sys.dont_write_bytecode = True
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)),
                                 "..", "..", "..", "gates", "scripts"))
-from project_rules import (BARE_ARGUMENT, PLACEHOLDER, named_disciplines,  # noqa: E402
-                           positive_int, read_config, report)
+from project_rules import (BARE_ARGUMENT, PLACEHOLDER, cli_case,  # noqa: E402
+                           named_disciplines, positive_int, read_config, report)
 
 ROUND_SECONDS = 60
 BUDGET_SECONDS = 55
@@ -278,9 +278,7 @@ def self_test():
             except ValueError:
                 got = "ValueError"
             failures += report("load", name, got, expected)
-        usage = subprocess.run([sys.executable, os.path.abspath(__file__)],
-                               capture_output=True, text=True, check=False)
-        failures += report("cli", "no --config is a usage error", usage.returncode, 2)
+        failures += cli_case(os.path.abspath(__file__), "no --config is a usage error", [], "", 2)
         for name, value, expected in CHECK_CASES:
             try:
                 check(write_config(directory, value))

@@ -29,7 +29,7 @@ import tempfile
 
 sys.dont_write_bytecode = True
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from project_rules import (check_repo_path, error_message, git_subcommand,  # noqa: E402
+from project_rules import (check_repo_path, cli_case, error_message, git_subcommand,  # noqa: E402
                            is_unset_key, run_git, isolated_git_environment, read_config,
                            report)
 
@@ -234,10 +234,9 @@ def self_test():
             return completed.returncode, completed.stderr.startswith("NO ANSWER:")
 
         failures += report("cli", "a collision exits 1", cli("--against", "design"), (1, False))
-        missing = subprocess.run([sys.executable, os.path.abspath(__file__), "--config",
-                                  os.path.join(root, "absent.json")], capture_output=True,
-                                 text=True, check=False, env=GIT_ENVIRONMENT)
-        failures += report("cli", "a missing --config exits 2", missing.returncode, 2)
+        failures += cli_case(os.path.abspath(__file__), "a missing --config exits 2",
+                             ["--config", os.path.join(root, "absent.json")], "", 2,
+                             env=GIT_ENVIRONMENT)
         failures += report("cli", "a git failure exits 2, never 1", cli("--against", "no-such-ref"),
                            (2, True))
     return failures

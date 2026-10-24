@@ -41,7 +41,7 @@ import urllib.parse
 
 sys.dont_write_bytecode = True
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from project_rules import isolated_git_environment, report, run_git  # noqa: E402
+from project_rules import cli_case, isolated_git_environment, report, run_git  # noqa: E402
 
 HIGH_SEVERITY = 7.0  # GitHub code scanning: High is 7.0-8.9, Critical 9.0 and above
 
@@ -643,9 +643,7 @@ def cli_cases():
              ["new-findings", debt, os.path.join(scratch, "absent"), "--staged-root", scratch, "--base-root", scratch], 2),
         ]
         for name, arguments, expected_exit in cases:
-            completed = subprocess.run([sys.executable, os.path.abspath(__file__), *arguments],
-                                       capture_output=True, text=True, check=False)
-            failures += report("cli", name, completed.returncode, expected_exit)
+            failures += cli_case(os.path.abspath(__file__), name, arguments, "", expected_exit)
         leaked = subprocess.run([sys.executable, os.path.abspath(__file__), "secrets",
                                  write("leak", sarif(run([finding("a", message={"text": "s3cr3t"},
                                                                   partialFingerprints={"x": "s3cr3t"})])))],
