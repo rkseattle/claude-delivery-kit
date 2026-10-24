@@ -6,7 +6,7 @@
 set -uo pipefail
 root="$(cd "${1:-.}" && pwd)"
 here="$(cd "$(dirname "$0")" && pwd)"
-tmp="$(mktemp -d)"
+tmp="$(mktemp -d)" || exit 1
 trap 'rm -rf "$tmp"' EXIT
 # An inherited GIT_DIR, GIT_INDEX_FILE or config would aim every fixture repository at another
 # one, and a temp dir inside some repository must not let git find it from a non-git root.

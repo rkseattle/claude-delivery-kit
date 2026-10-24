@@ -107,7 +107,7 @@ In order, all green, before every `git push`:
     ignored or untracked local file cannot make the build pass:
 
     ```bash
-    clean=$(mktemp -d); repo=$PWD; git worktree prune
+    repo=$PWD; git worktree prune; clean=$(mktemp -d) &&
     python3 "${CLAUDE_PLUGIN_ROOT}/gates/scripts/sarif_gate.py" tree "$clean" --ref HEAD \
       && ( trap 'cd "$repo" && git worktree remove --force "$clean"' EXIT
            cd "$clean" && {{clean_build_command}} ); build_status=$?
@@ -116,8 +116,8 @@ In order, all green, before every `git push`:
 
     The subshell's trap removes the worktree however the build ends short of `SIGKILL`, and
     keeps its `cd` and trap out of the caller's shell; the step fails on a non-zero
-    `build_status`, which a tree git failed to build also sets rather than building an
-    empty directory; `rmdir` clears the directory such a failure leaves. With
+    `build_status`, which a tree git failed to build or a failed `mktemp` also sets rather
+    than building an empty directory; `rmdir` clears the directory such a failure leaves. With
     `{{clean_build_command}}` set to `none`, the build is skipped and named in the one-line
     announcement `gates/project-config.md` defines.
 

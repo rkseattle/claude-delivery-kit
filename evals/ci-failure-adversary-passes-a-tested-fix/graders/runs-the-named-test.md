@@ -1,10 +1,13 @@
 ---
 type: tool_used
 tool: Bash
-input_match: "git archive[\\s\\S]*test_total_includes_last"
+input_match: 'test_calc\.test_total_includes_last\(\)'
 min: 1
 ---
 
-The run exported the parent and the fix with `git archive` and ran the named test in each,
-in one call: the red-green check the agent definition prescribes, rather than judging the
-test from the diff alone.
+A Bash call held `test_calc.test_total_includes_last()`, the run form the scaffold's rules
+file sets (`python3 -c 'import test_calc; test_calc.test_total_includes_last()'`); pytest is
+not installed there. It matches text, not a run: a `grep` for
+`test_calc.test_total_includes_last()` also matches, and a run spelled another way does not.
+It does not need `git archive`, since `git` may not run inside a run on macOS. It cannot
+tell the parent's run from the fix's, nor the session's call from the dispatched agent's.

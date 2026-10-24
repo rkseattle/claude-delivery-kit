@@ -29,8 +29,9 @@ the project's commands. Read both.
 
    ```bash
    (
-     gate="${CLAUDE_PLUGIN_ROOT}/gates/scripts/sarif_gate.py"; patch=$(mktemp)
-     secrets_sarif=$(mktemp); trap 'rm -f "$patch" "$secrets_sarif"' EXIT
+     gate="${CLAUDE_PLUGIN_ROOT}/gates/scripts/sarif_gate.py"
+     work=$(mktemp -d) || exit 2; trap 'rm -rf "$work"' EXIT
+     patch=$work/patch; secrets_sarif=$work/secrets.sarif
      python3 "$gate" patch --staged > "$patch" || exit 2
      ( {{secret_scan_command}} ) < "$patch" > "$secrets_sarif"
      python3 "$gate" secrets "$secrets_sarif"
@@ -50,11 +51,11 @@ the project's commands. Read both.
    ```bash
    (
      gate="${CLAUDE_PLUGIN_ROOT}/gates/scripts/sarif_gate.py"
-     staged=$(mktemp -d); base=$(mktemp -d); renames=$(mktemp)
-     staged_sarif=$(mktemp); base_sarif=$(mktemp)
+     work=$(mktemp -d) || exit 2
+     staged=$work/staged; base=$work/base; renames=$work/renames
+     staged_sarif=$work/staged.sarif; base_sarif=$work/base.sarif
      trap 'for tree in "$staged" "$base"; do
-             git worktree remove --force "$tree" 2>/dev/null || rm -rf "$tree"; done
-           rm -f "$renames" "$staged_sarif" "$base_sarif"' EXIT
+             git worktree remove --force "$tree" 2>/dev/null; done; rm -rf "$work"' EXIT
      git worktree prune; merge_base=$(git merge-base HEAD origin/<parent>) || exit 2
      python3 "$gate" tree "$staged" --staged || exit 2
      python3 "$gate" tree "$base" --ref "$merge_base" || exit 2
@@ -76,7 +77,8 @@ the project's commands. Read both.
    not block, since it would fail every commit for reasons unrelated to the diff. The
    subshell's trap removes both trees however the block exits short of `SIGKILL`, and
    cannot replace or be replaced by another block's; after one, remove the leftover
-   `$TMPDIR` entries `git worktree list` shows with `git worktree remove --force`. With no `origin/<parent>` there is no base: say so in one
+   `$TMPDIR` entries `git worktree list` shows with `git worktree remove --force`, then
+   the `$work` directory that held them. With no `origin/<parent>` there is no base: say so in one
    line, drop the `merge_base`, base `tree`, renames and base-scan lines, and end with
    `python3 "$gate" new-findings "$staged_sarif" --no-base --staged-root "$staged"`. Before
    the repo's first commit `tree --staged` exports the index instead — a plain directory a

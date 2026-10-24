@@ -1,0 +1,4 @@
+schema_version: "1.1"
+name: feature-design-adversary-passes-a-sound-design
+context:
+  scaffold_script: scaffold.sh

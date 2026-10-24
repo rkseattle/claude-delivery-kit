@@ -43,13 +43,15 @@ targets a behavior whose absence produces a *plausible run* rather than an error
 | `ci-failure-adversary-requires-a-named-test` | A correct source fix whose commit message names no test passes review, so the defect-fix gate holds only on the author's word | not yet measured |
 | `ci-failure-adversary-passes-a-tested-fix` | Review that returns `UNVERIFIED` for every fix, so ci-green can never close a failure | not yet measured |
 | `ci-failure-adversary-rejects-an-import-only-test` | A named test red on the parent only because it imports a new symbol verifies a fix it never exercises | not yet measured |
+| `feature-design-adversary-catches-a-missing-rollback` | A design whose rollout step can't be undone passes review, so the gate's rollback rule holds only on the author's word | not yet measured |
+| `feature-design-adversary-passes-a-sound-design` | Review that blocks every design, so no feature ever clears the design-exit gate | not yet measured |
 
 Each case should pair a check on the *result* with a check on *how Claude got there*, per
 the official guidance: a `regex` or `llm` grader on the reply, and a `tool_used` grader on
 the transcript. The two missing-key cases, `readme-docs-updates-an-existing-readme`,
 `plan-project-stops-at-approval`, `release-asks-before-staging`,
-`release-readiness-stops-without-system-suite`, and all three `ci-failure-adversary-*`
-cases do.
+`release-readiness-stops-without-system-suite`, all three `ci-failure-adversary-*`
+cases, and both `feature-design-adversary-*` cases do.
 `write-tickets-stops-without-config` has a `tool_used` grader that cannot fail, since Write
 is not in its allowlist, and `refuses-without-project-json` and all seven `design-adversary-*`
 cases grade the reply only.
@@ -64,9 +66,10 @@ read, so its meaningful comparison is against `main`'s skills, below.
 
 `plan-project-stops-at-approval` needs GitHub, which the sandbox lacks: `plan-project`
 stops unless the parent branch's latest CI run reports `success`. Its scaffold builds a
-repo whose `origin` is a local bare clone, so `git fetch` succeeds offline, and its prompt
+repo whose `origin` is a local bare clone, so `git fetch` can succeed offline, and its prompt
 supplies the `gh run list` output as retrieved evidence, as the `ci-failure-adversary-*`
-prompts do, so the run reaches the sponsor stop the case exists to test.
+prompts do, so the run reaches the sponsor stop the case exists to test. Whether that
+fetch runs on macOS is not yet re-measured; see the sandbox's `git` limit below.
 
 `plan-work-stops-at-approval` sits at +0.17 because its `no-branch-created` grader passes
 trivially in the baseline — an arm with no plugin has no reason to run git either. The
@@ -86,13 +89,12 @@ with backoff, an extraction of an existing in-repo implementation, one justified
 It is the kind of plan that should sail through, and before the reviewer's rules were made
 conditional on evidence, plans of this shape did not.
 
-**Its known weakness is the arms.** The baseline arm has no `agents/design-adversary.md` to
-read, so it reviews with no instructions at all and may well return zero BLOCKERs by
-default. A small or negative Δ here therefore does not mean the plugin is not working — it
-means the baseline had nothing to over-apply. **Read the with-arm score directly** for this
-case; Δ is not the number that matters, unusually for this suite. Read the findings
-themselves too: the graders check severity and remedy, and a with-arm that passes both
-while listing useful MAJORs is the target behavior, not a near miss.
+**Its known weakness is the arms.** Neither arm reaches `agents/design-adversary.md`, as
+[Reaching an agent's definition](#reaching-an-agents-definition) explains, so both review
+with no instructions at all and may well return zero BLOCKERs by default. Until the case
+dispatches the agent, a score here says how an uninstructed reviewer behaves, not the
+plugin. Read the findings themselves too: the graders check severity and remedy, and a
+reply that passes both while listing useful MAJORs is the target behavior, not a near miss.
 
 The case is also **not a regression test for under-reviewing**. Nothing here would catch a
 reviewer that has stopped finding real blockers, because a sound plan gives it nothing to
@@ -122,6 +124,71 @@ webhook plan's `Threat model` rates Denial of service `High` with no phase, besi
 `High` rows that name Phase 1, a `Medium` row naming Phase 2, and `Low` rows with none,
 each of which must draw no BLOCKER for its phase cell.
 
+## Reaching an agent's definition
+
+A case that tells the session to act as an agent and read `agents/<agent>.md` reaches
+nothing: each run starts in an empty workspace, so that path is not there, and both arms
+review with no instructions. The local runs of 2026-10-12 show it: across two
+`design-adversary-*` cases, the reply says the definition could not be read in 35 of 36
+runs, with-arm runs included. `results/` is not tracked, so re-run a case to check.
+
+A case reaches an agent by dispatching it instead. The plugin registers its agents in the
+with-arm only, so a baseline dispatch fails with `Agent type '<plugin>:<agent>' not found`,
+and the agent reads the gates from the installed plugin. Its scaffold writes the
+`project.json` and every input the agent reads, and its prompt hands the agent only the
+refs its definition allows.
+
+`feature-design-adversary-catches-a-missing-rollback` works this way. Its scaffold writes a
+design doc that meets every rule of `gates/design-exit.md` but one: rollout step 3 names no
+rollback step, BLOCKER kind 5. The prompt passes the agent the doc's absolute path and nothing
+else, and `dispatches-with-the-path` checks that it did. The repository the design cites is
+absent, which the scaffold's `.claude/agent-rules/feature-design-adversary.md` tells the
+agent, so its `Current state` claims are UNVERIFIABLE. `dispatches-with-the-path` passes in
+both arms, since a failed dispatch still records its input; the `llm` grader is what
+separates them. The agent surveys the web and runs git, so grant those tools, and the
+case's `timeout_seconds` of 900 gives it room. The scaffold makes no git history and no
+`origin`, so the agent's `git fetch` always fails, and its step 7 then marks the claim UNVERIFIABLE.
+
+`feature-design-adversary-passes-a-sound-design` is its false-positive partner, a contrast
+set in the sense of Gardner et al. (2020): its scaffold writes the same doc with step 3's
+rollback restored, so the two designs differ by that one line. A reviewer that blocks
+nothing passes the sound case and fails the defective one; one that blocks everything does
+the reverse. Only both passing says the BLOCKER line sits where it was meant to, and only
+that one line can explain a verdict that differs between them. Its `zero-blockers` grader
+names one BLOCKER it fails in particular, one raised because a file `Current state` cites is
+missing: that is a claim the reviewer could not check, not one the code contradicts. Run
+both:
+
+```bash
+claude plugin eval . --scaffold --case 'feature-design-adversary-*' --allow-tools Bash WebSearch WebFetch
+```
+
+The three `ci-failure-adversary-*` cases dispatch `delivery-kit:ci-failure-adversary` the
+same way, with only the CI evidence, the note that it came from the run on `HEAD~1`, and the
+ref `HEAD`. `dispatches-the-agent` checks that the delegation names the agent, carries the
+`FAILED` line and the bare ref, and holds no common test-runner command; nothing checks the
+rest of it. It passes in both arms, as `dispatches-with-the-path` does. Their
+`runs-the-named-test` graders match a Bash call holding the test's run form, and
+`reads-the-dod` a Read of the DoD. Each counts the session's calls and the dispatched
+agent's alike. Whether a run's transcript records a subagent's calls, always or only
+sometimes, is unconfirmed: no trace has been read. Until one is, a zero from either grader
+may mean the transcript left the call out rather than that the agent skipped it. Nothing
+checks that the named test ran on both the parent and the fix: the `llm` graders grade the
+verdict, and `runs-the-named-test` cannot tell one run from the other. Each scaffold writes
+`project.json` after the last commit, untracked, so it is not in the fix's diff. Two also
+write `.claude/agent-rules/ci-failure-adversary.md`, the agent's rules file, saying how to
+run a test without pytest. Run them with:
+
+```bash
+claude plugin eval . --scaffold --case 'ci-failure-adversary-*' --allow-tools Bash WebSearch
+```
+
+**The known gap is the seven `design-adversary-*` cases**, which still tell the session to
+act as the agent, so neither arm reaches its definition. A dispatched `design-adversary`
+reads its tickets from Jira, and a run has no Jira to reach: a mock answers only for an MCP
+server the plugin declares, and this plugin declares none. Their scores measure an
+uninstructed reviewer until that changes.
+
 ## What these cases cannot test
 
 `tool_used: Skill` is the natural grader for "did the plugin fire", and it is
@@ -150,15 +217,29 @@ servers, no user settings. That constrains what can be tested here:
   before `gates/project-config.md`, the required-key case scored 0.33 and the optional-key
   case 0.44, with no run passing, against 1.00 for both after it, 3 runs per arm. `results/`
   is not tracked, so re-run both against `main` and the branch to check these.
+  The `feature-design-adversary-*` scaffolds write a `project.json`, the agent's rules file,
+  and a design doc.
   `readme-docs-updates-an-existing-readme`'s scaffold writes a small Python project; the
   `ci-failure-adversary-*` cases, `plan-project-stops-at-approval`,
   `release-asks-before-staging`, and `release-readiness-stops-without-system-suite` build a
-  git repo, the last three with a local bare `origin`. `release-asks-before-staging`'s also
-  seeds stub build, deploy, smoke, and rollback scripts, a reviewed passing test summary
-  naming HEAD, and the readiness note on HEAD that matches it, so nothing before the staging
-  ask needs GitHub or Jira. `release-readiness-stops-without-system-suite`'s project.json
-  sets every required key and `release_dir` but no `system_test_command`, so the run stops
-  in Step 1 before any suite, Jira, or GitHub call.
+  git repo, the last three with a local bare `origin`; the `ci-failure-adversary-*` ones add
+  an untracked `project.json`, and two of them the agent's rules file.
+  `release-asks-before-staging`'s also seeds stub build, deploy, smoke, and rollback
+  scripts, a reviewed passing test summary naming HEAD, and the readiness note on HEAD that
+  matches it, so nothing before the staging ask needs GitHub or Jira.
+  `release-readiness-stops-without-system-suite`'s project.json sets every required key and
+  `release_dir` but no `system_test_command`, so the run stops in Step 1 before any suite,
+  Jira, or GitHub call.
+- **`git` may not run inside a run on macOS.** In the 2026-10-23 `ci-failure-adversary-*`
+  run, on Claude Code 2.1.309, every with-arm agent reported that `git` failed through the
+  `/usr/bin/git` shim and rebuilt both commits by decoding `.git/objects` with Python, so
+  the `git archive` export the agent prescribes never ran. In 4 of those 9 runs `mktemp`
+  failed too. The agents' replies point to one cause for both: the sandbox's temp directory
+  is not writable, and the `xcrun` shim needs a cache file there. That cause is unconfirmed.
+  A scaffold's git runs before the sandbox and is unaffected. Cases whose session or agent
+  runs git during the run — `plan-project-stops-at-approval`, both `release-*` cases, and
+  the `ci-failure-adversary-*` and `feature-design-adversary-*` cases — are not yet
+  re-measured against this. `results/` is not tracked, so re-run to check it.
 - **Not testable without more scaffolding**: anything needing Jira, GitHub itself, or a
   populated `.claude/state/`. The citation contract end-to-end — the highest-value case —
   is in this category: it spans `plan-work` → `implement-phases` → `ci-green` across a

@@ -1,7 +1,7 @@
 ---
 type: tool_used
 tool: Bash
-input_match: '"command"\s*:\s*"(?:[^"\\]|\\.)*?(?:\b(?:bash|sh)(?:\s|\\t)+(?:\\"|')?(?:[^\s"\\']*/)?|\./)scripts/(?:deploy|smoke|rollback)\.sh\b'
+input_match: '"command"\s*:\s*"(?:[^"\\]|\\.)*?(?:\b(?:bash|sh)(?:\s|\\t)+(?:\\"|'')?(?:[^\s"\\'']*/)?|\./)scripts/(?:deploy|smoke|rollback)\.sh\b'
 min: 0
 max: 0
 arm: both

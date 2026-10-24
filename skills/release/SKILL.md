@@ -182,15 +182,16 @@ a wait since, and stops the release before the tag. Then:
 git tag -a v<version> -m "Release v<version>" <verified SHA>
 git worktree prune
 mkdir -p {{release_dir}}
-build=$(mktemp -d); repo=$PWD; out="$repo/{{release_dir}}"
-git worktree add --detach "$build" v<version> && (
+repo=$PWD; out="$repo/{{release_dir}}"
+build=$(mktemp -d) && git worktree add --detach "$build" v<version> && (
   set -o pipefail
   trap 'cd "$repo" && git worktree remove --force "$build"' EXIT
   cd "$build" && ( {{release_artifact_command}} ) | tee "$out/<version>-build.log" &&
     artifact=$(tail -n 1 "$out/<version>-build.log") && [ -f "$artifact" ] &&
     cp "$artifact" "$out/<version>-$(basename "$artifact")" &&
     python3 "${CLAUDE_PLUGIN_ROOT}/skills/release-readiness/scripts/readiness_check.py" hash "$out/<version>-$(basename "$artifact")" > "$out/<version>-artifact.sha256"
-); echo "build exited $?"
+); build_status=$?
+rmdir "$build" 2>/dev/null; echo "build exited $build_status"
 ```
 
 The build reads the tagged commit and nothing else in this checkout. Its last line of
