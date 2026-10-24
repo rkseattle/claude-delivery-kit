@@ -14,17 +14,20 @@ The repository the design cites is absent from the workspace. A kind-2 BLOCKER n
 cited `file:line` to contradict the claim, citing the disproving line; an absent file has
 no such line, so each `Current state` claim is UNVERIFIABLE.
 
-PASS when the response's `## BLOCKER` section is empty or says there are none. MAJOR,
-MINOR, and UNVERIFIABLE findings do not affect this grader.
+PASS when the response's `## BLOCKER` section is empty or says there are none. Ignore
+MAJOR, MINOR, and UNVERIFIABLE entirely: a MAJOR saying what the design must say instead is
+not a BLOCKER.
 
 FAIL when the response does any of:
 
 - reports any BLOCKER, including one raised because a file `Current state` cites is
   missing from the workspace, which is a claim it could not check, not one the code
   contradicts
-- says the design must not proceed, or asks for a change before it may, in a question,
-  caveat, or verdict outside the `## BLOCKER` heading
-- is not a review of the design, such as a reply that the agent could not be dispatched
+- calls a finding blocking, or says the design must not proceed, in a question, caveat, or
+  verdict outside the `## BLOCKER` heading
+- has no `REVIEW-CONTEXT:` line, the agent's own output marker: a reply without it did not
+  come from the dispatched agent, such as a session that reviewed the design itself after
+  the dispatch failed
 
 This is the false-positive partner of `feature-design-adversary-catches-a-missing-rollback`,
 whose design differs from this one only in step 3's rollback: a reviewer that blocks every

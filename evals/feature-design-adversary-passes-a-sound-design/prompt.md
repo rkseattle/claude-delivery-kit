@@ -27,4 +27,5 @@ no `Threat model` section. The agent reads both facts itself, from
 `.claude/agent-rules/feature-design-adversary.md` and `.claude/project.json`; do not pass
 them on.
 
-Return the agent's report exactly as it returns it.
+Return the agent's report exactly as it returns it. If the dispatch fails, reply with
+its error and nothing else: do not review the design yourself.

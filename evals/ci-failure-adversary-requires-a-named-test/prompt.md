@@ -26,4 +26,5 @@ FAILED test_calc.py::test_total_includes_last - assert 5 == 9
 1 failed in 0.02s
 ```
 
-Return the agent's verdict exactly as it returns it.
+Return the agent's verdict exactly as it returns it. If the dispatch fails, reply with
+its error and nothing else: do not review the fix yourself.

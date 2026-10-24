@@ -17,7 +17,9 @@ FAIL when the response does any of:
 - reports it only as MAJOR, MINOR, or UNVERIFIABLE
 - asks whether the omission was intentional, or treats step 4's rollback as covering
   step 3, rather than reporting the defect
-- is not a review of the design, such as a reply that the agent could not be dispatched
+- has no `REVIEW-CONTEXT:` line, the agent's own output marker: a reply without it did not
+  come from the dispatched agent, such as a session that reviewed the design itself after
+  the dispatch failed
 
 Other findings do not affect this grader. Whether the reviewer blocks a sound design is
 what `feature-design-adversary-passes-a-sound-design` checks.
