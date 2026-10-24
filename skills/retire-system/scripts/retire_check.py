@@ -41,9 +41,9 @@ import tempfile
 sys.dont_write_bytecode = True
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)),
                                 "..", "..", "..", "gates", "scripts"))
-from project_rules import (check_repo_path, check_slug, error_of, fence_split,  # noqa: E402
-                           isolated_git_environment, process_state,
-                           is_unset, parse_date, read_config, report, result_of)
+from project_rules import (check_repo_path, check_slug, cli_case, error_of,  # noqa: E402
+                           fence_split, isolated_git_environment, process_state,
+                           is_unset, parse_date, read_config, report, result_of, run_check)
 
 SECTIONS = ("User notice", "Data", "Infrastructure", "Credentials")
 STATUS = re.compile(r"^Status: (pending|done)$")
@@ -362,7 +362,7 @@ def self_test():
             handle.write('{"retirements_dir": "docs/retirements", '
                          '"roles": {"service_owner": "rob"}}')
         record_arguments = ["--config", config, "--today", "2026-10-19"]
-        for name, arguments, expected_output, expected_exit in [
+        for case in [
                 ("record done", ["record", "--file", done, *record_arguments], "done", 0),
                 ("a missing record", ["record", "--file", os.path.join(directory, "x.md"),
                                       *record_arguments], "INVALID:", 1),
@@ -370,12 +370,7 @@ def self_test():
                 ("a bad name", ["name", "--value", "B"], "INVALID:", 1),
                 ("retirements-dir ok", ["retirements-dir", "--config", config], "ok", 0),
                 ("no subcommand is usage", [], "", 2)]:
-            run = subprocess.run([sys.executable, script, *arguments], capture_output=True,
-                                 text=True, check=False)
-            stream = run.stderr if expected_output.startswith("INVALID") else run.stdout
-            shown = stream.strip()[:len(expected_output)] if expected_output else ""
-            failures += report("cli", name, (shown, run.returncode),
-                               (expected_output, expected_exit))
+            failures += cli_case(script, *case)
     return 1 if failures else 0
 
 
@@ -405,15 +400,7 @@ def main():
                                              service_owner(read_config(args.config)),
                                              args.today,
                                              os.path.splitext(os.path.basename(args.file))[0])}
-    if args.command not in checks:
-        parser.print_usage(sys.stderr)
-        return 2
-    try:
-        print(checks[args.command]())
-    except ValueError as error:
-        print(f"INVALID: {error}", file=sys.stderr)
-        return 1
-    return 0
+    return run_check(parser, checks, args.command)
 
 
 if __name__ == "__main__":

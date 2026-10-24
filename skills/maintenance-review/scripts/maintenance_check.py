@@ -52,7 +52,7 @@ sys.dont_write_bytecode = True
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)),
                                 "..", "..", "..", "gates", "scripts"))
 from project_rules import (MARKDOWN_VENDOR, YAML_VENDOR, check_command,  # noqa: E402
-                           check_repo_path, foreign_code, is_unset,
+                           check_repo_path, cli_case, foreign_code, is_unset,
                            isolated_git_environment, json_number, parse_date, positive_int,
                            process_state, read_config, report, result_of, run_git, single_number,
                            vendored)
@@ -765,12 +765,8 @@ def cli_cases():
                 ("routes prints unrouted", ["routes"], "a #ops\n", "a\t#ops", 0),
                 ("share with a target", ["share", "--resolved", "4", "--preventive", "1"], "",
                  "25.0%\tmeets 20%", 0)]:
-            run = subprocess.run([sys.executable, script, *arguments, "--config", config],
-                                 input=stdin, capture_output=True, text=True, check=False)
-            stream = run.stderr if expected_output.startswith("INVALID") else run.stdout
-            shown = stream.strip()[:len(expected_output)]
-            failures += report("cli", name, (shown, run.returncode),
-                               (expected_output, expected_exit))
+            failures += cli_case(script, name, [*arguments, "--config", config],
+                                 expected_output, expected_exit, input=stdin)
         run = subprocess.run([sys.executable, script, "config", "--config", config],
                              capture_output=True, text=True, check=False)
         failures += report("cli", "a command with a tab stays on one line",

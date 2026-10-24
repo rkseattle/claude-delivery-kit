@@ -1,8 +1,8 @@
-"""The project.json rules, the record-parsing rules, and the self-test helpers, the kit's
-release, review, incident, maintenance, and retirement scripts share. Standard library only,
-except fence_split and markdown_tokens, which load the CommonMark parser vendored beside
-the README checker, and YAML_VENDOR, the PyYAML the maintenance check and
-scripts/ci/actions-pinned.sh load.
+"""The project.json rules, the record-parsing rules, the check-script entry point, and the
+self-test helpers, the kit's release, review, incident, maintenance, and retirement scripts
+share. Standard library only, except fence_split and markdown_tokens, which load the
+CommonMark parser vendored beside the README checker, and YAML_VENDOR, the PyYAML the
+maintenance check and scripts/ci/actions-pinned.sh load.
 
 Imported by skills/release/scripts/halt_watch.py,
 skills/release-readiness/scripts/readiness_check.py, skills/ci-green/scripts/review_gate.py,
@@ -396,6 +396,32 @@ def result_of(function, *arguments):
         return function(*arguments)
     except ValueError:
         return "ValueError"
+
+
+def run_check(parser, checks, command):
+    """A check script's entry point: print the named check's result and exit 0, print
+    `INVALID: <what>` to stderr and exit 1 when it raises ValueError, or print usage and exit
+    2 when no check has that name."""
+    if command not in checks:
+        parser.print_usage(sys.stderr)
+        return 2
+    try:
+        print(checks[command]())
+    except ValueError as error:
+        print(f"INVALID: {error}", file=sys.stderr)
+        return 1
+    return 0
+
+
+def cli_case(script, name, arguments, expected_output, expected_exit, **options):
+    """One self-test line for a check script run as a subprocess: its stderr when the output
+    expected is an `INVALID` line, else its stdout, read to the expected output's length and
+    paired with the exit status. options pass to subprocess.run, such as input or cwd."""
+    run = subprocess.run([sys.executable, script, *arguments], capture_output=True, text=True,
+                         check=False, **options)
+    stream = run.stderr if expected_output.startswith("INVALID") else run.stdout
+    return report("cli", name, (stream.strip()[:len(expected_output)], run.returncode),
+                  (expected_output, expected_exit))
 
 
 def error_of(function, *arguments):
