@@ -28,6 +28,7 @@ installed one differs.
 | `script-tests` · Incident check self-test | `python3 skills/incident-review/scripts/incident_check.py --self-test` |
 | `script-tests` · Maintenance check self-test | `python3 skills/maintenance-review/scripts/maintenance_check.py --self-test` |
 | `script-tests` · Retirement check self-test | `python3 skills/retire-system/scripts/retire_check.py --self-test` |
+| `script-tests` · Design check self-test | `python3 skills/design-feature/scripts/design_check.py --self-test` |
 | `script-tests` · ADR number check self-test | `python3 gates/scripts/adr_numbers.py --self-test` |
 | `script-tests` · ADR numbers are unique | `python3 gates/scripts/adr_numbers.py` |
 | `manifest` · Every JSON file parses | `bash scripts/ci/json-parses.sh` |

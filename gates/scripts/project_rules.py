@@ -1,6 +1,6 @@
 """The project.json rules, the record-parsing rules, the check-script entry point, and the
-self-test helpers, the kit's release, review, incident, maintenance, and retirement scripts
-share. Standard library only, except fence_split and markdown_tokens, which load the
+self-test helpers, the kit's release, review, incident, maintenance, retirement, and design
+scripts share. Standard library only, except fence_split and markdown_tokens, which load the
 CommonMark parser vendored beside the README checker, and YAML_VENDOR, the PyYAML the
 maintenance check and scripts/ci/actions-pinned.sh load.
 
@@ -8,7 +8,8 @@ Imported by skills/release/scripts/halt_watch.py,
 skills/release-readiness/scripts/readiness_check.py, skills/ci-green/scripts/review_gate.py,
 skills/incident-review/scripts/incident_check.py,
 skills/maintenance-review/scripts/maintenance_check.py,
-skills/retire-system/scripts/retire_check.py, gates/scripts/sarif_gate.py,
+skills/retire-system/scripts/retire_check.py,
+skills/design-feature/scripts/design_check.py, gates/scripts/sarif_gate.py,
 gates/scripts/adr_numbers.py, and, for the discipline, tracked-file and self-test git rules,
 skills/write-tickets/scripts/lint_draft.py, and, for the YAML vendor alone,
 scripts/ci/actions-pinned.sh, and, for the Markdown table, register and tracked-file rules,
@@ -422,6 +423,21 @@ def cli_case(script, name, arguments, expected_output, expected_exit, **options)
     stream = run.stderr if expected_output.startswith("INVALID") else run.stdout
     return report("cli", name, (stream.strip()[:len(expected_output)], run.returncode),
                   (expected_output, expected_exit))
+
+
+def error_message(call):
+    """The ValueError message the call raises, or "" when it returns."""
+    try:
+        call()
+    except ValueError as error:
+        return str(error)
+    return ""
+
+
+def collected_errors(calls):
+    """The ValueError message of each call that raises one, in order, so a check can name
+    every problem in one run rather than the first."""
+    return [message for message in map(error_message, calls) if message]
 
 
 def error_of(function, *arguments):
