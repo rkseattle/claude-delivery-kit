@@ -66,9 +66,10 @@ read, so its meaningful comparison is against `main`'s skills, below.
 
 `plan-project-stops-at-approval` needs GitHub, which the sandbox lacks: `plan-project`
 stops unless the parent branch's latest CI run reports `success`. Its scaffold builds a
-repo whose `origin` is a local bare clone, so `git fetch` succeeds offline, and its prompt
+repo whose `origin` is a local bare clone, so `git fetch` can succeed offline, and its prompt
 supplies the `gh run list` output as retrieved evidence, as the `ci-failure-adversary-*`
-prompts do, so the run reaches the sponsor stop the case exists to test.
+prompts do, so the run reaches the sponsor stop the case exists to test. Whether that
+fetch runs on macOS is not yet re-measured; see the sandbox's `git` limit below.
 
 `plan-work-stops-at-approval` sits at +0.17 because its `no-branch-created` grader passes
 trivially in the baseline — an arm with no plugin has no reason to run git either. The
@@ -145,7 +146,8 @@ absent, which the scaffold's `.claude/agent-rules/feature-design-adversary.md` t
 agent, so its `Current state` claims are UNVERIFIABLE. `dispatches-with-the-path` passes in
 both arms, since a failed dispatch still records its input; the `llm` grader is what
 separates them. The agent surveys the web and runs git, so grant those tools, and the
-case's `timeout_seconds` of 900 gives it room.
+case's `timeout_seconds` of 900 gives it room. The workspace has no `origin`, so the
+agent's `git fetch` always fails, and its step 7 then marks the claim UNVERIFIABLE.
 
 `feature-design-adversary-passes-a-sound-design` is its false-positive partner, a contrast
 set in the sense of Gardner et al. (2020): its scaffold writes the same doc with step 3's
@@ -162,15 +164,21 @@ claude plugin eval . --scaffold --case 'feature-design-adversary-*' --allow-tool
 ```
 
 The three `ci-failure-adversary-*` cases dispatch `delivery-kit:ci-failure-adversary` the
-same way, with only the CI evidence, the note that it came from the run on `HEAD~1`, and
-the ref `HEAD`. `dispatches-the-agent` checks that the delegation names the agent, carries
-the `FAILED` line and the bare ref, and holds no common test-runner command; nothing checks
-the rest of it. It passes in both arms, as `dispatches-with-the-path` does. Their
-`runs-the-named-test` and `reads-the-dod` graders count calls the dispatched agent makes, so
-they pass only if a run's transcript records a subagent's tool calls, which the plugin-evals
-docs leave unstated. Each scaffold writes `project.json` after the last commit, untracked,
-so it is not in the fix's diff. Two also write `.claude/agent-rules/ci-failure-adversary.md`, the agent's rules file,
-saying how to run a test without pytest. Run them with:
+same way, with only the CI evidence, the note that it came from the run on `HEAD~1`, and the
+ref `HEAD`. `dispatches-the-agent` checks that the delegation names the agent, carries the
+`FAILED` line and the bare ref, and holds no common test-runner command; nothing checks the
+rest of it. It passes in both arms, as `dispatches-with-the-path` does. Their
+`runs-the-named-test` graders match a Bash call holding the test's run form, and
+`reads-the-dod` a Read of the DoD. Each counts the session's calls and the dispatched
+agent's alike. The 2026-10-23 run suggests the transcript records a subagent's calls at
+least sometimes: one with-arm run of `requires-a-named-test` counted a Read of the DoD in a
+session that made only the dispatch and the reply. Its zero `runs-the-named-test` matches
+came from the grader then requiring `git archive`. Nothing checks that the named test ran on
+both the parent and the fix: the `llm` graders grade the verdict, and `runs-the-named-test`
+cannot tell one run from the other. Each scaffold writes `project.json` after the last
+commit, untracked, so it is not in the fix's diff. Two also write
+`.claude/agent-rules/ci-failure-adversary.md`, the agent's rules file, saying how to run a
+test without pytest. Run them with:
 
 ```bash
 claude plugin eval . --scaffold --case 'ci-failure-adversary-*' --allow-tools Bash WebSearch
@@ -222,6 +230,15 @@ servers, no user settings. That constrains what can be tested here:
   matches it, so nothing before the staging ask needs GitHub or Jira. `release-readiness-stops-without-system-suite`'s project.json
   sets every required key and `release_dir` but no `system_test_command`, so the run stops
   in Step 1 before any suite, Jira, or GitHub call.
+- **`git` may not run inside a run on macOS.** In the 2026-10-23 `ci-failure-adversary-*`
+  run, every with-arm agent reported that `git` failed through the `/usr/bin/git` shim, and
+  rebuilt both commits by decoding `.git/objects` with Python, so the `git archive` export
+  the agent prescribes never ran. A scaffold's git runs before the sandbox and is
+  unaffected. Cases whose session or agent runs git during the run —
+  `plan-project-stops-at-approval`, both `release-*` cases, and the
+  `ci-failure-adversary-*` and `feature-design-adversary-*` cases — are not yet re-measured
+  against this. `results/` is not
+  tracked, so re-run to check it.
 - **Not testable without more scaffolding**: anything needing Jira, GitHub itself, or a
   populated `.claude/state/`. The citation contract end-to-end — the highest-value case —
   is in this category: it spans `plan-work` → `implement-phases` → `ci-green` across a
