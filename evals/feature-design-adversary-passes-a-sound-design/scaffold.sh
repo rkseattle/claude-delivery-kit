@@ -182,10 +182,10 @@ flowchart LR
 
 ### rate_limiter
 
-- Responsibility: atomically record a send for an endpoint in Redis if it fits under the cap.
+- Responsibility: run the Redis script that records a send for an endpoint and reports whether its window had room.
 - Inputs: an endpoint ID, a delivery ID, and the cap from `dispatcher`.
 - Outputs: `slot`, or `wait <ms>` until the oldest send leaves the one-second window.
-- Errors: a Redis error or a 50 ms timeout returns `wait 1000`, so an outage delays capped endpoints rather than exceeding their caps.
+- Errors: a Redis error or a 5 ms timeout returns `wait 1000`, so an outage delays capped endpoints rather than exceeding their caps.
 - Versioning: new; its one call is internal to the worker.
 - Layer: data access
 
@@ -217,14 +217,14 @@ flowchart LR
 
 ## Non-functional requirements
 
-- NFR1: ≤ 5 ms added to p99 dispatch latency for a capped endpoint — rate_limiter: one Redis script call per delivery, with a 50 ms timeout
+- NFR1: ≤ 5 ms added to p99 dispatch latency for a capped endpoint — rate_limiter: one Redis script call per delivery, with a 5 ms timeout
 
 ## Rollout and rollback
 
 1. Deploy the settings API that accepts the key. Rollback: redeploy the previous API release.
 2. Deploy the worker with `endpoint_rate_limits` off. Rollback: redeploy the previous worker.
 3. Turn on `endpoint_rate_limits` for the five internal test endpoints. Rollback: turn it off for them.
-4. Turn on `endpoint_rate_limits` for every endpoint. Rollback: turn it off for every endpoint.
+4. Turn on `endpoint_rate_limits` for every endpoint. Rollback: turn it off for all but the five internal test endpoints.
 
 ## Observability
 
