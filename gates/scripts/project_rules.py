@@ -29,6 +29,7 @@ import os
 import re
 import subprocess
 import sys
+import typing
 from unittest import mock
 
 GATES_SCRIPTS = os.path.dirname(os.path.abspath(__file__))
@@ -67,16 +68,52 @@ def is_unset(value):
                                            for entry in value)
 
 
-# The list-valued project.json keys read through is_unset_key, each unset by a list holding a
-# placeholder; halt_criteria, rollout_stages and disciplines are lists whose readers reject a
-# placeholder entry instead, and every other key holds one value.
-LIST_KEYS = ("model_eval_thresholds", "device_matrix", "on_call")
+class RequiredKey(typing.NamedTuple):
+    """A project.json key a check cannot run without, declared once as pre-commit's cfgv
+    declares one: check(value) raises ValueError on a value of the wrong shape. With
+    template_list, a list still holding a placeholder entry, as reference/project-json.md's
+    example writes the key, reads as unset; without it that list is a set value its check
+    judges. needed_by names who needs the key, for the message when it is unset."""
+    key: str
+    check: typing.Callable
+    template_list: bool = False
+    needed_by: typing.Optional[str] = None
 
 
-def is_unset_key(key, value):
-    """is_unset as the key's documented type reads it: a list holding a placeholder is unset
-    for a key in LIST_KEYS, and for any other key is a set value of the wrong type."""
-    return is_unset(value) and (key in LIST_KEYS or not isinstance(value, list))
+class OptionalKey(typing.NamedTuple):
+    """A project.json key that takes default when unset, declared as RequiredKey is."""
+    key: str
+    check: typing.Callable
+    default: typing.Any
+    template_list: bool = False
+
+
+def key_unset(declared, value):
+    """Whether the value leaves the declared key unset."""
+    return is_unset(value) and (declared.template_list or not isinstance(value, list))
+
+
+def key_problems(config, keys):
+    """The message of every problem with the declared keys in config, in order: a required key
+    unset, or a set key its check rejects."""
+    def judge(declared):
+        value = config.get(declared.key)
+        if not key_unset(declared, value):
+            declared.check(value)
+        elif isinstance(declared, RequiredKey):
+            needs = f", and {declared.needed_by} needs it" if declared.needed_by else ""
+            raise ValueError(f"{declared.key} is absent, none, blank, or a placeholder{needs}")
+    return collected_errors(lambda declared=declared: judge(declared) for declared in keys)
+
+
+def read_keys(config, keys):
+    """{key: value} for the declared keys, an unset optional one at its default; raise naming
+    every problem key_problems finds."""
+    problems = key_problems(config, keys)
+    if problems:
+        raise ValueError("; ".join(problems))
+    return {declared.key: (declared.default if key_unset(declared, config.get(declared.key))
+                           else config.get(declared.key)) for declared in keys}
 
 
 # Inline emphasis and code-span markers, which change how a Markdown value renders, not what
@@ -352,6 +389,20 @@ def json_number(key, value):
     if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value):
         raise ValueError(f"{key} {value!r} is not a finite JSON number")
     return value
+
+
+# The one shape of each key two scripts read, so neither holds a second definition; each
+# reader declares on its own whether the key is required, as a JSON Schema states required
+# per schema and a property's type once.
+SHARED_SHAPES = {"adr_dir": check_repo_path, "alert_rules_dir": check_repo_path,
+                 "drift_threshold": json_number, "patch_sla_days": positive_int}
+
+
+def shared_check(key):
+    """The check of a key in SHARED_SHAPES, for its RequiredKey or OptionalKey; a key not
+    there raises KeyError where it is declared."""
+    shape = SHARED_SHAPES[key]
+    return lambda value: shape(key, value)
 
 
 def check_command(key, value):

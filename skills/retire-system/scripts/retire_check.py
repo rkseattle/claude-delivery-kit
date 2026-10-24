@@ -41,10 +41,10 @@ import tempfile
 sys.dont_write_bytecode = True
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)),
                                 "..", "..", "..", "gates", "scripts"))
-from project_rules import (check_repo_path, check_slug, cli_case, error_of,  # noqa: E402
-                           fence_split, isolated_git_environment, process_state,
-                           is_unset_key, parse_date, read_config, report, result_of,
-                           run_check)
+from project_rules import (OptionalKey, RequiredKey, check_repo_path,  # noqa: E402
+                           check_slug, cli_case, error_of, fence_split,
+                           isolated_git_environment, process_state, parse_date, read_config,
+                           read_keys, report, result_of, run_check)
 
 SECTIONS = ("User notice", "Data", "Infrastructure", "Credentials")
 STATUS = re.compile(r"^Status: (pending|done)$")
@@ -66,14 +66,22 @@ def branch(name):
     return f"retire/{check_slug('name', name)}"
 
 
+def check_name(value):
+    if not isinstance(value, str):
+        raise ValueError("roles.service_owner is not a name")
+
+
+SERVICE_OWNER = OptionalKey("service_owner", check_name, None)
+RETIREMENTS_DIR = RequiredKey("retirements_dir",
+                              lambda value: check_repo_path("retirements_dir", value))
+
+
 def service_owner(config):
     roles = config.get("roles") or {}
     if not isinstance(roles, dict):
         raise ValueError("roles is not a map from each role to its person")
-    owner = roles.get("service_owner")
-    if not is_unset_key("service_owner", owner):
-        if not isinstance(owner, str):
-            raise ValueError("roles.service_owner is not a name")
+    owner = read_keys(roles, [SERVICE_OWNER])["service_owner"]
+    if owner is not None:
         return owner.strip()
     run = subprocess.run(["git", "config", "user.name"], capture_output=True, text=True,
                          check=False)
@@ -167,7 +175,7 @@ def record_state(text, owner, today, name=None):
 
 
 def check_dir(config):
-    check_repo_path("retirements_dir", config.get("retirements_dir"))
+    read_keys(config, [RETIREMENTS_DIR])
     return "ok"
 
 

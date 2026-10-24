@@ -68,13 +68,11 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)),
                                 "..", "..", "..", "gates", "scripts"))
 from project_rules import (BARE_FRAGMENT, DECIMAL, PLACEHOLDER, REGISTER_COLUMNS,  # noqa: E402
                            isolated_git_environment, process_state, run_git,
-                           check_command, check_repo_path, collected_errors,
-                           complete_register_row,
+                           check_command, check_repo_path, complete_register_row,
+                           key_problems, read_keys, RequiredKey, shared_check,
                            is_register_header, markdown_tables, markdown_tokens, words,
-                           fence_split, is_unset, is_unset_key, json_number,
-                           markdown_value,
-                           named_disciplines,
-                           positive_int, read_config as load_config, report,
+                           fence_split, markdown_value, named_disciplines,
+                           read_config as load_config, report,
                            single_number)
 from project_rules import error_of as _error, result_of as _result  # noqa: E402  test helpers
 
@@ -332,8 +330,7 @@ THRESHOLD = re.compile(rf"^({BARE_FRAGMENT}) ({DECIMAL})$")
 FLAGS_HEADING = "## Remote flags"
 
 
-def device_matrix(config):
-    value = config.get("device_matrix")
+def device_entries(value):
     if not (isinstance(value, list) and value
             and all(isinstance(entry, str) and DEVICE.fullmatch(entry) for entry in value)):
         raise ValueError("device_matrix is not a non-empty list of `<os> <version>` entries, "
@@ -341,8 +338,7 @@ def device_matrix(config):
     return [DEVICE.fullmatch(entry).groups() for entry in value]
 
 
-def model_thresholds(config):
-    value = config.get("model_eval_thresholds")
+def threshold_entries(value):
     if not (isinstance(value, list) and value
             and all(isinstance(entry, str) and THRESHOLD.fullmatch(entry) for entry in value)):
         raise ValueError("model_eval_thresholds is not a non-empty list of `<metric> <minimum>` "
@@ -353,9 +349,8 @@ def model_thresholds(config):
     return value
 
 
-def sensitive_globs(config):
-    value = config.get("security_sensitive_paths")
-    if is_unset(value) or not isinstance(value, str):
+def glob_list(value):
+    if not isinstance(value, str):
         raise ValueError("security_sensitive_paths is not a space-separated list of globs")
     unsupported = [pattern for pattern in value.split()
                    if pattern.startswith("!") or re.search(r"[\[\]\\]", pattern)]
@@ -383,21 +378,42 @@ def owners_pathspec(pattern):
     return [f":(glob){spec}", below]
 
 
-def check_min_version(config):
-    value = config.get("min_supported_app_version")
+def check_min_version(value):
     if not (isinstance(value, str) and re.fullmatch(DOTTED, value)):
         raise ValueError("min_supported_app_version is not dotted digits")
 
 
-FORMATS = {"device_matrix": device_matrix, "model_eval_thresholds": model_thresholds,
-           "security_sensitive_paths": sensitive_globs,
-           "min_supported_app_version": check_min_version,
-           "patch_sla_days": lambda config: positive_int("patch_sla_days",
-                                                         config.get("patch_sla_days")),
-           "alert_rules_dir": lambda config: check_repo_path("alert_rules_dir",
-                                                             config.get("alert_rules_dir")),
-           "drift_threshold": lambda config: json_number("drift_threshold",
-                                                         config.get("drift_threshold"))}
+# Each key a discipline needs, declared once; a key with no format here is a command. The two
+# list keys' examples in reference/project-json.md are placeholder lists, so those read as unset.
+FORMATS = {"device_matrix": RequiredKey("device_matrix", device_entries, template_list=True),
+           "model_eval_thresholds": RequiredKey("model_eval_thresholds", threshold_entries,
+                                                template_list=True),
+           "security_sensitive_paths": RequiredKey("security_sensitive_paths", glob_list),
+           "min_supported_app_version": RequiredKey("min_supported_app_version",
+                                                    check_min_version),
+           "patch_sla_days": RequiredKey("patch_sla_days", shared_check("patch_sla_days")),
+           "alert_rules_dir": RequiredKey("alert_rules_dir", shared_check("alert_rules_dir")),
+           "drift_threshold": RequiredKey("drift_threshold", shared_check("drift_threshold"))}
+NEEDED = {key: FORMATS.get(key) or RequiredKey(key, lambda value, key=key:
+                                               check_command(key, value))
+          for disciplines in GATE_KEYS.values() for keys in disciplines.values() for key in keys}
+
+
+def needed_value(config, key):
+    """The value of a key a discipline needs, or ValueError naming what is wrong with it."""
+    return read_keys(config, [NEEDED[key]])[key]
+
+
+def device_matrix(config):
+    return device_entries(needed_value(config, "device_matrix"))
+
+
+def model_thresholds(config):
+    return threshold_entries(needed_value(config, "model_eval_thresholds"))
+
+
+def sensitive_globs(config):
+    return glob_list(needed_value(config, "security_sensitive_paths"))
 
 
 def discipline_problems(config_path, gate=None):
@@ -408,22 +424,9 @@ def discipline_problems(config_path, gate=None):
         named = named_disciplines(config)
     except ValueError as error:
         return [str(error)]
-    return collected_errors(lambda discipline=discipline, key=key:
-                            check_needed_key(config, discipline, key)
-                            for discipline in named
-                            for key in GATE_KEYS.get(gate, {}).get(discipline, ()))
-
-
-def check_needed_key(config, discipline, key):
-    """Raise ValueError when a key the discipline needs is unset or not in its format."""
-    value = config.get(key)
-    if is_unset_key(key, value):
-        raise ValueError(f"{key} is absent, none, blank, or a placeholder, and "
-                         f"{discipline} needs it")
-    if key in FORMATS:
-        FORMATS[key](config)
-    else:
-        check_command(key, value)
+    return key_problems(config, [NEEDED[key]._replace(needed_by=discipline)
+                                 for discipline in named
+                                 for key in GATE_KEYS.get(gate, {}).get(discipline, ())])
 
 
 def oldest_devices(config):
@@ -930,6 +933,12 @@ def discipline_cases(directory, summary_file):
     def problems(value, gate=None):
         return discipline_problems(summary_file(json.dumps(value), "disciplines.json"), gate)
 
+    for key, value in [("device_matrix", ["<os> <version>"]),
+                       ("model_eval_thresholds", ["<metric> <minimum>"])]:
+        failures += report("disciplines", f"a {key} placeholder list reads as unset",
+                           problems(dict(READY, **{key: value}), "readiness"),
+                           [f"{key} is absent, none, blank, or a placeholder, and "
+                            f"{'mobile' if key == 'device_matrix' else 'data-ml'} needs it"])
     failures += report("disciplines", "a command list holding a placeholder is mistyped, not "
                        "absent", problems(dict(RELEASED, error_budget_command=["<command>", "eb"]),
                                           "release"), ["error_budget_command is not a command"])

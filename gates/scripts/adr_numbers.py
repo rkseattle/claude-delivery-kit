@@ -29,9 +29,9 @@ import tempfile
 
 sys.dont_write_bytecode = True
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from project_rules import (check_repo_path, cli_case, error_message, git_subcommand,  # noqa: E402
-                           is_unset_key, run_git, isolated_git_environment, read_config,
-                           report)
+from project_rules import (OptionalKey, cli_case, error_message,  # noqa: E402
+                           git_subcommand, isolated_git_environment, read_config, read_keys,
+                           report, run_git, shared_check)
 
 RECORD = re.compile(r"^(\d+)-[^/]+\.md$")
 GIT_ENVIRONMENT = None  # the self-test's isolated environment; None is the caller's
@@ -70,13 +70,13 @@ def duplicates(paths):
     return {number: sorted(held) for number, held in by_number.items() if len(held) > 1}
 
 
+ADR_DIR = OptionalKey("adr_dir", shared_check("adr_dir"), None)
+
+
 def adr_dir_of(config):
     """adr_dir from project.json, or None when unset; ValueError when invalid."""
-    value = read_config(config).get("adr_dir")
-    if is_unset_key("adr_dir", value):
-        return None
-    check_repo_path("adr_dir", value)
-    return os.path.normpath(value)
+    value = read_keys(read_config(config), [ADR_DIR])["adr_dir"]
+    return None if value is None else os.path.normpath(value)
 
 
 def check(config, against=None, head_ref="HEAD"):

@@ -51,17 +51,13 @@ import tempfile
 sys.dont_write_bytecode = True
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)),
                                 "..", "..", "..", "gates", "scripts"))
-from project_rules import (MARKDOWN_VENDOR, YAML_VENDOR, check_command,  # noqa: E402
-                           check_repo_path, cli_case, collected_errors, error_message,
-                           foreign_code, is_unset_key,
-                           isolated_git_environment, json_number, parse_date, positive_int,
-                           process_state, read_config, report, result_of, run_git, single_number,
-                           vendored)
+from project_rules import (MARKDOWN_VENDOR, YAML_VENDOR, OptionalKey, RequiredKey,  # noqa: E402
+                           check_command, check_repo_path, cli_case, error_message,
+                           foreign_code, isolated_git_environment, json_number, parse_date,
+                           positive_int, process_state, read_config, read_keys, report,
+                           result_of, run_git, shared_check, single_number, vendored)
 
 RUNBOOK_MAX_AGE = 90
-DEFAULTS = {"on_call": "none", "iteration_days": 14, "debt_share_target": "none",
-            "dependency_outdated_command": "none", "patch_sla_days": "none",
-            "runbooks_dir": "none", "alert_routes_command": "none"}
 TIMESTAMP = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:Z|[+-]\d{2}:\d{2})$")
 # Read-only git, deaf to a global log.showSignature, which would print signature lines
 # before the date, and reading each path literally, so a `*` in a runbook's name is no glob.
@@ -80,32 +76,37 @@ def check_target(key, value):
         raise ValueError(f"{key} {value!r} is not a number from 0 to 100")
 
 
-CHECKS = {"on_call": check_on_call,
-          "iteration_days": lambda value: positive_int("iteration_days", value),
-          "debt_share_target": lambda value: check_target("debt_share_target", value),
-          "dependency_outdated_command": lambda value: check_command(
-              "dependency_outdated_command", value),
-          "patch_sla_days": lambda value: positive_int("patch_sla_days", value),
-          "runbooks_dir": lambda value: check_repo_path("runbooks_dir", value),
-          "alert_routes_command": lambda value: check_command("alert_routes_command", value)}
+# The general maintenance keys; on_call's example in reference/project-json.md is a list of
+# placeholders, so that list reads as unset.
+KEYS = (OptionalKey("on_call", check_on_call, "none", template_list=True),
+        OptionalKey("iteration_days", lambda value: positive_int("iteration_days", value), 14),
+        OptionalKey("debt_share_target", lambda value: check_target("debt_share_target", value),
+                 "none"),
+        OptionalKey("dependency_outdated_command",
+                 lambda value: check_command("dependency_outdated_command", value), "none"),
+        OptionalKey("patch_sla_days", shared_check("patch_sla_days"), "none"),
+        OptionalKey("runbooks_dir", lambda value: check_repo_path("runbooks_dir", value), "none"),
+        OptionalKey("alert_routes_command",
+                 lambda value: check_command("alert_routes_command", value), "none"))
+DEFAULTS = {declared.key: declared.default for declared in KEYS}
+DRIFT_THRESHOLD = RequiredKey("drift_threshold", shared_check("drift_threshold"),
+                              needed_by="the drift check")
+ALERT_RULES_DIR = RequiredKey("alert_rules_dir", shared_check("alert_rules_dir"),
+                              needed_by="the alert-rules check")
 
 
 def resolve_config(config):
     """{key: value} for each general key, unset ones at their default; raise naming every
     key set in the wrong shape."""
-    problems = collected_errors(lambda key=key: CHECKS[key](config.get(key))
-                                for key in DEFAULTS if not is_unset_key(key, config.get(key)))
-    if problems:
-        raise ValueError("; ".join(problems))
-    return {key: default if is_unset_key(key, config.get(key)) else config.get(key)
-            for key, default in DEFAULTS.items()}
+    return read_keys(config, KEYS)
 
 
 def required(config, key):
-    value = resolve_config(config)[key]
-    if value == "none":
-        raise ValueError(f"{key} is none, so this check has nothing to read")
-    return value
+    """A general key this check cannot run without, once every general key is in shape."""
+    resolve_config(config)
+    declared = next(declared for declared in KEYS if declared.key == key)
+    return read_keys(config, [RequiredKey(key, declared.check, declared.template_list,
+                                          needed_by="this check")])[key]
 
 
 def utc_date(timestamp):
@@ -264,8 +265,8 @@ def rule_groups(document, path):
 
 def unlinked_alerts(config):
     """Each alerting rule naming no SLO or no runbook, by file and alert, with what it lacks."""
-    check_repo_path("alert_rules_dir", config.get("alert_rules_dir"))
-    directory = existing_dir("alert_rules_dir", config["alert_rules_dir"])
+    directory = existing_dir("alert_rules_dir",
+                             read_keys(config, [ALERT_RULES_DIR])["alert_rules_dir"])
     vendored(YAML_VENDOR)
     import yaml
     def unreadable(error):
@@ -324,10 +325,7 @@ def unlinked_row(rule, path):
 
 
 def drift(config, output):
-    value = config.get("drift_threshold")
-    if is_unset_key("drift_threshold", value):
-        raise ValueError("drift_threshold is none, so this check has nothing to compare")
-    threshold = json_number("drift_threshold", value)
+    threshold = read_keys(config, [DRIFT_THRESHOLD])["drift_threshold"]
     value = single_number(output, "drift_check_command")
     return ("over" if float(value) > threshold else "within"), value
 
@@ -784,9 +782,11 @@ def self_test():
     for name, output, threshold, expected in DRIFT_CASES:
         failures += report("drift", name,
                            result_of(drift, {"drift_threshold": threshold}, output), expected)
+    failures += report("config", "an on_call placeholder list reads as unset",
+                       resolve_config({"on_call": ["<handle>", "<handle>"]})["on_call"], "none")
     failures += report("drift", "a threshold list holding a placeholder is mistyped, not none",
-                       error_message(lambda: drift({"drift_threshold": ["<n>", 0.2]}, "0.1\n"))
-                       .startswith("drift_threshold is none"), False)
+                       error_message(lambda: drift({"drift_threshold": ["<n>", 0.2]}, "0.1\n")),
+                       "drift_threshold ['<n>', 0.2] is not a finite JSON number")
     for name, config, expected in CONFIG_CASES:
         failures += report("config", name, result_of(resolve_config, config), expected)
     failures += report("config", "a runbooks_dir list holding a placeholder",
