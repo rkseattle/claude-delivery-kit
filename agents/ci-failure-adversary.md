@@ -87,7 +87,7 @@ whether each is a live defect or benign in its context and why.
   its state is untouched, and one Bash call does it all, since the trap removes them:
 
   ```bash
-  ( work=$(mktemp -d) || exit 2; trap 'rm -rf "$work"' EXIT; parent=$work/p; fixed=$work/f
+  ( set -o pipefail; work=$(mktemp -d) || exit 2; trap 'rm -rf "$work"' EXIT; parent=$work/p; fixed=$work/f
     mkdir "$parent" "$fixed" && git archive <ref>^ | tar -x -C "$parent" && git archive <ref> | tar -x -C "$fixed" || exit 2
     tests=(<the fix's test-side paths, each quoted, or nothing>)
     [ "${#tests[@]}" -eq 0 ] || git diff --binary <ref>^ <ref> -- "${tests[@]}" |
