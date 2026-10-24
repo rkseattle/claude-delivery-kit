@@ -30,7 +30,8 @@ import tempfile
 sys.dont_write_bytecode = True
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from project_rules import (check_repo_path, error_message, git_subcommand,  # noqa: E402
-                           is_unset, run_git, isolated_git_environment, read_config, report)
+                           is_unset_scalar, run_git, isolated_git_environment, read_config,
+                           report)
 
 RECORD = re.compile(r"^(\d+)-[^/]+\.md$")
 GIT_ENVIRONMENT = None  # the self-test's isolated environment; None is the caller's
@@ -72,7 +73,7 @@ def duplicates(paths):
 def adr_dir_of(config):
     """adr_dir from project.json, or None when unset; ValueError when invalid."""
     value = read_config(config).get("adr_dir")
-    if is_unset(value):
+    if is_unset_scalar(value):
         return None
     check_repo_path("adr_dir", value)
     return os.path.normpath(value)
@@ -145,6 +146,8 @@ def self_test():
         write(".claude/project.json", '{"adr_dir": "../outside"}\n')
         commit("invalid")
         failures += report("check", "an adr_dir outside the repository", run(), 2)
+        write(".claude/project.json", '{"adr_dir": ["<directory>", "docs/adr"]}\n')
+        failures += report("check", "an adr_dir list holding a placeholder", run(), 2)
         write(".claude/project.json", '{"adr_dir": "docs/adr"}\n')
         write("docs/adr/README.md")
         write("docs/adr/template.md")

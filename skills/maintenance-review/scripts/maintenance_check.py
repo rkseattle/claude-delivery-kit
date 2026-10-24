@@ -53,6 +53,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)),
                                 "..", "..", "..", "gates", "scripts"))
 from project_rules import (MARKDOWN_VENDOR, YAML_VENDOR, check_command,  # noqa: E402
                            check_repo_path, cli_case, collected_errors, foreign_code, is_unset,
+                           is_unset_scalar,
                            isolated_git_environment, json_number, parse_date, positive_int,
                            process_state, read_config, report, result_of, run_git, single_number,
                            vendored)
@@ -89,14 +90,20 @@ CHECKS = {"on_call": check_on_call,
           "alert_routes_command": lambda value: check_command("alert_routes_command", value)}
 
 
+def unset_key(config, key):
+    """Whether a general key is unset; only on_call holds a list, so only it is unset by a
+    list holding a placeholder."""
+    return (is_unset if key == "on_call" else is_unset_scalar)(config.get(key))
+
+
 def resolve_config(config):
     """{key: value} for each general key, unset ones at their default; raise naming every
     key set in the wrong shape."""
     problems = collected_errors(lambda key=key: CHECKS[key](config.get(key))
-                                for key in DEFAULTS if not is_unset(config.get(key)))
+                                for key in DEFAULTS if not unset_key(config, key))
     if problems:
         raise ValueError("; ".join(problems))
-    return {key: default if is_unset(config.get(key)) else config.get(key)
+    return {key: default if unset_key(config, key) else config.get(key)
             for key, default in DEFAULTS.items()}
 
 
@@ -786,6 +793,9 @@ def self_test():
                            result_of(drift, {"drift_threshold": threshold}, output), expected)
     for name, config, expected in CONFIG_CASES:
         failures += report("config", name, result_of(resolve_config, config), expected)
+    failures += report("config", "a runbooks_dir list holding a placeholder",
+                       result_of(resolve_config, {"runbooks_dir": ["<directory>", "docs"]}),
+                       "ValueError")
     failures += runbook_cases()
     failures += alert_rule_cases()
     failures += vendored_code_cases()

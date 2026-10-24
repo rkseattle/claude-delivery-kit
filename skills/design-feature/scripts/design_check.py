@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Feature-design checks, so the skill settles none of them by eye. Standard library only.
 
-For the design-feature skill, which runs `dirs` before it writes a design.
+Written for the design-feature skill to run before it writes a design.
 
     design_check.py dirs --config PATH
         `ok` when design_dir and adr_dir are each a relative path inside the repository, as
@@ -23,7 +23,7 @@ sys.dont_write_bytecode = True
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)),
                                 "..", "..", "..", "gates", "scripts"))
 from project_rules import (check_repo_path, cli_case, collected_errors,  # noqa: E402
-                           error_message, is_unset, read_config, report, run_check)
+                           error_message, is_unset_scalar, read_config, report, run_check)
 
 KEYS = ("design_dir", "adr_dir")
 # Keys for which unset is a valid setting, as gates/scripts/adr_numbers.py reads adr_dir.
@@ -33,7 +33,7 @@ OPTIONAL = ("adr_dir",)
 def check_dirs(config):
     """"ok", with a note per optional key left unset, when every set key passes
     check_repo_path; otherwise ValueError naming each that fails."""
-    unset = [key for key in OPTIONAL if is_unset(config.get(key))]
+    unset = [key for key in OPTIONAL if is_unset_scalar(config.get(key))]
     errors = collected_errors(lambda key=key: check_repo_path(key, config.get(key))
                               for key in KEYS if key not in unset)
     if errors:
@@ -70,11 +70,17 @@ DIRS_CASES = [
     ("adr_dir a placeholder", {**VALID, "adr_dir": "<directory>"}, UNSET),
     ("adr_dir absolute", {**VALID, "adr_dir": "/docs/adr"}, ["adr_dir"]),
     ("adr_dir not a string", {**VALID, "adr_dir": ["docs/adr"]}, ["adr_dir"]),
+    ("adr_dir a list holding a placeholder", {**VALID, "adr_dir": ["<directory>", "docs/adr"]},
+     ["adr_dir"]),
     ("adr_dir outside the repository", {**VALID, "adr_dir": "docs/../../adr"}, ["adr_dir"]),
     ("adr_dir a shell metacharacter", {**VALID, "adr_dir": "docs/adr;rm"}, ["adr_dir"]),
     ("both failing", BOTH_FAILING, ["design_dir", "adr_dir"]),
     ("design_dir unset with adr_dir unset", {}, ["design_dir"]),
 ]
+
+
+def raise_empty():
+    raise ValueError("")
 
 
 def self_test():
@@ -83,6 +89,8 @@ def self_test():
         failures += report("dirs", name,
                            error_message(lambda: check_dirs(config)) or check_dirs(config),
                            expected_message(config, keys))
+    failures += report("collected_errors", "a ValueError with no message still counts",
+                       collected_errors([raise_empty, lambda: None]), [""])
     script = os.path.abspath(__file__)
     with tempfile.TemporaryDirectory() as directory:
         configs = {}

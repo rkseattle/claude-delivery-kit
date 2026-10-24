@@ -67,6 +67,11 @@ def is_unset(value):
                                            for entry in value)
 
 
+def is_unset_scalar(value):
+    """is_unset for a key holding one value: a list is never unset, but a wrongly typed value."""
+    return not isinstance(value, list) and is_unset(value)
+
+
 # Inline emphasis and code-span markers, which change how a Markdown value renders, not what
 # it says: a snake_case underscore is not one, being inside a word. CommonMark's backslash
 # escape of ASCII punctuation renders as the punctuation alone.
@@ -426,18 +431,18 @@ def cli_case(script, name, arguments, expected_output, expected_exit, **options)
 
 
 def error_message(call):
-    """The ValueError message the call raises, or "" when it returns."""
+    """The ValueError message the call raises, or None when it returns."""
     try:
         call()
     except ValueError as error:
         return str(error)
-    return ""
+    return None
 
 
 def collected_errors(calls):
     """The ValueError message of each call that raises one, in order, so a check can name
     every problem in one run rather than the first."""
-    return [message for message in map(error_message, calls) if message]
+    return [message for message in map(error_message, calls) if message is not None]
 
 
 def error_of(function, *arguments):

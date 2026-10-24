@@ -43,7 +43,8 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)),
                                 "..", "..", "..", "gates", "scripts"))
 from project_rules import (check_repo_path, check_slug, cli_case, error_of,  # noqa: E402
                            fence_split, isolated_git_environment, process_state,
-                           is_unset, parse_date, read_config, report, result_of, run_check)
+                           is_unset, is_unset_scalar, parse_date, read_config, report,
+                           result_of, run_check)
 
 SECTIONS = ("User notice", "Data", "Infrastructure", "Credentials")
 STATUS = re.compile(r"^Status: (pending|done)$")
@@ -70,7 +71,7 @@ def service_owner(config):
     if not isinstance(roles, dict):
         raise ValueError("roles is not a map from each role to its person")
     owner = roles.get("service_owner")
-    if not is_unset(owner):
+    if not is_unset_scalar(owner):
         if not isinstance(owner, str):
             raise ValueError("roles.service_owner is not a name")
         return owner.strip()
@@ -348,6 +349,9 @@ def self_test():
                        result_of(service_owner, {"roles": {"service_owner": "ana "}}), "ana")
     failures += report("owner", "roles as a list",
                        result_of(service_owner, {"roles": ["ana"]}), "ValueError")
+    failures += report("owner", "a service owner list holding a placeholder",
+                       result_of(service_owner, {"roles": {"service_owner": ["<name>", "ana"]}}),
+                       "ValueError")
     failures += report("owner", "a service owner that is not a name",
                        result_of(service_owner, {"roles": {"service_owner": ["ana"]}}),
                        "ValueError")
