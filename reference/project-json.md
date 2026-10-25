@@ -229,10 +229,11 @@ fires — an error rate above 1%, say, or p95 latency 20% above baseline, the ru
 examples — and every one runs once a minute for `monitoring_window_minutes` after each
 stage. `released_status` names the Jira transition the released tickets take, matched by
 name and confirmed by reading each ticket back. All default to `none` except
-`monitoring_window_minutes`, which defaults to `60`, the rule book's one hour. What stops
-`release` before it tags, including `rollout_stages` `none` on a `medium` or `large`
-project, is listed once, in `gates/release.md`. `released_status` `none` leaves the
-tickets where they are.
+`monitoring_window_minutes`, which defaults to `60`, the rule book's one hour, only when
+absent: present, with any value, `none` included, it must be a positive whole number.
+What stops `release` before it tags, including `rollout_stages` `none` on a `medium` or
+`large` project, is listed once, in `gates/release.md`. `released_status` `none` leaves
+the tickets where they are.
 
 The values in the block above are illustrations, not defaults. Some of its keys are
 required and have no default; one that is missing, empty, `none`, or a `<placeholder>`
