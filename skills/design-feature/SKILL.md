@@ -72,29 +72,25 @@ when one already designs this feature, its title is the title, so a re-run finds
 and a decided design is never designed twice. Otherwise the title is a short noun phrase
 naming the feature, stated in the first report.
 
-`<slug>` is what this prints, the title passed through a quoted heredoc so that no
-backtick or `$` in it reaches the shell; an `INVALID:` line stops the run, naming the
-title:
+`<slug>` is what this prints for the title, handed over as a file per **Untrusted text** in
+`gates/project-config.md`; an `INVALID:` line stops the run, naming the title:
 
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/skills/design-feature/scripts/design_check.py" slug --title "$(cat <<'TITLE'
-<title>
-TITLE
-)"
+python3 "${CLAUDE_PLUGIN_ROOT}/skills/design-feature/scripts/design_check.py" slug < "<title file>"
 ```
 
 Then stop, and say why in one line, when:
 
-- **`git check-ignore -q {{design_dir}}/<slug>.md` exits 0, or, with `adr_dir` set,
-  `git check-ignore -q {{adr_dir}}/0000-<slug>.md` does.** Both are committed in Step 6, and
-  an ignored path fails there, after the tech lead has decided; name the key, and the rule
-  `git check-ignore -v` prints for it. `-q` decides, since `-v` also prints a `!` rule that
-  re-includes the path. Step 3 checks each ADR's own path again once it is named.
+- **`{{design_dir}}/<slug>.md` is ignored, or, with `adr_dir` set,
+  `{{adr_dir}}/0000-<slug>.md` is**, as **Ignored paths** in `gates/project-config.md`
+  decides. Both are committed in Step 6, and an ignored path fails there, after the tech
+  lead has decided; name the key and the rule. Step 3 checks each ADR's own path again once
+  it is named.
 - **`{{brief_file}}` is set and the file is missing, or its `## Decision` line does not
   start with `Approved`.** The design restates the brief's goals, which an unapproved brief
-  has not settled; name the decision it holds, and send a pending one to the sponsor
-  through `plan-project`. With `brief_file` `none`, say in one line that there is no brief
-  to frame the design against, and go on.
+  has not settled; name the decision it holds, and send a pending one to the sponsor through
+  `plan-project`. With `brief_file` `none`, say in one line that there is no brief to frame
+  the design against, and go on.
 - **`{{design_dir}}/<slug>.md` exists with a `## Decision` that reads other than
   `Pending`.** The design is decided; name the decision rather than revise it.
 - **`design/<slug>` or `origin/design/<slug>` exists.** Ask rather than reuse it.
@@ -111,8 +107,8 @@ Frame the feature from `$ARGUMENTS`, the Epic, and the brief:
   `## Goals`, narrowed to this feature. A goal that restates none is cut; if that leaves
   the feature serving no goal of the brief, say so at Step 5 as a question for
   `{{roles.product_owner}}`.
-- **Given an Epic key**, `## Summary` opens with the line `Epic: <KEY>`, and the design keeps
-  the Epic's `SM<n>` and `NFR<n>` IDs, as the gate requires.
+- **Given an Epic key**, `## Summary` opens with the line `Epic: <KEY>`, and the design
+  keeps the Epic's `SM<n>` and `NFR<n>` IDs, as the gate requires.
 
 **Then survey, before reading any code.** Name two or three real systems that solve the
 whole problem — documented standards, framework conventions, well-known implementations —
@@ -143,8 +139,8 @@ the choice has no record to point to, and the gate fails the design. Otherwise w
 ADR per such line, in the gate's MADR form and at the path the line names, with
 `status: proposed`, `date` from `date +%F`, and the tech lead as `decision-makers`. Number
 them by the gate's **ADRs** numbering rule after `git fetch`; each file's `<title>` is what
-`design_check.py slug` prints for the choice, passed through a quoted heredoc as in Step 1.
-Stop, as in Step 1, when `git check-ignore -q` exits 0 for any ADR's path.
+`design_check.py slug` prints for the choice, handed over as in Step 1.
+Stop, as in Step 1, when any ADR's path is ignored.
 
 Before Step 4, check the doc against every rule of the gate and fix what fails: the
 reviewer's scarcest output is the finding a grep would not have found.
@@ -235,9 +231,8 @@ confirms every `(proposed)` value as written, so remove those marks with it; a r
 keeps them, since nothing was confirmed. A rejected design is committed too, its ADRs
 keeping their numbers: it is the record of the stop.
 
-Write each file with the Write tool, never through a shell string: the title and the
-names are text from Jira and the session, and a backtick or `$` in one would run in a
-double-quoted shell argument. Then cut the branch from `base`, which the fetch above
+Write each file with the Write tool, per **Untrusted text** in `gates/project-config.md`:
+the title and the names are free text. Then cut the branch from `base`, which the fetch above
 confirmed is `origin/{{parent_branch_default}}`, and commit the design doc and its ADRs
 alone, from `message`:
 

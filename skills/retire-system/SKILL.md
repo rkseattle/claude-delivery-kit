@@ -43,16 +43,17 @@ Stop, and say why in one line, when:
   leaves it, which would undo Step 5's switch. A file that does not parse stops too.
 - **Either check below prints anything but `ok` and `retire/<name>`** — an `INVALID:` line
   for a `retirements_dir` that is `none`, absent, or not a relative path inside the
-  repository, or a name that is not lowercase kebab-case. With the project root written as
-  its absolute path:
+  repository, or a name that is not lowercase kebab-case or too long for a branch. With the
+  project root written as its absolute path, and the name, from `$ARGUMENTS`, handed over as
+  a file per **Untrusted text** in `gates/project-config.md`:
 
   ```bash
   python3 "${CLAUDE_PLUGIN_ROOT}/skills/retire-system/scripts/retire_check.py" retirements-dir --config "<project root>/.claude/project.json"
-  python3 "${CLAUDE_PLUGIN_ROOT}/skills/retire-system/scripts/retire_check.py" name --value "<name>"
+  python3 "${CLAUDE_PLUGIN_ROOT}/skills/retire-system/scripts/retire_check.py" name < "<name file>"
   ```
 
-- **`git check-ignore -v {{retirements_dir}}/<name>.md` matches.** The record is committed in
-  Step 5; name the rule it printed.
+- **`{{retirements_dir}}/<name>.md` is ignored**, as **Ignored paths** in
+  `gates/project-config.md` decides. The record is committed in Step 5; name the rule.
 - **After `git fetch origin`, `retire/<name>` or `origin/retire/<name>` exists**, other than
   the interrupted commit below. Ask rather than reuse it.
 - **`git cat-file -e HEAD:{{retirements_dir}}/<name>.md` or the same against

@@ -68,11 +68,14 @@ Every stop below comes before the tag, and says why in one line.
   python3 "${CLAUDE_PLUGIN_ROOT}/skills/release-readiness/scripts/readiness_check.py" disciplines --config "<project root>/.claude/project.json" --gate release
   ```
 
-- **`$ARGUMENTS` is not `MAJOR.MINOR.PATCH`**: this prints anything but `ok`.
+- **`$ARGUMENTS` is not `MAJOR.MINOR.PATCH`**: this prints anything but `ok`, the version
+  handed over as a file per **Untrusted text** in `gates/project-config.md`; once it prints
+  `ok`, the version is safe as an argument:
 
   ```bash
-  python3 "${CLAUDE_PLUGIN_ROOT}/skills/release-readiness/scripts/readiness_check.py" version --new <version>
+  python3 "${CLAUDE_PLUGIN_ROOT}/skills/release-readiness/scripts/readiness_check.py" version < "<version file>"
   ```
+
 - **The readiness record does not hold**: the tested check below prints anything but `ok`.
   It requires the summary to exist, to end `Gate: PASS` with the `Reviewed-by:` line
   `gates/release-readiness.md` criterion 4 defines directly before it, and to match, as it

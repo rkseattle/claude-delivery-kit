@@ -50,7 +50,9 @@ jobs:
       # template list mixing a placeholder, a key under a non-object, an unregistered path;
       # per result kind and exit of run_check, every check script's entry point, Outcome and
       # mismatch included; per option of cli_case and per kind of file write_scratch, the
-      # self-tests' shared runner and scratch writer; and collected_errors' empty message.
+      # self-tests' shared runner and scratch writer; collected_errors' empty message; and
+      # slug_of's folding, separators and length fit; text_input's terminal refusal and
+      # newline handling; and the slug and pr-number subcommands read from stdin.
       - name: Project rules self-test
         run: python3 gates/scripts/project_rules.py --self-test
 
@@ -88,7 +90,8 @@ jobs:
         run: python3 skills/release-readiness/scripts/readiness_check.py --self-test
 
       # One case per way an incident review could be counted on time when it is late, or
-      # write to a branch or path it should not; incident-review calls this script for both.
+      # write to a branch or path it should not, its slug and incident date read from stdin;
+      # incident-review calls this script for these.
       - name: Incident check self-test
         run: python3 skills/incident-review/scripts/incident_check.py --self-test
 
@@ -104,7 +107,8 @@ jobs:
         run: python3 skills/retire-system/scripts/retire_check.py --self-test
 
       # One case per way a design or ADR directory could pass when it should not: an unset
-      # design_dir, an absolute path, one outside the repository or inside .git; written for
+      # design_dir, an absolute path, one outside the repository or inside .git; and the
+      # design's slug fitted to its longest file name, read from stdin; written for
       # design-feature to run before it writes a design.
       - name: Design check self-test
         run: python3 skills/design-feature/scripts/design_check.py --self-test

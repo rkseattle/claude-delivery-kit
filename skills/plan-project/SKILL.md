@@ -27,10 +27,11 @@ Stop, and say why in one line, when:
 - **`.claude/state/current-plan.json` exists without `"paused": true`.** A delivery run is
   in flight, and the branch guard moves HEAD back to its branch after any command that
   leaves it, which would undo Step 5's switch.
-- **The checked-out branch is not `{{parent_branch_default}}`.** Step 3 checks the build
-  the brief's branch is cut from, so it runs there; say which branch to switch to.
-- **`git check-ignore -v {{brief_file}}` matches.** The brief is committed in Step 5, and an
-  ignored path fails there, after the sponsor has decided; name the rule it printed.
+- **The checked-out branch is not `{{parent_branch_default}}`.** Step 3 checks the build the
+  brief's branch is cut from, so it runs there; say which branch to switch to.
+- **`{{brief_file}}` is ignored**, as **Ignored paths** in `gates/project-config.md`
+  decides. The brief is committed in Step 5, and an ignored path fails there, after the
+  sponsor has decided; name the rule.
 - **`{{brief_file}}` exists and its `## Decision` reads `Approved` or `Rejected`.** The
   brief is decided; name the decision rather than revise it.
 
@@ -39,13 +40,14 @@ Stop, and say why in one line, when:
 did not finish — the way `.git/rebase-merge` tells git a rebase is in progress. First, when
 `git show brief/<slug>:{{brief_file}}` already holds the `decision` line, the commit landed
 and only cleanup was lost: remove the directory, report that commit, and offer no abort.
-Otherwise continue, keeping the recorded decision: switch to `brief/<slug>` (or cut it if
-absent), make the `## Decision` line match `decision`, and commit as Step 5 does. On an
-explicit abort instead, unstage the brief with `git restore --staged {{brief_file}}`,
-restore it from `presented.md`, switch to `{{parent_branch_default}}`, delete
-`brief/<slug>` if it has no commits of its own, and remove the directory — leaving index
-and tree as before Step 5, as `git rebase --abort` does. No other stop applies while it
-exists.
+Otherwise continue, keeping the recorded decision: switch to `brief/<slug>`, or, if it is
+absent, cut it from the commit in `base` — from `origin/{{parent_branch_default}}` when a
+directory written before `base` existed has none — make the `## Decision` line match
+`decision`, and commit as Step 5 does. On an explicit abort instead, unstage the brief with
+`git restore --staged {{brief_file}}`, restore it from `presented.md`, switch to
+`{{parent_branch_default}}`, delete `brief/<slug>` if it has no commits of its own, and
+remove the directory — leaving index and tree as before Step 5, as `git rebase --abort`
+does. No other stop applies while it exists.
 
 An existing `{{brief_file}}` whose decision is `Pending`, or that has no `## Decision`
 section yet, is the draft: read it, and revise it in Step 2 rather than writing over it
@@ -135,8 +137,14 @@ it states, and **stop unless each passes**, naming what was reported; a failed f
 `gh` error is named as that. When `{{results_file}}` is not `none`, the build's verdict is
 read from it with `{{results_read_command}}` rather than from the console.
 
-Stop, too, when `brief/<slug>` or `origin/brief/<slug>` already exists — `<slug>` the
-project name in lowercase kebab-case — and ask rather than reuse it.
+Stop, too, when `brief/<slug>` or `origin/brief/<slug>` already exists, and ask rather than
+reuse it. `<slug>` is what this prints for the project name, handed over as a file per
+**Untrusted text** in `gates/project-config.md`; an `INVALID:` line, as for a name with no
+Latin letter or digit, asks for the name in Latin letters:
+
+```bash
+python3 "${CLAUDE_PLUGIN_ROOT}/gates/scripts/project_rules.py" slug < "<name file>"
+```
 
 A failure here is not repaired by this skill: setting up or fixing the build and pipeline
 is the project's step 6 work. The brief stays in place, and a re-run presents it once both
@@ -172,10 +180,10 @@ Run `git fetch` first; if `origin/{{parent_branch_default}}` moved since Step 3,
 anything.
 
 Before touching the brief, write the operation's state where git keeps its own, in the
-directory `git rev-parse --git-path plan-project` names: `presented.md`, a copy of the
-brief as Step 4 presented it; `slug`; and `decision`, the line below. Then replace the
-`Pending — <sponsor>.` line under `## Decision` with the decision, the sponsor, and today's
-date from `date +%F`:
+directory `git rev-parse --git-path plan-project` names: `presented.md`, a copy of the brief
+as Step 4 presented it; `slug`; `base`, the commit `origin/{{parent_branch_default}}` names
+after that fetch; and `decision`, the line below. Then replace the `Pending — <sponsor>.`
+line under `## Decision` with the decision, the sponsor, and today's date from `date +%F`:
 
 ```markdown
 Approved by <sponsor> on <YYYY-MM-DD>.
@@ -194,7 +202,7 @@ committed too: it is the record that the project was stopped at the gate.
 Then cut the branch, with the `<slug>` Step 3 checked, and commit the brief alone:
 
 ```bash
-git switch -c brief/<slug> origin/{{parent_branch_default}}
+git switch -c brief/<slug> <base>
 git add {{brief_file}}
 git commit -m "Record the project brief and the sponsor's decision" -- {{brief_file}}
 ```

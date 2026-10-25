@@ -111,8 +111,16 @@ the state write below. An `OPEN` PR is recorded and used, never opened twice; a 
 merged one is not reused. A "no pull requests found" message, matched case-insensitively,
 means create one; any other failure of that call stops the stage, declared per `deliver`'s invariants.
 
+Both the title and the body hold Jira text, so they go over as files per **Untrusted text**
+in `gates/project-config.md`. Print the directory with
+`git rev-parse --path-format=absolute --git-path ship-pr-input`, write the title,
+`<ALL ticket IDs> — <summary>`, to `title` there and the body below to `body.md` with the
+Write tool, then run this, which removes both whether or not the create succeeds:
+
 ```bash
-gh pr create --title "<ALL ticket IDs> — <summary>" --body "<body>"
+dir=$(git rev-parse --path-format=absolute --git-path ship-pr-input)
+gh pr create --title "$(cat "$dir/title")" --body-file "$dir/body.md"; created=$?
+rm -f "$dir/title" "$dir/body.md"; [ "$created" -eq 0 ]
 ```
 
 Title lists every covered ticket ID in full — never abbreviated, never partial.

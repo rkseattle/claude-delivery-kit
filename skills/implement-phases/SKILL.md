@@ -22,6 +22,13 @@ git checkout {{parent_branch_default}} && git pull
 git checkout -b <ticket-slug>
 ```
 
+`<ticket-slug>` is the primary ticket's ID, a hyphen, and what this prints for its summary,
+handed over as a file per **Untrusted text** in `gates/project-config.md`:
+
+```bash
+python3 "${CLAUDE_PLUGIN_ROOT}/gates/scripts/project_rules.py" slug < "<summary file>"
+```
+
 Branch from `{{parent_branch_default}}` unless instructed otherwise. Then transition every
 covered ticket to **In Progress**. Look up the issue's available transitions via the
 Atlassian MCP first and use the ID it returns — never guess one.

@@ -93,9 +93,12 @@ excluded from the search, so it neither starts the range nor blocks the next ver
 Anything but `ok` stops the skill: a malformed version, or one not greater than the last in
 Semantic Versioning precedence, would mislabel history.
 
+The version, from `$ARGUMENTS`, is handed over as a file per **Untrusted text** in
+`gates/project-config.md`:
+
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/skills/release-readiness/scripts/readiness_check.py" version --new <version> --last v<last>
-python3 "${CLAUDE_PLUGIN_ROOT}/skills/release-readiness/scripts/readiness_check.py" version --new <version>
+python3 "${CLAUDE_PLUGIN_ROOT}/skills/release-readiness/scripts/readiness_check.py" version --last v<last> < "<version file>"
+python3 "${CLAUDE_PLUGIN_ROOT}/skills/release-readiness/scripts/readiness_check.py" version < "<version file>"
 ```
 
 The first line is for a release after a tag, the second for the first release.

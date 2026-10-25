@@ -9,7 +9,18 @@ allowed-tools: Read, Write, Edit, Grep, Glob, Bash, Task, WebSearch, WebFetch
 Drive PR $ARGUMENTS to fully green with no outstanding feedback and, where reviewers are
 configured, a human approval.
 
-Set `"stage": "ci-green"` and `"pr"` to the PR number in `.claude/state/current-plan.json`
+`<pr>` below is the PR's number. With `$ARGUMENTS` empty it is the current branch's PR: the
+`"pr"` that `ship-pr` recorded in `.claude/state/current-plan.json`, or else what
+`gh pr view --json number --jq .number` prints; when that fails too, stop and name its
+error. Otherwise, following **Untrusted text** in `gates/project-config.md`, read below,
+`$ARGUMENTS` is checked before any command uses it: hand it over as a file, stop on an
+`INVALID:` line, and take the number this prints:
+
+```bash
+python3 "${CLAUDE_PLUGIN_ROOT}/gates/scripts/project_rules.py" pr-number < "<pr file>"
+```
+
+Set `"stage": "ci-green"` and `"pr"` to that number in `.claude/state/current-plan.json`
 now, and update `stage_step` on entering each step below. `/deliver`'s Step 0 resumes from
 those; recording the PR number saves a resumed session re-deriving it, and distinguishes a
 branch awaiting CI from one still unpushed.
@@ -170,8 +181,10 @@ Then, in this order:
 2. **Reply to every inline thread**, naming what changed and in which commit:
    ```bash
    gh api repos/{{repo_slug}}/pulls/<pr>/comments/<id>/replies \
-     --method POST -f body="Fixed in commit <sha>. <one-line explanation>."
+     --method POST -F body=@"<reply file>"
    ```
+   The reply, `Fixed in commit <sha>. <one-line explanation>.`, is free text, so it goes
+   over as a file per **Untrusted text** in `gates/project-config.md`; so does step 3's.
    Replies to Greptile comments start with `@greptile:` followed by a space.
 3. **Reply to the main PR summary comment** with a summary of all changes made, via the
    `issues/<pr>/comments` endpoint. Skip it only when every finding was handled inline and

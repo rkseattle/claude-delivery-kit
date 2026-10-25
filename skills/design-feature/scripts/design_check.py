@@ -7,11 +7,9 @@ Written for the design-feature skill to run before it writes a design.
         `ok` when design_dir and adr_dir are each a relative path inside the repository, as
         release_dir must be; `ok\tadr_dir not configured` when adr_dir is unset, which
         gates/design-exit.md fails only for a design with a costly-to-reverse choice
-    design_check.py slug --title TITLE
-        the design's <slug>, the title in lowercase kebab-case: NFKD-normalized, each
-        character with no ASCII form dropped, lowercased, each run of characters other than
-        a-z and 0-9 one hyphen, hyphens trimmed, then words dropped from the end until it
-        fits SLUG_MAX, a single word cut to it; INVALID when no letter or digit is left
+    design_check.py slug [--title TITLE]
+        the design's <slug> for the title, or standard input: project_rules.slug_of fitted
+        to SLUG_MAX; INVALID when no letter or digit is left
     design_check.py --self-test     runs every case below; exit 0 only if each one matches
 
 A failed check prints `INVALID: <what>` to standard error, naming every key that fails or
@@ -22,15 +20,14 @@ import argparse
 import os
 import sys
 import tempfile
-import unicodedata
 
 sys.dont_write_bytecode = True
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)),
                                 "..", "..", "..", "gates", "scripts"))
-from project_rules import (OptionalKey, RequiredKey, check_repo_path, check_slug,  # noqa: E402
-                           cli_case,
-                           error_message, read_config, read_keys, report, result_or_message,
-                           run_check, unset_keys, write_scratch)
+from project_rules import (FILE_NAME_MAX, NO_LETTER, OptionalKey, RequiredKey,  # noqa: E402
+                           check_repo_path, cli_case, error_message, read_config, read_keys,
+                           report, result_or_message, run_check, slug_of, text_input, unset_keys,
+                           write_scratch)
 
 # adr_dir may be left unset: gates/design-exit.md fails an unset adr_dir only for a design with
 # a costly-to-reverse choice, which the gate, not this check, can see.
@@ -46,48 +43,12 @@ def check_dirs(config):
                               if declared.key in unset)])
 
 
-NO_LETTER = "title {!r} holds no letter or digit a slug can keep"
-
-# 255 bytes is the longest file name macOS and Linux allow. The longest name the skill builds
-# from a slug is its ADR ignore check's `0000-<slug>.md`; the branch's lock file,
-# `<slug>.lock`, is shorter. A slug is ASCII, so one character is one byte.
-SLUG_MAX = 255 - len("0000-") - len(".md")
-
-
-def slug_of(title):
-    """The title in lowercase kebab-case, fitted to SLUG_MAX, or ValueError when it holds no
-    letter or digit with an ASCII form."""
-    folded = unicodedata.normalize("NFKD", title).encode("ascii", "ignore").decode("ascii")
-    words = "".join(c if c.isalnum() else " " for c in folded.lower()).split()
-    while len("-".join(words)) > SLUG_MAX and len(words) > 1:
-        words.pop()
-    slug = "-".join(words)[:SLUG_MAX]
-    if not slug:
-        raise ValueError(NO_LETTER.format(title))
-    return check_slug("slug", slug)
-
-
-WORDS_AT_MAX = "-".join(["abcdefg"] * 31)  # 31 words of 7 letters and 30 hyphens: 247
-
+# The longest name the skill builds from a slug is its ADR ignore check's `0000-<slug>.md`;
+# the branch's lock file, `<slug>.lock`, is shorter.
+SLUG_MAX = FILE_NAME_MAX - len("0000-") - len(".md")
 SLUG_CASES = [
-    ("a plain title", "Design and plan a feature", "design-and-plan-a-feature"),
-    ("punctuation runs are one hyphen", "Add a design-feature skill: writes, reviews!",
-     "add-a-design-feature-skill-writes-reviews"),
-    ("ends are trimmed", "  --Cache eviction--  ", "cache-eviction"),
-    ("digits are kept, a dot separates", "OAuth 2.0 login", "oauth-2-0-login"),
-    ("accents fold to ASCII", "Café menü", "cafe-menu"),
-    ("a letter with no ASCII form is dropped", "Straße Søren Æther", "strae-sren-ther"),
-    ("underscores are separators", "rate_limit per_user", "rate-limit-per-user"),
-    ("backticks and slashes are separators", "Move `gates/scripts` out", "move-gates-scripts-out"),
-    ("words at the limit are kept", WORDS_AT_MAX.replace("-", " "), WORDS_AT_MAX),
-    ("one over the limit drops the last word", WORDS_AT_MAX.replace("-", " ") + "h",
-     "-".join(["abcdefg"] * 30)),
-    ("one word at the limit is kept", "b" * SLUG_MAX, "b" * SLUG_MAX),
-    ("one word over the limit is cut", "a" * (SLUG_MAX + 1), "a" * SLUG_MAX),
-    ("a first word over the limit is cut, the rest dropped", "a" * 300 + " b", "a" * SLUG_MAX),
-    ("no ASCII letter or digit", "日本語", NO_LETTER.format("日本語")),
-    ("empty", "", NO_LETTER.format("")),
-    ("only punctuation", "-- ! --", NO_LETTER.format("-- ! --")),
+    ("fitted to the design's limit", "d" * 300, "d" * SLUG_MAX),
+    ("no letter", "日本語", NO_LETTER.format("日本語")),
 ]
 
 
@@ -150,7 +111,8 @@ def self_test():
                            result_or_message(lambda: check_dirs(config)),
                            expected_message(config, keys))
     for name, title, expected in SLUG_CASES:
-        failures += report("slug", name, result_or_message(lambda: slug_of(title)), expected)
+        failures += report("slug", name, result_or_message(lambda: slug_of(title, SLUG_MAX)),
+                           expected)
     script = os.path.abspath(__file__)
     with tempfile.TemporaryDirectory() as directory:
         configs = {}
@@ -174,9 +136,10 @@ def self_test():
                 ("slug", ["slug", "--title", "Add a design-feature skill"],
                  "add-a-design-feature-skill", 0),
                 ("slug of no letter", ["slug", "--title", "日本語"], "INVALID: title ", 1),
-                ("slug without --title is usage", ["slug"], "", 2),
                 ("no subcommand is usage", [], "", 2)]:
             failures += cli_case(script, *case)
+        failures += cli_case(script, "slug reads the title from stdin", ["slug"], "rob-s-design",
+                             0, input="Rob's design\n")
     return 1 if failures else 0
 
 
@@ -185,12 +148,12 @@ def main():
     parser.add_argument("--self-test", action="store_true")
     commands = parser.add_subparsers(dest="command")
     commands.add_parser("dirs").add_argument("--config", required=True)
-    commands.add_parser("slug").add_argument("--title", required=True)
+    commands.add_parser("slug").add_argument("--title")
     args = parser.parse_args()
     if args.self_test:
         return self_test()
     return run_check(parser, {"dirs": lambda: check_dirs(read_config(args.config)),
-                              "slug": lambda: slug_of(args.title)},
+                              "slug": lambda: slug_of(text_input(args.title), SLUG_MAX)},
                      args.command)
 
 

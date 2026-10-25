@@ -27,8 +27,18 @@ Read `${CLAUDE_PLUGIN_ROOT}/gates/project-config.md` and follow it exactly; this
 optional keys are `incident_reviews_dir`, `secret_scan_command`, and `roles`.
 
 `$ARGUMENTS` is the incident, in a few words, then its date, the UTC date it began; with
-either missing, ask for it in one line before anything else. The slug is those words in lowercase kebab-case. The
-start date is today's in UTC, from `date -u +%F`, as the timeline is in UTC, unless the
+either missing, ask for it in one line before anything else. Both come from `$ARGUMENTS`, so
+each is handed over as a file per **Untrusted text** in `gates/project-config.md` before
+anything else uses it: the date is what the first command prints and the slug what the
+second does, and an `INVALID:` line from either stops the run, naming what it rejected. From
+then on both are checked values, safe as arguments:
+
+```bash
+python3 "${CLAUDE_PLUGIN_ROOT}/skills/incident-review/scripts/incident_check.py" date < "<date file>"
+python3 "${CLAUDE_PLUGIN_ROOT}/skills/incident-review/scripts/incident_check.py" slug < "<words file>"
+```
+
+The start date is today's in UTC, from `date -u +%F`, as the timeline is in UTC, unless the
 review file already exists uncommitted, as below: then it is that file's `Review started:`
 date, since the review started then.
 
@@ -53,19 +63,20 @@ Stop, and say why in one line, when:
   python3 "${CLAUDE_PLUGIN_ROOT}/skills/incident-review/scripts/incident_check.py" branch --date <date> --slug <slug>
   ```
 
-- **`git check-ignore -v {{incident_reviews_dir}}/<date>-<slug>.md` matches.** The review is
-  committed in Step 5; name the rule it printed.
+- **`{{incident_reviews_dir}}/<date>-<slug>.md` is ignored**, as **Ignored paths** in
+  `gates/project-config.md` decides. The review is committed in Step 5; name the rule.
 - **After `git fetch origin`, `incident/<date>-<slug>` or `origin/incident/<date>-<slug>`
   exists**, other than the interrupted commit below. Ask rather than reuse it.
 - **`git cat-file -e HEAD:{{incident_reviews_dir}}/<date>-<slug>.md` or the same against
-  `origin/{{parent_branch_default}}` succeeds.** The review is already committed; ask
-  rather than write over the record and its follow-up answers.
+  `origin/{{parent_branch_default}}` succeeds.** The review is already committed; ask rather
+  than write over the record and its follow-up answers.
 
 An existing `{{incident_reviews_dir}}/<date>-<slug>.md` that HEAD does not hold
-(`git cat-file -e HEAD:{{incident_reviews_dir}}/<date>-<slug>.md` fails) is an earlier,
-uncommitted run, stopped at Step 4 or 5: read it and continue from it, keeping
-its header and every follow-up key and answer it records, rather than writing over it.
-When the local branch `incident/<date>-<slug>` also exists and
+(`git cat-file -e HEAD:{{incident_reviews_dir}}/<date>-<slug>.md` fails) — or, failing that,
+one `{{incident_reviews_dir}}/<date>-*.md` HEAD does not hold, whose slug an earlier run
+wrote by hand — is an earlier, uncommitted run, stopped at Step 4 or 5: read it and continue
+from it, keeping its header and every follow-up key and answer it records, rather than
+writing over it. When the local branch `incident/<date>-<slug>` also exists and
 `git rev-list --count origin/{{parent_branch_default}}..incident/<date>-<slug>` prints `0`,
 Step 5's commit was interrupted after its switch, as `git rebase --continue` resumes a
 stopped rebase: switch to that branch and finish Step 5's commit; the branch stop above does

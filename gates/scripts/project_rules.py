@@ -13,16 +13,25 @@ skills/design-feature/scripts/design_check.py, gates/scripts/sarif_gate.py,
 gates/scripts/adr_numbers.py, and, for the discipline, tracked-file and self-test git rules,
 skills/write-tickets/scripts/lint_draft.py, and, for the YAML vendor alone,
 scripts/ci/actions-pinned.sh, and, for the Markdown table, register and tracked-file rules,
-scripts/ci/rule-book-map.sh, and, for the key registry, scripts/ci/config-examples.sh,
+scripts/ci/rule-book-map.sh, and, for the key registry, scripts/ci/config-examples.sh, and
+run by skills/plan-project/SKILL.md for its slug and skills/ci-green/SKILL.md for its PR
+number,
 so no two of them can disagree on a key's shape, what an unset key, a placeholder, a
 discipline, a date, a printed number, a branch slug, a code fence, a Markdown field's value,
 a Markdown table, a register header, a complete exceptions-register row, a tracked path, a
 self-test's scratch file, or a git call and its failure is, and so no self-test's scratch
 repository inherits the caller's git. Each importer's self-test covers the rules it uses.
 
-    project_rules.py --self-test   runs the key registry's own cases and run_check's,
-                                   collected_errors', cli_case's and write_scratch's;
-                                   exit 0 only if each one matches
+    project_rules.py pr-number          the pull request number on standard input, as digits;
+                                   INVALID for anything else
+    project_rules.py slug [--title TITLE]
+                                   the title, or standard input, as a branch slug, per
+                                   slug_of, fitted to a branch's lock file; INVALID when no
+                                   letter or digit is left; for a skill with no script of
+                                   its own
+    project_rules.py --self-test   runs the key registry's own cases and slug_of's,
+                                   run_check's, collected_errors', cli_case's and
+                                   write_scratch's; exit 0 only if each one matches
 
 """
 import argparse
@@ -39,6 +48,7 @@ import subprocess
 import sys
 import tempfile
 import typing
+import unicodedata
 from unittest import mock
 
 GATES_SCRIPTS = os.path.dirname(os.path.abspath(__file__))
@@ -427,6 +437,51 @@ def check_slug(kind, value):
     return value
 
 
+def text_input(value):
+    """value when given, else standard input less its trailing line endings: how a check
+    script takes text a person or Jira wrote, from a file redirected to standard input per
+    gates/project-config.md's Untrusted text, so it never passes through a shell argument."""
+    if value is not None:
+        return value
+    if sys.stdin.isatty():
+        raise ValueError("no value was given, and standard input is a terminal")
+    return sys.stdin.read().rstrip("\r\n")
+
+
+NO_LETTER = "title {!r} holds no letter or digit a slug can keep"
+# 255 bytes is the longest file name macOS and Linux allow; a slug is ASCII, so one character
+# is one byte. A branch's lock file, `<slug>.lock`, is the shortest affix any caller adds.
+FILE_NAME_MAX = 255
+BRANCH_SLUG_MAX = FILE_NAME_MAX - len(".lock")
+
+
+PR_NUMBER = re.compile(r"^#?([1-9][0-9]*)$")
+
+
+def pr_number(value):
+    """A pull request's number, a leading `#` allowed, as digits alone."""
+    match = PR_NUMBER.fullmatch(value.strip())
+    if not match:
+        raise ValueError(f"{value!r} is not a pull request number")
+    return match.group(1)
+
+
+def slug_of(title, max_length=BRANCH_SLUG_MAX):
+    """The title in lowercase kebab-case: NFKD-normalized, each character with no ASCII form
+    dropped, lowercased, each run of characters other than a-z and 0-9 one hyphen, hyphens
+    trimmed, then words dropped from the end until it fits max_length, a single word cut to
+    it. ValueError when no letter or digit is left. A caller passes the file-name limit less
+    the longest affix it writes the slug with."""
+    folded = unicodedata.normalize("NFKD", title).encode("ascii", "ignore").decode("ascii")
+    words = "".join(c if c.isalnum() else " " for c in folded.lower()).split()
+    while len("-".join(words)) > max_length and len(words) > 1:
+        words.pop()
+    slug = "-".join(words)[:max_length]
+    if not slug:
+        raise ValueError(NO_LETTER.format(title))
+    return check_slug("slug", slug)
+
+
 def single_number(output, key):
     """The number a configured command printed: exactly one non-blank line, one decimal."""
     lines = [line.strip() for line in output.splitlines() if line.strip()]
@@ -788,7 +843,7 @@ def error_of(function, *arguments):
 
 def self_test():
     """The key registry's cases, over a fixture registry of two plain keys, a template list,
-    and a key inside an object, and run_check's, collected_errors', cli_case's and
+    and a key inside an object, and slug_of's, run_check's, collected_errors', cli_case's and
     write_scratch's; 1 if any fails. Every fixture is declared inside this function, so
     scripts/ci/config-examples.sh, which scans top-level declarations, skips them."""
     def text(key):
@@ -837,6 +892,34 @@ def self_test():
                     "t": KeyShape(text("t"), template_list=True),
                     "roles.k": KeyShape(text("roles.k")), "a.b.c": KeyShape(text("a.b.c"))}
     failures = 0
+    words_at_max = "-".join(["abcdefg"] * 31)  # 31 words of 7 letters and 30 hyphens: 247
+
+    slug_cases = [
+        ("a plain title", "Design and plan a feature", 247, "design-and-plan-a-feature"),
+        ("punctuation runs are one hyphen", "Add a design-feature skill: writes, reviews!", 247,
+         "add-a-design-feature-skill-writes-reviews"),
+        ("ends are trimmed", "  --Cache eviction--  ", 247, "cache-eviction"),
+        ("digits are kept, a dot separates", "OAuth 2.0 login", 247, "oauth-2-0-login"),
+        ("accents fold to ASCII", "Café menü", 247, "cafe-menu"),
+        ("a letter with no ASCII form is dropped", "Straße Søren Æther", 247, "strae-sren-ther"),
+        ("underscores are separators", "rate_limit per_user", 247, "rate-limit-per-user"),
+        ("backticks and slashes are separators", "Move `gates/scripts` out", 247,
+         "move-gates-scripts-out"),
+        ("words at the limit are kept", words_at_max.replace("-", " "), 247, words_at_max),
+        ("one over the limit drops the last word", words_at_max.replace("-", " ") + "h", 247,
+         "-".join(["abcdefg"] * 30)),
+        ("one word at the limit is kept", "b" * 247, 247, "b" * 247),
+        ("one word over the limit is cut", "a" * 248, 247, "a" * 247),
+        ("a first word over the limit is cut, the rest dropped", "a" * 300 + " b", 247, "a" * 247),
+        ("the default limit is a branch's", "c" * 300, None, "c" * BRANCH_SLUG_MAX),
+        ("no ASCII letter or digit", "日本語", 247, NO_LETTER.format("日本語")),
+        ("empty", "", 247, NO_LETTER.format("")),
+        ("only punctuation", "-- ! --", 247, NO_LETTER.format("-- ! --")),
+    ]
+    for name, title, max_length, expected in slug_cases:
+        arguments = (title,) if max_length is None else (title, max_length)
+        failures += report("slug_of", name, result_or_message(lambda: slug_of(*arguments)),
+                           expected)
     for name, config, keys, expected in read_keys_cases:
         failures += report("read_keys", name,
                            result_or_message(lambda: read_keys(config, keys, fixture_keys)),
@@ -920,11 +1003,59 @@ def self_test():
         failures += report("write_scratch", "each unnamed call writes a file of its own",
                            (unnamed[0] != unnamed[1], [read_config(path) for path in unnamed]),
                            (True, [{"a": 1}, {"a": 1}]))
+    this = os.path.abspath(__file__)
+    failures += cli_case(this, "slug prints the slug", ["slug", "--title", "My Project!"],
+                         "my-project", 0)
+    failures += cli_case(this, "a slug of no letter is invalid", ["slug", "--title", "日本語"],
+                         "INVALID: title ", 1)
+    failures += cli_case(this, "slug reads the title from stdin", ["slug"], "rob-s-big-project",
+                         0, input="Rob's (big project\n")
+    failures += cli_case(this, "--title wins over stdin", ["slug", "--title", "Given"], "given",
+                         0, input="Piped\n")
+    failures += cli_case(this, "pr-number prints the digits", ["pr-number"], "42", 0,
+                         input="#42\n")
+    failures += cli_case(this, "a pr-number holding shell text is invalid", ["pr-number"],
+                         "INVALID:", 1, input="42; touch x\n")
+    for name, value, expected in [
+            ("digits", "42", "42"), ("a leading #", "#42", "42"),
+            ("surrounding whitespace", " 42 \n", "42"), ("zero", "0", "ValueError"),
+            ("a leading zero", "042", "ValueError"), ("a bare #", "#", "ValueError"),
+            ("empty", "", "ValueError"), ("a non-ASCII digit", "٤٢", "ValueError"),
+            ("a URL", "https://github.com/o/r/pull/42", "ValueError"),
+            ("a sign", "-42", "ValueError")]:
+        failures += report("pr_number", name, result_of(pr_number, value), expected)
+    for name, stdin, given, expected in [
+            ("a given value wins, even empty", "piped\n", "", ""),
+            ("trailing newlines are dropped", "a\n\n", None, "a"),
+            ("a CRLF line ending is dropped", "1.2.0\r\n", None, "1.2.0"),
+            ("a newline inside is kept", "a\nb\n", None, "a\nb"),
+            ("a terminal is refused, never read", None, None,
+             "no value was given, and standard input is a terminal")]:
+        class Input(io.StringIO):
+            def isatty(self, terminal=stdin is None):
+                return terminal
+        saved, sys.stdin = sys.stdin, Input(stdin or "")
+        try:
+            got = result_or_message(lambda: text_input(given))
+        finally:
+            sys.stdin = saved
+        failures += report("text_input", name, got, expected)
+    failures += cli_case(this, "no subcommand is usage", [], "", 2)
     return 1 if failures else 0
 
 
-if __name__ == "__main__":
+def main():
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.add_argument("--self-test", action="store_true", required=True)
-    parser.parse_args()
-    sys.exit(self_test())
+    parser.add_argument("--self-test", action="store_true")
+    commands = parser.add_subparsers(dest="command")
+    commands.add_parser("slug").add_argument("--title")
+    commands.add_parser("pr-number")
+    args = parser.parse_args()
+    if args.self_test:
+        return self_test()
+    return run_check(parser, {"slug": lambda: slug_of(text_input(args.title)),
+                              "pr-number": lambda: pr_number(text_input(None))}, args.command)
+
+
+if __name__ == "__main__":
+    sys.exit(main())
