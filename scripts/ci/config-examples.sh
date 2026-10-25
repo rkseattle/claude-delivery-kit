@@ -21,21 +21,21 @@ python3 - "$root" <<'PY'
 import ast
 import json
 import os
-import re
 import sys
 
 sys.dont_write_bytecode = True
-JSON_BLOCK = re.compile(r"^```json\n(.*?)^```", re.M | re.S)
 
 
-def example_values(root):
+def example_values(root, project_rules):
     """The keys the reference's example blocks show, merged; raise ValueError when there is
-    none to read."""
+    none to read. A block is a fenced code block whose info string's first word is json, in
+    either fence character, read by the vendored CommonMark parser as a renderer shows it."""
     path = os.path.join(root, "reference", "project-json.md")
     try:
         with open(path, encoding="utf-8") as handle:
             text = handle.read()
-        blocks = [json.loads(block) for block in JSON_BLOCK.findall(text)]
+        blocks = [json.loads(token.content) for token in project_rules.markdown_tokens(text)
+                  if token.type == "fence" and token.info.split()[:1] == ["json"]]
     except (OSError, ValueError) as error:
         raise ValueError(f"NO REFERENCE: {path}: {error}")
     if not blocks or not all(isinstance(block, dict) for block in blocks):
@@ -108,7 +108,7 @@ def main(root):
     sys.path.insert(0, os.path.dirname(rules))
     import project_rules
     try:
-        examples = example_values(root)
+        examples = example_values(root, project_rules)
     except ValueError as error:
         print(error)
         return 1

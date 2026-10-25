@@ -337,6 +337,12 @@ expect_saying "a reference json block that is not an object" config-examples.sh 
 fresh_copy; printf '\n%sjson\n{"adr_dir": "elsewhere"}\n%s\n' "$fence" "$fence" \
   >> "$tmp/repo/reference/project-json.md"
 expect_saying "a reference showing one key two ways" config-examples.sh "NO REFERENCE:"
+fresh_copy; printf '\n~~~json\n{"adr_dir": "elsewhere"}\n~~~\n' >> "$tmp/repo/reference/project-json.md"
+expect_saying "a tilde-fenced json block showing one key two ways" config-examples.sh "NO REFERENCE:"
+long_fence="$fence\`"
+fresh_copy; printf '\n%smarkdown\n%sjson\n{"adr_dir": "elsewhere"}\n%s\n%s\n' "$long_fence" "$fence" \
+  "$fence" "$long_fence" >> "$tmp/repo/reference/project-json.md"
+expect pass "a json fence shown as text inside a longer fence" config-examples.sh
 fresh_copy; printf '# Nothing here\n' > "$tmp/repo/reference/project-json.md"
 expect_saying "a reference with no json block" config-examples.sh "NO REFERENCE:"
 fresh_copy; sed -i.bak 's/^    "service_owner": /    "service_lead": /' "$tmp/repo/reference/project-json.md"
