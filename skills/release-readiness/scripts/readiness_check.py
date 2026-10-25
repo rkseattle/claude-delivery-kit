@@ -72,7 +72,7 @@ from project_rules import (PLACEHOLDER, PROJECT_KEYS, REGISTER_COLUMNS,  # noqa:
                            is_register_header, markdown_tables, markdown_tokens, words,
                            fence_split, markdown_value, named_disciplines,
                            read_config as load_config, report,
-                           single_number, write_scratch)
+                           single_number, tier_names, write_scratch, error_message)
 from project_rules import error_of as _error, result_of as _result  # noqa: E402  test helpers
 
 SEMVER = re.compile(r"^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$")
@@ -99,19 +99,14 @@ def check_version(new, last=None):
             raise ValueError(f"{new} is not greater than {last}")
 
 
+VERIFICATION_TIERS = RequiredKey("verification_tiers", needed_by="the criteria check")
+
+
 def declared_tiers(config_path):
-    value = load_config(config_path).get("verification_tiers", "")
-    # A tier's note in parentheses may hold commas or parentheses of its own; drop every note,
-    # innermost first, before splitting on the separators and the joiners.
-    plain = value if isinstance(value, str) else ""
-    while re.search(r"\([^()]*\)", plain):
-        plain = re.sub(r"\([^()]*\)", "", plain)
-    plain = plain.replace("`", "")
-    tiers = {words(part).lower()
-             for part in re.split(r"[·,;]|\b(?:and|or)\b", plain, flags=re.I)} - {""}
-    if not tiers:
-        raise ValueError("verification_tiers declares no tiers")
-    return tiers
+    """The tiers project.json's verification_tiers names; ValueError naming the key when it
+    is unset or names none."""
+    return tier_names(read_keys(load_config(config_path),
+                                [VERIFICATION_TIERS])["verification_tiers"])
 
 
 def section_lines(description, heading, kind):
@@ -562,9 +557,16 @@ def self_test():
                 ("and as the only joiner", "unit and integration", {"unit", "integration"}),
                 ("or as the only joiner", "unit or manual", {"unit", "manual"}),
                 ("a nested note", "ci (note (nested)) · eval", {"ci", "eval"}),
-                ("no tiers", "", "ValueError"), ("a non-string value", ["ci"], "ValueError")]:
+                ("no tiers", "", "ValueError"), ("a non-string value", ["ci"], "ValueError"),
+                ("none is no tier", "none", "ValueError"),
+                ("the reference placeholder is no tier", "<the tiers an AC can be verified by>",
+                 "ValueError"), ("separators alone name no tier", " · , ", "ValueError")]:
             path = write_scratch(directory, {"verification_tiers": value}, "tiers.json")
             failures += report("criteria", name, _result(declared_tiers, path), expected)
+        failures += report("criteria", "an absent verification_tiers is named as needed",
+                           error_message(lambda: declared_tiers(write_scratch(directory, {}))),
+                           "verification_tiers is absent, none, blank, or a placeholder, and "
+                           "the criteria check needs it")
 
         def summary_file(text, name="summary.md"):
             return write_scratch(directory, text, name)

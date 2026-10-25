@@ -554,6 +554,23 @@ class KeyShape(typing.NamedTuple):
     template_list: bool = False
 
 
+def tier_names(value):
+    """The tiers verification_tiers names, lowercased: its prose split on `·`, commas,
+    semicolons, `and` and `or`, each tier's parenthesized note dropped first, since a note may
+    hold commas or parentheses of its own; ValueError when it is not text or names none."""
+    if not isinstance(value, str):
+        raise ValueError("verification_tiers is not text")
+    plain = value
+    while re.search(r"\([^()]*\)", plain):
+        plain = re.sub(r"\([^()]*\)", "", plain)
+    plain = plain.replace("`", "")
+    tiers = {words(part).lower()
+             for part in re.split(r"[·,;]|\b(?:and|or)\b", plain, flags=re.I)} - {""}
+    if not tiers:
+        raise ValueError("verification_tiers declares no tiers")
+    return tiers
+
+
 def keyed(check, *keys):
     """{key: KeyShape} for keys sharing a check that takes the key, then the value."""
     return {key: KeyShape(lambda value, key=key: check(key, value)) for key in keys}
@@ -585,6 +602,7 @@ PROJECT_KEYS = {
     "model_eval_thresholds": KeyShape(threshold_entries, template_list=True),
     "security_sensitive_paths": KeyShape(glob_list),
     "min_supported_app_version": KeyShape(check_min_version),
+    "verification_tiers": KeyShape(tier_names),
 }
 
 
