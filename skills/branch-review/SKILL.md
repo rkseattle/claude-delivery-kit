@@ -14,7 +14,7 @@ before any command or delegation uses it, and replaced by the commit this prints
 failure stops the review, naming the ref:
 
 ```bash
-git rev-parse --verify --quiet --end-of-options "$(cat <base file>)^{commit}"
+git rev-parse --verify --quiet --end-of-options "$(cat "<base file>")^{commit}"
 ```
 
 Run this after every phase is committed and before `/ship-pr`.

@@ -84,7 +84,7 @@ too, rather than reading as a first release:
 ```bash
 { last=$(git describe --tags --abbrev=0 --match 'v[0-9]*.[0-9]*.[0-9]*' --exclude 'v*-*' 2>&1) && range="$last..HEAD" ||
   case $last in *"No names found"*|*"No tags can describe"*) range=HEAD ;; *) echo "$last"; false ;; esac; } &&
-  git log --format=%s "$range" | grep -oE '[A-Z][A-Z0-9_]*-[0-9]+' | grep -xE '{{ticket_prefix}}-[0-9]+' | sort -u
+  git log --format=%s "$range" | grep -oE '[A-Z][A-Z0-9_]+-[1-9][0-9]*' | grep -xE '{{ticket_prefix}}-[1-9][0-9]*' | sort -u
 ```
 
 Then check the version, passing `--last` only when the command above found a tag. Only a

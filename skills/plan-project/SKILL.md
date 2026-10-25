@@ -36,18 +36,18 @@ Stop, and say why in one line, when:
   brief is decided; name the decision rather than revise it.
 
 **An interrupted Step 5 comes first, after the first two stops.** When
-`git rev-parse --git-path plan-project` names a directory that exists, Step 5 started and
-did not finish — the way `.git/rebase-merge` tells git a rebase is in progress. First, when
-`git show brief/<slug>:{{brief_file}}` already holds the `decision` line, the commit landed
-and only cleanup was lost: remove the directory, report that commit, and offer no abort.
-Otherwise continue, keeping the recorded decision: switch to `brief/<slug>`, or, if it is
-absent, cut it from the commit in `base` — from `origin/{{parent_branch_default}}` when a
-directory written before `base` existed has none — make the `## Decision` line match
-`decision`, and commit as Step 5 does. On an explicit abort instead, unstage the brief with
-`git restore --staged {{brief_file}}`, restore it from `presented.md`, switch to
-`{{parent_branch_default}}`, delete `brief/<slug>` if it has no commits of its own, and
-remove the directory — leaving index and tree as before Step 5, as `git rebase --abort`
-does. No other stop applies while it exists.
+`git rev-parse --path-format=absolute --git-path plan-project` names a directory that
+exists, Step 5 started and did not finish — the way `.git/rebase-merge` tells git a rebase
+is in progress. First, when `git show brief/<slug>:{{brief_file}}` already holds the
+`decision` line, the commit landed and only cleanup was lost: remove the directory, report
+that commit, and offer no abort. Otherwise continue, keeping the recorded decision: switch
+to `brief/<slug>`, or, if it is absent, cut it from the commit in `base` — from
+`origin/{{parent_branch_default}}` when a directory written before `base` existed has none —
+make the `## Decision` line match `decision`, and commit as Step 5 does. On an explicit
+abort instead, unstage the brief with `git restore --staged {{brief_file}}`, restore it from
+`presented.md`, switch to `{{parent_branch_default}}`, delete `brief/<slug>` if it has no
+commits of its own, and remove the directory — leaving index and tree as before Step 5, as
+`git rebase --abort` does. No other stop applies while it exists.
 
 An existing `{{brief_file}}` whose decision is `Pending`, or that has no `## Decision`
 section yet, is the draft: read it, and revise it in Step 2 rather than writing over it
@@ -180,10 +180,11 @@ Run `git fetch` first; if `origin/{{parent_branch_default}}` moved since Step 3,
 anything.
 
 Before touching the brief, write the operation's state where git keeps its own, in the
-directory `git rev-parse --git-path plan-project` names: `presented.md`, a copy of the brief
-as Step 4 presented it; `slug`; `base`, the commit `origin/{{parent_branch_default}}` names
-after that fetch; and `decision`, the line below. Then replace the `Pending — <sponsor>.`
-line under `## Decision` with the decision, the sponsor, and today's date from `date +%F`:
+directory `git rev-parse --path-format=absolute --git-path plan-project` names:
+`presented.md`, a copy of the brief as Step 4 presented it; `slug`; `base`, the commit
+`origin/{{parent_branch_default}}` names after that fetch; and `decision`, the line below.
+Then replace the `Pending — <sponsor>.` line under `## Decision` with the decision, the
+sponsor, and today's date from `date +%F`:
 
 ```markdown
 Approved by <sponsor> on <YYYY-MM-DD>.

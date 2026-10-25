@@ -14,8 +14,9 @@ gates/scripts/adr_numbers.py, and, for the discipline, tracked-file and self-tes
 skills/write-tickets/scripts/lint_draft.py, and, for the YAML vendor alone,
 scripts/ci/actions-pinned.sh, and, for the Markdown table, register and tracked-file rules,
 scripts/ci/rule-book-map.sh, and, for the key registry, scripts/ci/config-examples.sh, and
-run by skills/plan-project/SKILL.md for its slug and skills/ci-green/SKILL.md for its PR
-number,
+run by skills/plan-project/SKILL.md for its slug, skills/write-tickets/SKILL.md for its
+draft's, skills/implement-phases/SKILL.md for its branch, and skills/ci-green/SKILL.md for
+its PR number,
 so no two of them can disagree on a key's shape, what an unset key, a placeholder, a
 discipline, a date, a printed number, a branch slug, a code fence, a Markdown field's value,
 a Markdown table, a register header, a complete exceptions-register row, a tracked path, a
@@ -25,13 +26,21 @@ repository inherits the caller's git. Each importer's self-test covers the rules
     project_rules.py pr-number          the pull request number on standard input, as digits;
                                    INVALID for anything else
     project_rules.py slug [--title TITLE]
-                                   the title, or standard input, as a branch slug, per
-                                   slug_of, fitted to a branch's lock file; INVALID when no
+                                   the title, or standard input, as a slug, per slug_of,
+                                   fitted to a bare branch name's lock file; INVALID when no
                                    letter or digit is left; for a skill with no script of
-                                   its own
-    project_rules.py --self-test   runs the key registry's own cases and slug_of's,
-                                   run_check's, collected_errors', cli_case's and
-                                   write_scratch's; exit 0 only if each one matches
+                                   its own, or whose script derives no slug, when the slug
+                                   takes no prefix
+    project_rules.py draft-slug     the request on standard input as write-tickets' draft
+                                   slug, fitted to DRAFT_SLUG_MAX
+    project_rules.py ticket-branch [--prefix KEY]
+                                   `<KEY>-<slug>` from standard input's ticket key line and
+                                   the words after it, the whole fitted to a branch's lock
+                                   file; INVALID for a malformed key, or one outside --prefix
+    project_rules.py --self-test   runs the key registry's own cases and those of JIRA_KEY,
+                                   slug_of, pr_number, ticket_branch, text_input, run_check,
+                                   collected_errors, cli_case, write_scratch, and each
+                                   subcommand; exit 0 only if each one matches
 
 """
 import argparse
@@ -456,6 +465,35 @@ BRANCH_SLUG_MAX = FILE_NAME_MAX - len(".lock")
 
 
 PR_NUMBER = re.compile(r"^#?([1-9][0-9]*)$")
+# A Jira issue key: a project key of an uppercase letter and one or more uppercase letters,
+# digits, or underscores, as Atlassian requires of a project key, then the issue number.
+JIRA_KEY = r"[A-Z][A-Z0-9_]+-[1-9][0-9]*"
+TICKET_KEY = re.compile(JIRA_KEY)
+
+
+# A Jira key is short in practice; this leaves the slug room for at least a few words.
+TICKET_KEY_MAX = 64
+
+
+def ticket_branch(text, prefix=None):
+    """`<KEY>-<slug>` from a ticket key on the first line and a few words naming the change
+    after it, the slug fitted so the branch's lock file, `<KEY>-<slug>.lock`, fits a file
+    name. ValueError for a key not in Jira's form, over TICKET_KEY_MAX, or outside the
+    project's prefix when one is given, or for words with no letter or digit."""
+    key, _, words = text.partition("\n")
+    key = key.strip()
+    if not TICKET_KEY.fullmatch(key) or len(key) > TICKET_KEY_MAX:
+        raise ValueError(f"{key!r} is not a Jira key")
+    if prefix is not None and not re.fullmatch(r"[A-Z][A-Z0-9_]+", prefix):
+        raise ValueError(f"--prefix {prefix!r} is not a Jira project key")
+    if prefix is not None and not key.startswith(f"{prefix}-"):
+        raise ValueError(f"{key!r} is not a {prefix} key")
+    return f"{key}-{slug_of(words, BRANCH_SLUG_MAX - len(key) - 1)}"
+
+
+# write-tickets' longest name from its draft slug is a ticket's readback copy,
+# `<slug>.<KEY>.md`.
+DRAFT_SLUG_MAX = FILE_NAME_MAX - len(".") - TICKET_KEY_MAX - len(".md")
 
 
 def pr_number(value):
@@ -911,7 +949,7 @@ def self_test():
         ("one word at the limit is kept", "b" * 247, 247, "b" * 247),
         ("one word over the limit is cut", "a" * 248, 247, "a" * 247),
         ("a first word over the limit is cut, the rest dropped", "a" * 300 + " b", 247, "a" * 247),
-        ("the default limit is a branch's", "c" * 300, None, "c" * BRANCH_SLUG_MAX),
+        ("the default limit is a bare branch's", "c" * 300, None, "c" * 250),
         ("no ASCII letter or digit", "日本語", 247, NO_LETTER.format("日本語")),
         ("empty", "", 247, NO_LETTER.format("")),
         ("only punctuation", "-- ! --", 247, NO_LETTER.format("-- ! --")),
@@ -1024,6 +1062,36 @@ def self_test():
             ("a URL", "https://github.com/o/r/pull/42", "ValueError"),
             ("a sign", "-42", "ValueError")]:
         failures += report("pr_number", name, result_of(pr_number, value), expected)
+    for name, text, expected in [
+            ("a key and words", "AB-12\nDesign feature skill", "AB-12-design-feature-skill"),
+            ("the slug leaves room for the key", "AB-12\n" + "w" * 300,
+             "AB-12-" + "w" * 244),
+            ("a lowercase key", "ab-12\nx", "ValueError"),
+            ("a key holding shell text", "AB-12$(x)\nx", "ValueError"),
+            ("no words", "AB-12\n", "ValueError"), ("no key", "\nwords", "ValueError"),
+            ("a key at the limit", "A" * 61 + "-12\nx", "A" * 61 + "-12-x"),
+            ("a key over the limit", "A" * 62 + "-12\nx", "ValueError")]:
+        failures += report("ticket_branch", name, result_of(ticket_branch, text), expected)
+    failures += report("ticket_branch", "a key outside the prefix",
+                       result_of(ticket_branch, "XY-1\nwords", "AB"), "ValueError")
+    for name, key, expected in [
+            ("an underscore project key", "AB_X-1", True), ("a digit in the project", "A2-1", True),
+            ("a one-letter project", "A-1", False), ("issue zero", "AB-0", False),
+            ("a leading zero", "AB-012", False), ("lowercase", "ab-1", False),
+            ("no number", "AB-", False), ("trailing text", "AB-1x", False)]:
+        failures += report("JIRA_KEY", name, bool(re.fullmatch(JIRA_KEY, key)), expected)
+    failures += report("ticket_branch", "an underscore project key with no prefix",
+                       result_of(ticket_branch, "AB_X-1\nwords"), "AB_X-1-words")
+    failures += report("ticket_branch", "a malformed prefix",
+                       result_of(ticket_branch, "AB-1\nwords", ""), "ValueError")
+    failures += report("ticket_branch", "a key under the prefix",
+                       result_of(ticket_branch, "AB-1\nwords", "AB"), "AB-1-words")
+    failures += report("ticket_branch", "a key whose project starts with the prefix",
+                       result_of(ticket_branch, "AB_X-1\nwords", "AB"), "ValueError")
+    failures += report("ticket_branch", "a key line's spaces and CR are stripped",
+                       result_of(ticket_branch, " AB-1 \r\nwords"), "AB-1-words")
+    failures += report("ticket_branch", "a one-letter project key", result_of(ticket_branch,
+                       "A-1\nwords"), "ValueError")
     for name, stdin, given, expected in [
             ("a given value wins, even empty", "piped\n", "", ""),
             ("trailing newlines are dropped", "a\n\n", None, "a"),
@@ -1040,6 +1108,12 @@ def self_test():
         finally:
             sys.stdin = saved
         failures += report("text_input", name, got, expected)
+    failures += cli_case(this, "ticket-branch reads standard input", ["ticket-branch"],
+                         "AB-12-design-feature-skill", 0, input="AB-12\nDesign feature skill\n")
+    failures += cli_case(this, "a malformed key is invalid", ["ticket-branch", "--prefix", "AB"],
+                         "INVALID:", 1, input="ab-12\nx\n")
+    failures += cli_case(this, "draft-slug fits the readback copy", ["draft-slug"], "d" * 187, 0,
+                         input="d" * 300 + "\n")
     failures += cli_case(this, "no subcommand is usage", [], "", 2)
     return 1 if failures else 0
 
@@ -1050,11 +1124,17 @@ def main():
     commands = parser.add_subparsers(dest="command")
     commands.add_parser("slug").add_argument("--title")
     commands.add_parser("pr-number")
+    commands.add_parser("ticket-branch").add_argument("--prefix")
+    commands.add_parser("draft-slug")
     args = parser.parse_args()
     if args.self_test:
         return self_test()
     return run_check(parser, {"slug": lambda: slug_of(text_input(args.title)),
-                              "pr-number": lambda: pr_number(text_input(None))}, args.command)
+                              "pr-number": lambda: pr_number(text_input(None)),
+                              "ticket-branch": lambda: ticket_branch(text_input(None),
+                                                                     args.prefix),
+                              "draft-slug": lambda: slug_of(text_input(None), DRAFT_SLUG_MAX)},
+                     args.command)
 
 
 if __name__ == "__main__":

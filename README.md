@@ -9,7 +9,7 @@ its own commands and thresholds, in `.claude/project.json`.
 Requires:
 
 - Claude Code with plugin support <!-- TODO: confirm the minimum Claude Code version -->
-- git and Python 3.8 or later on `PATH`, and `jq` for the hooks
+- git 2.31 or later and Python 3.8 or later on `PATH`, and `jq` for the hooks
 - the GitHub CLI `gh`, authenticated, for pushing, PRs, and CI
 - an Atlassian MCP server connected to the project's Jira, for tickets and transitions
 

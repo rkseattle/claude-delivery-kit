@@ -12,8 +12,9 @@ This skill is the rule book's Phase 3 at feature scale, before any of the featur
 are written. `${CLAUDE_PLUGIN_ROOT}/gates/design-exit.md` is its gate: it defines every
 section, line form, ADR, approver, and `## Decision` line written here, and this file names
 them rather than restating them. Read it in full before Step 2. No file is created, edited,
-or staged before the tech lead answers except the design doc and its ADRs: no branch and
-no commit until then, and no push at all.
+or staged before the tech lead answers except the design doc, its ADRs, and the input files
+**Untrusted text** in `gates/project-config.md` places under the git directory: no branch
+and no commit until then, and no push at all.
 
 The flow is that of a Rust RFC or a KEP — draft, cold review, a decision by the accountable
 approver, then the record committed with its status — with each costly choice a MADR
@@ -43,9 +44,10 @@ Stop, and say why in one line, when:
   stops, naming `adr_dir`, before writing one.
 
 **An interrupted Step 6 comes first, after those two stops.** When
-`git rev-parse --git-path design-feature` names a directory that exists, Step 6 started and
-did not finish — the way `.git/rebase-merge` tells git a rebase is in progress — and its
-`slug` file names the design. First, when `git show design/<slug>:{{design_dir}}/<slug>.md`
+`git rev-parse --path-format=absolute --git-path design-feature` names a directory that
+exists, Step 6 started and did not finish — the way `.git/rebase-merge` tells git a rebase
+is in progress — and its `slug` file names the design. First, when
+`git show design/<slug>:{{design_dir}}/<slug>.md`
 already holds the first line of `decision`, the commit landed and only cleanup was lost:
 remove the directory, report that commit, and offer no abort. Otherwise continue, keeping
 the recorded decision: switch to `design/<slug>` (or cut it from the commit in `base` if
@@ -195,7 +197,8 @@ The tech lead's answer is one of `plan-project` Step 4's four:
   re-check the gate's rules, and run one `feature-design-adversary` round outside Step 4's
   three-round count; its BLOCKERs go to the tech lead. Ask again for step 8's reviewers, as
   in Step 4. An edit to an approved section voids that approval and goes back to its
-  approver. Then `git fetch` and Step 1's branch checks, and present again.
+  approver. Then `git fetch`, re-check against a moved parent as Step 6 does, and present
+  again.
 - **Hold** — the tech lead defers. **Record nothing and commit nothing**: the doc stays
   `Pending` and its ADRs `proposed` in the working tree, and a later run presents them
   again.
@@ -205,18 +208,23 @@ is printed as relayed.
 
 ## Step 6 — Record the decision and commit
 
-Run `git fetch` first. If `origin/{{parent_branch_default}}` moved since the commit Step 1
-recorded, or `origin/design/<slug>` now exists, re-run Step 1's checks — and, when a new
-record took one of the design's ADR numbers, the gate's renumbering — then present again
-before recording anything.
+Run `git fetch` first. When `origin/design/<slug>` now exists, stop and ask, as Step 1 does.
+When `origin/{{parent_branch_default}}` moved since the commit Step 1 recorded, record the
+new commit as the base, since the branch is cut from the base and not from HEAD. Re-run
+Step 1's stops other than HEAD equaling `origin/{{parent_branch_default}}`, re-check each
+`## Current state` claim against the base, renumber the ADRs per the gate when a new
+record took one of their numbers, and present again before recording anything. An edit this
+makes re-runs its review and voids the approval of the section it touched, as the gate's
+**Approvers** section states; the other approvals stand.
 
 **Before editing any file**, write everything the commit needs to the directory
-`git rev-parse --git-path design-feature` names, as git's sequencer keeps a commit's
-`message` and `author-script` where it can finish without the session that began it:
+`git rev-parse --path-format=absolute --git-path design-feature` names, as git's sequencer
+keeps a commit's `message` and `author-script` where it can finish without the session that
+began it:
 
 - `presented/` — the design doc and every ADR as Step 5 presented them, at their
   repository paths
-- `slug`, and `base` — the commit Step 1 recorded
+- `slug`, and `base` — the commit Step 1 recorded, or the one recorded above
 - `decision` — the full text replacing `Pending — <tech lead>.`, every line of it: the
   decision as the gate's **Decision** section words it, dated from `date +%F`, with its
   relayed suffix where it applies, and a rejection's reason line
@@ -239,7 +247,7 @@ alone, from `message`:
 ```bash
 git switch -c design/<slug> <base>
 git add -- {{design_dir}}/<slug>.md <each ADR path>
-git commit -F "$(git rev-parse --git-path design-feature)/message" -- {{design_dir}}/<slug>.md <each ADR path>
+git commit -F "$(git rev-parse --path-format=absolute --git-path design-feature)/message" -- {{design_dir}}/<slug>.md <each ADR path>
 ```
 
 Remove the state directory once the commit succeeds. When the commit fails — a hook rejects

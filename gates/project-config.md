@@ -52,11 +52,14 @@ environment variable and here a file:
    when the text is state a resumed run needs, as a commit message is.
 2. Hand that file to the command, its path quoted: `< "<file>"` for a check script reading
    standard input, a file flag such as `git commit -F` or `gh pr create --body-file`, or
-   `"$(cat <file>)"`, whose output the shell never reads again as code. Remove the file once
-   the command ran.
+   `"$(cat "<file>")"`, whose output the shell never reads again as code. Remove the file
+   once the command ran.
 3. A value is safe as an argument from then on, and only then, once a check script has
    validated the whole of it: printed it back, as a slug, a date, or a PR number is, or
    passed it with `ok` against a strict pattern, as a `MAJOR.MINOR.PATCH` version is.
+
+Every commit message holding free text — a survey line, a summary, a ticket's words — is
+such a file, committed with `git commit -F <file>`, never `-m`.
 
 ## Ignored paths
 

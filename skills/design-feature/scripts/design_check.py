@@ -47,7 +47,7 @@ def check_dirs(config):
 # the branch's lock file, `<slug>.lock`, is shorter.
 SLUG_MAX = FILE_NAME_MAX - len("0000-") - len(".md")
 SLUG_CASES = [
-    ("fitted to the design's limit", "d" * 300, "d" * SLUG_MAX),
+    ("fitted to the design's limit", "d" * 300, "d" * 247),
     ("no letter", "日本語", NO_LETTER.format("日本語")),
 ]
 

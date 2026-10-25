@@ -72,15 +72,21 @@ Stop, and say why in one line, when:
   than write over the record and its follow-up answers.
 
 An existing `{{incident_reviews_dir}}/<date>-<slug>.md` that HEAD does not hold
-(`git cat-file -e HEAD:{{incident_reviews_dir}}/<date>-<slug>.md` fails) — or, failing that,
-one `{{incident_reviews_dir}}/<date>-*.md` HEAD does not hold, whose slug an earlier run
-wrote by hand — is an earlier, uncommitted run, stopped at Step 4 or 5: read it and continue
-from it, keeping its header and every follow-up key and answer it records, rather than
-writing over it. When the local branch `incident/<date>-<slug>` also exists and
+(`git cat-file -e HEAD:{{incident_reviews_dir}}/<date>-<slug>.md` fails) is an earlier,
+uncommitted run, stopped at Step 4 or 5: read it and continue from it, keeping its header
+and every follow-up key and answer it records, rather than writing over it. When the local
+branch `incident/<date>-<slug>` also exists and
 `git rev-list --count origin/{{parent_branch_default}}..incident/<date>-<slug>` prints `0`,
 Step 5's commit was interrupted after its switch, as `git rebase --continue` resumes a
 stopped rebase: switch to that branch and finish Step 5's commit; the branch stop above does
 not apply to it.
+
+With no such file, other `{{incident_reviews_dir}}/<date>-*.md` files HEAD does not hold
+may be a run from before the slug was derived by script. List them and ask whether one is
+this incident's review; never pick one, since two incidents can share a date. A file named
+in the answer makes its slug this run's, checked through `incident_check.py slug` as the
+words are; a slug the script changes stops the run, naming both. Then run the stops and the
+resume check above again against it, and use it everywhere after.
 
 The working-days check prints the working days from the incident to the start date and
 `on time` or `late`: late when more than five, counted Monday to Friday after the incident

@@ -34,7 +34,7 @@ from mcp_atlassian_adf import markdown_to_adf  # noqa: E402  on the path jira_ro
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)),
                                 "..", "..", "..", "gates", "scripts"))
 # The discipline rules plan-work and the release scripts apply.
-from project_rules import (DISCIPLINES, is_unset, isolated_git_environment,  # noqa: E402
+from project_rules import (DISCIPLINES, JIRA_KEY, is_unset, isolated_git_environment,  # noqa: E402
                            markdown_value, named_disciplines, process_state, read_config,
                            tracked_path_matcher, words, write_scratch)
 
@@ -96,7 +96,7 @@ SESSION_REFS = [r"\bas discussed\b", r"\bas mentioned\b", r"\bper (the )?above\b
                 r"\bearlier in (this|the) (chat|conversation|session)\b", r"\bwe agreed\b"]
 
 # A local ID while drafting; Step 8 replaces it with the Jira key once the ticket exists.
-HEADER = re.compile(r"^# \[(?P<id>[ESTB]\d+|[A-Z][A-Z0-9]+-\d+)\]\s+(?P<summary>.+?)\s*$")
+HEADER = re.compile(r"^# \[(?P<id>[ESTB]\d+|" + JIRA_KEY + r")\]\s+(?P<summary>.+?)\s*$")
 META = re.compile(r"^(Type|Parent|Blocked by|Handoff|Labels|Priority|Severity|Goal|Baseline|Jira):\s*(.*)$")
 SECTION = re.compile(r"^## (.+?)\s*$")
 VERIFY_TAG = r"\[verify:\s*([^@\]\s][^@\]]*?)\s*@\s*([^\]\s][^\]]*?)\s*\]"
@@ -118,7 +118,7 @@ MEASURE = re.compile(r"^-\s+SM(\d+):\s+(.+?)\s*\[children:\s*([^\]\s][^\]]*)\]\s
 # is not one: Step 8 could not wrap it in a code span, so it is checked as bare brackets.
 TAG = re.compile(r"\[(?:verify|children):[^\]`]*\]")
 CODE_SPAN = re.compile(r"`[^`]+`")
-KEY = re.compile(r"^[A-Z][A-Z0-9]+-\d+$")
+KEY = re.compile(r"^" + JIRA_KEY + r"$")
 LOCAL = re.compile(r"^[ESTB]\d+$")
 
 

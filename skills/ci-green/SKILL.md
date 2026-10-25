@@ -132,8 +132,9 @@ For every failing job:
    Rob declined for the same root cause, in `exclusions[]` or the plan, stays closed.
 
    Any change after item 4 — rework or a spread site — re-runs the Definition of Done and
-   folds into that same commit with `git commit --amend`, its message updated to name the
-   tests it now carries, then is verified again. Nothing is pushed before item 7.
+   folds into that same commit with `git commit --amend -F <message file>`, its message,
+   per **Untrusted text** in `gates/project-config.md`, updated to name the tests it now
+   carries, then is verified again. Nothing is pushed before item 7.
 7. **Push per `${CLAUDE_PLUGIN_ROOT}/gates/pre-push.md`** — including its step 1 rebase onto
    the parent branch. An open PR is exactly where the parent drifts:
    `{{parent_branch_default}}` moves while the run is red, and a fix pushed onto a stale base

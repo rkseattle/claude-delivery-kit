@@ -21,8 +21,8 @@ Read `${CLAUDE_PROJECT_DIR}/.claude/project.json` first: `{{ticket_prefix}}`,
 `${CLAUDE_PLUGIN_ROOT}/gates/project-config.md` and follow it exactly: tickets written
 against invented tiers and roots fail at `plan-work` for reasons nobody can see.
 
-No ticket is created, edited, or transitioned before Step 7's approval. The only file this
-skill writes before then is the draft.
+No ticket is created, edited, or transitioned before Step 7's approval; until then it
+writes only the draft and the input file its slug is derived from.
 
 ## Step 1 — Settle the decisions
 
@@ -78,16 +78,21 @@ In order:
 
 ## Step 4 — Draft
 
-Write `docs/tickets/<slug>.md` — gitignored working state, like `docs/plans/` — in the
-templates' format, blockers before dependents.
+Write `docs/tickets/<slug>.md` (gitignored) in the templates' format, blockers before
+dependents, revising an existing draft there rather than writing over it. `<slug>` is what
+this prints for the request, given as a file per **Untrusted text** in
+`gates/project-config.md`; on an `INVALID:` line, ask for the request in Latin letters:
+
+```bash
+python3 "${CLAUDE_PLUGIN_ROOT}/gates/scripts/project_rules.py" draft-slug < "<request file>"
+```
 
 - **ACs**: concrete values, one verifiable clause per comma or semicolon, each ending
   `[verify: <tier> @ <evidence>]`. A clause only an out-of-band tier can settle is written
   that way on purpose, not dressed as automated.
 - **Touch points**: every production file, registry consumers included, each marked
   `(modify)`, `(new)`, or `(delete)` with its purpose.
-- **Out of scope**: adjacent work with where it lives; excluded instances with the benign
-  claim.
+- **Out of scope**: adjacent work and its home; excluded instances with the benign claim.
 - **Goal**, when Step 2 read the brief's goals: each `Goal:` line and Epic `## Goal`
   restates the one it serves; a ticket whose goal serves none is removed (R14).
 - **Context**: why, with any linked source summarized. Never a reference to this session.
@@ -98,9 +103,8 @@ templates' format, blockers before dependents.
 python3 ${CLAUDE_PLUGIN_ROOT}/skills/write-tickets/scripts/lint_draft.py docs/tickets/<slug>.md --repo "${CLAUDE_PROJECT_DIR}"
 ```
 
-It reads `{{disciplines}}` from the repo's project.json itself. Fix every ERROR; fix each
-WARN or confirm the flagged text is concrete. Re-run until it exits 0. Exit 2 is an
-unreadable draft or project.json, a refused `disciplines`, or a `--repo` git cannot list: stop.
+Fix every ERROR, and fix each WARN or confirm its text is concrete; re-run until exit 0.
+Exit 2, for an unreadable draft or project.json, bad `disciplines`, or bad `--repo`, stops.
 
 ## Step 6 — Adversarial ticket review
 
@@ -114,8 +118,7 @@ ticket is ambiguous: fix the text, never explain it to the reviewer. Re-lint, re
 Stop at no BLOCKERs or three rounds, whichever is first; revert-not-iterate applies. At
 the cap, bring the remaining findings to Rob.
 
-Append each round's output to the draft under `<!-- review round N -->`. That section
-never reaches Jira.
+Append each round's output under `<!-- review round N -->` in the draft, never sent to Jira.
 
 ## Step 7 — Present for approval
 
@@ -138,8 +141,7 @@ an explicit "approved", "create them", or equivalent; a clarifying question is n
 
 ## Step 8 — Create
 
-Look up the project's issue types and link types via the Atlassian MCP first; never guess
-a name or ID.
+Look up issue and link types via the Atlassian MCP first; never guess a name or ID.
 
 1. Epics first, then the rest in draft order.
 2. Summary, parent, and labels: every `Labels:` value, the `Handoff:` label, for a
@@ -155,8 +157,7 @@ a name or ID.
    creating the next ticket.
 6. Read each ticket back with `jira_get_issue`, which returns Markdown. Check it carries
    every label item 2 names and no other `moscow-*` or `severity-*` label, save its
-   description verbatim to
-   `docs/tickets/<slug>.<key>.md`, and run:
+   description verbatim to `docs/tickets/<slug>.<key>.md`, and run:
 
    ```bash
    python3 ${CLAUDE_PLUGIN_ROOT}/skills/write-tickets/scripts/lint_draft.py \
@@ -198,5 +199,4 @@ keeps its key for the ACs it retains; say which new key holds the rest.
 
 ## Step 9 — Report
 
-Each key with summary and URL, the handoff labels in order, and the `plan-work` command for
-the first handoff.
+Keys with summaries and URLs, handoff labels in order, the first handoff's `plan-work` call.
