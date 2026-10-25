@@ -71,15 +71,18 @@ def is_unset(value):
     if value is None:
         return True
     if isinstance(value, str):
-        return (not value.strip() or value.strip().lower() == "none"
-                or PLACEHOLDER.match(value) is not None)
+        return not value.strip() or value.strip().lower() == "none" or is_placeholder(value)
     return False
+
+
+def is_placeholder(value):
+    """Whether the value is text that is wholly a `<placeholder>`."""
+    return isinstance(value, str) and PLACEHOLDER.match(value) is not None
 
 
 def holds_placeholder(value):
     """Whether the value is a list with a `<placeholder>` entry."""
-    return isinstance(value, list) and any(isinstance(entry, str) and PLACEHOLDER.match(entry)
-                                           for entry in value)
+    return isinstance(value, list) and any(map(is_placeholder, value))
 
 
 class RequiredKey(typing.NamedTuple):
@@ -115,8 +118,7 @@ def key_unset(shape, value):
     is_unset's scalar, or, for a template list, a list made wholly of placeholder entries, as
     the reference writes it."""
     if isinstance(value, list):
-        return shape.template_list and bool(value) and all(
-            isinstance(entry, str) and PLACEHOLDER.match(entry) for entry in value)
+        return shape.template_list and bool(value) and all(map(is_placeholder, value))
     return is_unset(value)
 
 
@@ -521,7 +523,7 @@ def check_halt_criteria(value):
     `<placeholder>`, as gates/release.md defines it."""
     check_string_list(value, lambda command: bool(command.strip()),
                       "halt_criteria is not a non-empty list of commands")
-    if any(PLACEHOLDER.match(command) for command in value):
+    if holds_placeholder(value):
         raise ValueError("halt_criteria holds a <placeholder>, not a command")
 
 
@@ -787,6 +789,8 @@ def self_test():
          "roles is not an object"),
         ("a deeper non-object parent is named by its path", {"a": {"b": 5}},
          [OptionalKey("a.b.c", None)], "a.b is not an object"),
+        ("a template list mixing a placeholder and a non-text entry is checked",
+         {"t": ["<handle>", 5]}, [OptionalKey("t", 7)], "t still holds a placeholder entry"),
     ]
     fixture_keys = {"k": KeyShape(text("k")), "j": KeyShape(text("j")),
                     "t": KeyShape(text("t"), template_list=True),
@@ -796,6 +800,9 @@ def self_test():
         failures += report("read_keys", name,
                            result_or_message(lambda: read_keys(config, keys, fixture_keys)),
                            expected)
+    failures += report("is_placeholder", "padded text, not text, and text around one",
+                       [is_placeholder(value) for value in ("  <x>  ", 5, None, "a <x>")],
+                       [True, False, False, False])
     failures += report("read_keys", "a path not in the registry is a KeyError",
                        result_of(read_keys, {}, [OptionalKey("x", None)], fixture_keys,
                                  error=KeyError), "KeyError")

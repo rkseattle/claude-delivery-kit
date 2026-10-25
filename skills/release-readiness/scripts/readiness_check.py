@@ -65,7 +65,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)),
 from lint_draft import NFR_SECTION, VERIFY_TAG  # noqa: E402  what write-tickets writes
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)),
                                 "..", "..", "..", "gates", "scripts"))
-from project_rules import (PLACEHOLDER, PROJECT_KEYS, REGISTER_COLUMNS,  # noqa: E402
+from project_rules import (PROJECT_KEYS, REGISTER_COLUMNS, is_placeholder,  # noqa: E402
                            cli_case, isolated_git_environment, process_state, run_git,
                            complete_register_row, device_entries, glob_list,
                            key_problems, read_keys, RequiredKey, threshold_entries,
@@ -421,7 +421,7 @@ def check_flags(notes_path, keys):
         section.append(line)
     def names(line, key):
         return (re.match(rf"^- {re.escape(key)}: \S", line) is not None
-                and not PLACEHOLDER.match(markdown_value(line.split(": ", 1)[1])))
+                and not is_placeholder(markdown_value(line.split(": ", 1)[1])))
 
     missing = [key for key in keys if not any(names(line, key) for line in section)]
     if missing:
