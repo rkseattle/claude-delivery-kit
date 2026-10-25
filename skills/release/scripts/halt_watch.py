@@ -267,12 +267,8 @@ def self_test():
         clock = ["--round-seconds", "0.5", "--budget-seconds", "0.4"]
         for name, arguments, value, expected_output, expected_exit in CLI_CASES:
             config = write_scratch(os.path.join(root, ".claude"), value, "project.json")
-            run = subprocess.run([sys.executable, script, *arguments, "--config", config, *clock],
-                                 cwd=elsewhere, capture_output=True, text=True, check=False)
-            stream = run.stderr if expected_output.startswith("INVALID") else run.stdout
-            last = stream.strip().splitlines()[-1:] or [""]
-            failures += report("cli", name, (last[0][:len(expected_output)], run.returncode),
-                               (expected_output, expected_exit))
+            failures += cli_case(script, name, [*arguments, "--config", config, *clock],
+                                 expected_output, expected_exit, line=-1, cwd=elsewhere)
         signalled = os.path.join(directory, "signalled")
         config = write_scratch(os.path.join(root, ".claude"),
                             {"halt_criteria": [f"(sleep 1; touch '{signalled}') & wait"],

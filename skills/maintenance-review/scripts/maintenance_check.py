@@ -625,13 +625,11 @@ def alert_rule_cases():
             failures += report("alert-rules", "manifests holding no rule group",
                                result_of(unlinked_alerts, {"alert_rules_dir": "manifests"}),
                                "ValueError")
-            write_scratch(root, config, "project.json")
-            run = subprocess.run([sys.executable, os.path.abspath(__file__), "alert-rules",
-                                  "--config", os.path.join(root, "project.json")],
-                                 capture_output=True, text=True, check=False)
-            failures += report("cli", "alert-rules prints its rows",
-                               (run.returncode, run.stdout.splitlines()[:1]),
-                               (0, ["ops/alerts/api.yml\tHighLatency\tno runbook"]))
+            failures += cli_case(os.path.abspath(__file__), "alert-rules prints its rows",
+                                 ["alert-rules", "--config",
+                                  write_scratch(root, config, "project.json")],
+                                 "ops/alerts/api.yml\tHighLatency\tno runbook", 0, line=0,
+                                 exact=True)
             os.makedirs("empty")
             failures += report("alert-rules", "a directory with no rule file",
                                result_of(unlinked_alerts, {"alert_rules_dir": "empty"}),
@@ -729,6 +727,7 @@ def cli_cases():
                              capture_output=True, text=True, check=False)
         routed = subprocess.run([sys.executable, script, "routes", "--config", config],
                                 input="a rob\n", capture_output=True, text=True, check=False)
+        # Unstripped, so a stray blank line fails, as cli_case's stripped read could not see.
         failures += report("cli", "a check finding no rows prints nothing",
                            (routed.stdout, routed.returncode), ("", 0))
         failures += report("cli", "a command with a tab stays on one line",

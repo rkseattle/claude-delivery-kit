@@ -66,7 +66,7 @@ from lint_draft import NFR_SECTION, VERIFY_TAG  # noqa: E402  what write-tickets
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)),
                                 "..", "..", "..", "gates", "scripts"))
 from project_rules import (PLACEHOLDER, PROJECT_KEYS, REGISTER_COLUMNS,  # noqa: E402
-                           isolated_git_environment, process_state, run_git,
+                           cli_case, isolated_git_environment, process_state, run_git,
                            complete_register_row, device_entries, glob_list,
                            key_problems, read_keys, RequiredKey, threshold_entries,
                            is_register_header, markdown_tables, markdown_tokens, words,
@@ -704,14 +704,9 @@ def self_test():
                 ("nfrs exits 1 on a problem", ["nfrs", "--key", "AB-1"],
                  "## Non-functional requirements\n* NFR1: a\n", "INVALID:", 1),
                 ("no subcommand is usage", [], "", "", 2)]:
-            run = subprocess.run([sys.executable, script, *arguments], input=stdin,
-                                 capture_output=True, text=True, check=False)
-            failed = expected_output.startswith(("INVALID", "MISMATCH"))
-            stream = run.stderr if failed else run.stdout
-            first = (stream.strip().splitlines() or [""])[0]
-            shown = first[:len(expected_output)] if expected_output else stream.strip()
-            failures += report("cli", name, (shown, run.returncode),
-                               (expected_output, expected_exit))
+            failures += cli_case(script, name, arguments, expected_output, expected_exit, line=0,
+                                 stderr_prefixes=("INVALID", "MISMATCH"),
+                                 exact=not expected_output, input=stdin)
     return 1 if failures else 0
 
 

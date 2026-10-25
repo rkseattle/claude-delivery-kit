@@ -21,8 +21,8 @@ self-test's scratch file, or a git call and its failure is, and so no self-test'
 repository inherits the caller's git. Each importer's self-test covers the rules it uses.
 
     project_rules.py --self-test   runs the key registry's own cases and run_check's,
-                                   collected_errors' and write_scratch's; exit 0 only
-                                   if each one matches
+                                   collected_errors', cli_case's and write_scratch's;
+                                   exit 0 only if each one matches
 
 """
 import argparse
@@ -693,15 +693,22 @@ def run_check(parser, checks, command):
     return 0
 
 
-def cli_case(script, name, arguments, expected_output, expected_exit, **options):
+def cli_case(script, name, arguments, expected_output, expected_exit, line=None,
+             stderr_prefixes=("INVALID",), exact=False, **options):
     """One self-test line for a check script run as a subprocess: its stderr when the output
-    expected is an `INVALID` line, else its stdout, read to the expected output's length and
-    paired with the exit status. options pass to subprocess.run, such as input or cwd."""
+    expected starts with one of stderr_prefixes, else its stdout, stripped and cut to the line
+    at index line when one is given, empty when there is no such line; compared whole when
+    exact, else read to the expected output's length, so an empty one checks the exit status
+    alone; paired with the exit status. options pass to subprocess.run, such as input or
+    cwd."""
     run = subprocess.run([sys.executable, script, *arguments], capture_output=True, text=True,
                          check=False, **options)
-    stream = run.stderr if expected_output.startswith("INVALID") else run.stdout
-    return report("cli", name, (stream.strip()[:len(expected_output)], run.returncode),
-                  (expected_output, expected_exit))
+    shown = (run.stderr if expected_output.startswith(stderr_prefixes) else run.stdout).strip()
+    if line is not None:
+        lines = shown.splitlines()
+        shown = lines[line] if -len(lines) <= line < len(lines) else ""
+    return report("cli", name, (shown if exact else shown[:len(expected_output)],
+                                run.returncode), (expected_output, expected_exit))
 
 
 def result_or_message(call):
@@ -738,8 +745,8 @@ def error_of(function, *arguments):
 
 def self_test():
     """The key registry's cases, over a fixture registry of two plain keys, a template list,
-    and a key inside an object, and run_check's, collected_errors' and write_scratch's; 1 if
-    any fails. Every fixture is declared inside this function, so
+    and a key inside an object, and run_check's, collected_errors', cli_case's and
+    write_scratch's; 1 if any fails. Every fixture is declared inside this function, so
     scripts/ci/config-examples.sh, which scans top-level declarations, skips them."""
     def text(key):
         def check(value):
@@ -823,6 +830,27 @@ def self_test():
                 contents.append(handle.read())
         failures += report("write_scratch", "JSON serialized, text and bytes as is, folders made",
                            contents, [b'{"k": "v"}', "{ raw é }".encode("utf-8"), b"\xff"])
+        script = write_scratch(directory, "import sys\nprint('a\\nb')\n"
+                               "print('MISMATCH: x', file=sys.stderr)\nsys.exit(1)\n", "lines.py")
+        silent = write_scratch(directory, "import sys\nprint('INVALID: y', file=sys.stderr)\n"
+                               "sys.exit(1)\n", "silent.py")
+        for case in [("the line at index -1, read from stdout", [], "b", 1, {"line": -1}),
+                     ("a named prefix reads stderr", [], "MISMATCH: x", 1,
+                      {"stderr_prefixes": ("INVALID", "MISMATCH")}),
+                     ("exact compares the whole stream", [], "a\nb", 1, {"exact": True})]:
+            failures += cli_case(script, *case[:4], **case[4])
+        failures += cli_case(silent, "INVALID reads stderr by default", [], "INVALID: y", 1)
+        failures += cli_case(silent, "an empty stream with a line index reads as empty", [], "",
+                             1, line=0, exact=True)
+        failures += cli_case(script, "a line index past the end reads as empty", [], "", 1,
+                             line=5, exact=True)
+        failures += cli_case(script, "a line index before the start reads as empty", [], "", 1,
+                             line=-3, exact=True)
+        failures += cli_case(script, "a prefix match passes longer output", [], "a", 1)
+        failures += cli_case(script, "an empty expectation checks the exit alone", [], "", 1)
+        with contextlib.redirect_stdout(io.StringIO()):
+            beyond = cli_case(script, "beyond", [], "a", 1, exact=True)
+        failures += report("cli_case", "exact fails on output beyond the expected", beyond, 1)
         unnamed = [write_scratch(directory, {"a": 1}), write_scratch(directory, {"a": 1})]
         failures += report("write_scratch", "each unnamed call writes a file of its own",
                            (unnamed[0] != unnamed[1], [read_config(path) for path in unnamed]),

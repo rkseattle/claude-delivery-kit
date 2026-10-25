@@ -23,7 +23,6 @@ import argparse
 import collections
 import os
 import re
-import subprocess
 import sys
 import tempfile
 
@@ -224,18 +223,16 @@ def self_test():
                            (1, ["duplicate 1", "0001 docs/adr/0001-a.md docs/adr/0001-m.md",
                                 "already on padding: 0002 docs/adr/0002-b.md docs/adr/002-c.md"]))
 
-        def cli(*arguments):
-            completed = subprocess.run([sys.executable, os.path.abspath(__file__), "--config",
-                                        config, *arguments], capture_output=True, text=True,
-                                       check=False, env=GIT_ENVIRONMENT)
-            return completed.returncode, completed.stderr.startswith("NO ANSWER:")
-
-        failures += report("cli", "a collision exits 1", cli("--against", "design"), (1, False))
-        failures += cli_case(os.path.abspath(__file__), "a missing --config exits 2",
+        script = os.path.abspath(__file__)
+        failures += cli_case(script, "a collision exits 1, naming it on stdout",
+                             ["--config", config, "--against", "design"], "duplicate ", 1,
+                             env=GIT_ENVIRONMENT)
+        failures += cli_case(script, "a missing --config exits 2",
                              ["--config", os.path.join(root, "absent.json")], "", 2,
                              env=GIT_ENVIRONMENT)
-        failures += report("cli", "a git failure exits 2, never 1", cli("--against", "no-such-ref"),
-                           (2, True))
+        failures += cli_case(script, "a git failure exits 2, never 1",
+                             ["--config", config, "--against", "no-such-ref"], "NO ANSWER:", 2,
+                             stderr_prefixes=("NO ANSWER",), env=GIT_ENVIRONMENT)
     return failures
 
 
