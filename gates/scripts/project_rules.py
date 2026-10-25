@@ -677,22 +677,63 @@ def result_of(function, *arguments, error=ValueError):
         return error.__name__
 
 
+class Outcome(typing.NamedTuple):
+    """A check's result when it is more than text to print and exit 0: the text for stdout,
+    the exit status, and the lines for stderr, such as a row-by-row check's failures."""
+    output: str
+    status: int = 0
+    errors: typing.Tuple[str, ...] = ()
+
+
+def passed(check):
+    """The check as one that prints `ok` when it returns: a check whose only result is that it
+    raised nothing."""
+    def checked():
+        check()
+        return "ok"
+    return checked
+
+
+def mismatch(check):
+    """passed(check), its ValueError reported as `MISMATCH: <what>` and exit 1, for a check
+    script whose documented failure prefix is MISMATCH rather than INVALID."""
+    def compared():
+        try:
+            return passed(check)()
+        except ValueError as error:
+            return Outcome("", 1, (f"MISMATCH: {error}",))
+    return compared
+
+
 def run_check(parser, checks, command):
-    """A check script's entry point. Print the named check's result and exit 0, printing
-    nothing for an empty result, as a check finding no rows returns; print `INVALID: <what>`
-    to stderr and exit 1 when it raises ValueError; print usage and exit 2 when no check has
-    that name."""
+    """A check script's entry point: run the named check and print its result.
+
+    - text: printed, nothing when empty, as a check finding no rows returns; exit 0
+    - a list: printed one item per line; exit 0
+    - an Outcome: its output printed, its errors to stderr; exit its status
+    - a ValueError or OSError raised: `INVALID: <what>` to stderr; exit 1
+    - no check of that name: usage to stderr; exit 2
+    """
     if command not in checks:
         parser.print_usage(sys.stderr)
         return 2
     try:
         result = checks[command]()
-    except ValueError as error:
+    except (ValueError, OSError) as error:
         print(f"INVALID: {error}", file=sys.stderr)
         return 1
-    if result != "":
-        print(result)
-    return 0
+    if isinstance(result, list):
+        result = "\n".join(result)
+    if isinstance(result, str):
+        result = Outcome(result)
+    if not isinstance(result, Outcome):
+        raise TypeError(f"check {command!r} returned {type(result).__name__}, not text, a "
+                        "list, or an Outcome")
+    if result.output.rstrip("\n") != "":
+        print(result.output.rstrip("\n"))
+    for line in result.errors:
+        print(line, file=sys.stderr)
+    return result.status
 
 
 def cli_case(script, name, arguments, expected_output, expected_exit, line=None,
@@ -815,16 +856,33 @@ def self_test():
                                                            [OptionalKey("design_dir", None)])),
                        error_message(lambda: check_repo_path("design_dir", "/abs")))
     printed, errors = io.StringIO(), io.StringIO()
-    checks = {"empty": lambda: "", "rows": lambda: "a\nb", "invalid": raise_empty}
+    checks = {"empty": lambda: "", "rows": lambda: ["a", "b"], "invalid": raise_empty}
     with contextlib.redirect_stdout(printed), contextlib.redirect_stderr(errors):
         exits = [run_check(argparse.ArgumentParser(prog="p"), checks, command)
                  for command in ("empty", "rows", "invalid", "missing")]
+    outcomes = {"outcome": lambda: Outcome("row\n", 1, ("INVALID: one", "INVALID: two")),
+                "same": mismatch(lambda: None), "differs": mismatch(lambda: int("x")),
+                "unreadable": lambda: open(os.path.join(os.devnull, "x"))}
+    outcome_out, outcome_err = io.StringIO(), io.StringIO()
+    with contextlib.redirect_stdout(outcome_out), contextlib.redirect_stderr(outcome_err):
+        outcome_exits = [run_check(None, outcomes, command) for command in outcomes]
+    failures += report("run_check", "an Outcome, mismatch, and an OSError, by exit and stream",
+                       (outcome_exits, outcome_out.getvalue(),
+                        outcome_err.getvalue().splitlines()[:3],
+                        (outcome_err.getvalue().splitlines() + [""] * 4)[3].startswith(
+                            "INVALID: [Errno")),
+                       ([1, 0, 1, 1], "row\nok\n",
+                        ["INVALID: one", "INVALID: two",
+                         "MISMATCH: invalid literal for int() with base 10: 'x'"], True))
     failures += report("run_check", "rows print, an empty result prints no blank line",
                        printed.getvalue(), "a\nb\n")
     failures += report("run_check", "exit 0 on a result, 1 on a ValueError, 2 on no such check",
                        exits, [0, 0, 1, 2])
     failures += report("run_check", "a ValueError prints INVALID and no check prints usage",
                        errors.getvalue().splitlines(), ["INVALID: ", "usage: p [-h]"])
+    failures += report("run_check", "a check returning anything else is a TypeError",
+                       result_of(run_check, None, {"none": lambda: None}, "none",
+                                 error=TypeError), "TypeError")
     failures += report("collected_errors", "a ValueError with no message still counts",
                        collected_errors([raise_empty, lambda: None]), [""])
     with tempfile.TemporaryDirectory() as directory:

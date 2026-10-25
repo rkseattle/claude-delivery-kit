@@ -66,7 +66,8 @@ from lint_draft import NFR_SECTION, VERIFY_TAG  # noqa: E402  what write-tickets
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)),
                                 "..", "..", "..", "gates", "scripts"))
 from project_rules import (PROJECT_KEYS, REGISTER_COLUMNS, is_placeholder,  # noqa: E402
-                           cli_case, isolated_git_environment, process_state, run_git,
+                           Outcome, cli_case, isolated_git_environment, mismatch, passed,
+                           process_state, run_check, run_git,
                            complete_register_row, device_entries, glob_list,
                            key_problems, read_keys, RequiredKey, threshold_entries,
                            is_register_header, markdown_tables, markdown_tokens, words,
@@ -1159,76 +1160,55 @@ def main():
     args = parser.parse_args()
     if args.self_test:
         return self_test()
-    try:
-        if args.command == "version":
-            check_version(args.new, args.last)
-            print("ok")
-            return 0
-        if args.command == "criteria":
-            rows = criteria(sys.stdin.read(), declared_tiers(args.config))
-            for row in rows:
-                print("\t".join(row))
-            return 0 if all(row[3] == "ok" for row in rows) else 1
-        if args.command == "note":
-            print(build_note(args.summary, args.version), end="")
-            return 0
-        if args.command == "nfrs":
-            found, problems = nfrs(sys.stdin.read(), args.key)
-            for line in found:
-                print(line)
-            for problem in problems:
-                print(f"INVALID: {problem}", file=sys.stderr)
-            return 1 if problems else 0
-        if args.command == "settle":
-            with open(args.nfrs_file, encoding="utf-8") as handle:
-                in_scope = [line.strip() for line in handle if line.strip()]
-            rows = settle(in_scope, sys.stdin.read(), exceptions(args.exceptions, args.today))
-            for row in rows:
-                print("\t".join(row))
-            return 1 if any(row[1] == "fail" for row in rows) else 0
-        if args.command == "disciplines":
-            found = discipline_problems(args.config, args.gate)
-            for problem in found:
-                print(f"INVALID: {problem}", file=sys.stderr)
-            if not found:
-                print("ok")
-            return 1 if found else 0
-        listings = {"oldest-devices": lambda: oldest_devices(load_config(args.config)),
-                    "thresholds": lambda: model_thresholds(load_config(args.config)),
-                    "sensitive-paths": lambda: sensitive_paths(args.config, args.range)}
-        if args.command in listings:
-            for line in listings[args.command]():
-                print(line)
-            return 0
-        if args.command == "error-budget":
-            state, value = error_budget(sys.stdin.read())
-            print(f"{state} {value}")
-            return 0 if state == "ok" else 1
-        if args.command == "hash":
-            print(sha256(args.path))
-            return 0
-        checks = {"verify": lambda: verify_note(args.summary, args.version, sys.stdin.read(),
-                                                args.require_pass),
-                  "scope": lambda: check_scope(args.summary, args.range,
-                                               [k for k in args.keys.split(",") if k]),
-                  "commit": lambda: check_commit(args.summary, args.head),
-                  "artifact": lambda: check_artifact(args.path, args.sha256_file),
-                  "notes-headings": lambda: check_notes(args.notes, args.flag_keys),
-                  "release-dir": lambda: check_release_dir(args.value),
-                  "excepted": lambda: check_excepted(args.rule, args.exceptions, args.today)}
-        if args.command in checks:
-            try:
-                checks[args.command]()
-            except ValueError as error:
-                print(f"MISMATCH: {error}", file=sys.stderr)
-                return 1
-            print("ok")
-            return 0
-    except (ValueError, OSError) as error:
-        print(f"INVALID: {error}", file=sys.stderr)
-        return 1
-    parser.print_usage(sys.stderr)
-    return 2
+    def rows(found, failed):
+        return Outcome("\n".join("\t".join(row) for row in found), 1 if failed else 0)
+
+    def criteria_rows():
+        found = criteria(sys.stdin.read(), declared_tiers(args.config))
+        return rows(found, not all(row[3] == "ok" for row in found))
+
+    def nfr_lines():
+        found, problems = nfrs(sys.stdin.read(), args.key)
+        return Outcome("\n".join(found), 1 if problems else 0,
+                       tuple(f"INVALID: {problem}" for problem in problems))
+
+    def settled():
+        with open(args.nfrs_file, encoding="utf-8") as handle:
+            in_scope = [line.strip() for line in handle if line.strip()]
+        found = settle(in_scope, sys.stdin.read(), exceptions(args.exceptions, args.today))
+        return rows(found, any(row[1] == "fail" for row in found))
+
+    def disciplines():
+        found = discipline_problems(args.config, args.gate)
+        return Outcome("" if found else "ok", 1 if found else 0,
+                       tuple(f"INVALID: {problem}" for problem in found))
+
+    def budget():
+        state, value = error_budget(sys.stdin.read())
+        return Outcome(f"{state} {value}", 0 if state == "ok" else 1)
+
+    return run_check(parser, {
+        "version": passed(lambda: check_version(args.new, args.last)),
+        "criteria": criteria_rows,
+        "note": lambda: build_note(args.summary, args.version),
+        "nfrs": nfr_lines,
+        "settle": settled,
+        "disciplines": disciplines,
+        "oldest-devices": lambda: oldest_devices(load_config(args.config)),
+        "thresholds": lambda: model_thresholds(load_config(args.config)),
+        "sensitive-paths": lambda: sensitive_paths(args.config, args.range),
+        "error-budget": budget,
+        "hash": lambda: sha256(args.path),
+        "verify": mismatch(lambda: verify_note(args.summary, args.version, sys.stdin.read(),
+                                               args.require_pass)),
+        "scope": mismatch(lambda: check_scope(args.summary, args.range,
+                                              [k for k in args.keys.split(",") if k])),
+        "commit": mismatch(lambda: check_commit(args.summary, args.head)),
+        "artifact": mismatch(lambda: check_artifact(args.path, args.sha256_file)),
+        "notes-headings": mismatch(lambda: check_notes(args.notes, args.flag_keys)),
+        "release-dir": mismatch(lambda: check_release_dir(args.value)),
+        "excepted": mismatch(lambda: check_excepted(args.rule, args.exceptions, args.today)),
+    }, args.command)
 
 
 if __name__ == "__main__":

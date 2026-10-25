@@ -34,7 +34,7 @@ sys.dont_write_bytecode = True
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)),
                                 "..", "..", "..", "gates", "scripts"))
 from project_rules import (PROJECT_KEYS, cli_case, error_of,  # noqa: E402
-                           named_disciplines, read_config, report, result_of, run_check,
+                           named_disciplines, passed, read_config, report, result_of, run_check,
                            write_scratch)
 
 ROUND_SECONDS = 60
@@ -309,10 +309,7 @@ def main():
         parser.print_usage(sys.stderr)
         return 2
     if args.check:
-        def checked():
-            check(args.config)
-            return "ok"
-        return run_check(parser, {"check": checked}, "check")
+        return run_check(parser, {"check": passed(lambda: check(args.config))}, "check")
     try:
         criteria, window = load(args.config)
     except ValueError as error:

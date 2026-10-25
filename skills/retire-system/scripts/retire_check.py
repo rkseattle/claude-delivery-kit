@@ -44,7 +44,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)),
 from project_rules import (OptionalKey, RequiredKey,  # noqa: E402
                            check_slug, cli_case, error_of, fence_split,
                            isolated_git_environment, process_state, parse_date, read_config,
-                           read_keys, report, result_of, run_check, write_scratch)
+                           passed, read_keys, report, result_of, run_check, write_scratch)
 
 SECTIONS = ("User notice", "Data", "Infrastructure", "Credentials")
 STATUS = re.compile(r"^Status: (pending|done)$")
@@ -163,11 +163,6 @@ def record_state(text, owner, today, name=None):
     pending = [heading for heading, lines, fenced in sections
                if section_state(heading, lines, fenced, owner, started, today) == "pending"]
     return f"pending: {', '.join(pending)}" if pending else "done"
-
-
-def check_dir(config):
-    read_keys(config, [RETIREMENTS_DIR])
-    return "ok"
 
 
 def record(states, owner="rob"):
@@ -353,7 +348,8 @@ def self_test():
                                   ("none", "none", "ValueError"),
                                   ("outside the repository", "../retirements", "ValueError")]:
         failures += report("retirements-dir", name,
-                           error_of(check_dir, {"retirements_dir": value}), expected)
+                           error_of(read_keys, {"retirements_dir": value}, [RETIREMENTS_DIR]),
+                           expected)
     failures += report("owner", "the configured service owner, stripped",
                        result_of(service_owner, {"roles": {"service_owner": "ana "}}), "ana")
     failures += owner_fallback_cases()
@@ -395,7 +391,8 @@ def main():
     args = parser.parse_args()
     if args.self_test:
         return self_test()
-    checks = {"retirements-dir": lambda: check_dir(read_config(args.config)),
+    checks = {"retirements-dir": passed(lambda: read_keys(read_config(args.config),
+                                                         [RETIREMENTS_DIR])),
               "name": lambda: branch(args.value),
               "record": lambda: record_state(read_record(args.file),
                                              service_owner(read_config(args.config)),

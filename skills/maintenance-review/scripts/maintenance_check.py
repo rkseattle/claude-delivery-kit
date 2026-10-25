@@ -809,8 +809,7 @@ def main():
               "routes": lambda: unrouted(config(), sys.stdin.read()),
               "share": lambda: [debt_share(config(), args.resolved, args.preventive)],
               "drift": lambda: [" ".join(drift(config(), sys.stdin.read()))]}
-    return run_check(parser, {name: lambda check=check: "\n".join(check())
-                              for name, check in checks.items()}, args.command)
+    return run_check(parser, checks, args.command)
 
 
 if __name__ == "__main__":

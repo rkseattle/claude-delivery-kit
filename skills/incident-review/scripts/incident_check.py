@@ -26,7 +26,7 @@ sys.dont_write_bytecode = True
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)),
                                 "..", "..", "..", "gates", "scripts"))
 from project_rules import (PROJECT_KEYS, check_slug, cli_case, error_message,  # noqa: E402
-                           error_of, parse_date, report, result_of, run_check)
+                           error_of, parse_date, passed, report, result_of, run_check)
 
 LATE_AFTER = 5
 
@@ -135,8 +135,7 @@ def main():
         return self_test()
     checks = {"working-days": lambda: timeliness(args.incident, args.start),
               "branch": lambda: branch(args.date, args.slug),
-              "reviews-dir": lambda: PROJECT_KEYS["incident_reviews_dir"].check(args.value)
-              or "ok"}
+              "reviews-dir": passed(lambda: PROJECT_KEYS["incident_reviews_dir"].check(args.value))}
     return run_check(parser, checks, args.command)
 
 
