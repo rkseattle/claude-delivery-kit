@@ -54,7 +54,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)),
 from project_rules import (MARKDOWN_VENDOR, YAML_VENDOR, OptionalKey, RequiredKey,  # noqa: E402
                            cli_case, error_message, foreign_code, isolated_git_environment,
                            parse_date, process_state, read_config, read_keys, report,
-                           result_of, run_git, single_number, vendored)
+                           result_of, run_check, run_git, single_number, vendored)
 
 RUNBOOK_MAX_AGE = 90
 TIMESTAMP = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:Z|[+-]\d{2}:\d{2})$")
@@ -730,11 +730,17 @@ def cli_cases():
                 ("drift within", ["drift"], "0.1\n", "within 0.1", 0),
                 ("routes prints unrouted", ["routes"], "a #ops\n", "a\t#ops", 0),
                 ("share with a target", ["share", "--resolved", "4", "--preventive", "1"], "",
-                 "25.0%\tmeets 20%", 0)]:
+                 "25.0%\tmeets 20%", 0),
+                ("runbooks needs runbooks_dir", ["runbooks", "--today", "2026-10-17"], "",
+                 "INVALID: runbooks_dir is absent", 1)]:
             failures += cli_case(script, name, [*arguments, "--config", config],
                                  expected_output, expected_exit, input=stdin)
         run = subprocess.run([sys.executable, script, "config", "--config", config],
                              capture_output=True, text=True, check=False)
+        routed = subprocess.run([sys.executable, script, "routes", "--config", config],
+                                input="a rob\n", capture_output=True, text=True, check=False)
+        failures += report("cli", "a check finding no rows prints nothing",
+                           (routed.stdout, routed.returncode), ("", 0))
         failures += report("cli", "a command with a tab stays on one line",
                            [line for line in run.stdout.splitlines()
                             if line.startswith("alert_routes_command")],
@@ -778,6 +784,14 @@ def self_test():
     return 1 if failures else 0
 
 
+def alerts_json(text):
+    """The Dependabot alert pages piped in, or ValueError when they are not JSON."""
+    try:
+        return json.loads(text)
+    except ValueError as error:
+        raise ValueError(f"the alerts are not JSON: {error}")
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--self-test", action="store_true")
@@ -794,35 +808,20 @@ def main():
     args = parser.parse_args()
     if args.self_test:
         return self_test()
-    if args.command not in subcommands:
-        parser.print_usage(sys.stderr)
-        return 2
-    try:
-        config = read_config(args.config)
-        if args.command == "config":
-            rows = [f"{key}\t{json.dumps(value)}" for key, value in resolve_config(config).items()]
-        elif args.command == "alerts":
-            try:
-                pages = json.loads(sys.stdin.read())
-            except ValueError as error:
-                raise ValueError(f"the alerts are not JSON: {error}")
-            rows = stale_alerts(config, pages, args.today)
-        elif args.command == "alert-rules":
-            rows = unlinked_alerts(config)
-        elif args.command == "runbooks":
-            rows = stale_runbooks(config, args.today)
-        elif args.command == "routes":
-            rows = unrouted(config, sys.stdin.read())
-        elif args.command == "share":
-            rows = [debt_share(config, args.resolved, args.preventive)]
-        else:
-            rows = [" ".join(drift(config, sys.stdin.read()))]
-    except ValueError as error:
-        print(f"INVALID: {error}", file=sys.stderr)
-        return 1
-    for row in rows:
-        print(row)
-    return 0
+
+    def config():
+        return read_config(args.config)
+
+    checks = {"config": lambda: [f"{key}\t{json.dumps(value)}"
+                                 for key, value in resolve_config(config()).items()],
+              "alerts": lambda: stale_alerts(config(), alerts_json(sys.stdin.read()), args.today),
+              "alert-rules": lambda: unlinked_alerts(config()),
+              "runbooks": lambda: stale_runbooks(config(), args.today),
+              "routes": lambda: unrouted(config(), sys.stdin.read()),
+              "share": lambda: [debt_share(config(), args.resolved, args.preventive)],
+              "drift": lambda: [" ".join(drift(config(), sys.stdin.read()))]}
+    return run_check(parser, {name: lambda check=check: "\n".join(check())
+                              for name, check in checks.items()}, args.command)
 
 
 if __name__ == "__main__":

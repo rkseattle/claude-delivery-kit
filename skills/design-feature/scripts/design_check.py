@@ -14,6 +14,8 @@ exits 1; exit 2 is usage. Whether either path is gitignored is the skill's check
 script's.
 """
 import argparse
+import contextlib
+import io
 import json
 import os
 import sys
@@ -24,7 +26,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)),
                                 "..", "..", "..", "gates", "scripts"))
 from project_rules import (KeyShape, OptionalKey, RequiredKey, check_repo_path,  # noqa: E402
                            cli_case, collected_errors, error_message, read_config, read_keys,
-                           report, result_of, result_or_message, run_check)
+                           report, result_of, result_or_message, run_check, unset_keys)
 
 # adr_dir may be left unset: gates/design-exit.md fails an unset adr_dir only for a design with
 # a costly-to-reverse choice, which the gate, not this check, can see.
@@ -34,10 +36,10 @@ KEYS = (RequiredKey("design_dir"), OptionalKey("adr_dir", None))
 def check_dirs(config):
     """"ok", with a note per optional key left unset, when every set key passes
     check_repo_path and design_dir is set; otherwise ValueError naming each problem."""
-    values = read_keys(config, KEYS)
-    unset = [declared.key for declared in KEYS
-             if isinstance(declared, OptionalKey) and values[declared.key] is None]
-    return "\t".join(["ok", *(f"{key} not configured" for key in unset)])
+    read_keys(config, KEYS)
+    unset = unset_keys(config, KEYS)
+    return "\t".join(["ok", *(f"{declared.key} not configured" for declared in KEYS
+                              if declared.key in unset)])
 
 
 DESIGN_DIR_UNSET = "design_dir is absent, none, blank, or a placeholder"
@@ -68,6 +70,13 @@ DIRS_CASES = [
     ("design_dir absolute", {**VALID, "design_dir": "/docs/design"}, ["design_dir"]),
     ("design_dir a leading dot", {**VALID, "design_dir": ".design"}, ["design_dir"]),
     ("design_dir inside .git", {**VALID, "design_dir": "docs/../.git"}, ["design_dir"]),
+    ("design_dir inside .GIT", {**VALID, "design_dir": "docs/../.GIT"}, ["design_dir"]),
+    ("design_dir a nested .git", {**VALID, "design_dir": "docs/.git/design"}, ["design_dir"]),
+    ("adr_dir a mixed-case .Git", {**VALID, "adr_dir": "x/../.Git/hooks"}, ["adr_dir"]),
+    ("adr_dir ending in .git", {**VALID, "adr_dir": "docs/.git"}, ["adr_dir"]),
+    ("adr_dir a .git with a trailing dot", {**VALID, "adr_dir": "docs/.git."}, ["adr_dir"]),
+    ("adr_dir a .git with trailing dots", {**VALID, "adr_dir": "docs/.GIT.."}, ["adr_dir"]),
+    ("a .git-prefixed name is not .git", {**VALID, "adr_dir": "docs/.github"}, "ok"),
     ("design_dir not a string", {**VALID, "design_dir": 5}, ["design_dir"]),
     ("design_dir absent", {"adr_dir": "docs/adr"}, ["design_dir unset"]),
     ("adr_dir absent", {"design_dir": "docs/design"}, UNSET),
@@ -154,6 +163,12 @@ def self_test():
                        ["TypeError"] * 2)
     failures += report("read_keys", "the registry defaults to PROJECT_KEYS",
                        result_or_message(lambda: read_keys(VALID, KEYS)), VALID)
+    printed = io.StringIO()
+    with contextlib.redirect_stdout(printed):
+        exits = [run_check(None, {"rows": lambda result=result: result}, "rows")
+                 for result in ("", "a\nb")]
+    failures += report("run_check", "an empty result prints no blank line",
+                       (printed.getvalue(), exits), ("a\nb\n", [0, 0]))
     failures += report("collected_errors", "a ValueError with no message still counts",
                        collected_errors([raise_empty, lambda: None]), [""])
     script = os.path.abspath(__file__)

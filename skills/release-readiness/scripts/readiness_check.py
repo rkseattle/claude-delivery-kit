@@ -543,12 +543,7 @@ CRITERIA_CASES = [
 def self_test():
     failures = 0
     for name, new, last, expected in VERSION_CASES:
-        try:
-            check_version(new, last)
-            got = "ok"
-        except ValueError:
-            got = "ValueError"
-        failures += report("version", name, got, expected)
+        failures += report("version", name, _error(check_version, new, last), expected)
     for name, description, expected in CRITERIA_CASES:
         failures += report("criteria", name, criteria(description, TIERS), expected)
     with tempfile.TemporaryDirectory() as directory:

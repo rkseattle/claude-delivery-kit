@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # No project.json key in project_rules.PROJECT_KEYS, the registry of every key a kit script
-# reads through read_keys, accepts the placeholder reference/project-json.md writes for it as a real
+# checks, accepts the placeholder reference/project-json.md writes for it as a real
 # setting: each such example reads as unset or is rejected by the key's registered shape, so
 # a template copied unedited never configures anything. A registered key the example blocks
 # never show, at its dotted path such as roles.service_owner, fails too. A root with no
@@ -118,7 +118,7 @@ def main(root):
             problems.append(f"UNDOCUMENTED: {path}")
             continue
         example = project_rules.key_value(examples, path)
-        if not project_rules.is_unset(example):
+        if not (project_rules.is_unset(example) or project_rules.holds_placeholder(example)):
             continue  # an illustration of a real value, which the key may well accept
         if (not project_rules.key_unset(shape, example) and project_rules.error_message(
                 lambda: project_rules.check_value(path, shape, example)) is None):

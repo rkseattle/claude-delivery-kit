@@ -14,11 +14,12 @@ gates/scripts/adr_numbers.py, and, for the discipline, tracked-file and self-tes
 skills/write-tickets/scripts/lint_draft.py, and, for the YAML vendor alone,
 scripts/ci/actions-pinned.sh, and, for the Markdown table, register and tracked-file rules,
 scripts/ci/rule-book-map.sh, and, for the key registry, scripts/ci/config-examples.sh,
-so no two of them can disagree on what an unset key, a placeholder, a discipline, a date, a
-printed number, a branch slug, a code fence, a Markdown field's value, a Markdown table, a
-register header, a complete exceptions-register row, a tracked path, or a git call and its
-failure is, and so no self-test's scratch repository inherits the caller's git. Each
-importer's self-test covers the rules it uses; this module has no entry point of its own.
+so no two of them can disagree on a key's shape, what an unset key, a placeholder, a
+discipline, a date, a printed number, a branch slug, a code fence, a Markdown field's value,
+a Markdown table, a register header, a complete exceptions-register row, a tracked path, or
+a git call and its failure is, and so no self-test's scratch repository inherits the
+caller's git. Each importer's self-test covers the rules it uses; this module has no entry
+point of its own.
 """
 import ast
 import contextlib
@@ -57,13 +58,18 @@ SLUG = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
 
 
 def is_unset(value):
-    """Absent, blank, `none` in any case, or a `<placeholder>`: a key nothing was
-    configured for."""
+    """Absent, blank, `none` in any case, or a `<placeholder>`: a scalar nothing was
+    configured for. A list is never unset here; key_unset judges a key's list by its shape."""
     if value is None:
         return True
     if isinstance(value, str):
         return (not value.strip() or value.strip().lower() == "none"
                 or PLACEHOLDER.match(value) is not None)
+    return False
+
+
+def holds_placeholder(value):
+    """Whether the value is a list with a `<placeholder>` entry."""
     return isinstance(value, list) and any(isinstance(entry, str) and PLACEHOLDER.match(entry)
                                            for entry in value)
 
@@ -97,8 +103,9 @@ def key_value(config, path):
 
 
 def key_unset(shape, value):
-    """Whether the value leaves a key of that shape unset: is_unset's scalar, or, for a
-    template list, a list made wholly of placeholder entries, as the reference writes it."""
+    """Whether the value leaves a key of that shape unset, the one rule every reader applies:
+    is_unset's scalar, or, for a template list, a list made wholly of placeholder entries, as
+    the reference writes it."""
     if isinstance(value, list):
         return shape.template_list and bool(value) and all(
             isinstance(entry, str) and PLACEHOLDER.match(entry) for entry in value)
@@ -108,7 +115,7 @@ def key_unset(shape, value):
 def check_value(path, shape, value):
     """Raise ValueError when a set value is not in the key's shape: a template list keeping
     a placeholder entry beside a real one, or a value its check rejects."""
-    if shape.template_list and is_unset(value) and isinstance(value, list):
+    if shape.template_list and holds_placeholder(value):
         raise ValueError(f"{path} still holds a placeholder entry")
     shape.check(value)
 
@@ -140,12 +147,16 @@ def read_keys(config, keys, registry=None):
     problems = key_problems(config, keys, registry)
     if problems:
         raise ValueError("; ".join(problems))
-    values = {}
-    for declared in keys:
-        value = key_value(config, declared.key)
-        values[declared.key] = (declared.default if key_unset(registry[declared.key], value)
-                                else value)
-    return values
+    unset = unset_keys(config, keys, registry)
+    return {declared.key: declared.default if declared.key in unset
+            else key_value(config, declared.key) for declared in keys}
+
+
+def unset_keys(config, keys, registry=None):
+    """The paths of the declared keys config leaves unset, by key_unset."""
+    registry = PROJECT_KEYS if registry is None else registry
+    return {declared.key for declared in keys
+            if key_unset(registry[declared.key], key_value(config, declared.key))}
 
 
 # Inline emphasis and code-span markers, which change how a Markdown value renders, not what
@@ -187,13 +198,18 @@ def named_disciplines(config):
 
 def check_repo_path(key, value):
     """A directory key written unquoted into commands: set, relative, inside the repository
-    and outside .git, made only of characters no shell treats specially."""
+    and outside any .git, made only of characters no shell treats specially. A .git component
+    is judged anywhere in the path, case-insensitively and with trailing dots dropped, as
+    git's verify_path rejects it, since a case-insensitive disk reads .GIT as .git, Windows
+    reads .git. as .git, and git tracks nothing under one."""
     if (is_unset(value) or not isinstance(value, str) or not REPO_PATH.fullmatch(value)
             or os.path.isabs(value)
-            or os.path.normpath(value).split(os.sep)[0] in ("..", ".", ".git")):
-        raise ValueError(f"{key} {value!r} is not a relative path inside the repository "
-                         "outside .git, starting with a letter, digit, or '_', and made only "
-                         "of letters, digits, '.', '_', '-', and '/'")
+            or os.path.normpath(value).split(os.sep)[0] in ("..", ".")
+            or any(part.rstrip(".").casefold() == ".git" for part in value.split("/"))):
+        raise ValueError(f"{key} {value!r} is not a relative path inside the repository with no "
+                         "'.git' component (in any case, trailing dots aside), starting with a "
+                         "letter, digit, or '_', and made only of letters, digits, '.', '_', "
+                         "'-', and '/'")
 
 
 def parse_date(value):
@@ -537,7 +553,8 @@ def keyed(check, *keys):
 
 # Every project.json key a kit script checks, by dotted path, so no two readers can hold
 # different shapes for one key, as pre-commit declares a hook key once and derives each
-# context's required-ness from it; disciplines, a fixed vocabulary, is named_disciplines'.
+# context's required-ness from it; disciplines, a fixed vocabulary, is named_disciplines', and
+# reviewers, any comma-separated text, is review_gate.py's.
 # Readers go through read_keys, except where a gate reads a key more strictly than its unset
 # rule, as gates/release.md does halt_watch's, or where the value arrives as an argument;
 # those call the shape's check directly. scripts/ci/config-examples.sh checks each against
@@ -614,17 +631,20 @@ def result_of(function, *arguments, error=ValueError):
 
 
 def run_check(parser, checks, command):
-    """A check script's entry point: print the named check's result and exit 0, print
-    `INVALID: <what>` to stderr and exit 1 when it raises ValueError, or print usage and exit
-    2 when no check has that name."""
+    """A check script's entry point. Print the named check's result and exit 0, printing
+    nothing for an empty result, as a check finding no rows returns; print `INVALID: <what>`
+    to stderr and exit 1 when it raises ValueError; print usage and exit 2 when no check has
+    that name."""
     if command not in checks:
         parser.print_usage(sys.stderr)
         return 2
     try:
-        print(checks[command]())
+        result = checks[command]()
     except ValueError as error:
         print(f"INVALID: {error}", file=sys.stderr)
         return 1
+    if result != "":
+        print(result)
     return 0
 
 

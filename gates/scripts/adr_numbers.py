@@ -208,8 +208,8 @@ def self_test():
         git(root, "checkout", "--quiet", "rival")
         failures += report("check", "a ref read as an option", run("--output=x"), 2)
         failures += report("run_git", "a failure names the subcommand past -c and -C",
-                           error_message(lambda: git(root, "-C", ".", "-c", "k.v=1", "log",
-                                                     "no-such-ref")).split(" failed")[0],
+                           str(error_message(lambda: git(root, "-C", ".", "-c", "k.v=1", "log",
+                                                         "no-such-ref"))).split(" failed")[0],
                            "git log")
         failures += report("run_git", "bytes when text is False",
                            run_git(root, "rev-parse", "--git-dir", environment=GIT_ENVIRONMENT,

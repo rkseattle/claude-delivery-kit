@@ -94,9 +94,10 @@ done, default `Done`. The checks before the merge, and the decline and failure p
 exception path, which has none; the tech lead then merges outside the run.
 
 `incident_reviews_dir` serves rule book Phase 7 step 3: where `incident-review` commits each
-review. It must be a relative path inside the repository, outside `.git`, starting with a
-letter, digit, or `_` and made only of letters, digits, `.`, `_`, `-`, and `/`, and not
-gitignored, since the review is committed.
+review. It must be a relative path inside the repository with no `.git` component, in any
+case or with trailing dots, as git refuses to track one, starting with a letter, digit, or
+`_` and made only of letters, digits, `.`, `_`, `-`, and `/`, and not gitignored, since the
+review is committed.
 Default `none`, under which `incident-review` stops and names the key.
 
 `iteration_days`, `debt_share_target`, `dependency_outdated_command`, `patch_sla_days`,
@@ -115,14 +116,14 @@ except that `security` makes `patch_sla_days` required.
 
 `retirements_dir` serves rule book Phase 7 step 7: where `retire-system` commits each
 retirement record. It follows `incident_reviews_dir`'s rule — a relative path inside the
-repository, outside `.git`, of the same characters, and not gitignored, since the record is
-committed. Default `none`, under which `retire-system` stops and names the key.
+repository with no `.git` component, of the same characters, and not gitignored, since the
+record is committed. Default `none`, under which `retire-system` stops and names the key.
 
 `design_dir` and `adr_dir` serve rule book Phase 3 and R11: where a feature's design doc
 and its decision records are committed, in the form `gates/design-exit.md` defines. Each
-follows `incident_reviews_dir`'s rule — a relative path inside the repository, outside
-`.git`, of the same characters, and not gitignored, since both are committed. Each
-defaults to `none`, under which the gate fails as it states. `ci-green`'s merge step runs
+follows `incident_reviews_dir`'s rule — a relative path inside the repository with no
+`.git` component, of the same characters, and not gitignored, since both are committed.
+Each defaults to `none`, under which the gate fails as it states. `ci-green`'s merge step runs
 `gates/scripts/adr_numbers.py` on `adr_dir`, which under `none` passes and says so.
 
 `secret_scan_command` and `sast_command` serve rule book R12 and Appendix B1's scans. Each

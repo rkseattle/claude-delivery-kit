@@ -34,8 +34,8 @@ import time
 sys.dont_write_bytecode = True
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)),
                                 "..", "..", "..", "gates", "scripts"))
-from project_rules import (PROJECT_KEYS, cli_case,  # noqa: E402
-                           named_disciplines, read_config, report)
+from project_rules import (PROJECT_KEYS, cli_case, error_of,  # noqa: E402
+                           named_disciplines, read_config, report, result_of, run_check)
 
 ROUND_SECONDS = 60
 BUDGET_SECONDS = 55
@@ -260,19 +260,11 @@ def self_test():
                            (got, os.path.exists(leftover)), ("window clean", False))
         for name, value, expected in LOAD_CASES:
             path = "/nonexistent/project.json" if value is None else write_config(directory, value)
-            try:
-                got = load(path)
-            except ValueError:
-                got = "ValueError"
-            failures += report("load", name, got, expected)
+            failures += report("load", name, result_of(load, path), expected)
         failures += cli_case(os.path.abspath(__file__), "no --config is a usage error", [], "", 2)
         for name, value, expected in CHECK_CASES:
-            try:
-                check(write_config(directory, value))
-                got = "ok"
-            except ValueError:
-                got = "ValueError"
-            failures += report("check", name, got, expected)
+            failures += report("check", name, error_of(check, write_config(directory, value)),
+                               expected)
         script = os.path.abspath(__file__)
         root = os.path.join(directory, "root")
         os.makedirs(os.path.join(root, ".claude"))
@@ -328,13 +320,10 @@ def main():
         parser.print_usage(sys.stderr)
         return 2
     if args.check:
-        try:
+        def checked():
             check(args.config)
-        except ValueError as error:
-            print(f"INVALID: {error}", file=sys.stderr)
-            return 1
-        print("ok")
-        return 0
+            return "ok"
+        return run_check(parser, {"check": checked}, "check")
     try:
         criteria, window = load(args.config)
     except ValueError as error:
