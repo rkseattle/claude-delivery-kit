@@ -9,6 +9,7 @@ bash hooks/block-false-stop.sh --self-test
 bash hooks/protect-plan-branch.sh --self-test
 bash scripts/ci/hooks-wired.sh
 bash scripts/ci/hooks-relocatable.sh
+python3 gates/scripts/project_rules.py --self-test
 python3 skills/write-tickets/scripts/lint_draft.py --self-test
 python3 skills/ci-green/scripts/review_gate.py --self-test
 python3 skills/readme-docs/scripts/check_readme.py --self-test

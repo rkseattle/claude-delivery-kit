@@ -14,8 +14,6 @@ exits 1; exit 2 is usage. Whether either path is gitignored is the skill's check
 script's.
 """
 import argparse
-import contextlib
-import io
 import os
 import sys
 import tempfile
@@ -23,10 +21,9 @@ import tempfile
 sys.dont_write_bytecode = True
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)),
                                 "..", "..", "..", "gates", "scripts"))
-from project_rules import (KeyShape, OptionalKey, RequiredKey, check_repo_path,  # noqa: E402
-                           cli_case, collected_errors, error_message, read_config, read_keys,
-                           report, result_of, result_or_message, run_check, unset_keys,
-                           write_scratch)
+from project_rules import (OptionalKey, RequiredKey, check_repo_path, cli_case,  # noqa: E402
+                           error_message, read_config, read_keys, report, result_or_message,
+                           run_check, unset_keys, write_scratch)
 
 # adr_dir may be left unset: gates/design-exit.md fails an unset adr_dir only for a design with
 # a costly-to-reverse choice, which the gate, not this check, can see.
@@ -94,83 +91,12 @@ DIRS_CASES = [
 ]
 
 
-def text(key):
-    """A check that the key's value is text, naming the key."""
-    def check(value):
-        if not isinstance(value, str):
-            raise ValueError(f"{key} is not text")
-    return check
-
-
-# A fixture registry for read_keys' own cases: two plain keys, a template list, and a key
-# inside an object.
-FIXTURE_KEYS = {"k": KeyShape(text("k")), "j": KeyShape(text("j")),
-                "t": KeyShape(text("t"), template_list=True), "roles.k": KeyShape(text("roles.k"))}
-UNSET_K = "k is absent, none, blank, or a placeholder"
-
-
-def read_keys_cases():
-    """(name, config, keys, expected) for read_keys over FIXTURE_KEYS; declared in a function,
-    so scripts/ci/config-examples.sh, which scans top-level declarations, skips them."""
-    return [
-        ("a required key unset is named", {}, [RequiredKey("k")], UNSET_K),
-        ("a required key says who needs it", {"k": "none"}, [RequiredKey("k", needed_by="mobile")],
-         UNSET_K + ", and mobile needs it"),
-        ("an optional key unset takes its default", {"k": "<k>"}, [OptionalKey("k", 7)], {"k": 7}),
-        ("a set key is checked", {"k": 5}, [OptionalKey("k", 7)], "k is not text"),
-        ("a template list of placeholders reads as unset", {"t": ["<handle>", "<handle>"]},
-         [OptionalKey("t", 7)], {"t": 7}),
-        ("a template list keeping a placeholder beside a real entry is named",
-         {"t": ["rob", "<handle>"]}, [OptionalKey("t", 7)], "t still holds a placeholder entry"),
-        ("an empty template list is checked", {"t": []}, [OptionalKey("t", 7)], "t is not text"),
-        ("any other list holding a placeholder is checked", {"k": ["<handle>"]},
-         [OptionalKey("k", 7)], "k is not text"),
-        ("every problem is named", {"j": 5}, [RequiredKey("k"), RequiredKey("j")],
-         UNSET_K + "; j is not text"),
-        ("a required template list reads as unset", {"t": ["<os> <version>"]}, [RequiredKey("t")],
-         "t is absent, none, blank, or a placeholder"),
-        ("a key inside an object is read by its path", {"roles": {"k": "rob"}},
-         [OptionalKey("roles.k", None)], {"roles.k": "rob"}),
-        ("a key under an absent object is unset", {}, [OptionalKey("roles.k", None)],
-         {"roles.k": None}),
-        ("a key under a null object is unset", {"roles": None}, [OptionalKey("roles.k", None)],
-         {"roles.k": None}),
-        ("a key under a non-object is named", {"roles": 5}, [OptionalKey("roles.k", None)],
-         "roles is not an object"),
-    ]
-
-
-def raise_empty():
-    raise ValueError("")
-
-
 def self_test():
     failures = 0
     for name, config, keys in DIRS_CASES:
         failures += report("dirs", name,
                            result_or_message(lambda: check_dirs(config)),
                            expected_message(config, keys))
-    for name, config, keys, expected in read_keys_cases():
-        failures += report("read_keys", name,
-                           result_or_message(lambda: read_keys(config, keys, FIXTURE_KEYS)),
-                           expected)
-    failures += report("read_keys", "a path not in the registry is a KeyError",
-                       result_of(read_keys, {}, [OptionalKey("x", None)], FIXTURE_KEYS,
-                                 error=KeyError), "KeyError")
-    failures += report("read_keys", "a check passed as needed_by or a default is a TypeError",
-                       [result_of(read_keys, {}, [declared], FIXTURE_KEYS, error=TypeError)
-                        for declared in (RequiredKey("k", text("k")), OptionalKey("k", text("k")))],
-                       ["TypeError"] * 2)
-    failures += report("read_keys", "the registry defaults to PROJECT_KEYS",
-                       result_or_message(lambda: read_keys(VALID, KEYS)), VALID)
-    printed = io.StringIO()
-    with contextlib.redirect_stdout(printed):
-        exits = [run_check(None, {"rows": lambda result=result: result}, "rows")
-                 for result in ("", "a\nb")]
-    failures += report("run_check", "an empty result prints no blank line",
-                       (printed.getvalue(), exits), ("a\nb\n", [0, 0]))
-    failures += report("collected_errors", "a ValueError with no message still counts",
-                       collected_errors([raise_empty, lambda: None]), [""])
     script = os.path.abspath(__file__)
     with tempfile.TemporaryDirectory() as directory:
         configs = {}

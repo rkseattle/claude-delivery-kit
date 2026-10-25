@@ -46,6 +46,14 @@ jobs:
         with:
           persist-credentials: false
 
+      # One case per way a key could read in a shape its registry entry does not give it: a
+      # template list mixing a placeholder, a key under a non-object, an unregistered path;
+      # and per exit of run_check, the design, incident, maintenance, retirement and halt
+      # checks' entry point, per kind of file write_scratch, every self-test's scratch
+      # writer, makes, and collected_errors' empty message.
+      - name: Project rules self-test
+        run: python3 gates/scripts/project_rules.py --self-test
+
       # Each fixture declares its exact count per finding code, and each readback case its
       # count of lines Jira lost, so a check that stops firing, or fires under the wrong
       # code, fails here instead of passing every draft it was meant to stop.

@@ -32,7 +32,8 @@ gates/                 the universal halves of the gates, listed in the README;
                        fails decision records sharing a number; scripts/project_rules.py
                        holds the project.json key registry and rules, check-script
                        entry point, and self-test helpers the release, review,
-                       incident, maintenance, retirement, and design scripts share;
+                       incident, maintenance, retirement, and design scripts share,
+                       with a self-test of its own;
                        scripts/_vendor holds PyYAML, which the maintenance check reads
                        alert rules with
 hooks/                 hooks.json + the two hooks and their self-tests

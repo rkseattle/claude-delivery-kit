@@ -19,6 +19,7 @@ installed one differs.
 | `hooks` · Branch-guard self-test | `bash hooks/protect-plan-branch.sh --self-test` |
 | `hooks` · Hooks are wired | `bash scripts/ci/hooks-wired.sh` |
 | `hooks` · Self-tests accept the hook path | `bash scripts/ci/hooks-relocatable.sh` |
+| `script-tests` · Project rules self-test | `python3 gates/scripts/project_rules.py --self-test` |
 | `script-tests` · Linter fixtures | `python3 skills/write-tickets/scripts/lint_draft.py --self-test` |
 | `script-tests` · Review gate self-test | `python3 skills/ci-green/scripts/review_gate.py --self-test` |
 | `script-tests` · README checker fixtures | `python3 skills/readme-docs/scripts/check_readme.py --self-test` |

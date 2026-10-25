@@ -18,12 +18,18 @@ so no two of them can disagree on a key's shape, what an unset key, a placeholde
 discipline, a date, a printed number, a branch slug, a code fence, a Markdown field's value,
 a Markdown table, a register header, a complete exceptions-register row, a tracked path, a
 self-test's scratch file, or a git call and its failure is, and so no self-test's scratch
-repository inherits the caller's git. Each importer's self-test covers the rules it uses;
-this module has no entry point of its own.
+repository inherits the caller's git. Each importer's self-test covers the rules it uses.
+
+    project_rules.py --self-test   runs the key registry's own cases and run_check's,
+                                   collected_errors' and write_scratch's; exit 0 only
+                                   if each one matches
+
 """
+import argparse
 import ast
 import contextlib
 import datetime
+import io
 import itertools
 import json
 import math
@@ -31,6 +37,7 @@ import os
 import re
 import subprocess
 import sys
+import tempfile
 import typing
 from unittest import mock
 
@@ -709,3 +716,104 @@ def error_of(function, *arguments):
     except ValueError:
         return "ValueError"
     return "ok"
+
+
+def self_test():
+    """The key registry's cases, over a fixture registry of two plain keys, a template list,
+    and a key inside an object, and run_check's, collected_errors' and write_scratch's; 1 if
+    any fails. Every fixture is declared inside this function, so
+    scripts/ci/config-examples.sh, which scans top-level declarations, skips them."""
+    def text(key):
+        def check(value):
+            if not isinstance(value, str):
+                raise ValueError(f"{key} is not text")
+        return check
+
+    def raise_empty():
+        raise ValueError("")
+
+    unset_k = "k is absent, none, blank, or a placeholder"
+    read_keys_cases = [
+        ("a required key unset is named", {}, [RequiredKey("k")], unset_k),
+        ("a required key says who needs it", {"k": "none"}, [RequiredKey("k", needed_by="mobile")],
+         unset_k + ", and mobile needs it"),
+        ("an optional key unset takes its default", {"k": "<k>"}, [OptionalKey("k", 7)], {"k": 7}),
+        ("a set key is checked", {"k": 5}, [OptionalKey("k", 7)], "k is not text"),
+        ("a template list of placeholders reads as unset", {"t": ["<handle>", "<handle>"]},
+         [OptionalKey("t", 7)], {"t": 7}),
+        ("a template list keeping a placeholder beside a real entry is named",
+         {"t": ["rob", "<handle>"]}, [OptionalKey("t", 7)], "t still holds a placeholder entry"),
+        ("an empty template list is checked", {"t": []}, [OptionalKey("t", 7)], "t is not text"),
+        ("any other list holding a placeholder is checked", {"k": ["<handle>"]},
+         [OptionalKey("k", 7)], "k is not text"),
+        ("every problem is named", {"j": 5}, [RequiredKey("k"), RequiredKey("j")],
+         unset_k + "; j is not text"),
+        ("a required template list reads as unset", {"t": ["<os> <version>"]}, [RequiredKey("t")],
+         "t is absent, none, blank, or a placeholder"),
+        ("a key inside an object is read by its path", {"roles": {"k": "rob"}},
+         [OptionalKey("roles.k", None)], {"roles.k": "rob"}),
+        ("a key under an absent object is unset", {}, [OptionalKey("roles.k", None)],
+         {"roles.k": None}),
+        ("a key under a null object is unset", {"roles": None}, [OptionalKey("roles.k", None)],
+         {"roles.k": None}),
+        ("a key under a non-object is named", {"roles": 5}, [OptionalKey("roles.k", None)],
+         "roles is not an object"),
+        ("a key under an empty list is named", {"roles": []}, [OptionalKey("roles.k", None)],
+         "roles is not an object"),
+        ("a deeper non-object parent is named by its path", {"a": {"b": 5}},
+         [OptionalKey("a.b.c", None)], "a.b is not an object"),
+    ]
+    fixture_keys = {"k": KeyShape(text("k")), "j": KeyShape(text("j")),
+                    "t": KeyShape(text("t"), template_list=True),
+                    "roles.k": KeyShape(text("roles.k")), "a.b.c": KeyShape(text("a.b.c"))}
+    failures = 0
+    for name, config, keys, expected in read_keys_cases:
+        failures += report("read_keys", name,
+                           result_or_message(lambda: read_keys(config, keys, fixture_keys)),
+                           expected)
+    failures += report("read_keys", "a path not in the registry is a KeyError",
+                       result_of(read_keys, {}, [OptionalKey("x", None)], fixture_keys,
+                                 error=KeyError), "KeyError")
+    failures += report("read_keys", "a check passed as needed_by or a default is a TypeError",
+                       [result_of(read_keys, {}, [declared], fixture_keys, error=TypeError)
+                        for declared in (RequiredKey("k", text("k")), OptionalKey("k", text("k")))],
+                       ["TypeError"] * 2)
+    failures += report("read_keys", "the registry defaults to PROJECT_KEYS",
+                       result_or_message(lambda: read_keys({"design_dir": "/abs"},
+                                                           [OptionalKey("design_dir", None)])),
+                       error_message(lambda: check_repo_path("design_dir", "/abs")))
+    printed, errors = io.StringIO(), io.StringIO()
+    checks = {"empty": lambda: "", "rows": lambda: "a\nb", "invalid": raise_empty}
+    with contextlib.redirect_stdout(printed), contextlib.redirect_stderr(errors):
+        exits = [run_check(argparse.ArgumentParser(prog="p"), checks, command)
+                 for command in ("empty", "rows", "invalid", "missing")]
+    failures += report("run_check", "rows print, an empty result prints no blank line",
+                       printed.getvalue(), "a\nb\n")
+    failures += report("run_check", "exit 0 on a result, 1 on a ValueError, 2 on no such check",
+                       exits, [0, 0, 1, 2])
+    failures += report("run_check", "a ValueError prints INVALID and no check prints usage",
+                       errors.getvalue().splitlines(), ["INVALID: ", "usage: p [-h]"])
+    failures += report("collected_errors", "a ValueError with no message still counts",
+                       collected_errors([raise_empty, lambda: None]), [""])
+    with tempfile.TemporaryDirectory() as directory:
+        written = [write_scratch(directory, {"k": "v"}, "repo/.claude/project.json"),
+                   write_scratch(directory, "{ raw é }", "raw.json"),
+                   write_scratch(directory, b"\xff", "raw.bin")]
+        contents = []
+        for path in written:
+            with open(path, "rb") as handle:
+                contents.append(handle.read())
+        failures += report("write_scratch", "JSON serialized, text and bytes as is, folders made",
+                           contents, [b'{"k": "v"}', "{ raw é }".encode("utf-8"), b"\xff"])
+        unnamed = [write_scratch(directory, {"a": 1}), write_scratch(directory, {"a": 1})]
+        failures += report("write_scratch", "each unnamed call writes a file of its own",
+                           (unnamed[0] != unnamed[1], [read_config(path) for path in unnamed]),
+                           (True, [{"a": 1}, {"a": 1}]))
+    return 1 if failures else 0
+
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    parser.add_argument("--self-test", action="store_true", required=True)
+    parser.parse_args()
+    sys.exit(self_test())
