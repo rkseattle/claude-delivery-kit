@@ -230,8 +230,8 @@ nothing between here and the staging ask needs the network:
 ```
 
 - **Changes** — one line per scope key, with each commit subject in the range that names
-  it. A subject names the keys Step 2's `grep -oE … | grep -xE …` pipeline takes from it,
-  so a key never takes the subjects of a longer key it begins.
+  it. A subject names the keys Step 2's `project_rules.py ticket-keys` takes from it, so a
+  key never takes the subjects of a longer key it begins.
 - **Migrations** — the summary's `Upgrade notes` section, or `none`.
 - **Known issues** — the open Bugs under the summary's `Open defects by severity` whose
   keys are in the scope, then its `Known risks`. The summary's defect list is project-wide,

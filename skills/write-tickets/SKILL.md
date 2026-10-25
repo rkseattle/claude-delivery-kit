@@ -79,8 +79,8 @@ In order:
 ## Step 4 — Draft
 
 Write `docs/tickets/<slug>.md` (gitignored) in the templates' format, blockers before
-dependents, revising an existing draft there rather than writing over it. `<slug>` is what
-this prints for the request, given as a file per **Untrusted text** in
+dependents; revise a draft already there if it is this request's, or ask. `<slug>` is
+what this prints for the request, given as a file per **Untrusted text** in
 `gates/project-config.md`; on an `INVALID:` line, ask for the request in Latin letters:
 
 ```bash

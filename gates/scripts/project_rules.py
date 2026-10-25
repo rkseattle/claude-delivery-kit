@@ -31,6 +31,11 @@ repository inherits the caller's git. Each importer's self-test covers the rules
                                    letter or digit is left; for a skill with no script of
                                    its own, or whose script derives no slug, when the slug
                                    takes no prefix
+    project_rules.py ticket-key [--prefix KEY]
+                                   the Jira key on standard input, when it is one and under
+                                   --prefix; INVALID otherwise
+    project_rules.py ticket-keys --prefix KEY
+                                   every distinct key under KEY that standard input names
     project_rules.py draft-slug     the request on standard input as write-tickets' draft
                                    slug, fitted to DRAFT_SLUG_MAX
     project_rules.py ticket-branch [--prefix KEY]
@@ -464,10 +469,11 @@ FILE_NAME_MAX = 255
 BRANCH_SLUG_MAX = FILE_NAME_MAX - len(".lock")
 
 
-PR_NUMBER = re.compile(r"^#?([1-9][0-9]*)$")
-# A Jira issue key: a project key of an uppercase letter and one or more uppercase letters,
-# digits, or underscores, as Atlassian requires of a project key, then the issue number.
-JIRA_KEY = r"[A-Z][A-Z0-9_]+-[1-9][0-9]*"
+PR_NUMBER = re.compile(r"#?([1-9][0-9]*)")
+# A Jira project key is an uppercase letter and one or more uppercase letters, digits, or
+# underscores, as Atlassian requires; an issue key is one, a hyphen, and the issue number.
+JIRA_PROJECT_KEY = r"[A-Z][A-Z0-9_]+"
+JIRA_KEY = JIRA_PROJECT_KEY + r"-[1-9][0-9]*"
 TICKET_KEY = re.compile(JIRA_KEY)
 
 
@@ -484,11 +490,33 @@ def ticket_branch(text, prefix=None):
     key = key.strip()
     if not TICKET_KEY.fullmatch(key) or len(key) > TICKET_KEY_MAX:
         raise ValueError(f"{key!r} is not a Jira key")
-    if prefix is not None and not re.fullmatch(r"[A-Z][A-Z0-9_]+", prefix):
+    if prefix is not None and not re.fullmatch(JIRA_PROJECT_KEY, prefix):
         raise ValueError(f"--prefix {prefix!r} is not a Jira project key")
     if prefix is not None and not key.startswith(f"{prefix}-"):
         raise ValueError(f"{key!r} is not a {prefix} key")
     return f"{key}-{slug_of(words, BRANCH_SLUG_MAX - len(key) - 1)}"
+
+
+def ticket_key(text, prefix=None):
+    """text, stripped, when the whole of it is one Jira key of at most TICKET_KEY_MAX
+    characters, under prefix when given; ValueError otherwise."""
+    key = text.strip()
+    if not TICKET_KEY.fullmatch(key) or len(key) > TICKET_KEY_MAX:
+        raise ValueError(f"{key!r} is not a Jira key")
+    if prefix is not None and not re.fullmatch(JIRA_PROJECT_KEY, prefix):
+        raise ValueError(f"--prefix {prefix!r} is not a Jira project key")
+    if prefix is not None and not key.startswith(f"{prefix}-"):
+        raise ValueError(f"{key!r} is not a {prefix} key")
+    return key
+
+
+def ticket_keys(text, prefix):
+    """Every distinct key under prefix that text names, sorted: the tickets a range of commit
+    subjects covers."""
+    if not re.fullmatch(JIRA_PROJECT_KEY, prefix):
+        raise ValueError(f"--prefix {prefix!r} is not a Jira project key")
+    found = re.findall(r"(?<![A-Z0-9_])" + JIRA_KEY + r"(?![0-9])", text)
+    return sorted({key for key in found if key.startswith(f"{prefix}-")})
 
 
 # write-tickets' longest name from its draft slug is a ticket's readback copy,
@@ -881,8 +909,9 @@ def error_of(function, *arguments):
 
 def self_test():
     """The key registry's cases, over a fixture registry of two plain keys, a template list,
-    and a key inside an object, and slug_of's, run_check's, collected_errors', cli_case's and
-    write_scratch's; 1 if any fails. Every fixture is declared inside this function, so
+    and a key inside an object, and those of slug_of, JIRA_KEY, pr_number, ticket_branch,
+    text_input, run_check, collected_errors, cli_case, write_scratch, and each subcommand; 1 if
+    any fails. Every fixture is declared inside this function, so
     scripts/ci/config-examples.sh, which scans top-level declarations, skips them."""
     def text(key):
         def check(value):
@@ -1043,7 +1072,7 @@ def self_test():
                            (True, [{"a": 1}, {"a": 1}]))
     this = os.path.abspath(__file__)
     failures += cli_case(this, "slug prints the slug", ["slug", "--title", "My Project!"],
-                         "my-project", 0)
+                         "my-project", 0, exact=True)
     failures += cli_case(this, "a slug of no letter is invalid", ["slug", "--title", "日本語"],
                          "INVALID: title ", 1)
     failures += cli_case(this, "slug reads the title from stdin", ["slug"], "rob-s-big-project",
@@ -1084,6 +1113,13 @@ def self_test():
                        result_of(ticket_branch, "AB_X-1\nwords"), "AB_X-1-words")
     failures += report("ticket_branch", "a malformed prefix",
                        result_of(ticket_branch, "AB-1\nwords", ""), "ValueError")
+    for name, text, prefix, expected in [
+            ("one key", "AB-12\n", "AB", "AB-12"),
+            ("a second line", "AB-12\nmore words", "AB", "ValueError"),
+            ("trailing words", "AB-12 words", None, "ValueError"),
+            ("a key outside the prefix", "XY-1", "AB", "ValueError"),
+            ("a malformed prefix", "AB-1", "a", "ValueError")]:
+        failures += report("ticket_key", name, result_of(ticket_key, text, prefix), expected)
     failures += report("ticket_branch", "a key under the prefix",
                        result_of(ticket_branch, "AB-1\nwords", "AB"), "AB-1-words")
     failures += report("ticket_branch", "a key whose project starts with the prefix",
@@ -1113,7 +1149,14 @@ def self_test():
     failures += cli_case(this, "a malformed key is invalid", ["ticket-branch", "--prefix", "AB"],
                          "INVALID:", 1, input="ab-12\nx\n")
     failures += cli_case(this, "draft-slug fits the readback copy", ["draft-slug"], "d" * 187, 0,
-                         input="d" * 300 + "\n")
+                         input="d" * 300 + "\n", exact=True)
+    failures += cli_case(this, "ticket-key prints a key under the prefix",
+                         ["ticket-key", "--prefix", "AB"], "AB-12", 0, input="AB-12\n", exact=True)
+    failures += cli_case(this, "a ticket-key holding shell text is invalid", ["ticket-key"],
+                         "INVALID:", 1, input="AB-12$(x)\n")
+    failures += cli_case(this, "ticket-keys lists each key under the prefix once",
+                         ["ticket-keys", "--prefix", "AB"], "AB-12\nAB-3", 0,
+                         input="AB-12 - x\nAB-3 and XY-1, AB-12 again, AB_C-4\n", exact=True)
     failures += cli_case(this, "no subcommand is usage", [], "", 2)
     return 1 if failures else 0
 
@@ -1126,6 +1169,8 @@ def main():
     commands.add_parser("pr-number")
     commands.add_parser("ticket-branch").add_argument("--prefix")
     commands.add_parser("draft-slug")
+    commands.add_parser("ticket-key").add_argument("--prefix")
+    commands.add_parser("ticket-keys").add_argument("--prefix", required=True)
     args = parser.parse_args()
     if args.self_test:
         return self_test()
@@ -1133,7 +1178,10 @@ def main():
                               "pr-number": lambda: pr_number(text_input(None)),
                               "ticket-branch": lambda: ticket_branch(text_input(None),
                                                                      args.prefix),
-                              "draft-slug": lambda: slug_of(text_input(None), DRAFT_SLUG_MAX)},
+                              "draft-slug": lambda: slug_of(text_input(None), DRAFT_SLUG_MAX),
+                              "ticket-key": lambda: ticket_key(text_input(None), args.prefix),
+                              "ticket-keys": lambda: ticket_keys(text_input(None),
+                                                                 args.prefix)},
                      args.command)
 
 

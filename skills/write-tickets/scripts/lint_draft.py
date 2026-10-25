@@ -36,7 +36,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)),
 # The discipline rules plan-work and the release scripts apply.
 from project_rules import (DISCIPLINES, JIRA_KEY, is_unset, isolated_git_environment,  # noqa: E402
                            markdown_value, named_disciplines, process_state, read_config,
-                           tracked_path_matcher, words, write_scratch)
+                           report, tracked_path_matcher, words, write_scratch)
 
 SUMMARY_MAX = 100
 
@@ -670,7 +670,18 @@ def disciplines_test(here, repo, is_tracked):
 
 
 def self_test():
-    """Each fixture declares its exact count per code on line 1: <!-- expect R12=2 warn:R7=1 -->."""
+    """The HEADER and KEY cases below, then each fixture, which declares its exact count per code
+    on line 1: <!-- expect R12=2 warn:R7=1 -->."""
+    failures = 0
+    for name, line, expected in [
+            ("an underscore project key heads a ticket", "# [AB_X-1] Summary", "AB_X-1"),
+            ("issue zero is no key", "# [AB-0] Summary", None),
+            ("a leading zero is no key", "# [AB-012] Summary", None)]:
+        match = HEADER.match(line)
+        failures += report("HEADER", name, match and match["id"], expected)
+    for name, value, expected in [("an underscore project key", "AB_X-1", True),
+                                  ("issue zero", "AB-0", False), ("a leading zero", "AB-012", False)]:
+        failures += report("KEY", name, bool(KEY.match(value)), expected)
     here = os.path.join(os.path.dirname(os.path.abspath(__file__)), "fixtures")
     repo = tempfile.mkdtemp()
     # An inherited GIT_DIR, GIT_INDEX_FILE or config would aim every git call, the lint's own
@@ -694,7 +705,7 @@ def self_test():
             for f in ("tests/auth/untracked.test.ts", "src/auth/untracked.ts"):
                 write_scratch(repo, "", f)
             is_tracked = tracked_path_matcher(repo)
-            failed = 0
+            failed = failures
             for name in sorted(os.listdir(here)):
                 if name.startswith(".") or os.path.isdir(os.path.join(here, name)):
                     continue  # editor metadata, and readback/ below; any other file is a fixture

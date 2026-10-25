@@ -51,14 +51,16 @@ jobs:
       # per result kind and exit of run_check, every check script's entry point, Outcome and
       # mismatch included; per option of cli_case and per kind of file write_scratch, the
       # self-tests' shared runner and scratch writer; collected_errors' empty message; and
-      # slug_of's folding, separators and length fit; text_input's terminal refusal and
-      # newline handling; and the slug and pr-number subcommands read from stdin.
+      # slug_of's folding, separators and length fit; JIRA_KEY's edges; pr_number and
+      # ticket_branch boundaries; text_input's terminal refusal and newline handling; and each
+      # subcommand: slug, draft-slug, pr-number, ticket-key, ticket-keys, ticket-branch.
       - name: Project rules self-test
         run: python3 gates/scripts/project_rules.py --self-test
 
-      # Each fixture declares its exact count per finding code, and each readback case its
-      # count of lines Jira lost, so a check that stops firing, or fires under the wrong
-      # code, fails here instead of passing every draft it was meant to stop.
+      # The Jira-key header and key cases run first. Then each fixture declares its exact
+      # count per finding code, and each readback case its count of lines Jira lost, so a
+      # check that stops firing, or fires under the wrong code, fails here instead of
+      # passing every draft it was meant to stop.
       - name: Linter fixtures produce their declared counts
         run: python3 skills/write-tickets/scripts/lint_draft.py --self-test
 

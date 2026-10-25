@@ -118,9 +118,6 @@ def self_test():
              ["working-days", "--incident", "2026-10-12", "--start", "2026-10-20"], "6\tlate", 0),
             ("a future incident is invalid",
              ["working-days", "--incident", "2026-10-20", "--start", "2026-10-12"], "INVALID:", 1),
-            ("slug prints the slug", ["slug", "--title", "DB failover!"], "db-failover", 0),
-            ("a slug is fitted to the branch's lock file", ["slug", "--title", "e" * 300],
-             "e" * 239, 0),
             ("branch prints the branch", ["branch", "--date", "2026-10-16", "--slug", "db"],
              "incident/2026-10-16-db", 0),
             ("a bad slug is invalid", ["branch", "--date", "2026-10-16", "--slug", "A"],
@@ -129,6 +126,10 @@ def self_test():
             ("reviews-dir none", ["reviews-dir", "--value", "none"], "INVALID:", 1),
             ("no subcommand is usage", [], "", 2)]:
         failures += cli_case(script, *case)
+    failures += cli_case(script, "slug prints the slug", ["slug", "--title", "DB failover!"],
+                         "db-failover", 0, exact=True)
+    failures += cli_case(script, "a slug is fitted to the branch's lock file",
+                         ["slug", "--title", "e" * 300], "e" * 239, 0, exact=True)
     failures += cli_case(script, "date prints a real date", ["date"], "2026-10-12", 0,
                          input="2026-10-12\n")
     failures += cli_case(script, "a date holding shell text is refused before any use",

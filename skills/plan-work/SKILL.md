@@ -22,7 +22,8 @@ its addenda silently, the `Threat model` below among them.
 
 $ARGUMENTS may be ticket IDs, a label, or a mix. Resolve before fetching.
 
-**Matches `{{ticket_prefix}}-\d+`** → a ticket ID. Use directly.
+**A `{{ticket_prefix}}` ticket ID**, each word `gates/scripts/project_rules.py ticket-key`
+prints back, given one at a time per **Untrusted text** in `gates/project-config.md`: use it.
 
 **Anything else** → treat as a label and resolve it:
 

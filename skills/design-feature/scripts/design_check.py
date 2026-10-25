@@ -133,11 +133,11 @@ def self_test():
                  "INVALID: " + expected_message(BOTH_FAILING, BOTH_FAILING_KEYS), 1),
                 ("an unreadable config", ["dirs", "--config", unreadable], "INVALID:", 1),
                 ("dirs without --config is usage", ["dirs"], "", 2),
-                ("slug", ["slug", "--title", "Add a design-feature skill"],
-                 "add-a-design-feature-skill", 0),
                 ("slug of no letter", ["slug", "--title", "日本語"], "INVALID: title ", 1),
                 ("no subcommand is usage", [], "", 2)]:
             failures += cli_case(script, *case)
+        failures += cli_case(script, "slug", ["slug", "--title", "Add a design-feature skill"],
+                             "add-a-design-feature-skill", 0, exact=True)
         failures += cli_case(script, "slug reads the title from stdin", ["slug"], "rob-s-design",
                              0, input="Rob's design\n")
     return 1 if failures else 0

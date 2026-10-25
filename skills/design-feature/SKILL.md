@@ -18,7 +18,10 @@ and no commit until then, and no push at all.
 
 The flow is that of a Rust RFC or a KEP — draft, cold review, a decision by the accountable
 approver, then the record committed with its status — with each costly choice a MADR
-decision record, and the decision steps those of `plan-project` Steps 4 and 5.
+decision record, and the decision steps those of `plan-project` Steps 4 and 5. Where a KEP
+or an RFC records approval as reviews on a pull request, this skill records it in
+`## Decision` in the session and commits without pushing, as `gates/design-exit.md`
+requires; the design's ordinary pull request is reviewed as code, after the decision.
 
 ## Step 1 — Read the configuration and check the prerequisites
 
@@ -64,14 +67,20 @@ Otherwise, run `git fetch origin`, and stop unless the checked-out branch is
 Step 6 cuts its branch from it. Say which branch to switch to, or that it must be brought
 level with its `origin` ref. Then record that commit; Step 6 compares against it.
 
-`$ARGUMENTS` is a feature request, or an Epic key matching `{{ticket_prefix}}-\d+`; with
-it empty, ask what the feature is. Given an Epic key, fetch the Epic and read its goal,
+`$ARGUMENTS` is a feature request, or an Epic key: one when this, given `$ARGUMENTS` as a
+file per **Untrusted text** in `gates/project-config.md`, prints it back rather than
+`INVALID:`. With `$ARGUMENTS` empty, ask what the feature is.
+
+```bash
+python3 "${CLAUDE_PLUGIN_ROOT}/gates/scripts/project_rules.py" ticket-key --prefix "{{ticket_prefix}}" < "<arguments file>"
+```
+
+Given an Epic key, fetch the Epic and read its goal,
 success measures, NFR lines, and children: **the design's title is the Epic's summary**,
 as written. Given a request, first read the `# <title>` line of every design doc under
-`{{design_dir}}`, whatever its decision, and of the one each `design/*` branch that
-`git branch -a --list 'design/*' '*/design/*'` lists holds at `{{design_dir}}/<its slug>.md`:
-when one already designs this feature, its title is the title, so a re-run finds its draft
-and a decided design is never designed twice. Otherwise the title is a short noun phrase
+`{{design_dir}}`, whatever its decision: when one already designs this feature, its title
+is the title, so a re-run finds its draft. A design committed only on a `design/*` branch
+is caught by the branch stop below when its title comes out the same. Otherwise the title is a short noun phrase
 naming the feature, stated in the first report.
 
 `<slug>` is what this prints for the title, handed over as a file per **Untrusted text** in
@@ -209,13 +218,14 @@ is printed as relayed.
 ## Step 6 — Record the decision and commit
 
 Run `git fetch` first. When `origin/design/<slug>` now exists, stop and ask, as Step 1 does.
-When `origin/{{parent_branch_default}}` moved since the commit Step 1 recorded, record the
-new commit as the base, since the branch is cut from the base and not from HEAD. Re-run
-Step 1's stops other than HEAD equaling `origin/{{parent_branch_default}}`, re-check each
-`## Current state` claim against the base, renumber the ADRs per the gate when a new
-record took one of their numbers, and present again before recording anything. An edit this
-makes re-runs its review and voids the approval of the section it touched, as the gate's
-**Approvers** section states; the other approvals stand.
+When `origin/{{parent_branch_default}}` moved since the base — the commit Step 1 recorded,
+or the latest one recorded here, which replaces it — record its new commit as the base,
+since the branch is cut from the base and not from HEAD. Re-run Step 1's stops other than
+HEAD equaling `origin/{{parent_branch_default}}`, and stop when `git cat-file -e
+<base>:{{design_dir}}/<slug>.md` succeeds: the design is already committed there. Re-check
+each `## Current state` claim against the base, renumber the ADRs when a new record took
+one of their numbers, and present again before recording anything. What an edit or a
+renumber re-runs, and which approvals it voids, is the gate's **Approvers** section's.
 
 **Before editing any file**, write everything the commit needs to the directory
 `git rev-parse --path-format=absolute --git-path design-feature` names, as git's sequencer
@@ -224,7 +234,7 @@ began it:
 
 - `presented/` — the design doc and every ADR as Step 5 presented them, at their
   repository paths
-- `slug`, and `base` — the commit Step 1 recorded, or the one recorded above
+- `slug`, and `base` — the latest base recorded
 - `decision` — the full text replacing `Pending — <tech lead>.`, every line of it: the
   decision as the gate's **Decision** section words it, dated from `date +%F`, with its
   relayed suffix where it applies, and a rejection's reason line
