@@ -68,6 +68,9 @@ Every skill except `readme-docs` runs only when invoked by name.
 - **Before delivery**
   - `plan-project` — writes the project brief and waits for the sponsor's decision.
     Gate: `planning-exit.md`.
+  - `design-feature` — writes a feature's design doc and its ADRs, has them reviewed cold,
+    and commits them once the tech lead decides. Agent: `feature-design-adversary`.
+    Gate: `design-exit.md`.
   - `write-tickets` — turns a request into Jira tickets that `plan-work` can plan as
     written. Agent: `ticket-adversary`.
 - **`deliver`** — runs the five stages below in order and resumes an interrupted run.
@@ -100,8 +103,8 @@ Every skill except `readme-docs` runs only when invoked by name.
   - `maintenance-review` — reports ownership, dependency, vulnerability, runbook, and alert
     health. Writes nothing.
   - `retire-system` `<name>` — the record and checklist for shutting a system down.
-  - `incident-review` and `retire-system` both refuse to start while a delivery plan is
-    running and not paused.
+  - `plan-project`, `design-feature`, `incident-review`, and `retire-system` each refuse to
+    start while a delivery plan is running and not paused.
 
 Agents (each reads `read-only-agent.md` and never changes the repo):
 
