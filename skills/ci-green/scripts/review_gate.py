@@ -21,7 +21,7 @@ import sys
 sys.dont_write_bytecode = True
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)),
                                 "..", "..", "..", "gates", "scripts"))
-from project_rules import is_unset, report  # noqa: E402  shared with the kit's scripts
+from project_rules import error_of, is_unset, report  # noqa: E402  shared with the kit's scripts
 # COLLABORATOR includes read-only collaborators, whom a required-review rule would not count;
 # branch protection, not this script, is what blocks a merge.
 COUNTED_ASSOCIATIONS = {"OWNER", "MEMBER", "COLLABORATOR"}
@@ -237,11 +237,7 @@ def self_test():
     for name, text in [("unparseable output", "not json"), ("empty output", "  \n"),
                        ("a page of numbers", "[1]"), ("a scalar after a page", "[[{}], 5]"),
                        ("a review whose user is a string", '[{"user": "x"}]')]:
-        try:
-            parse_reviews(text)
-            failures += report("pages", name, "parsed", "ValueError")
-        except ValueError:
-            failures += report("pages", name, "ValueError", "ValueError")
+        failures += report("pages", name, error_of(parse_reviews, text), "ValueError")
     for name, value, author, expected in REVIEWER_SET_CASES:
         failures += report("reviewer-set", name, reviewer_set(value, author), expected)
     for name, arguments, stdin, expected_output, expected_exit in CLI_CASES:
