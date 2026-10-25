@@ -139,7 +139,7 @@ def self_test():
         failures += cli_case(script, "slug", ["slug", "--title", "Add a design-feature skill"],
                              "add-a-design-feature-skill", 0, exact=True)
         failures += cli_case(script, "slug reads the title from stdin", ["slug"], "rob-s-design",
-                             0, input="Rob's design\n")
+                             0, input="Rob's design\n", exact=True)
     return 1 if failures else 0
 
 

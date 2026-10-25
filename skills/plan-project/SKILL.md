@@ -11,7 +11,8 @@ Write the project brief for: $ARGUMENTS
 This skill is the rule book's Phase 1 in its order: steps 1–5 write the brief, step 6's
 repository and CI are confirmed, and step 7 reviews it with the sponsor and records the
 decision. No file is created, edited, or staged before the sponsor answers except
-`{{brief_file}}`: no branch and no commit until then, and no push at all.
+`{{brief_file}}` and the input files **Untrusted text** in `gates/project-config.md` places
+under the git directory: no branch and no commit until then, and no push at all.
 
 ## Step 1 — Read the configuration
 

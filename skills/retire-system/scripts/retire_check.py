@@ -42,7 +42,7 @@ import tempfile
 sys.dont_write_bytecode = True
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)),
                                 "..", "..", "..", "gates", "scripts"))
-from project_rules import (FILE_NAME_MAX, OptionalKey, RequiredKey,  # noqa: E402
+from project_rules import (BRANCH_SLUG_MAX, OptionalKey, RequiredKey,  # noqa: E402
                            check_slug, cli_case, error_of, fence_split,
                            isolated_git_environment, process_state, parse_date, read_config,
                            passed, read_keys, report, result_of, run_check, text_input,
@@ -65,7 +65,7 @@ SECTION_LINES = (STATUS, CONFIRMED, ITEM)
 
 
 # The longest name built from the name is the branch's lock file, `<name>.lock`.
-NAME_MAX = FILE_NAME_MAX - len(".lock")
+NAME_MAX = BRANCH_SLUG_MAX
 
 
 def branch(name):
@@ -379,7 +379,7 @@ def self_test():
         failures += cli_case(script, "name reads standard input", ["name"], "retire/billing", 0,
                              input="billing\n")
         failures += cli_case(script, "a name at the limit", ["name", "--value", "n" * 250],
-                             "retire/" + "n" * 250, 0)
+                             "retire/" + "n" * 250, 0, exact=True)
         failures += cli_case(script, "a name over the limit", ["name", "--value", "n" * 251],
                              "INVALID: name is 251 characters", 1)
         failures += cli_case(script, "a name with a quote is invalid, not a shell error",

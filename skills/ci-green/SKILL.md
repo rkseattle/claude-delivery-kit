@@ -372,8 +372,8 @@ answer. That ordering is not arbitrary: those lists live in the file this step d
 cleanup runs after the report or they are gone. Report the deletions with the merge outcome.
 
 ```bash
+plan=$(jq -r .plan .claude/state/current-plan.json) && rm -f -- "$plan"
 rm -f .claude/state/current-plan.json .claude/state/blocked-*
-rm -f docs/plans/<primary-ticket>*.md
 ```
 
 Both are working state for a delivery in flight, not artifacts of it: `docs/plans/` is

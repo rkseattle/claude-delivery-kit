@@ -30,7 +30,7 @@ import sys
 sys.dont_write_bytecode = True
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)),
                                 "..", "..", "..", "gates", "scripts"))
-from project_rules import (FILE_NAME_MAX, PROJECT_KEYS, check_slug, cli_case,  # noqa: E402
+from project_rules import (BRANCH_SLUG_MAX, PROJECT_KEYS, check_slug, cli_case,  # noqa: E402
                            error_message, error_of, parse_date, passed, report, result_of,
                            run_check, slug_of, text_input)
 
@@ -54,7 +54,7 @@ def timeliness(incident, start):
 
 # The longest name built from a slug is the branch's lock file, `<YYYY-MM-DD>-<slug>.lock`,
 # longer than the review file, `<YYYY-MM-DD>-<slug>.md`.
-SLUG_MAX = FILE_NAME_MAX - len("YYYY-MM-DD-") - len(".lock")
+SLUG_MAX = BRANCH_SLUG_MAX - len("YYYY-MM-DD-")
 
 
 def branch(date, slug):

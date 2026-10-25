@@ -260,8 +260,9 @@ git add -- {{design_dir}}/<slug>.md <each ADR path>
 git commit -F "$(git rev-parse --path-format=absolute --git-path design-feature)/message" -- {{design_dir}}/<slug>.md <each ADR path>
 ```
 
-Remove the state directory once the commit succeeds. When the commit fails — a hook rejects
-it, say — fix what it names and commit again; the tech lead's answer stands. If that cannot
+Remove the state directory once the commit succeeds. When the switch or the commit fails — a
+tracked file the base changes is dirty, or a hook rejects the commit, say — fix what it
+names and run it again; the tech lead's answer stands. If that cannot
 be done in this run, stop with the directory in place and say so: the next run continues or
 aborts it, as `git rebase --continue` and `--abort` do.
 

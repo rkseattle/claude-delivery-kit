@@ -3,7 +3,7 @@ name: ship-pr
 description: Run the full pre-push gate, resolve any out-of-band verification the diff needs, push the branch, open the PR, request its reviewers, and transition the covered Jira tickets to In Review.
 argument-hint: <TICKET-N> [TICKET-N ...]
 disable-model-invocation: true
-allowed-tools: Read, Grep, Glob, Bash, WebSearch, WebFetch
+allowed-tools: Read, Write, Grep, Glob, Bash, WebSearch, WebFetch
 ---
 
 Ship the branch covering: $ARGUMENTS
