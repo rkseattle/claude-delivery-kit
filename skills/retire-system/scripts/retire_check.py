@@ -71,11 +71,7 @@ RETIREMENTS_DIR = RequiredKey("retirements_dir")
 
 
 def service_owner(config):
-    roles = config.get("roles") or {}
-    if not isinstance(roles, dict):
-        raise ValueError("roles is not a map from each role to its person")
-    # Read through the normalized roles, so a falsy one still falls back to git's user.name.
-    owner = read_keys({"roles": roles}, [SERVICE_OWNER])["roles.service_owner"]
+    owner = read_keys(config, [SERVICE_OWNER])["roles.service_owner"]
     if owner is not None:
         return owner.strip()
     run = subprocess.run(["git", "config", "user.name"], capture_output=True, text=True,
@@ -320,6 +316,7 @@ def owner_fallback_cases():
             handle.write("[user]\n\tname = Rob K\n")
         for name, config, config_file, expected in [
                 ("no role reads git's user.name", {}, named, "Rob K"),
+                ("a null roles reads git's user.name", {"roles": None}, named, "Rob K"),
                 ("a blank role reads git's user.name",
                  {"roles": {"service_owner": "  "}}, named, "Rob K"),
                 ("no role and no git name", {}, os.devnull, "ValueError"),
@@ -352,8 +349,10 @@ def self_test():
                            error_of(check_dir, {"retirements_dir": value}), expected)
     failures += report("owner", "the configured service owner, stripped",
                        result_of(service_owner, {"roles": {"service_owner": "ana "}}), "ana")
-    failures += report("owner", "roles as a list",
-                       result_of(service_owner, {"roles": ["ana"]}), "ValueError")
+    for name, roles in [("roles as a list", ["ana"]), ("roles as an empty list", []),
+                        ("roles as an empty string", "")]:
+        failures += report("owner", name, result_of(service_owner, {"roles": roles}),
+                           "ValueError")
     failures += report("owner", "a service owner that is not a name",
                        result_of(service_owner, {"roles": {"service_owner": ["ana"]}}),
                        "ValueError")

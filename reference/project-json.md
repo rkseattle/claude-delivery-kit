@@ -360,8 +360,9 @@ the key.
   to the tech lead, as `ci-green` does the merge question. Default: a role absent from
   `roles` is the person running the session, and the skill addresses that person directly.
   That is the absent-key rule above applied per role, so a missing role never resolves to
-  `none`, and a project with no `roles` key at all has the person running the session in
-  every role.
+  `none`, and a project with no `roles` key at all, or a `null` one, has the person running
+  the session in every role. A `roles` that is not an object, such as a list or a string,
+  is an error, never read as an empty map.
 - `on_call` — the handles of the people on the on-call rota, each one word. A route from
   `alert_routes_command` reaches a person only when its target equals one exactly, case
   included. Default `none`, under which `maintenance-review` reports the rota unset and every
