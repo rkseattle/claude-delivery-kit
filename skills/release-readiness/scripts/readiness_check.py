@@ -52,7 +52,6 @@ by a note in parentheses; `and` and `or` are joiners, and names compare without 
 """
 import argparse
 import hashlib
-import json
 import os
 import re
 import subprocess
@@ -66,15 +65,15 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)),
 from lint_draft import NFR_SECTION, VERIFY_TAG  # noqa: E402  what write-tickets writes
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)),
                                 "..", "..", "..", "gates", "scripts"))
-from project_rules import (BARE_FRAGMENT, DECIMAL, PLACEHOLDER, REGISTER_COLUMNS,  # noqa: E402
-                           isolated_git_environment, process_state, run_git,
-                           check_command, check_repo_path, complete_register_row,
+from project_rules import (PROJECT_KEYS, REGISTER_COLUMNS, is_placeholder,  # noqa: E402
+                           Outcome, cli_case, isolated_git_environment, mismatch, passed,
+                           process_state, run_check, run_git,
+                           complete_register_row, device_entries, glob_list,
+                           key_problems, read_keys, RequiredKey, threshold_entries,
                            is_register_header, markdown_tables, markdown_tokens, words,
-                           fence_split, is_unset, json_number,
-                           markdown_value,
-                           named_disciplines,
-                           positive_int, read_config as load_config, report,
-                           single_number)
+                           fence_split, markdown_value, named_disciplines,
+                           read_config as load_config, report,
+                           single_number, tier_names, write_scratch, error_message)
 from project_rules import error_of as _error, result_of as _result  # noqa: E402  test helpers
 
 SEMVER = re.compile(r"^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$")
@@ -101,19 +100,14 @@ def check_version(new, last=None):
             raise ValueError(f"{new} is not greater than {last}")
 
 
+VERIFICATION_TIERS = RequiredKey("verification_tiers", needed_by="the criteria check")
+
+
 def declared_tiers(config_path):
-    value = load_config(config_path).get("verification_tiers", "")
-    # A tier's note in parentheses may hold commas or parentheses of its own; drop every note,
-    # innermost first, before splitting on the separators and the joiners.
-    plain = value if isinstance(value, str) else ""
-    while re.search(r"\([^()]*\)", plain):
-        plain = re.sub(r"\([^()]*\)", "", plain)
-    plain = plain.replace("`", "")
-    tiers = {words(part).lower()
-             for part in re.split(r"[·,;]|\b(?:and|or)\b", plain, flags=re.I)} - {""}
-    if not tiers:
-        raise ValueError("verification_tiers declares no tiers")
-    return tiers
+    """The tiers project.json's verification_tiers names; ValueError naming the key when it
+    is unset or names none."""
+    return tier_names(read_keys(load_config(config_path),
+                                [VERIFICATION_TIERS])["verification_tiers"])
 
 
 def section_lines(description, heading, kind):
@@ -307,7 +301,7 @@ def check_notes(notes_path, flag_keys=None):
 
 
 def check_release_dir(value):
-    check_repo_path("release_dir", value)
+    PROJECT_KEYS["release_dir"].check(value)
 
 
 # The keys each named discipline needs, per gate: Appendix B's Testing addenda run at
@@ -325,43 +319,7 @@ GATE_KEYS = {
                     "data-ml": ("drift_check_command", "drift_threshold"),
                     "sre": ("alert_rules_dir",)},
 }
-DOTTED = r"\d+(?:\.\d+)*"
-DEVICE = re.compile(rf"^({BARE_FRAGMENT}) ({DOTTED})$")
-THRESHOLD = re.compile(rf"^({BARE_FRAGMENT}) ({DECIMAL})$")
 FLAGS_HEADING = "## Remote flags"
-
-
-def device_matrix(config):
-    value = config.get("device_matrix")
-    if not (isinstance(value, list) and value
-            and all(isinstance(entry, str) and DEVICE.fullmatch(entry) for entry in value)):
-        raise ValueError("device_matrix is not a non-empty list of `<os> <version>` entries, "
-                         "the version dotted digits")
-    return [DEVICE.fullmatch(entry).groups() for entry in value]
-
-
-def model_thresholds(config):
-    value = config.get("model_eval_thresholds")
-    if not (isinstance(value, list) and value
-            and all(isinstance(entry, str) and THRESHOLD.fullmatch(entry) for entry in value)):
-        raise ValueError("model_eval_thresholds is not a non-empty list of `<metric> <minimum>` "
-                         "pairs, the minimum a decimal number")
-    metrics = [THRESHOLD.fullmatch(entry).group(1).lower() for entry in value]
-    if len(set(metrics)) != len(metrics):
-        raise ValueError("model_eval_thresholds names a metric twice")
-    return value
-
-
-def sensitive_globs(config):
-    value = config.get("security_sensitive_paths")
-    if is_unset(value) or not isinstance(value, str):
-        raise ValueError("security_sensitive_paths is not a space-separated list of globs")
-    unsupported = [pattern for pattern in value.split()
-                   if pattern.startswith("!") or re.search(r"[\[\]\\]", pattern)]
-    if unsupported:
-        raise ValueError(f"security_sensitive_paths holds {', '.join(unsupported)}: CODEOWNERS "
-                         "supports no `!` negation, `[ ]` ranges, or `\\` escapes")
-    return value.split()
 
 
 def owners_pathspec(pattern):
@@ -382,21 +340,21 @@ def owners_pathspec(pattern):
     return [f":(glob){spec}", below]
 
 
-def check_min_version(config):
-    value = config.get("min_supported_app_version")
-    if not (isinstance(value, str) and re.fullmatch(DOTTED, value)):
-        raise ValueError("min_supported_app_version is not dotted digits")
+def needed_value(config, key):
+    """The value of a key a discipline needs, or ValueError naming what is wrong with it."""
+    return read_keys(config, [RequiredKey(key)])[key]
 
 
-FORMATS = {"device_matrix": device_matrix, "model_eval_thresholds": model_thresholds,
-           "security_sensitive_paths": sensitive_globs,
-           "min_supported_app_version": check_min_version,
-           "patch_sla_days": lambda config: positive_int("patch_sla_days",
-                                                         config.get("patch_sla_days")),
-           "alert_rules_dir": lambda config: check_repo_path("alert_rules_dir",
-                                                             config.get("alert_rules_dir")),
-           "drift_threshold": lambda config: json_number("drift_threshold",
-                                                         config.get("drift_threshold"))}
+def device_matrix(config):
+    return device_entries(needed_value(config, "device_matrix"))
+
+
+def model_thresholds(config):
+    return threshold_entries(needed_value(config, "model_eval_thresholds"))
+
+
+def sensitive_globs(config):
+    return glob_list(needed_value(config, "security_sensitive_paths"))
 
 
 def discipline_problems(config_path, gate=None):
@@ -407,24 +365,9 @@ def discipline_problems(config_path, gate=None):
         named = named_disciplines(config)
     except ValueError as error:
         return [str(error)]
-    problems = []
-    for discipline in named:
-        for key in GATE_KEYS.get(gate, {}).get(discipline, ()):
-            value = config.get(key)
-            if is_unset(value):
-                problems.append(f"{key} is absent, none, blank, or a placeholder, and "
-                                f"{discipline} needs it")
-            elif key in FORMATS:
-                try:
-                    FORMATS[key](config)
-                except ValueError as error:
-                    problems.append(str(error))
-            else:
-                try:
-                    check_command(key, value)
-                except ValueError as error:
-                    problems.append(str(error))
-    return problems
+    return key_problems(config, [RequiredKey(key, needed_by=discipline)
+                                 for discipline in named
+                                 for key in GATE_KEYS.get(gate, {}).get(discipline, ())])
 
 
 def oldest_devices(config):
@@ -479,7 +422,7 @@ def check_flags(notes_path, keys):
         section.append(line)
     def names(line, key):
         return (re.match(rf"^- {re.escape(key)}: \S", line) is not None
-                and not PLACEHOLDER.match(markdown_value(line.split(": ", 1)[1])))
+                and not is_placeholder(markdown_value(line.split(": ", 1)[1])))
 
     missing = [key for key in keys if not any(names(line, key) for line in section)]
     if missing:
@@ -595,20 +538,14 @@ CRITERIA_CASES = [
 def self_test():
     failures = 0
     for name, new, last, expected in VERSION_CASES:
-        try:
-            check_version(new, last)
-            got = "ok"
-        except ValueError:
-            got = "ValueError"
-        failures += report("version", name, got, expected)
+        failures += report("version", name, _error(check_version, new, last), expected)
     for name, description, expected in CRITERIA_CASES:
         failures += report("criteria", name, criteria(description, TIERS), expected)
     with tempfile.TemporaryDirectory() as directory:
-        config = os.path.join(directory, "project.json")
-        with open(config, "w", encoding="utf-8") as handle:
-            json.dump({"verification_tiers": "ci (a named step in ci.yml) · self-test (a hook "
-                                              "self-test case, a fixture, or a case) · eval · "
-                                              "inspection (out-of-band: Rob reads it)"}, handle)
+        config = write_scratch(directory, {
+            "verification_tiers": "ci (a named step in ci.yml) · self-test (a hook self-test "
+                                  "case, a fixture, or a case) · eval · inspection "
+                                  "(out-of-band: Rob reads it)"}, "project.json")
         failures += report("criteria", "tiers read from verification_tiers prose",
                            declared_tiers(config), {"ci", "self-test", "eval", "inspection"})
         for name, value, expected in [
@@ -621,29 +558,31 @@ def self_test():
                 ("and as the only joiner", "unit and integration", {"unit", "integration"}),
                 ("or as the only joiner", "unit or manual", {"unit", "manual"}),
                 ("a nested note", "ci (note (nested)) · eval", {"ci", "eval"}),
-                ("no tiers", "", "ValueError"), ("a non-string value", ["ci"], "ValueError")]:
-            path = os.path.join(directory, "tiers.json")
-            with open(path, "w", encoding="utf-8") as handle:
-                json.dump({"verification_tiers": value}, handle)
+                ("no tiers", "", "ValueError"), ("a non-string value", ["ci"], "ValueError"),
+                ("none is no tier", "none", "ValueError"),
+                ("the reference placeholder is no tier", "<the tiers an AC can be verified by>",
+                 "ValueError"), ("separators alone name no tier", " · , ", "ValueError")]:
+            path = write_scratch(directory, {"verification_tiers": value}, "tiers.json")
             failures += report("criteria", name, _result(declared_tiers, path), expected)
+        failures += report("criteria", "an absent verification_tiers is named as needed",
+                           error_message(lambda: declared_tiers(write_scratch(directory, {}))),
+                           "verification_tiers is absent, none, blank, or a placeholder, and "
+                           "the criteria check needs it")
 
-        def summary_file(text, name="summary.md", mode="w"):
-            path = os.path.join(directory, name)
-            with open(path, mode) as handle:
-                handle.write(text)
-            return path
+        def summary_file(text, name="summary.md"):
+            return write_scratch(directory, text, name)
 
         good = summary_file(SUMMARY)
         note = build_note(good, "v1.0.0")
         failures += report("note", "a reviewed summary builds its note",
                            note.splitlines()[0::2], ["Release-readiness: v1.0.0",
                                                      "Reviewed-by: product_owner pat 2026-10-16"])
-        for name, text, mode in [
-                ("a one-line summary", "Gate: PASS\n", "w"),
-                ("no review line", "# x\nCommit: a\nGate: PASS\n", "w"),
-                ("no verdict line", "# x\nReviewed-by: product_owner pat 2026-10-16\n", "w"),
-                ("a summary that is not UTF-8", b"\xff\xfe\nReviewed-by: x\nGate: PASS\n", "wb")]:
-            failures += report("note", name, _error(build_note, summary_file(text, "bad.md", mode),
+        for name, text in [
+                ("a one-line summary", "Gate: PASS\n"),
+                ("no review line", "# x\nCommit: a\nGate: PASS\n"),
+                ("no verdict line", "# x\nReviewed-by: product_owner pat 2026-10-16\n"),
+                ("a summary that is not UTF-8", b"\xff\xfe\nReviewed-by: x\nGate: PASS\n")]:
+            failures += report("note", name, _error(build_note, summary_file(text, "bad.md"),
                                                     "v1.0.0"), "ValueError")
         failures += report("note", "trailing whitespace and CRLF are stripped",
                            build_note(summary_file(SUMMARY.replace("\n", " \r\n"), "crlf.md"),
@@ -677,7 +616,7 @@ def self_test():
                  ["note", "--summary", summary_file("# x\nGate: PASS\n", "noreview.md"),
                   "--version", "v1.0.0"], "", "", 1),
                 ("criteria with a config that is not an object",
-                 ["criteria", "--config", summary_file("[]", "list.json")],
+                 ["criteria", "--config", write_scratch(directory, "[]", "list.json")],
                  "## Acceptance criteria\n", "INVALID:", 1),
                 ("criteria with a missing config",
                  ["criteria", "--config", os.path.join(directory, "absent.json")],
@@ -728,11 +667,11 @@ def self_test():
                                       os.path.join(directory, "register.md"), "--today",
                                       "2026-10-16"], "", "MISMATCH: no unexpired", 1),
                 ("disciplines ok", ["disciplines", "--config",
-                                    summary_file(json.dumps(READY), "ready.json"), "--gate",
+                                    write_scratch(directory, READY, "ready.json"), "--gate",
                                     "readiness"], "", "ok", 0),
                 ("disciplines names the key", ["disciplines", "--config",
-                                               summary_file(json.dumps({"disciplines": ["sre"]}),
-                                                            "sre.json"), "--gate", "release"],
+                                               write_scratch(directory, {"disciplines": ["sre"]},
+                                                          "sre.json"), "--gate", "release"],
                  "", "INVALID: error_budget_command is absent", 1),
                 ("oldest-devices lists one per OS", ["oldest-devices", "--config",
                                                      os.path.join(directory, "ready.json")],
@@ -766,14 +705,9 @@ def self_test():
                 ("nfrs exits 1 on a problem", ["nfrs", "--key", "AB-1"],
                  "## Non-functional requirements\n* NFR1: a\n", "INVALID:", 1),
                 ("no subcommand is usage", [], "", "", 2)]:
-            run = subprocess.run([sys.executable, script, *arguments], input=stdin,
-                                 capture_output=True, text=True, check=False)
-            failed = expected_output.startswith(("INVALID", "MISMATCH"))
-            stream = run.stderr if failed else run.stdout
-            first = (stream.strip().splitlines() or [""])[0]
-            shown = first[:len(expected_output)] if expected_output else stream.strip()
-            failures += report("cli", name, (shown, run.returncode),
-                               (expected_output, expected_exit))
+            failures += cli_case(script, name, arguments, expected_output, expected_exit, line=0,
+                                 stderr_prefixes=("INVALID", "MISMATCH"),
+                                 exact=not expected_output, input=stdin)
     return 1 if failures else 0
 
 
@@ -929,7 +863,17 @@ def discipline_cases(directory, summary_file):
     failures = 0
 
     def problems(value, gate=None):
-        return discipline_problems(summary_file(json.dumps(value), "disciplines.json"), gate)
+        return discipline_problems(write_scratch(directory, value, "disciplines.json"), gate)
+
+    for key, value in [("device_matrix", ["<os> <version>"]),
+                       ("model_eval_thresholds", ["<metric> <minimum>"])]:
+        failures += report("disciplines", f"a {key} placeholder list reads as unset",
+                           problems(dict(READY, **{key: value}), "readiness"),
+                           [f"{key} is absent, none, blank, or a placeholder, and "
+                            f"{'mobile' if key == 'device_matrix' else 'data-ml'} needs it"])
+    failures += report("disciplines", "a command list holding a placeholder is mistyped, not "
+                       "absent", problems(dict(RELEASED, error_budget_command=["<command>", "eb"]),
+                                          "release"), ["error_budget_command is not a command"])
 
     for name, value, gate, expected in [
             ("absent disciplines are []", {}, "release", []),
@@ -1078,6 +1022,10 @@ def discipline_cases(directory, summary_file):
     failures += report("flags", "no section",
                        _error(check_flags, summary_file("## Changes\n- AB-1: x\n", "none.md"),
                               ["AB-1"]), "ValueError")
+    failures += report("gate-keys", "every key a discipline needs has a registered shape",
+                       sorted(key for disciplines in GATE_KEYS.values()
+                              for keys in disciplines.values() for key in keys
+                              if key not in PROJECT_KEYS), [])
     return failures + sensitive_cases(directory)
 
 
@@ -1102,11 +1050,9 @@ def sensitive_repository_cases(directory):
         failures += report("sensitive-paths", f"{pattern} as a pathspec", owners_pathspec(pattern),
                            expected)
     repo = os.path.join(directory, "repo")
-    os.makedirs(os.path.join(repo, ".claude"))
-    config = os.path.join(repo, ".claude", "project.json")
-    with open(config, "w", encoding="utf-8") as handle:
-        json.dump({"security_sensitive_paths":
-                   "src/auth/ *.pem /keys/top.key docs/*.md vault *secret*"}, handle)
+    config = write_scratch(os.path.join(repo, ".claude"), {
+        "security_sensitive_paths": "src/auth/ *.pem /keys/top.key docs/*.md vault *secret*"},
+        "project.json")
 
     def git(*arguments):
         subprocess.run(["git", "-c", "user.name=t", "-c", "user.email=t@t", "-c",
@@ -1115,10 +1061,7 @@ def sensitive_repository_cases(directory):
                        cwd=repo, capture_output=True, check=True)
 
     def write(path, text="x"):
-        full = os.path.join(repo, path)
-        os.makedirs(os.path.dirname(full), exist_ok=True)
-        with open(full, "w", encoding="utf-8") as handle:
-            handle.write(text)
+        write_scratch(repo, text, path)
 
     git("init", "-q", "--template=")
     write("src/auth/login.py")
@@ -1156,9 +1099,7 @@ def sensitive_repository_cases(directory):
         failures += report("sensitive-paths", name,
                            _result(sensitive_paths, config, scope_range), expected)
     for value in ("none", "<patterns>"):
-        unset = os.path.join(directory, "unset.json")
-        with open(unset, "w", encoding="utf-8") as handle:
-            json.dump({"security_sensitive_paths": value}, handle)
+        unset = write_scratch(directory, {"security_sensitive_paths": value}, "unset.json")
         failures += report("sensitive-paths", f"{value} is not a pattern list",
                            _result(sensitive_paths, unset, "v1.0.0..HEAD"), "ValueError")
     return failures
@@ -1219,76 +1160,55 @@ def main():
     args = parser.parse_args()
     if args.self_test:
         return self_test()
-    try:
-        if args.command == "version":
-            check_version(args.new, args.last)
-            print("ok")
-            return 0
-        if args.command == "criteria":
-            rows = criteria(sys.stdin.read(), declared_tiers(args.config))
-            for row in rows:
-                print("\t".join(row))
-            return 0 if all(row[3] == "ok" for row in rows) else 1
-        if args.command == "note":
-            print(build_note(args.summary, args.version), end="")
-            return 0
-        if args.command == "nfrs":
-            found, problems = nfrs(sys.stdin.read(), args.key)
-            for line in found:
-                print(line)
-            for problem in problems:
-                print(f"INVALID: {problem}", file=sys.stderr)
-            return 1 if problems else 0
-        if args.command == "settle":
-            with open(args.nfrs_file, encoding="utf-8") as handle:
-                in_scope = [line.strip() for line in handle if line.strip()]
-            rows = settle(in_scope, sys.stdin.read(), exceptions(args.exceptions, args.today))
-            for row in rows:
-                print("\t".join(row))
-            return 1 if any(row[1] == "fail" for row in rows) else 0
-        if args.command == "disciplines":
-            found = discipline_problems(args.config, args.gate)
-            for problem in found:
-                print(f"INVALID: {problem}", file=sys.stderr)
-            if not found:
-                print("ok")
-            return 1 if found else 0
-        listings = {"oldest-devices": lambda: oldest_devices(load_config(args.config)),
-                    "thresholds": lambda: model_thresholds(load_config(args.config)),
-                    "sensitive-paths": lambda: sensitive_paths(args.config, args.range)}
-        if args.command in listings:
-            for line in listings[args.command]():
-                print(line)
-            return 0
-        if args.command == "error-budget":
-            state, value = error_budget(sys.stdin.read())
-            print(f"{state} {value}")
-            return 0 if state == "ok" else 1
-        if args.command == "hash":
-            print(sha256(args.path))
-            return 0
-        checks = {"verify": lambda: verify_note(args.summary, args.version, sys.stdin.read(),
-                                                args.require_pass),
-                  "scope": lambda: check_scope(args.summary, args.range,
-                                               [k for k in args.keys.split(",") if k]),
-                  "commit": lambda: check_commit(args.summary, args.head),
-                  "artifact": lambda: check_artifact(args.path, args.sha256_file),
-                  "notes-headings": lambda: check_notes(args.notes, args.flag_keys),
-                  "release-dir": lambda: check_release_dir(args.value),
-                  "excepted": lambda: check_excepted(args.rule, args.exceptions, args.today)}
-        if args.command in checks:
-            try:
-                checks[args.command]()
-            except ValueError as error:
-                print(f"MISMATCH: {error}", file=sys.stderr)
-                return 1
-            print("ok")
-            return 0
-    except (ValueError, OSError) as error:
-        print(f"INVALID: {error}", file=sys.stderr)
-        return 1
-    parser.print_usage(sys.stderr)
-    return 2
+    def rows(found, failed):
+        return Outcome("\n".join("\t".join(row) for row in found), 1 if failed else 0)
+
+    def criteria_rows():
+        found = criteria(sys.stdin.read(), declared_tiers(args.config))
+        return rows(found, not all(row[3] == "ok" for row in found))
+
+    def nfr_lines():
+        found, problems = nfrs(sys.stdin.read(), args.key)
+        return Outcome("\n".join(found), 1 if problems else 0,
+                       tuple(f"INVALID: {problem}" for problem in problems))
+
+    def settled():
+        with open(args.nfrs_file, encoding="utf-8") as handle:
+            in_scope = [line.strip() for line in handle if line.strip()]
+        found = settle(in_scope, sys.stdin.read(), exceptions(args.exceptions, args.today))
+        return rows(found, any(row[1] == "fail" for row in found))
+
+    def disciplines():
+        found = discipline_problems(args.config, args.gate)
+        return Outcome("" if found else "ok", 1 if found else 0,
+                       tuple(f"INVALID: {problem}" for problem in found))
+
+    def budget():
+        state, value = error_budget(sys.stdin.read())
+        return Outcome(f"{state} {value}", 0 if state == "ok" else 1)
+
+    return run_check(parser, {
+        "version": passed(lambda: check_version(args.new, args.last)),
+        "criteria": criteria_rows,
+        "note": lambda: build_note(args.summary, args.version),
+        "nfrs": nfr_lines,
+        "settle": settled,
+        "disciplines": disciplines,
+        "oldest-devices": lambda: oldest_devices(load_config(args.config)),
+        "thresholds": lambda: model_thresholds(load_config(args.config)),
+        "sensitive-paths": lambda: sensitive_paths(args.config, args.range),
+        "error-budget": budget,
+        "hash": lambda: sha256(args.path),
+        "verify": mismatch(lambda: verify_note(args.summary, args.version, sys.stdin.read(),
+                                               args.require_pass)),
+        "scope": mismatch(lambda: check_scope(args.summary, args.range,
+                                              [k for k in args.keys.split(",") if k])),
+        "commit": mismatch(lambda: check_commit(args.summary, args.head)),
+        "artifact": mismatch(lambda: check_artifact(args.path, args.sha256_file)),
+        "notes-headings": mismatch(lambda: check_notes(args.notes, args.flag_keys)),
+        "release-dir": mismatch(lambda: check_release_dir(args.value)),
+        "excepted": mismatch(lambda: check_excepted(args.rule, args.exceptions, args.today)),
+    }, args.command)
 
 
 if __name__ == "__main__":

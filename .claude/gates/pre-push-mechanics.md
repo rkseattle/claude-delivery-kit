@@ -19,6 +19,7 @@ installed one differs.
 | `hooks` · Branch-guard self-test | `bash hooks/protect-plan-branch.sh --self-test` |
 | `hooks` · Hooks are wired | `bash scripts/ci/hooks-wired.sh` |
 | `hooks` · Self-tests accept the hook path | `bash scripts/ci/hooks-relocatable.sh` |
+| `script-tests` · Project rules self-test | `python3 gates/scripts/project_rules.py --self-test` |
 | `script-tests` · Linter fixtures | `python3 skills/write-tickets/scripts/lint_draft.py --self-test` |
 | `script-tests` · Review gate self-test | `python3 skills/ci-green/scripts/review_gate.py --self-test` |
 | `script-tests` · README checker fixtures | `python3 skills/readme-docs/scripts/check_readme.py --self-test` |
@@ -28,6 +29,7 @@ installed one differs.
 | `script-tests` · Incident check self-test | `python3 skills/incident-review/scripts/incident_check.py --self-test` |
 | `script-tests` · Maintenance check self-test | `python3 skills/maintenance-review/scripts/maintenance_check.py --self-test` |
 | `script-tests` · Retirement check self-test | `python3 skills/retire-system/scripts/retire_check.py --self-test` |
+| `script-tests` · Design check self-test | `python3 skills/design-feature/scripts/design_check.py --self-test` |
 | `script-tests` · ADR number check self-test | `python3 gates/scripts/adr_numbers.py --self-test` |
 | `script-tests` · ADR numbers are unique | `python3 gates/scripts/adr_numbers.py` |
 | `manifest` · Every JSON file parses | `bash scripts/ci/json-parses.sh` |
@@ -35,6 +37,7 @@ installed one differs.
 | `manifest` · Line budget | `bash scripts/ci/line-budget.sh` |
 | `manifest` · Bundled-file references | `bash scripts/ci/bundled-refs.sh` |
 | `manifest` · Rule-book map paths resolve | `bash scripts/ci/rule-book-map.sh` |
+| `manifest` · No declared key accepts its reference placeholder | `bash scripts/ci/config-examples.sh` |
 | `manifest` · No project-specific tokens | `bash scripts/ci/no-leaks.sh` |
 | `manifest` · Actions are pinned to commit SHAs | `bash scripts/ci/actions-pinned.sh` |
 | `manifest` · Every CI step has a local equivalent | `bash scripts/ci/ci-steps-mirrored.sh` |
@@ -73,6 +76,14 @@ in full. It takes under a minute, so there is no subset worth trusting instead.
   the renamed row. `NO EXCEPTED BY COLUMN:` — a map table lacks the column; add it. `NOT
   A REGISTER:` — a table under Kit-wide exceptions is not headed Rule | Reason | Risk |
   Expiry | Remediation; restore its header.
+- `ACCEPTS:` or `UNDOCUMENTED:` from `config-examples.sh` — a `project_rules.PROJECT_KEYS`
+  shape takes `reference/project-json.md`'s placeholder for its key as a real setting (give
+  it `template_list`, or make its check reject the placeholder), or a registered key's dotted
+  path is missing from the example blocks (add it there). `UNREGISTERED:` — a script declares
+  a key at its top level that the registry lacks (register its shape); `UNREADABLE:` — a kit
+  script cannot be read or parsed. `NO REFERENCE:` — the reference
+  holds no json object block, one that cannot parse, or a key shown two ways; `NO SCHEMA:` or
+  `NOTHING DECLARED:` — `gates/scripts/project_rules.py` is missing or its registry is empty.
 - `FAIL <check>: <case>` from `self-test.sh` — a check stopped catching its defect; fix the
   check, never the case.
 - A hook self-test count mismatch — the hook's behavior changed; read the named case.

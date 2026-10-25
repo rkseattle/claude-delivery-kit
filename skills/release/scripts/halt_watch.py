@@ -23,7 +23,6 @@ round, since a check that cannot finish within its minute cannot run once a minu
 the watch cannot read is a halt too: a watch with nothing to check would pass.
 """
 import argparse
-import json
 import os
 import signal
 import subprocess
@@ -34,12 +33,12 @@ import time
 sys.dont_write_bytecode = True
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)),
                                 "..", "..", "..", "gates", "scripts"))
-from project_rules import (BARE_ARGUMENT, PLACEHOLDER, named_disciplines,  # noqa: E402
-                           positive_int, read_config, report)
+from project_rules import (PROJECT_KEYS, cli_case, error_of,  # noqa: E402
+                           named_disciplines, passed, read_config, report, result_of, run_check,
+                           write_scratch)
 
 ROUND_SECONDS = 60
 BUDGET_SECONDS = 55
-STAGE_NAME = BARE_ARGUMENT
 POLL_SECONDS = 0.05
 
 
@@ -49,14 +48,12 @@ def load(config_path):
 
 
 def settings(config):
+    # gates/release.md stops on any value but these shapes, so read_keys' unset rule is not
+    # applied: a halt_criteria of none or a window of none is an error, not unset.
     criteria = config.get("halt_criteria")
-    if not (isinstance(criteria, list) and criteria
-            and all(isinstance(c, str) and c.strip() for c in criteria)):
-        raise ValueError("halt_criteria is not a non-empty list of commands")
-    if any(PLACEHOLDER.match(c) for c in criteria):
-        raise ValueError("halt_criteria holds a <placeholder>, not a command")
-    window = positive_int("monitoring_window_minutes",
-                          config.get("monitoring_window_minutes", 60))
+    PROJECT_KEYS["halt_criteria"].check(criteria)
+    window = config.get("monitoring_window_minutes", 60)
+    PROJECT_KEYS["monitoring_window_minutes"].check(window)
     return criteria, window
 
 
@@ -69,17 +66,7 @@ def check(config_path):
             and not (isinstance(stages, list) and len(stages) >= 2)):
         raise ValueError("rollout_stages lists fewer than two stages, and mobile needs a phased "
                          "store release")
-    if stages == "none":
-        return
-    if not (isinstance(stages, list) and stages and all(isinstance(n, str) for n in stages)):
-        raise ValueError("rollout_stages is neither none nor a non-empty list of names")
-    for name in stages:
-        if not STAGE_NAME.fullmatch(name) or name.lower() == "staging":
-            raise ValueError(f"rollout_stages entry {name!r} is blank, staging, starts with "
-                             "'-' or '.', or is not made only of letters, digits, '.', '_', "
-                             "and '-'")
-    if len(set(stages)) != len(stages):
-        raise ValueError("rollout_stages repeats a stage")
+    PROJECT_KEYS["rollout_stages"].check(stages)
 
 
 def stop(procs):
@@ -130,13 +117,6 @@ def watch(criteria, window, round_seconds=ROUND_SECONDS, budget_seconds=BUDGET_S
             time.sleep(POLL_SECONDS)
         stop(procs)
     return "window clean"
-
-
-def write_config(directory, value, name=None):
-    path = os.path.join(directory, name or f"project-{abs(hash(repr(value)))}.json")
-    with open(path, "w", encoding="utf-8") as handle:
-        handle.write(value if isinstance(value, str) else json.dumps(value))
-    return path
 
 
 WATCH_CASES = [
@@ -272,41 +252,27 @@ def self_test():
         failures += report("watch", "a clean round's background children are killed",
                            (got, os.path.exists(leftover)), ("window clean", False))
         for name, value, expected in LOAD_CASES:
-            path = "/nonexistent/project.json" if value is None else write_config(directory, value)
-            try:
-                got = load(path)
-            except ValueError:
-                got = "ValueError"
-            failures += report("load", name, got, expected)
-        usage = subprocess.run([sys.executable, os.path.abspath(__file__)],
-                               capture_output=True, text=True, check=False)
-        failures += report("cli", "no --config is a usage error", usage.returncode, 2)
+            path = "/nonexistent/project.json" if value is None else write_scratch(directory, value)
+            failures += report("load", name, result_of(load, path), expected)
+        failures += cli_case(os.path.abspath(__file__), "no --config is a usage error", [], "", 2)
         for name, value, expected in CHECK_CASES:
-            try:
-                check(write_config(directory, value))
-                got = "ok"
-            except ValueError:
-                got = "ValueError"
-            failures += report("check", name, got, expected)
+            failures += report("check", name, error_of(check, write_scratch(directory, value)),
+                               expected)
         script = os.path.abspath(__file__)
         root = os.path.join(directory, "root")
         os.makedirs(os.path.join(root, ".claude"))
-        open(os.path.join(root, "root-marker"), "w").close()
+        write_scratch(root, "", "root-marker")
         elsewhere = os.path.join(directory, "elsewhere")
         os.makedirs(elsewhere)
         clock = ["--round-seconds", "0.5", "--budget-seconds", "0.4"]
         for name, arguments, value, expected_output, expected_exit in CLI_CASES:
-            config = write_config(os.path.join(root, ".claude"), value, "project.json")
-            run = subprocess.run([sys.executable, script, *arguments, "--config", config, *clock],
-                                 cwd=elsewhere, capture_output=True, text=True, check=False)
-            stream = run.stderr if expected_output.startswith("INVALID") else run.stdout
-            last = stream.strip().splitlines()[-1:] or [""]
-            failures += report("cli", name, (last[0][:len(expected_output)], run.returncode),
-                               (expected_output, expected_exit))
+            config = write_scratch(os.path.join(root, ".claude"), value, "project.json")
+            failures += cli_case(script, name, [*arguments, "--config", config, *clock],
+                                 expected_output, expected_exit, line=-1, cwd=elsewhere)
         signalled = os.path.join(directory, "signalled")
-        config = write_config(os.path.join(root, ".claude"),
-                              {"halt_criteria": [f"(sleep 1; touch '{signalled}') & wait"],
-                               "monitoring_window_minutes": 1}, "project.json")
+        config = write_scratch(os.path.join(root, ".claude"),
+                            {"halt_criteria": [f"(sleep 1; touch '{signalled}') & wait"],
+                             "monitoring_window_minutes": 1}, "project.json")
         watcher = subprocess.Popen([sys.executable, script, "--config", config,
                                     "--round-seconds", "30", "--budget-seconds", "25"],
                                    stdout=subprocess.PIPE, text=True)
@@ -343,13 +309,7 @@ def main():
         parser.print_usage(sys.stderr)
         return 2
     if args.check:
-        try:
-            check(args.config)
-        except ValueError as error:
-            print(f"INVALID: {error}", file=sys.stderr)
-            return 1
-        print("ok")
-        return 0
+        return run_check(parser, {"check": passed(lambda: check(args.config))}, "check")
     try:
         criteria, window = load(args.config)
     except ValueError as error:

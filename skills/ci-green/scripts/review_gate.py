@@ -15,13 +15,13 @@ Exit 2 is unparseable input, never a verdict.
 import argparse
 import json
 import os
-import subprocess
 import sys
 
 sys.dont_write_bytecode = True
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)),
                                 "..", "..", "..", "gates", "scripts"))
-from project_rules import is_unset, report  # noqa: E402  shared with the kit's scripts
+from project_rules import (cli_case, error_of, is_unset,  # noqa: E402  shared with the kit's scripts
+                           report)
 # COLLABORATOR includes read-only collaborators, whom a required-review rule would not count;
 # branch protection, not this script, is what blocks a merge.
 COUNTED_ASSOCIATIONS = {"OWNER", "MEMBER", "COLLABORATOR"}
@@ -237,18 +237,12 @@ def self_test():
     for name, text in [("unparseable output", "not json"), ("empty output", "  \n"),
                        ("a page of numbers", "[1]"), ("a scalar after a page", "[[{}], 5]"),
                        ("a review whose user is a string", '[{"user": "x"}]')]:
-        try:
-            parse_reviews(text)
-            failures += report("pages", name, "parsed", "ValueError")
-        except ValueError:
-            failures += report("pages", name, "ValueError", "ValueError")
+        failures += report("pages", name, error_of(parse_reviews, text), "ValueError")
     for name, value, author, expected in REVIEWER_SET_CASES:
         failures += report("reviewer-set", name, reviewer_set(value, author), expected)
     for name, arguments, stdin, expected_output, expected_exit in CLI_CASES:
-        run = subprocess.run([sys.executable, os.path.abspath(__file__), *arguments],
-                             input=stdin, capture_output=True, text=True, check=False)
-        failures += report("cli", name, (run.stdout.strip(), run.returncode),
-                           (expected_output, expected_exit))
+        failures += cli_case(os.path.abspath(__file__), name, arguments, expected_output,
+                             expected_exit, exact=True, input=stdin)
     return 1 if failures else 0
 
 

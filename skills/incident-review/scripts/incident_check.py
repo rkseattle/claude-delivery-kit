@@ -20,14 +20,13 @@ make a review late sooner, never excuse one.
 import argparse
 import datetime
 import os
-import subprocess
 import sys
 
 sys.dont_write_bytecode = True
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)),
                                 "..", "..", "..", "gates", "scripts"))
-from project_rules import (check_repo_path, check_slug, error_of, parse_date,  # noqa: E402
-                           report, result_of)
+from project_rules import (PROJECT_KEYS, check_slug, cli_case, error_message,  # noqa: E402
+                           error_of, parse_date, passed, report, result_of, run_check)
 
 LATE_AFTER = 5
 
@@ -92,20 +91,18 @@ def self_test():
     for name, date, slug, expected in BRANCH_CASES:
         failures += report("branch", name, result_of(branch, date, slug), expected)
     # readiness_check.py's self-test covers the path rules; these pin the key and the unset.
-    failures += report("reviews-dir", "a relative path",
-                       error_of(check_repo_path, "incident_reviews_dir", "docs/incidents"), "ok")
-    try:
-        check_repo_path("incident_reviews_dir", "/tmp/incidents")
-        named = "ok"
-    except ValueError as error:
-        named = str(error).split()[0]
+    reviews_dir = PROJECT_KEYS["incident_reviews_dir"].check
+    failures += report("reviews-dir", "a relative path", error_of(reviews_dir, "docs/incidents"),
+                       "ok")
+    named = error_message(lambda: reviews_dir("/tmp/incidents"))
+    named = "ok" if named is None else named.split()[0]
     failures += report("reviews-dir", "the error names incident_reviews_dir", named,
                        "incident_reviews_dir")
     for value in ("None", "NONE", "none"):
         failures += report("reviews-dir", f"{value} is unset",
-                           error_of(check_repo_path, "incident_reviews_dir", value), "ValueError")
+                           error_of(reviews_dir, value), "ValueError")
     script = os.path.abspath(__file__)
-    for name, arguments, expected_output, expected_exit in [
+    for case in [
             ("late prints the count and late",
              ["working-days", "--incident", "2026-10-12", "--start", "2026-10-20"], "6\tlate", 0),
             ("a future incident is invalid",
@@ -117,11 +114,7 @@ def self_test():
             ("reviews-dir ok", ["reviews-dir", "--value", "docs/incidents"], "ok", 0),
             ("reviews-dir none", ["reviews-dir", "--value", "none"], "INVALID:", 1),
             ("no subcommand is usage", [], "", 2)]:
-        run = subprocess.run([sys.executable, script, *arguments], capture_output=True,
-                             text=True, check=False)
-        stream = run.stderr if expected_output.startswith("INVALID") else run.stdout
-        shown = stream.strip()[:len(expected_output)] if expected_output else ""
-        failures += report("cli", name, (shown, run.returncode), (expected_output, expected_exit))
+        failures += cli_case(script, *case)
     return 1 if failures else 0
 
 
@@ -142,16 +135,8 @@ def main():
         return self_test()
     checks = {"working-days": lambda: timeliness(args.incident, args.start),
               "branch": lambda: branch(args.date, args.slug),
-              "reviews-dir": lambda: check_repo_path("incident_reviews_dir", args.value) or "ok"}
-    if args.command not in checks:
-        parser.print_usage(sys.stderr)
-        return 2
-    try:
-        print(checks[args.command]())
-    except ValueError as error:
-        print(f"INVALID: {error}", file=sys.stderr)
-        return 1
-    return 0
+              "reviews-dir": passed(lambda: PROJECT_KEYS["incident_reviews_dir"].check(args.value))}
+    return run_check(parser, checks, args.command)
 
 
 if __name__ == "__main__":

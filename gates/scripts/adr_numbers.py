@@ -23,14 +23,14 @@ import argparse
 import collections
 import os
 import re
-import subprocess
 import sys
 import tempfile
 
 sys.dont_write_bytecode = True
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from project_rules import (check_repo_path, git_subcommand, is_unset, run_git,  # noqa: E402
-                           isolated_git_environment, read_config, report)
+from project_rules import (OptionalKey, cli_case, error_message,  # noqa: E402
+                           git_subcommand, isolated_git_environment, read_config, read_keys,
+                           report, run_git, write_scratch)
 
 RECORD = re.compile(r"^(\d+)-[^/]+\.md$")
 GIT_ENVIRONMENT = None  # the self-test's isolated environment; None is the caller's
@@ -69,13 +69,13 @@ def duplicates(paths):
     return {number: sorted(held) for number, held in by_number.items() if len(held) > 1}
 
 
+ADR_DIR = OptionalKey("adr_dir", None)
+
+
 def adr_dir_of(config):
     """adr_dir from project.json, or None when unset; ValueError when invalid."""
-    value = read_config(config).get("adr_dir")
-    if is_unset(value):
-        return None
-    check_repo_path("adr_dir", value)
-    return os.path.normpath(value)
+    value = read_keys(read_config(config), [ADR_DIR])["adr_dir"]
+    return None if value is None else os.path.normpath(value)
 
 
 def check(config, against=None, head_ref="HEAD"):
@@ -100,15 +100,6 @@ def check(config, against=None, head_ref="HEAD"):
                                              for number, held in sorted(shared.items())] + skipped
 
 
-def error_message(call):
-    """The ValueError message the call raises, or "" when it returns."""
-    try:
-        call()
-    except ValueError as error:
-        return str(error)
-    return ""
-
-
 def self_test():
     global GIT_ENVIRONMENT
     failures = 0
@@ -126,11 +117,8 @@ def self_test():
                        GIT_ENVIRONMENT["GIT_AUTHOR_NAME"], "override")
     GIT_ENVIRONMENT = isolated_git_environment()
     with tempfile.TemporaryDirectory() as root:
-        def write(path, text="x\n"):
-            full = os.path.join(root, path)
-            os.makedirs(os.path.dirname(full), exist_ok=True)
-            with open(full, "w", encoding="utf8") as handle:
-                handle.write(text)
+        def write(path, content="x\n"):
+            write_scratch(root, content, path)
 
         def commit(message):
             git(root, "add", "-A")
@@ -147,14 +135,16 @@ def self_test():
 
         config = os.path.join(root, ".claude", "project.json")
         git(root, "init", "--quiet", "--initial-branch=main")
-        write(".claude/project.json", '{"adr_dir": "none"}\n')
+        write(".claude/project.json", {"adr_dir": "none"})
         write("docs/adr/0001-a.md")
         commit("unset")
         failures += report("check", "adr_dir unset", check(config), (0, ["adr_dir not configured"]))
-        write(".claude/project.json", '{"adr_dir": "../outside"}\n')
+        write(".claude/project.json", {"adr_dir": "../outside"})
         commit("invalid")
         failures += report("check", "an adr_dir outside the repository", run(), 2)
-        write(".claude/project.json", '{"adr_dir": "docs/adr"}\n')
+        write(".claude/project.json", {"adr_dir": ["<directory>", "docs/adr"]})
+        failures += report("check", "an adr_dir list holding a placeholder", run(), 2)
+        write(".claude/project.json", {"adr_dir": "docs/adr"})
         write("docs/adr/README.md")
         write("docs/adr/template.md")
         write("docs/adr/0002-b.md")
@@ -214,8 +204,8 @@ def self_test():
         git(root, "checkout", "--quiet", "rival")
         failures += report("check", "a ref read as an option", run("--output=x"), 2)
         failures += report("run_git", "a failure names the subcommand past -c and -C",
-                           error_message(lambda: git(root, "-C", ".", "-c", "k.v=1", "log",
-                                                     "no-such-ref")).split(" failed")[0],
+                           str(error_message(lambda: git(root, "-C", ".", "-c", "k.v=1", "log",
+                                                         "no-such-ref"))).split(" failed")[0],
                            "git log")
         failures += report("run_git", "bytes when text is False",
                            run_git(root, "rev-parse", "--git-dir", environment=GIT_ENVIRONMENT,
@@ -233,19 +223,16 @@ def self_test():
                            (1, ["duplicate 1", "0001 docs/adr/0001-a.md docs/adr/0001-m.md",
                                 "already on padding: 0002 docs/adr/0002-b.md docs/adr/002-c.md"]))
 
-        def cli(*arguments):
-            completed = subprocess.run([sys.executable, os.path.abspath(__file__), "--config",
-                                        config, *arguments], capture_output=True, text=True,
-                                       check=False, env=GIT_ENVIRONMENT)
-            return completed.returncode, completed.stderr.startswith("NO ANSWER:")
-
-        failures += report("cli", "a collision exits 1", cli("--against", "design"), (1, False))
-        missing = subprocess.run([sys.executable, os.path.abspath(__file__), "--config",
-                                  os.path.join(root, "absent.json")], capture_output=True,
-                                 text=True, check=False, env=GIT_ENVIRONMENT)
-        failures += report("cli", "a missing --config exits 2", missing.returncode, 2)
-        failures += report("cli", "a git failure exits 2, never 1", cli("--against", "no-such-ref"),
-                           (2, True))
+        script = os.path.abspath(__file__)
+        failures += cli_case(script, "a collision exits 1, naming it on stdout",
+                             ["--config", config, "--against", "design"], "duplicate ", 1,
+                             env=GIT_ENVIRONMENT)
+        failures += cli_case(script, "a missing --config exits 2",
+                             ["--config", os.path.join(root, "absent.json")], "", 2,
+                             env=GIT_ENVIRONMENT)
+        failures += cli_case(script, "a git failure exits 2, never 1",
+                             ["--config", config, "--against", "no-such-ref"], "NO ANSWER:", 2,
+                             stderr_prefixes=("NO ANSWER",), env=GIT_ENVIRONMENT)
     return failures
 
 

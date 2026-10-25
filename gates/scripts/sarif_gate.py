@@ -41,7 +41,8 @@ import urllib.parse
 
 sys.dont_write_bytecode = True
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from project_rules import isolated_git_environment, report, run_git  # noqa: E402
+from project_rules import (cli_case, error_of, isolated_git_environment, report,  # noqa: E402
+                           run_git, write_scratch)
 
 HIGH_SEVERITY = 7.0  # GitHub code scanning: High is 7.0-8.9, Critical 9.0 and above
 
@@ -442,17 +443,11 @@ def self_test():
     failures += report("new-findings", "a percent-encoded file URI", encoded, {})
     failures += report("new-findings", "no base", new_findings(DEBT, None, "/s", None),
                        {("analyzer", "r1", "src/a.py"): 1})
-    try:
-        new_findings(sarif(run([finding("src/a.py", properties={"security-severity": "high"})])), None, "/s", None)
-        failures += report("new-findings", "a non-numeric severity", "verdict", "ValueError")
-    except ValueError:
-        failures += report("new-findings", "a non-numeric severity", "ValueError", "ValueError")
-    for value in ("nan", True):
-        try:
-            new_findings(sarif(run([finding("src/a.py", properties={"security-severity": value})])), None, "/s", None)
-            failures += report("new-findings", f"a severity of {value!r}", "verdict", "ValueError")
-        except ValueError:
-            failures += report("new-findings", f"a severity of {value!r}", "ValueError", "ValueError")
+    for name, value in (("a non-numeric severity", "high"), ("a severity of 'nan'", "nan"),
+                        ("a severity of True", True)):
+        report_of = sarif(run([finding("src/a.py", properties={"security-severity": value})]))
+        failures += report("new-findings", name,
+                           error_of(new_findings, report_of, None, "/s", None), "ValueError")
     failures += report("secrets", "a clean report", secret_findings(sarif(run([]))), [])
     failures += report("secrets", "a suppressed secret still counts",
                        secret_findings(sarif(run([finding("cfg.env", "aws-key", 3,
@@ -474,9 +469,8 @@ def git_cases():
     try:
         with tempfile.TemporaryDirectory() as scratch:
             repo = os.path.join(scratch, "repo")
-            def write(path, content, mode="w"):
-                with open(os.path.join(repo, path), mode) as handle:
-                    handle.write(content)
+            def write(path, content):
+                write_scratch(repo, content, path)
             git("init", "--quiet", repo)
             write("kept.py", "a = 1\nb = 2\nc = 3\n")
             git("add", "kept.py", cwd=repo)
@@ -484,7 +478,7 @@ def git_cases():
                 make_tree(os.path.join(scratch, "unborn"), cwd=repo),
                 sorted(os.listdir(os.path.join(scratch, "unborn")))), ("export", ["kept.py"]))
             write("gone.txt", "old\n")
-            write("blob.bin", b"\x00\x01", "wb")
+            write("blob.bin", b"\x00\x01")
             write(".gitattributes", "*.enc diff=reveal\n")
             write("secret.enc", "ciphertext\n")
             git("config", "diff.reveal.textconv", "sed s/ciphertext/PLAINTEXT/", cwd=repo)
@@ -497,7 +491,7 @@ def git_cases():
             git("commit", "--quiet", "-m", "base", cwd=repo)
             write("kept.py", "a = 1\nb = 2\nc = 3\nd = 4\n")
             write("new.py", "token = 'added'\n")
-            write("blob.bin", b"\x00\x01\x02", "wb")
+            write("blob.bin", b"\x00\x01\x02")
             write("secret.enc", "ciphertext2\n")
             git("rm", "--quiet", "gone.txt", cwd=repo)
             git("add", ".", cwd=repo)
@@ -526,11 +520,8 @@ def git_cases():
                 git("diff", "--cached", "--binary", "HEAD", cwd=tree)
                 == git("diff", "--cached", "--binary", "HEAD", cwd=repo)),
                 ("worktree", True, False, True, b"\x00\x01\x02", b"", True))
-            try:
-                make_tree(tree, cwd=repo)
-                failures += report("tree", "a directory already in use", "made", "ValueError")
-            except ValueError:
-                failures += report("tree", "a directory already in use", "ValueError", "ValueError")
+            failures += report("tree", "a directory already in use",
+                               error_of(lambda: make_tree(tree, cwd=repo)), "ValueError")
             git("worktree", "remove", "--force", tree, cwd=repo)
             git("checkout", "--quiet", "--", "kept.py", cwd=repo)
             git("commit", "--quiet", "-m", "add\n\n- leaked: AKIAADDED", cwd=repo)
@@ -554,11 +545,9 @@ def git_cases():
                                b"token = 'added'" in pushed, True)
             failures += report("patch", "a message line starting with - survives",
                                b"    - leaked: AKIAADDED" in pushed, True)
-            try:
-                commits_patch("no-such-ref..HEAD", cwd=repo)
-                failures += report("patch", "git failing", "patch", "ValueError")
-            except ValueError:
-                failures += report("patch", "git failing", "ValueError", "ValueError")
+            failures += report("patch", "git failing",
+                               error_of(lambda: commits_patch("no-such-ref..HEAD", cwd=repo)),
+                               "ValueError")
             at_ref = os.path.join(scratch, "at-ref")
             failures += report("tree", "a worktree of a ref", (
                 make_tree(at_ref, "HEAD~1", cwd=repo),
@@ -598,10 +587,7 @@ def cli_cases():
     failures = 0
     with tempfile.TemporaryDirectory() as scratch:
         def write(name, content):
-            path = os.path.join(scratch, name)
-            with open(path, "w", encoding="utf8") as handle:
-                handle.write(content if isinstance(content, str) else json.dumps(content))
-            return path
+            return write_scratch(scratch, content, name)
         debt, staged = write("debt.sarif", DEBT), write("staged.sarif", NEW_FINDINGS_CASES[1][1])
         cases = [
             ("a missing report", ["secrets", os.path.join(scratch, "absent")], 2),
@@ -643,9 +629,7 @@ def cli_cases():
              ["new-findings", debt, os.path.join(scratch, "absent"), "--staged-root", scratch, "--base-root", scratch], 2),
         ]
         for name, arguments, expected_exit in cases:
-            completed = subprocess.run([sys.executable, os.path.abspath(__file__), *arguments],
-                                       capture_output=True, text=True, check=False)
-            failures += report("cli", name, completed.returncode, expected_exit)
+            failures += cli_case(os.path.abspath(__file__), name, arguments, "", expected_exit)
         leaked = subprocess.run([sys.executable, os.path.abspath(__file__), "secrets",
                                  write("leak", sarif(run([finding("a", message={"text": "s3cr3t"},
                                                                   partialFingerprints={"x": "s3cr3t"})])))],

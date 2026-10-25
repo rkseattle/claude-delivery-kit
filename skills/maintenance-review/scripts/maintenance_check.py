@@ -51,69 +51,39 @@ import tempfile
 sys.dont_write_bytecode = True
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)),
                                 "..", "..", "..", "gates", "scripts"))
-from project_rules import (MARKDOWN_VENDOR, YAML_VENDOR, check_command,  # noqa: E402
-                           check_repo_path, foreign_code, is_unset,
-                           isolated_git_environment, json_number, parse_date, positive_int,
-                           process_state, read_config, report, result_of, run_git, single_number,
-                           vendored)
+from project_rules import (MARKDOWN_VENDOR, YAML_VENDOR, OptionalKey, RequiredKey,  # noqa: E402
+                           cli_case, error_message, foreign_code, isolated_git_environment,
+                           parse_date, process_state, read_config, read_keys, report,
+                           result_of, run_check, run_git, single_number, vendored,
+                           write_scratch)
 
 RUNBOOK_MAX_AGE = 90
-DEFAULTS = {"on_call": "none", "iteration_days": 14, "debt_share_target": "none",
-            "dependency_outdated_command": "none", "patch_sla_days": "none",
-            "runbooks_dir": "none", "alert_routes_command": "none"}
 TIMESTAMP = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:Z|[+-]\d{2}:\d{2})$")
 # Read-only git, deaf to a global log.showSignature, which would print signature lines
 # before the date, and reading each path literally, so a `*` in a runbook's name is no glob.
 GIT_OPTIONS = ["-c", "log.showSignature=false", "--literal-pathspecs"]
 
 
-def check_on_call(value):
-    if not (isinstance(value, list) and value
-            and all(isinstance(person, str) and person.split() == [person] for person in value)):
-        raise ValueError("on_call is not a non-empty list of handles, one word each")
-
-
-def check_target(key, value):
-    json_number(key, value)
-    if not 0 <= value <= 100:
-        raise ValueError(f"{key} {value!r} is not a number from 0 to 100")
-
-
-CHECKS = {"on_call": check_on_call,
-          "iteration_days": lambda value: positive_int("iteration_days", value),
-          "debt_share_target": lambda value: check_target("debt_share_target", value),
-          "dependency_outdated_command": lambda value: check_command(
-              "dependency_outdated_command", value),
-          "patch_sla_days": lambda value: positive_int("patch_sla_days", value),
-          "runbooks_dir": lambda value: check_repo_path("runbooks_dir", value),
-          "alert_routes_command": lambda value: check_command("alert_routes_command", value)}
+# The general maintenance keys, each unset one at its default.
+KEYS = (OptionalKey("on_call", "none"), OptionalKey("iteration_days", 14),
+        OptionalKey("debt_share_target", "none"), OptionalKey("dependency_outdated_command", "none"),
+        OptionalKey("patch_sla_days", "none"), OptionalKey("runbooks_dir", "none"),
+        OptionalKey("alert_routes_command", "none"))
+DEFAULTS = {declared.key: declared.default for declared in KEYS}
+DRIFT_THRESHOLD = RequiredKey("drift_threshold", needed_by="the drift check")
+ALERT_RULES_DIR = RequiredKey("alert_rules_dir", needed_by="the alert-rules check")
 
 
 def resolve_config(config):
     """{key: value} for each general key, unset ones at their default; raise naming every
     key set in the wrong shape."""
-    resolved, problems = {}, []
-    for key, default in DEFAULTS.items():
-        value = config.get(key)
-        if is_unset(value):
-            resolved[key] = default
-            continue
-        try:
-            CHECKS[key](value)
-        except ValueError as error:
-            problems.append(str(error))
-            continue
-        resolved[key] = value
-    if problems:
-        raise ValueError("; ".join(problems))
-    return resolved
+    return read_keys(config, KEYS)
 
 
 def required(config, key):
-    value = resolve_config(config)[key]
-    if value == "none":
-        raise ValueError(f"{key} is none, so this check has nothing to read")
-    return value
+    """A general key this check cannot run without, once every general key is in shape."""
+    resolve_config(config)
+    return read_keys(config, [RequiredKey(key, needed_by="this check")])[key]
 
 
 def utc_date(timestamp):
@@ -272,8 +242,8 @@ def rule_groups(document, path):
 
 def unlinked_alerts(config):
     """Each alerting rule naming no SLO or no runbook, by file and alert, with what it lacks."""
-    check_repo_path("alert_rules_dir", config.get("alert_rules_dir"))
-    directory = existing_dir("alert_rules_dir", config["alert_rules_dir"])
+    directory = existing_dir("alert_rules_dir",
+                             read_keys(config, [ALERT_RULES_DIR])["alert_rules_dir"])
     vendored(YAML_VENDOR)
     import yaml
     def unreadable(error):
@@ -332,10 +302,7 @@ def unlinked_row(rule, path):
 
 
 def drift(config, output):
-    value = config.get("drift_threshold")
-    if is_unset(value):
-        raise ValueError("drift_threshold is none, so this check has nothing to compare")
-    threshold = json_number("drift_threshold", value)
+    threshold = read_keys(config, [DRIFT_THRESHOLD])["drift_threshold"]
     value = single_number(output, "drift_check_command")
     return ("over" if float(value) > threshold else "within"), value
 
@@ -451,8 +418,7 @@ def runbook_cases():
                            env=dated, capture_output=True, check=True)
 
         def write(name):
-            with open(os.path.join(root, "runbooks", name), "w", encoding="utf-8") as handle:
-                handle.write(name)
+            write_scratch(os.path.join(root, "runbooks"), name, name)
 
         os.makedirs(os.path.join(root, "runbooks"))
         git("init", "-q", "--template=")
@@ -502,9 +468,7 @@ def runbook_cases():
                                [row for row in rows if "ird" in row],
                                ['runbooks/we"ird.md\t2026-01-02'])
             os.makedirs(os.path.join(root, "svc", "runbooks"))
-            with open(os.path.join(root, "svc", "runbooks", "deep.md"), "w",
-                      encoding="utf-8") as handle:
-                handle.write("deep")
+            write_scratch(root, "deep", "svc/runbooks/deep.md")
             git("add", "--", "svc/runbooks/deep.md")
             git("commit", "-q", "-m", "deep", date="2026-01-03T12:00:00Z")
             os.chdir(os.path.join(root, "svc"))
@@ -593,9 +557,7 @@ def alert_rule_cases():
         os.chdir(root)
         try:
             for path, text in ALERT_RULE_FILES.items():
-                os.makedirs(os.path.dirname(path), exist_ok=True)
-                with open(path, "w", encoding="utf-8") as handle:
-                    handle.write(text)
+                write_scratch(root, text, path)
             config = {"alert_rules_dir": "ops/alerts"}
             failures += report("alert-rules", "alerts naming no SLO, no runbook, or neither",
                                result_of(unlinked_alerts, config),
@@ -643,8 +605,7 @@ def alert_rule_cases():
                                 "groups:\n- name: g\n  partial_response_strategy: warn\n"),
                                ("an impossible date", "groups:\n- name: g\n  rules:\n"
                                 "  - alert: A\n    expr: up\n    labels: {d: 2026-13-01}\n")]:
-                with open("ops/alerts/bad.yml", "wb") as handle:
-                    handle.write(text if isinstance(text, bytes) else text.encode())
+                write_scratch(root, text, "ops/alerts/bad.yml")
                 failures += report("alert-rules", name, result_of(unlinked_alerts, config),
                                    "ValueError")
             os.remove("ops/alerts/bad.yml")
@@ -660,19 +621,15 @@ def alert_rule_cases():
                 os.chmod("ops/alerts/locked", 0o755)
                 os.rmdir("ops/alerts/locked")
             os.makedirs("manifests")
-            with open("manifests/kustomization.yaml", "w", encoding="utf-8") as handle:
-                handle.write("kind: Kustomization\n")
+            write_scratch(root, "kind: Kustomization\n", "manifests/kustomization.yaml")
             failures += report("alert-rules", "manifests holding no rule group",
                                result_of(unlinked_alerts, {"alert_rules_dir": "manifests"}),
                                "ValueError")
-            with open(os.path.join(root, "project.json"), "w", encoding="utf-8") as handle:
-                json.dump(config, handle)
-            run = subprocess.run([sys.executable, os.path.abspath(__file__), "alert-rules",
-                                  "--config", os.path.join(root, "project.json")],
-                                 capture_output=True, text=True, check=False)
-            failures += report("cli", "alert-rules prints its rows",
-                               (run.returncode, run.stdout.splitlines()[:1]),
-                               (0, ["ops/alerts/api.yml\tHighLatency\tno runbook"]))
+            failures += cli_case(os.path.abspath(__file__), "alert-rules prints its rows",
+                                 ["alert-rules", "--config",
+                                  write_scratch(root, config, "project.json")],
+                                 "ops/alerts/api.yml\tHighLatency\tno runbook", 0, line=0,
+                                 exact=True)
             os.makedirs("empty")
             failures += report("alert-rules", "a directory with no rule file",
                                result_of(unlinked_alerts, {"alert_rules_dir": "empty"}),
@@ -728,9 +685,7 @@ def vendored_code_cases():
                 ("vendored, relative, and stdlib imports pass",
                  "import yaml\nfrom markdown_it import MarkdownIt\nfrom . import sibling\n"
                  "import os\n", ("clean", True))]:
-            path = os.path.join(directory, "fixture.py")
-            with open(path, "w", encoding="utf-8") as handle:
-                handle.write(text)
+            path = write_scratch(directory, text, "fixture.py")
             errors, imports = foreign_code([path], allowed)
             if expected[0] == "foreign" and imports is None:
                 print(f"skip vendored: {name} needs Python 3.10+")
@@ -748,10 +703,9 @@ def cli_cases():
     failures = 0
     script = os.path.abspath(__file__)
     with tempfile.TemporaryDirectory() as directory:
-        config = os.path.join(directory, "project.json")
-        with open(config, "w", encoding="utf-8") as handle:
-            json.dump({"patch_sla_days": 30, "on_call": ["rob"], "debt_share_target": 20,
-                       "drift_threshold": 0.25, "alert_routes_command": "routes\tall"}, handle)
+        config = write_scratch(directory, {
+            "patch_sla_days": 30, "on_call": ["rob"], "debt_share_target": 20,
+            "drift_threshold": 0.25, "alert_routes_command": "routes\tall"}, "project.json")
         pages = json.dumps([[alert("2026-01-01T00:00:00Z")]])
         for name, arguments, stdin, expected_output, expected_exit in [
                 ("config prints JSON values", ["config"], "",
@@ -764,21 +718,23 @@ def cli_cases():
                 ("drift within", ["drift"], "0.1\n", "within 0.1", 0),
                 ("routes prints unrouted", ["routes"], "a #ops\n", "a\t#ops", 0),
                 ("share with a target", ["share", "--resolved", "4", "--preventive", "1"], "",
-                 "25.0%\tmeets 20%", 0)]:
-            run = subprocess.run([sys.executable, script, *arguments, "--config", config],
-                                 input=stdin, capture_output=True, text=True, check=False)
-            stream = run.stderr if expected_output.startswith("INVALID") else run.stdout
-            shown = stream.strip()[:len(expected_output)]
-            failures += report("cli", name, (shown, run.returncode),
-                               (expected_output, expected_exit))
+                 "25.0%\tmeets 20%", 0),
+                ("runbooks needs runbooks_dir", ["runbooks", "--today", "2026-10-17"], "",
+                 "INVALID: runbooks_dir is absent", 1)]:
+            failures += cli_case(script, name, [*arguments, "--config", config],
+                                 expected_output, expected_exit, input=stdin)
         run = subprocess.run([sys.executable, script, "config", "--config", config],
                              capture_output=True, text=True, check=False)
+        routed = subprocess.run([sys.executable, script, "routes", "--config", config],
+                                input="a rob\n", capture_output=True, text=True, check=False)
+        # Unstripped, so a stray blank line fails, as cli_case's stripped read could not see.
+        failures += report("cli", "a check finding no rows prints nothing",
+                           (routed.stdout, routed.returncode), ("", 0))
         failures += report("cli", "a command with a tab stays on one line",
                            [line for line in run.stdout.splitlines()
                             if line.startswith("alert_routes_command")],
                            ['alert_routes_command\t"routes\\tall"'])
-    run = subprocess.run([sys.executable, script], capture_output=True, text=True, check=False)
-    failures += report("cli", "no subcommand is usage", run.returncode, 2)
+    failures += cli_case(script, "no subcommand is usage", [], "", 2)
     return failures
 
 
@@ -797,13 +753,32 @@ def self_test():
     for name, output, threshold, expected in DRIFT_CASES:
         failures += report("drift", name,
                            result_of(drift, {"drift_threshold": threshold}, output), expected)
+    failures += report("config", "an on_call placeholder list reads as unset",
+                       resolve_config({"on_call": ["<handle>", "<handle>"]})["on_call"], "none")
+    failures += report("config", "an on_call list keeping a placeholder beside a handle",
+                       error_message(lambda: resolve_config({"on_call": ["rob", "<handle>"]})),
+                       "on_call still holds a placeholder entry")
+    failures += report("drift", "a threshold list holding a placeholder is mistyped, not none",
+                       error_message(lambda: drift({"drift_threshold": ["<n>", 0.2]}, "0.1\n")),
+                       "drift_threshold ['<n>', 0.2] is not a finite JSON number")
     for name, config, expected in CONFIG_CASES:
         failures += report("config", name, result_of(resolve_config, config), expected)
+    failures += report("config", "a runbooks_dir list holding a placeholder",
+                       result_of(resolve_config, {"runbooks_dir": ["<directory>", "docs"]}),
+                       "ValueError")
     failures += runbook_cases()
     failures += alert_rule_cases()
     failures += vendored_code_cases()
     failures += cli_cases()
     return 1 if failures else 0
+
+
+def alerts_json(text):
+    """The Dependabot alert pages piped in, or ValueError when they are not JSON."""
+    try:
+        return json.loads(text)
+    except ValueError as error:
+        raise ValueError(f"the alerts are not JSON: {error}")
 
 
 def main():
@@ -822,35 +797,19 @@ def main():
     args = parser.parse_args()
     if args.self_test:
         return self_test()
-    if args.command not in subcommands:
-        parser.print_usage(sys.stderr)
-        return 2
-    try:
-        config = read_config(args.config)
-        if args.command == "config":
-            rows = [f"{key}\t{json.dumps(value)}" for key, value in resolve_config(config).items()]
-        elif args.command == "alerts":
-            try:
-                pages = json.loads(sys.stdin.read())
-            except ValueError as error:
-                raise ValueError(f"the alerts are not JSON: {error}")
-            rows = stale_alerts(config, pages, args.today)
-        elif args.command == "alert-rules":
-            rows = unlinked_alerts(config)
-        elif args.command == "runbooks":
-            rows = stale_runbooks(config, args.today)
-        elif args.command == "routes":
-            rows = unrouted(config, sys.stdin.read())
-        elif args.command == "share":
-            rows = [debt_share(config, args.resolved, args.preventive)]
-        else:
-            rows = [" ".join(drift(config, sys.stdin.read()))]
-    except ValueError as error:
-        print(f"INVALID: {error}", file=sys.stderr)
-        return 1
-    for row in rows:
-        print(row)
-    return 0
+
+    def config():
+        return read_config(args.config)
+
+    checks = {"config": lambda: [f"{key}\t{json.dumps(value)}"
+                                 for key, value in resolve_config(config()).items()],
+              "alerts": lambda: stale_alerts(config(), alerts_json(sys.stdin.read()), args.today),
+              "alert-rules": lambda: unlinked_alerts(config()),
+              "runbooks": lambda: stale_runbooks(config(), args.today),
+              "routes": lambda: unrouted(config(), sys.stdin.read()),
+              "share": lambda: [debt_share(config(), args.resolved, args.preventive)],
+              "drift": lambda: [" ".join(drift(config(), sys.stdin.read()))]}
+    return run_check(parser, checks, args.command)
 
 
 if __name__ == "__main__":

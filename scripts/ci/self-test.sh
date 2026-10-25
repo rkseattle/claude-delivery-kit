@@ -52,7 +52,7 @@ done
 
 mkdir -p "$tmp/empty"
 for check in json-parses.sh bundled-refs.sh no-leaks.sh frontmatter-names.sh line-budget.sh shellcheck.sh \
-             actions-pinned.sh rule-book-map.sh; do
+             actions-pinned.sh rule-book-map.sh config-examples.sh; do
   expect fail "a root with nothing to scan" "$check" "$tmp/empty"
 done
 
@@ -326,6 +326,52 @@ fresh_copy; printf '      - uses: "%s@%s'"'"'\n' actions/checkout "$sha" >> "$tm
 expect_saying "a workflow YAML cannot parse" actions-pinned.sh "UNPARSEABLE"
 fresh_copy; printf 'on: push\n' > "$tmp/repo/.github/workflows/other.yml"
 expect_saying "a workflow with no jobs: mapping" actions-pinned.sh "UNPARSEABLE"
+
+fresh_copy; rm "$tmp/repo/reference/project-json.md"
+expect_saying "a root with no reference to read" config-examples.sh "NO REFERENCE:"
+fence="\`\`\`"
+fresh_copy; printf '\n%sjson\n{"no": \n%s\n' "$fence" "$fence" >> "$tmp/repo/reference/project-json.md"
+expect_saying "a reference json block that cannot parse" config-examples.sh "NO REFERENCE:"
+fresh_copy; printf '\n%sjson\n["a"]\n%s\n' "$fence" "$fence" >> "$tmp/repo/reference/project-json.md"
+expect_saying "a reference json block that is not an object" config-examples.sh "NO REFERENCE:"
+fresh_copy; printf '\n%sjson\n{"adr_dir": "elsewhere"}\n%s\n' "$fence" "$fence" \
+  >> "$tmp/repo/reference/project-json.md"
+expect_saying "a reference showing one key two ways" config-examples.sh "NO REFERENCE:"
+fresh_copy; printf '\n~~~json\n{"adr_dir": "elsewhere"}\n~~~\n' >> "$tmp/repo/reference/project-json.md"
+expect_saying "a tilde-fenced json block showing one key two ways" config-examples.sh "NO REFERENCE:"
+long_fence="$fence\`"
+fresh_copy; printf '\n%smarkdown\n%sjson\n{"adr_dir": "elsewhere"}\n%s\n%s\n' "$long_fence" "$fence" \
+  "$fence" "$long_fence" >> "$tmp/repo/reference/project-json.md"
+expect pass "a json fence shown as text inside a longer fence" config-examples.sh
+fresh_copy; printf '# Nothing here\n' > "$tmp/repo/reference/project-json.md"
+expect_saying "a reference with no json block" config-examples.sh "NO REFERENCE:"
+fresh_copy; sed -i.bak 's/^    "service_owner": /    "service_lead": /' "$tmp/repo/reference/project-json.md"
+expect_saying "a role key the roles example no longer shows" config-examples.sh "UNDOCUMENTED:"
+rules="$tmp/repo/gates/scripts/project_rules.py"
+fresh_copy; printf 'PROJECT_KEYS.clear()\n' >> "$rules"
+expect_saying "an empty registry" config-examples.sh "NOTHING DECLARED:"
+fresh_copy; rm "$rules"
+expect_saying "a root with no registry" config-examples.sh "NO SCHEMA:"
+fresh_copy
+sed -i.bak 's/KeyShape(check_on_call, template_list=True)/KeyShape(check_on_call)/' "$rules"
+expect_saying "a list key taking its placeholder list without template_list" config-examples.sh \
+  "ACCEPTS:"
+fresh_copy; printf 'PROJECT_KEYS["on_call"] = KeyShape(lambda value: positive_int("on_call", value))\n' \
+  >> "$rules"
+expect pass "a list key whose check rejects its placeholder list" config-examples.sh
+fresh_copy; sed -i.bak 's/^  "on_call": \["<handle>", "<handle>"\]/  "on_call": ["rob", "<handle>"]/' \
+  "$tmp/repo/reference/project-json.md"
+expect pass "a template list keeping a placeholder beside a real entry" config-examples.sh
+fresh_copy; printf 'PROJECT_KEYS["no_such_key"] = KeyShape(str)\n' >> "$rules"
+expect_saying "a registered key the reference never shows" config-examples.sh "UNDOCUMENTED:"
+fresh_copy; printf 'EXTRA = (OptionalKey("no_such_key", None),)\n' \
+  >> "$tmp/repo/skills/design-feature/scripts/design_check.py"
+expect_saying "a top-level declaration the registry lacks" config-examples.sh "UNREGISTERED:"
+fresh_copy; printf 'import project_rules\nEXTRA = project_rules.RequiredKey(key="no_such_key")\n' \
+  >> "$tmp/repo/skills/design-feature/scripts/design_check.py"
+expect_saying "an attribute call naming its key by keyword" config-examples.sh "UNREGISTERED:"
+fresh_copy; printf 'def (\n' >> "$tmp/repo/skills/design-feature/scripts/design_check.py"
+expect_saying "a kit script that cannot parse" config-examples.sh "UNREADABLE:"
 
 fresh_copy; sed -i.bak '/^    if: always()$/d' "$tmp/repo/.github/workflows/ci.yml"
 expect fail "the aggregate job without if: always()" all-jobs-passed.sh

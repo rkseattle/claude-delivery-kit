@@ -94,9 +94,10 @@ done, default `Done`. The checks before the merge, and the decline and failure p
 exception path, which has none; the tech lead then merges outside the run.
 
 `incident_reviews_dir` serves rule book Phase 7 step 3: where `incident-review` commits each
-review. It must be a relative path inside the repository, outside `.git`, starting with a
-letter, digit, or `_` and made only of letters, digits, `.`, `_`, `-`, and `/`, and not
-gitignored, since the review is committed.
+review. It must be a relative path inside the repository with no `.git` component, in any
+case or with trailing dots, as git refuses to track one, starting with a letter, digit, or
+`_` and made only of letters, digits, `.`, `_`, `-`, and `/`, and not gitignored, since the
+review is committed.
 Default `none`, under which `incident-review` stops and names the key.
 
 `iteration_days`, `debt_share_target`, `dependency_outdated_command`, `patch_sla_days`,
@@ -115,14 +116,14 @@ except that `security` makes `patch_sla_days` required.
 
 `retirements_dir` serves rule book Phase 7 step 7: where `retire-system` commits each
 retirement record. It follows `incident_reviews_dir`'s rule — a relative path inside the
-repository, outside `.git`, of the same characters, and not gitignored, since the record is
-committed. Default `none`, under which `retire-system` stops and names the key.
+repository with no `.git` component, of the same characters, and not gitignored, since the
+record is committed. Default `none`, under which `retire-system` stops and names the key.
 
 `design_dir` and `adr_dir` serve rule book Phase 3 and R11: where a feature's design doc
 and its decision records are committed, in the form `gates/design-exit.md` defines. Each
-follows `incident_reviews_dir`'s rule — a relative path inside the repository, outside
-`.git`, of the same characters, and not gitignored, since both are committed. Each
-defaults to `none`, under which the gate fails as it states. `ci-green`'s merge step runs
+follows `incident_reviews_dir`'s rule — a relative path inside the repository with no
+`.git` component, of the same characters, and not gitignored, since both are committed.
+Each defaults to `none`, under which the gate fails as it states. `ci-green`'s merge step runs
 `gates/scripts/adr_numbers.py` on `adr_dir`, which under `none` passes and says so.
 
 `secret_scan_command` and `sast_command` serve rule book R12 and Appendix B1's scans. Each
@@ -228,10 +229,11 @@ fires — an error rate above 1%, say, or p95 latency 20% above baseline, the ru
 examples — and every one runs once a minute for `monitoring_window_minutes` after each
 stage. `released_status` names the Jira transition the released tickets take, matched by
 name and confirmed by reading each ticket back. All default to `none` except
-`monitoring_window_minutes`, which defaults to `60`, the rule book's one hour. What stops
-`release` before it tags, including `rollout_stages` `none` on a `medium` or `large`
-project, is listed once, in `gates/release.md`. `released_status` `none` leaves the
-tickets where they are.
+`monitoring_window_minutes`, which defaults to `60`, the rule book's one hour, only when
+absent: present, with any value, `none` included, it must be a positive whole number.
+What stops `release` before it tags, including `rollout_stages` `none` on a `medium` or
+`large` project, is listed once, in `gates/release.md`. `released_status` `none` leaves
+the tickets where they are.
 
 The values in the block above are illustrations, not defaults. Some of its keys are
 required and have no default; one that is missing, empty, `none`, or a `<placeholder>`
@@ -254,7 +256,10 @@ exceptions" section and its Appendices A through C, and the block also holds the
 `disciplines` brings in. The six are optional, and each bullet below gives its default;
 the `roles`, `on_call`, and `exceptions_log` values are placeholders, not defaults. The
 keys between `disciplines` and `roles` in the block are its addenda's: required once their
-discipline is named, with no default, and placeholders here.
+discipline is named, with no default, and placeholders here. `on_call`,
+`device_matrix`, and `model_eval_thresholds`, written here wholly of placeholders, read as
+unset while they stay so; one keeping a placeholder beside a real entry is an error naming
+the key.
 
 ```json
 {
@@ -356,8 +361,9 @@ discipline is named, with no default, and placeholders here.
   to the tech lead, as `ci-green` does the merge question. Default: a role absent from
   `roles` is the person running the session, and the skill addresses that person directly.
   That is the absent-key rule above applied per role, so a missing role never resolves to
-  `none`, and a project with no `roles` key at all has the person running the session in
-  every role.
+  `none`, and a project with no `roles` key at all, or a `null` one, has the person running
+  the session in every role. A `roles` that is not an object, such as a list or a string,
+  is an error, never read as an empty map.
 - `on_call` — the handles of the people on the on-call rota, each one word. A route from
   `alert_routes_command` reaches a person only when its target equals one exactly, case
   included. Default `none`, under which `maintenance-review` reports the rota unset and every

@@ -41,9 +41,10 @@ import tempfile
 sys.dont_write_bytecode = True
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)),
                                 "..", "..", "..", "gates", "scripts"))
-from project_rules import (check_repo_path, check_slug, error_of, fence_split,  # noqa: E402
-                           isolated_git_environment, process_state,
-                           is_unset, parse_date, read_config, report, result_of)
+from project_rules import (OptionalKey, RequiredKey,  # noqa: E402
+                           check_slug, cli_case, error_of, fence_split,
+                           isolated_git_environment, process_state, parse_date, read_config,
+                           passed, read_keys, report, result_of, run_check, write_scratch)
 
 SECTIONS = ("User notice", "Data", "Infrastructure", "Credentials")
 STATUS = re.compile(r"^Status: (pending|done)$")
@@ -65,14 +66,13 @@ def branch(name):
     return f"retire/{check_slug('name', name)}"
 
 
+SERVICE_OWNER = OptionalKey("roles.service_owner", None)
+RETIREMENTS_DIR = RequiredKey("retirements_dir")
+
+
 def service_owner(config):
-    roles = config.get("roles") or {}
-    if not isinstance(roles, dict):
-        raise ValueError("roles is not a map from each role to its person")
-    owner = roles.get("service_owner")
-    if not is_unset(owner):
-        if not isinstance(owner, str):
-            raise ValueError("roles.service_owner is not a name")
+    owner = read_keys(config, [SERVICE_OWNER])["roles.service_owner"]
+    if owner is not None:
         return owner.strip()
     run = subprocess.run(["git", "config", "user.name"], capture_output=True, text=True,
                          check=False)
@@ -163,11 +163,6 @@ def record_state(text, owner, today, name=None):
     pending = [heading for heading, lines, fenced in sections
                if section_state(heading, lines, fenced, owner, started, today) == "pending"]
     return f"pending: {', '.join(pending)}" if pending else "done"
-
-
-def check_dir(config):
-    check_repo_path("retirements_dir", config.get("retirements_dir"))
-    return "ok"
 
 
 def record(states, owner="rob"):
@@ -308,17 +303,27 @@ NAME_CASES = [
 
 def owner_fallback_cases():
     """git's user.name stands in for an absent role, read from a throwaway global config as
-    sarif_gate.py's fixtures isolate git; with neither, the check refuses."""
+    sarif_gate.py's fixtures isolate git; with neither, the check refuses. A roles or a
+    service owner that is malformed is refused even with a git name to fall back to, so no
+    such case can pass by reaching the fallback."""
     failures = 0
     with tempfile.TemporaryDirectory() as directory:
-        named = os.path.join(directory, "named.gitconfig")
-        with open(named, "w", encoding="utf-8") as handle:
-            handle.write("[user]\n\tname = Rob K\n")
+        named = write_scratch(directory, "[user]\n\tname = Rob K\n", "named.gitconfig")
         for name, config, config_file, expected in [
                 ("no role reads git's user.name", {}, named, "Rob K"),
+                ("a null roles reads git's user.name", {"roles": None}, named, "Rob K"),
+                ("roles as a list", {"roles": ["ana"]}, named, "ValueError"),
+                ("a service owner that is not a name", {"roles": {"service_owner": ["ana"]}},
+                 named, "ValueError"),
+                ("roles as an empty list is no map, not no roles", {"roles": []}, named,
+                 "ValueError"),
+                ("roles as an empty string is no map, not no roles", {"roles": ""}, named,
+                 "ValueError"),
                 ("a blank role reads git's user.name",
                  {"roles": {"service_owner": "  "}}, named, "Rob K"),
-                ("no role and no git name", {}, os.devnull, "ValueError")]:
+                ("no role and no git name", {}, os.devnull, "ValueError"),
+                ("a role list holding a placeholder is no name, not a missing role",
+                 {"roles": {"service_owner": ["<name>", "ana"]}}, named, "ValueError")]:
             with process_state(isolated_git_environment(GIT_CONFIG_GLOBAL=config_file),
                                directory):
                 failures += report("owner", name, result_of(service_owner, config), expected)
@@ -343,26 +348,18 @@ def self_test():
                                   ("none", "none", "ValueError"),
                                   ("outside the repository", "../retirements", "ValueError")]:
         failures += report("retirements-dir", name,
-                           error_of(check_dir, {"retirements_dir": value}), expected)
+                           error_of(read_keys, {"retirements_dir": value}, [RETIREMENTS_DIR]),
+                           expected)
     failures += report("owner", "the configured service owner, stripped",
                        result_of(service_owner, {"roles": {"service_owner": "ana "}}), "ana")
-    failures += report("owner", "roles as a list",
-                       result_of(service_owner, {"roles": ["ana"]}), "ValueError")
-    failures += report("owner", "a service owner that is not a name",
-                       result_of(service_owner, {"roles": {"service_owner": ["ana"]}}),
-                       "ValueError")
     failures += owner_fallback_cases()
     script = os.path.abspath(__file__)
     with tempfile.TemporaryDirectory() as directory:
-        done = os.path.join(directory, "billing.md")
-        with open(done, "w", encoding="utf-8") as handle:
-            handle.write(record([DONE] * 4))
-        config = os.path.join(directory, "project.json")
-        with open(config, "w", encoding="utf-8") as handle:
-            handle.write('{"retirements_dir": "docs/retirements", '
-                         '"roles": {"service_owner": "rob"}}')
+        done = write_scratch(directory, record([DONE] * 4), "billing.md")
+        config = write_scratch(directory, {"retirements_dir": "docs/retirements",
+                                        "roles": {"service_owner": "rob"}}, "project.json")
         record_arguments = ["--config", config, "--today", "2026-10-19"]
-        for name, arguments, expected_output, expected_exit in [
+        for case in [
                 ("record done", ["record", "--file", done, *record_arguments], "done", 0),
                 ("a missing record", ["record", "--file", os.path.join(directory, "x.md"),
                                       *record_arguments], "INVALID:", 1),
@@ -370,12 +367,7 @@ def self_test():
                 ("a bad name", ["name", "--value", "B"], "INVALID:", 1),
                 ("retirements-dir ok", ["retirements-dir", "--config", config], "ok", 0),
                 ("no subcommand is usage", [], "", 2)]:
-            run = subprocess.run([sys.executable, script, *arguments], capture_output=True,
-                                 text=True, check=False)
-            stream = run.stderr if expected_output.startswith("INVALID") else run.stdout
-            shown = stream.strip()[:len(expected_output)] if expected_output else ""
-            failures += report("cli", name, (shown, run.returncode),
-                               (expected_output, expected_exit))
+            failures += cli_case(script, *case)
     return 1 if failures else 0
 
 
@@ -399,21 +391,14 @@ def main():
     args = parser.parse_args()
     if args.self_test:
         return self_test()
-    checks = {"retirements-dir": lambda: check_dir(read_config(args.config)),
+    checks = {"retirements-dir": passed(lambda: read_keys(read_config(args.config),
+                                                         [RETIREMENTS_DIR])),
               "name": lambda: branch(args.value),
               "record": lambda: record_state(read_record(args.file),
                                              service_owner(read_config(args.config)),
                                              args.today,
                                              os.path.splitext(os.path.basename(args.file))[0])}
-    if args.command not in checks:
-        parser.print_usage(sys.stderr)
-        return 2
-    try:
-        print(checks[args.command]())
-    except ValueError as error:
-        print(f"INVALID: {error}", file=sys.stderr)
-        return 1
-    return 0
+    return run_check(parser, checks, args.command)
 
 
 if __name__ == "__main__":

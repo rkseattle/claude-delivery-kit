@@ -46,6 +46,14 @@ jobs:
         with:
           persist-credentials: false
 
+      # One case per way a key could read in a shape its registry entry does not give it: a
+      # template list mixing a placeholder, a key under a non-object, an unregistered path;
+      # per result kind and exit of run_check, every check script's entry point, Outcome and
+      # mismatch included; per option of cli_case and per kind of file write_scratch, the
+      # self-tests' shared runner and scratch writer; and collected_errors' empty message.
+      - name: Project rules self-test
+        run: python3 gates/scripts/project_rules.py --self-test
+
       # Each fixture declares its exact count per finding code, and each readback case its
       # count of lines Jira lost, so a check that stops firing, or fires under the wrong
       # code, fails here instead of passing every draft it was meant to stop.
@@ -95,6 +103,12 @@ jobs:
       - name: Retirement check self-test
         run: python3 skills/retire-system/scripts/retire_check.py --self-test
 
+      # One case per way a design or ADR directory could pass when it should not: an unset
+      # design_dir, an absolute path, one outside the repository or inside .git; written for
+      # design-feature to run before it writes a design.
+      - name: Design check self-test
+        run: python3 skills/design-feature/scripts/design_check.py --self-test
+
       # One case per way two decision records could merge holding one number: a rival
       # branch's record, a zero-padded twin; and per way a rename, a deletion, or a duplicate
       # already on the base could fail a branch that did not cause it; ci-green's merge step
@@ -130,6 +144,11 @@ jobs:
 
       - name: Rule-book map paths resolve
         run: bash scripts/ci/rule-book-map.sh
+
+      # A template copied unedited must never configure anything: every key a script declares
+      # reads reference/project-json.md's placeholder for it as unset, or rejects it.
+      - name: No declared key accepts its reference placeholder
+        run: bash scripts/ci/config-examples.sh
 
       - name: No project-specific tokens leaked into shared files
         run: bash scripts/ci/no-leaks.sh
