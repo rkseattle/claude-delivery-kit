@@ -137,6 +137,11 @@ jobs:
       - name: Rule-book map paths resolve
         run: bash scripts/ci/rule-book-map.sh
 
+      # A template copied unedited must never configure anything: every key a script declares
+      # reads reference/project-json.md's placeholder for it as unset, or rejects it.
+      - name: No declared key accepts its reference placeholder
+        run: bash scripts/ci/config-examples.sh
+
       - name: No project-specific tokens leaked into shared files
         run: bash scripts/ci/no-leaks.sh
 

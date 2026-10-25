@@ -36,6 +36,7 @@ installed one differs.
 | `manifest` · Line budget | `bash scripts/ci/line-budget.sh` |
 | `manifest` · Bundled-file references | `bash scripts/ci/bundled-refs.sh` |
 | `manifest` · Rule-book map paths resolve | `bash scripts/ci/rule-book-map.sh` |
+| `manifest` · No declared key accepts its reference placeholder | `bash scripts/ci/config-examples.sh` |
 | `manifest` · No project-specific tokens | `bash scripts/ci/no-leaks.sh` |
 | `manifest` · Actions are pinned to commit SHAs | `bash scripts/ci/actions-pinned.sh` |
 | `manifest` · Every CI step has a local equivalent | `bash scripts/ci/ci-steps-mirrored.sh` |
@@ -74,6 +75,13 @@ in full. It takes under a minute, so there is no subset worth trusting instead.
   the renamed row. `NO EXCEPTED BY COLUMN:` — a map table lacks the column; add it. `NOT
   A REGISTER:` — a table under Kit-wide exceptions is not headed Rule | Reason | Risk |
   Expiry | Remediation; restore its header.
+- `ACCEPTS:`, `UNDOCUMENTED:` or `UNLOADABLE:` from `config-examples.sh` — a script's
+  `RequiredKey`/`OptionalKey` takes `reference/project-json.md`'s placeholder for its key as
+  a real setting (give it `template_list`, or make its check reject the placeholder), declares
+  a key the example blocks never show (add it there, or move a self-test fixture's
+  declaration inside a function), or cannot be imported cleanly. `NO REFERENCE:` — the
+  reference holds no json object block, one that cannot parse, or a key shown two ways;
+  `NOTHING DECLARED:` — no script under `gates/` or `skills/` declares a key.
 - `FAIL <check>: <case>` from `self-test.sh` — a check stopped catching its defect; fix the
   check, never the case.
 - A hook self-test count mismatch — the hook's behavior changed; read the named case.

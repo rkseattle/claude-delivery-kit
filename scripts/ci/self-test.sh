@@ -52,7 +52,7 @@ done
 
 mkdir -p "$tmp/empty"
 for check in json-parses.sh bundled-refs.sh no-leaks.sh frontmatter-names.sh line-budget.sh shellcheck.sh \
-             actions-pinned.sh rule-book-map.sh; do
+             actions-pinned.sh rule-book-map.sh config-examples.sh; do
   expect fail "a root with nothing to scan" "$check" "$tmp/empty"
 done
 
@@ -326,6 +326,40 @@ fresh_copy; printf '      - uses: "%s@%s'"'"'\n' actions/checkout "$sha" >> "$tm
 expect_saying "a workflow YAML cannot parse" actions-pinned.sh "UNPARSEABLE"
 fresh_copy; printf 'on: push\n' > "$tmp/repo/.github/workflows/other.yml"
 expect_saying "a workflow with no jobs: mapping" actions-pinned.sh "UNPARSEABLE"
+
+fresh_copy; rm "$tmp/repo/reference/project-json.md"
+expect_saying "a root with no reference to read" config-examples.sh "NO REFERENCE:"
+fence="\`\`\`"
+fresh_copy; printf '\n%sjson\n{"no": \n%s\n' "$fence" "$fence" >> "$tmp/repo/reference/project-json.md"
+expect_saying "a reference json block that cannot parse" config-examples.sh "NO REFERENCE:"
+fresh_copy; printf '\n%sjson\n["a"]\n%s\n' "$fence" "$fence" >> "$tmp/repo/reference/project-json.md"
+expect_saying "a reference json block that is not an object" config-examples.sh "NO REFERENCE:"
+fresh_copy; printf '\n%sjson\n{"adr_dir": "elsewhere"}\n%s\n' "$fence" "$fence" \
+  >> "$tmp/repo/reference/project-json.md"
+expect_saying "a reference showing one key two ways" config-examples.sh "NO REFERENCE:"
+fresh_copy; printf '# Nothing here\n' > "$tmp/repo/reference/project-json.md"
+expect_saying "a reference with no json block" config-examples.sh "NO REFERENCE:"
+fresh_copy; sed -i.bak 's/^    "service_owner": /    "service_lead": /' "$tmp/repo/reference/project-json.md"
+expect_saying "a role key the roles example no longer shows" config-examples.sh "UNDOCUMENTED:"
+fresh_copy; rm -rf "$tmp/repo/skills"; rm "$tmp/repo/gates/scripts/adr_numbers.py"
+expect_saying "a tree in which no script declares a key" config-examples.sh "NOTHING DECLARED:"
+fresh_copy; sed -i.bak 's/"none", template_list=True)/"none")/' \
+  "$tmp/repo/skills/maintenance-review/scripts/maintenance_check.py"
+expect_saying "a list key taking its placeholder list without template_list" config-examples.sh \
+  "ACCEPTS:"
+fresh_copy; printf 'def reject(value):\n    raise ValueError("rejected")\n\n\nEXTRA = OptionalKey("on_call", reject, None)\n' \
+  >> "$tmp/repo/skills/design-feature/scripts/design_check.py"
+expect pass "a list key whose check rejects its placeholder list" config-examples.sh
+fresh_copy; printf 'EXTRA = OptionalKey("no_such_key", str, None)\n' \
+  >> "$tmp/repo/skills/design-feature/scripts/design_check.py"
+expect_saying "a declared key the reference never shows" config-examples.sh "UNDOCUMENTED:"
+fresh_copy; printf 'sys.exit(0)\n' >> "$tmp/repo/skills/design-feature/scripts/design_check.py"
+expect_saying "a declaring script that exits on import" config-examples.sh "UNLOADABLE:"
+fresh_copy; printf 'def (\n' >> "$tmp/repo/skills/design-feature/scripts/design_check.py"
+expect_saying "a declaring script that cannot parse" config-examples.sh "UNLOADABLE:"
+fresh_copy; mkdir -p "$tmp/repo/skills/x/scripts"
+printf '# RequiredKey( named only in a comment\n' > "$tmp/repo/skills/x/scripts/x.py"
+expect_saying "a script naming a declaration it does not hold" config-examples.sh "UNLOADABLE:"
 
 fresh_copy; sed -i.bak '/^    if: always()$/d' "$tmp/repo/.github/workflows/ci.yml"
 expect fail "the aggregate job without if: always()" all-jobs-passed.sh

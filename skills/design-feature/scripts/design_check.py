@@ -101,25 +101,29 @@ def text(key):
     return check
 
 
-READ_KEYS_CASES = [
-    ("a required key unset is named", {}, [RequiredKey("k", text("k"))],
-     "k is absent, none, blank, or a placeholder"),
-    ("a required key says who needs it", {"k": "none"},
-     [RequiredKey("k", text("k"), needed_by="mobile")],
-     "k is absent, none, blank, or a placeholder, and mobile needs it"),
-    ("an optional key unset takes its default", {"k": "<k>"}, [OptionalKey("k", text("k"), 7)],
-     {"k": 7}),
-    ("a set key is checked", {"k": 5}, [OptionalKey("k", text("k"), 7)], "k is not text"),
-    ("a template list reads as unset", {"k": ["<handle>"]},
-     [OptionalKey("k", text("k"), 7, template_list=True)], {"k": 7}),
-    ("any other list holding a placeholder is checked", {"k": ["<handle>"]},
-     [OptionalKey("k", text("k"), 7)], "k is not text"),
-    ("every problem is named", {"j": 5}, [RequiredKey("k", text("k")), RequiredKey("j", text("j"))],
-     "k is absent, none, blank, or a placeholder; j is not text"),
-    ("a required template list reads as unset", {"k": ["<os> <version>"]},
-     [RequiredKey("k", text("k"), template_list=True)],
-     "k is absent, none, blank, or a placeholder"),
-]
+def read_keys_cases():
+    """(name, config, keys, expected) for read_keys; declared in a function, as fixtures, so
+    scripts/ci/config-examples.sh reads only this script's own KEYS."""
+    return [
+        ("a required key unset is named", {}, [RequiredKey("k", text("k"))],
+         "k is absent, none, blank, or a placeholder"),
+        ("a required key says who needs it", {"k": "none"},
+         [RequiredKey("k", text("k"), needed_by="mobile")],
+         "k is absent, none, blank, or a placeholder, and mobile needs it"),
+        ("an optional key unset takes its default", {"k": "<k>"},
+         [OptionalKey("k", text("k"), 7)], {"k": 7}),
+        ("a set key is checked", {"k": 5}, [OptionalKey("k", text("k"), 7)], "k is not text"),
+        ("a template list reads as unset", {"k": ["<handle>"]},
+         [OptionalKey("k", text("k"), 7, template_list=True)], {"k": 7}),
+        ("any other list holding a placeholder is checked", {"k": ["<handle>"]},
+         [OptionalKey("k", text("k"), 7)], "k is not text"),
+        ("every problem is named", {"j": 5},
+         [RequiredKey("k", text("k")), RequiredKey("j", text("j"))],
+         "k is absent, none, blank, or a placeholder; j is not text"),
+        ("a required template list reads as unset", {"k": ["<os> <version>"]},
+         [RequiredKey("k", text("k"), template_list=True)],
+         "k is absent, none, blank, or a placeholder"),
+    ]
 
 
 def raise_empty():
@@ -132,7 +136,7 @@ def self_test():
         failures += report("dirs", name,
                            result_or_message(lambda: check_dirs(config)),
                            expected_message(config, keys))
-    for name, config, keys, expected in READ_KEYS_CASES:
+    for name, config, keys, expected in read_keys_cases():
         failures += report("read_keys", name, result_or_message(lambda: read_keys(config, keys)),
                            expected)
     failures += report("collected_errors", "a ValueError with no message still counts",

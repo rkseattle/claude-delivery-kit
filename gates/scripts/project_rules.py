@@ -13,12 +13,12 @@ skills/design-feature/scripts/design_check.py, gates/scripts/sarif_gate.py,
 gates/scripts/adr_numbers.py, and, for the discipline, tracked-file and self-test git rules,
 skills/write-tickets/scripts/lint_draft.py, and, for the YAML vendor alone,
 scripts/ci/actions-pinned.sh, and, for the Markdown table, register and tracked-file rules,
-scripts/ci/rule-book-map.sh, so no two of them can disagree on what an unset key, a
-placeholder, a discipline, a date, a printed number, a branch slug, a code fence, a Markdown
-field's value, a Markdown table, a register header, a complete exceptions-register row, a
-tracked path, or a git call and its failure is, and so no self-test's scratch repository
-inherits the caller's git. Each importer's self-test covers the rules it uses; this module
-has no entry point of its own.
+scripts/ci/rule-book-map.sh, and, for the key declarations, scripts/ci/config-examples.sh,
+so no two of them can disagree on what an unset key, a placeholder, a discipline, a date, a
+printed number, a branch slug, a code fence, a Markdown field's value, a Markdown table, a
+register header, a complete exceptions-register row, a tracked path, or a git call and its
+failure is, and so no self-test's scratch repository inherits the caller's git. Each
+importer's self-test covers the rules it uses; this module has no entry point of its own.
 """
 import ast
 import contextlib
