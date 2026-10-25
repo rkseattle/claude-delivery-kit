@@ -308,13 +308,22 @@ NAME_CASES = [
 
 def owner_fallback_cases():
     """git's user.name stands in for an absent role, read from a throwaway global config as
-    sarif_gate.py's fixtures isolate git; with neither, the check refuses."""
+    sarif_gate.py's fixtures isolate git; with neither, the check refuses. A roles or a
+    service owner that is malformed is refused even with a git name to fall back to, so no
+    such case can pass by reaching the fallback."""
     failures = 0
     with tempfile.TemporaryDirectory() as directory:
         named = write_scratch(directory, "[user]\n\tname = Rob K\n", "named.gitconfig")
         for name, config, config_file, expected in [
                 ("no role reads git's user.name", {}, named, "Rob K"),
                 ("a null roles reads git's user.name", {"roles": None}, named, "Rob K"),
+                ("roles as a list", {"roles": ["ana"]}, named, "ValueError"),
+                ("a service owner that is not a name", {"roles": {"service_owner": ["ana"]}},
+                 named, "ValueError"),
+                ("roles as an empty list is no map, not no roles", {"roles": []}, named,
+                 "ValueError"),
+                ("roles as an empty string is no map, not no roles", {"roles": ""}, named,
+                 "ValueError"),
                 ("a blank role reads git's user.name",
                  {"roles": {"service_owner": "  "}}, named, "Rob K"),
                 ("no role and no git name", {}, os.devnull, "ValueError"),
@@ -347,13 +356,6 @@ def self_test():
                            error_of(check_dir, {"retirements_dir": value}), expected)
     failures += report("owner", "the configured service owner, stripped",
                        result_of(service_owner, {"roles": {"service_owner": "ana "}}), "ana")
-    for name, roles in [("roles as a list", ["ana"]), ("roles as an empty list", []),
-                        ("roles as an empty string", "")]:
-        failures += report("owner", name, result_of(service_owner, {"roles": roles}),
-                           "ValueError")
-    failures += report("owner", "a service owner that is not a name",
-                       result_of(service_owner, {"roles": {"service_owner": ["ana"]}}),
-                       "ValueError")
     failures += owner_fallback_cases()
     script = os.path.abspath(__file__)
     with tempfile.TemporaryDirectory() as directory:
