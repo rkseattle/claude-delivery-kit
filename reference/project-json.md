@@ -254,7 +254,10 @@ exceptions" section and its Appendices A through C, and the block also holds the
 `disciplines` brings in. The six are optional, and each bullet below gives its default;
 the `roles`, `on_call`, and `exceptions_log` values are placeholders, not defaults. The
 keys between `disciplines` and `roles` in the block are its addenda's: required once their
-discipline is named, with no default, and placeholders here.
+discipline is named, with no default, and placeholders here. `on_call`,
+`device_matrix`, and `model_eval_thresholds`, written here wholly of placeholders, read as
+unset while they stay so; one keeping a placeholder beside a real entry is an error naming
+the key.
 
 ```json
 {

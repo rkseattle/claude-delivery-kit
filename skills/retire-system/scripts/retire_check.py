@@ -41,7 +41,7 @@ import tempfile
 sys.dont_write_bytecode = True
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)),
                                 "..", "..", "..", "gates", "scripts"))
-from project_rules import (OptionalKey, RequiredKey, check_repo_path,  # noqa: E402
+from project_rules import (OptionalKey, RequiredKey,  # noqa: E402
                            check_slug, cli_case, error_of, fence_split,
                            isolated_git_environment, process_state, parse_date, read_config,
                            read_keys, report, result_of, run_check)
@@ -66,21 +66,16 @@ def branch(name):
     return f"retire/{check_slug('name', name)}"
 
 
-def check_name(value):
-    if not isinstance(value, str):
-        raise ValueError("roles.service_owner is not a name")
-
-
-SERVICE_OWNER = OptionalKey("service_owner", check_name, None)
-RETIREMENTS_DIR = RequiredKey("retirements_dir",
-                              lambda value: check_repo_path("retirements_dir", value))
+SERVICE_OWNER = OptionalKey("roles.service_owner", None)
+RETIREMENTS_DIR = RequiredKey("retirements_dir")
 
 
 def service_owner(config):
     roles = config.get("roles") or {}
     if not isinstance(roles, dict):
         raise ValueError("roles is not a map from each role to its person")
-    owner = read_keys(roles, [SERVICE_OWNER])["service_owner"]
+    # Read through the normalized roles, so a falsy one still falls back to git's user.name.
+    owner = read_keys({"roles": roles}, [SERVICE_OWNER])["roles.service_owner"]
     if owner is not None:
         return owner.strip()
     run = subprocess.run(["git", "config", "user.name"], capture_output=True, text=True,

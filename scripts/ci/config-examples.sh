@@ -1,38 +1,36 @@
 #!/usr/bin/env bash
-# No project.json key a kit script declares accepts the placeholder reference/project-json.md
-# writes for it as a real setting: fed through project_rules' key_problems, each such
-# placeholder in the example blocks reads as unset or is rejected, so a template copied
-# unedited never configures anything. A key a script declares that the example blocks never show, at the top
-# level or inside an object such as roles, fails too, and so does a declaring script that
-# cannot be imported or holds no top-level declaration, so no declaration goes unchecked. A
-# reference with no example block, or a tree with no declaration at all, fails rather than
-# reading as clean.
+# No project.json key in project_rules.PROJECT_KEYS, the registry of every key a kit script
+# reads through read_keys, accepts the placeholder reference/project-json.md writes for it as a real
+# setting: each such example reads as unset or is rejected by the key's registered shape, so
+# a template copied unedited never configures anything. A registered key the example blocks
+# never show, at its dotted path such as roles.service_owner, fails too. A root with no
+# registry, a reference with no example block, or an empty registry fails rather than
+# reading as clean. So does a RequiredKey or OptionalKey a kit script declares at its top
+# level, by a literal path as its first argument or its key=, called bare or as an attribute
+# such as project_rules.RequiredKey, that the registry does not hold, found by parsing the kit's
+# Python under gates/ and skills/ without importing it; a declaration inside a function, such
+# as a self-test fixture or one built from a variable, is left to that script's self-test.
 #
-# Every declaration is found by searching the kit's Python under gates/ and skills/ for
-# `RequiredKey(` or `OptionalKey(` and importing each file holding one, then reading each
-# declaration the module holds at its top level, in a tuple, list, or dict included; a
-# self-test's fixture declarations live inside its functions, so they are not read. Only an
-# example that is wholly a placeholder, or a list holding one, is judged: any other illustrates
-# a real value, which the key may well accept, and a placeholder embedded in a longer string,
-# such as a path, is not read as one.
+# Only an example that is wholly a placeholder, or a list holding one, is judged: any other
+# illustrates a real value, which the key may well accept, and a placeholder embedded in a
+# longer string, such as a path, is not read as one.
 # Usage: config-examples.sh [repo-root]
 set -euo pipefail
 root="$(cd "${1:-.}" && pwd)"
 python3 - "$root" <<'PY'
-import importlib.util
+import ast
 import json
 import os
 import re
 import sys
 
 sys.dont_write_bytecode = True
-DECLARATION = re.compile(r"\b(?:RequiredKey|OptionalKey)\(")
 JSON_BLOCK = re.compile(r"^```json\n(.*?)^```", re.M | re.S)
 
 
 def example_values(root):
-    """Each key the reference's example blocks show, and each role under roles, which a
-    script reads from that object; raise ValueError when there is none to read."""
+    """The keys the reference's example blocks show, merged; raise ValueError when there is
+    none to read."""
     path = os.path.join(root, "reference", "project-json.md")
     try:
         with open(path, encoding="utf-8") as handle:
@@ -49,84 +47,89 @@ def example_values(root):
                 raise ValueError(f"NO REFERENCE: {path} shows {key} twice, as {values[key]!r} "
                                  f"and {value!r}")
             values[key] = value
-    roles = values.get("roles")
-    values.update({role: entry for role, entry in (roles if isinstance(roles, dict) else {}).items()
-                   if role not in values})
     return values
 
 
-def declaring_files(root):
-    found = []
+def shown(examples, path):
+    """Whether the examples hold every part of the dotted path."""
+    value = examples
+    for part in path.split("."):
+        if not isinstance(value, dict) or part not in value:
+            return False
+        value = value[part]
+    return True
+
+
+def top_level_paths(tree):
+    """Each literal path a RequiredKey or OptionalKey call names outside every function."""
+    pending = list(ast.iter_child_nodes(tree))
+    while pending:
+        node = pending.pop()
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.Lambda)):
+            continue
+        called = getattr(node, "func", None)
+        name = getattr(called, "id", None) or getattr(called, "attr", None)
+        if isinstance(node, ast.Call) and name in ("RequiredKey", "OptionalKey"):
+            keys = node.args[:1] + [word.value for word in node.keywords if word.arg == "key"]
+            yield from (key.value for key in keys
+                        if isinstance(key, ast.Constant) and isinstance(key.value, str))
+        pending.extend(ast.iter_child_nodes(node))
+
+
+def unregistered(root, registry):
+    """A problem line for each top-level declaration of a path the registry lacks, and for
+    each kit script that cannot be read or parsed."""
+    problems = []
     for top in ("gates", "skills"):
         for directory, subdirectories, files in os.walk(os.path.join(root, top)):
-            subdirectories[:] = [d for d in subdirectories if d not in ("_vendor", "__pycache__")]
+            subdirectories[:] = sorted(d for d in subdirectories
+                                       if d not in ("_vendor", "__pycache__"))
             for name in sorted(files):
+                if not name.endswith(".py"):
+                    continue
                 path = os.path.join(directory, name)
-                if name.endswith(".py") and name != "project_rules.py":
-                    try:
-                        with open(path, encoding="utf-8") as handle:
-                            text = handle.read()
-                    except (OSError, ValueError):
-                        text = "RequiredKey("  # unreadable, so its import reports UNLOADABLE
-                    if DECLARATION.search(text):
-                        found.append(path)
-    return sorted(found)
-
-
-def declarations(value, kinds):
-    if isinstance(value, kinds):
-        yield value
-    elif isinstance(value, (tuple, list)):
-        for entry in value:
-            yield from declarations(entry, kinds)
-    elif isinstance(value, dict):
-        for entry in value.values():
-            yield from declarations(entry, kinds)
+                relative = os.path.relpath(path, root)
+                try:
+                    with open(path, encoding="utf-8") as handle:
+                        tree = ast.parse(handle.read())
+                except (OSError, ValueError, SyntaxError) as error:
+                    problems.append(f"UNREADABLE: {relative}: {error}")
+                    continue
+                problems.extend(f"UNREGISTERED: {relative}: {key}"
+                                for key in top_level_paths(tree) if key not in registry)
+    return problems
 
 
 def main(root):
-    sys.path.insert(0, os.path.join(root, "gates", "scripts"))
+    rules = os.path.join(root, "gates", "scripts", "project_rules.py")
+    if not os.path.isfile(rules):
+        print(f"NO SCHEMA: {rules} is missing")
+        return 1
+    sys.path.insert(0, os.path.dirname(rules))
     import project_rules
-    kinds = (project_rules.RequiredKey, project_rules.OptionalKey)
     try:
         examples = example_values(root)
     except ValueError as error:
         print(error)
         return 1
-    problems, checked = [], 0
-    for index, path in enumerate(declaring_files(root)):
-        relative = os.path.relpath(path, root)
-        try:
-            name = f"declaring_{index}"
-            spec = importlib.util.spec_from_file_location(name, path)
-            module = importlib.util.module_from_spec(spec)
-            sys.modules[name] = module  # as importlib's recipe registers a module it loads
-            spec.loader.exec_module(module)
-        except (Exception, SystemExit) as error:  # a module's own exit must not end this check
-            problems.append(f"UNLOADABLE: {relative}: {error!r}")
+    problems = unregistered(root, project_rules.PROJECT_KEYS)
+    for path, shape in project_rules.PROJECT_KEYS.items():
+        if not shown(examples, path):
+            problems.append(f"UNDOCUMENTED: {path}")
             continue
-        found = [declared for value in vars(module).values()
-                 for declared in declarations(value, kinds)]
-        if not found:
-            problems.append(f"UNLOADABLE: {relative} holds no top-level declaration")
-        for declared in found:
-            checked += 1
-            if declared.key not in examples:
-                problems.append(f"UNDOCUMENTED: {relative}: {declared.key}")
-                continue
-            example = examples[declared.key]
-            if not project_rules.is_unset(example):
-                continue  # an illustration of a real value, which the key may well accept
-            if (not project_rules.key_unset(declared, example)
-                    and not project_rules.key_problems({declared.key: example}, [declared])):
-                problems.append(f"ACCEPTS: {relative}: {declared.key} takes its placeholder "
-                                f"{example!r} as a real setting")
-    if not checked and not problems:
-        problems.append("NOTHING DECLARED: no script under gates/ or skills/ declares a key")
+        example = project_rules.key_value(examples, path)
+        if not project_rules.is_unset(example):
+            continue  # an illustration of a real value, which the key may well accept
+        if (not project_rules.key_unset(shape, example) and project_rules.error_message(
+                lambda: project_rules.check_value(path, shape, example)) is None):
+            problems.append(f"ACCEPTS: {path} takes its placeholder {example!r} as a real "
+                            "setting")
+    if not project_rules.PROJECT_KEYS:
+        problems.append("NOTHING DECLARED: project_rules.PROJECT_KEYS is empty")
     for problem in problems:
         print(problem)
     if not problems:
-        print(f"ok: {checked} declared keys")
+        print(f"ok: {len(project_rules.PROJECT_KEYS)} registered keys")
     return 1 if problems else 0
 
 

@@ -34,12 +34,11 @@ import time
 sys.dont_write_bytecode = True
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)),
                                 "..", "..", "..", "gates", "scripts"))
-from project_rules import (BARE_ARGUMENT, PLACEHOLDER, cli_case,  # noqa: E402
-                           named_disciplines, positive_int, read_config, report)
+from project_rules import (PROJECT_KEYS, cli_case,  # noqa: E402
+                           named_disciplines, read_config, report)
 
 ROUND_SECONDS = 60
 BUDGET_SECONDS = 55
-STAGE_NAME = BARE_ARGUMENT
 POLL_SECONDS = 0.05
 
 
@@ -49,14 +48,12 @@ def load(config_path):
 
 
 def settings(config):
+    # gates/release.md stops on any value but these shapes, so read_keys' unset rule is not
+    # applied: a halt_criteria of none or a window of none is an error, not unset.
     criteria = config.get("halt_criteria")
-    if not (isinstance(criteria, list) and criteria
-            and all(isinstance(c, str) and c.strip() for c in criteria)):
-        raise ValueError("halt_criteria is not a non-empty list of commands")
-    if any(PLACEHOLDER.match(c) for c in criteria):
-        raise ValueError("halt_criteria holds a <placeholder>, not a command")
-    window = positive_int("monitoring_window_minutes",
-                          config.get("monitoring_window_minutes", 60))
+    PROJECT_KEYS["halt_criteria"].check(criteria)
+    window = config.get("monitoring_window_minutes", 60)
+    PROJECT_KEYS["monitoring_window_minutes"].check(window)
     return criteria, window
 
 
@@ -69,17 +66,7 @@ def check(config_path):
             and not (isinstance(stages, list) and len(stages) >= 2)):
         raise ValueError("rollout_stages lists fewer than two stages, and mobile needs a phased "
                          "store release")
-    if stages == "none":
-        return
-    if not (isinstance(stages, list) and stages and all(isinstance(n, str) for n in stages)):
-        raise ValueError("rollout_stages is neither none nor a non-empty list of names")
-    for name in stages:
-        if not STAGE_NAME.fullmatch(name) or name.lower() == "staging":
-            raise ValueError(f"rollout_stages entry {name!r} is blank, staging, starts with "
-                             "'-' or '.', or is not made only of letters, digits, '.', '_', "
-                             "and '-'")
-    if len(set(stages)) != len(stages):
-        raise ValueError("rollout_stages repeats a stage")
+    PROJECT_KEYS["rollout_stages"].check(stages)
 
 
 def stop(procs):

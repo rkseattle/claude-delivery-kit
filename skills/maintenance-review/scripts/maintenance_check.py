@@ -52,10 +52,9 @@ sys.dont_write_bytecode = True
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)),
                                 "..", "..", "..", "gates", "scripts"))
 from project_rules import (MARKDOWN_VENDOR, YAML_VENDOR, OptionalKey, RequiredKey,  # noqa: E402
-                           check_command, check_repo_path, cli_case, error_message,
-                           foreign_code, isolated_git_environment, json_number, parse_date,
-                           positive_int, process_state, read_config, read_keys, report,
-                           result_of, run_git, shared_check, single_number, vendored)
+                           cli_case, error_message, foreign_code, isolated_git_environment,
+                           parse_date, process_state, read_config, read_keys, report,
+                           result_of, run_git, single_number, vendored)
 
 RUNBOOK_MAX_AGE = 90
 TIMESTAMP = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:Z|[+-]\d{2}:\d{2})$")
@@ -64,35 +63,14 @@ TIMESTAMP = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:Z|[+-]\d{2}:\d{2
 GIT_OPTIONS = ["-c", "log.showSignature=false", "--literal-pathspecs"]
 
 
-def check_on_call(value):
-    if not (isinstance(value, list) and value
-            and all(isinstance(person, str) and person.split() == [person] for person in value)):
-        raise ValueError("on_call is not a non-empty list of handles, one word each")
-
-
-def check_target(key, value):
-    json_number(key, value)
-    if not 0 <= value <= 100:
-        raise ValueError(f"{key} {value!r} is not a number from 0 to 100")
-
-
-# The general maintenance keys; on_call's example in reference/project-json.md is a list of
-# placeholders, so that list reads as unset.
-KEYS = (OptionalKey("on_call", check_on_call, "none", template_list=True),
-        OptionalKey("iteration_days", lambda value: positive_int("iteration_days", value), 14),
-        OptionalKey("debt_share_target", lambda value: check_target("debt_share_target", value),
-                 "none"),
-        OptionalKey("dependency_outdated_command",
-                 lambda value: check_command("dependency_outdated_command", value), "none"),
-        OptionalKey("patch_sla_days", shared_check("patch_sla_days"), "none"),
-        OptionalKey("runbooks_dir", lambda value: check_repo_path("runbooks_dir", value), "none"),
-        OptionalKey("alert_routes_command",
-                 lambda value: check_command("alert_routes_command", value), "none"))
+# The general maintenance keys, each unset one at its default.
+KEYS = (OptionalKey("on_call", "none"), OptionalKey("iteration_days", 14),
+        OptionalKey("debt_share_target", "none"), OptionalKey("dependency_outdated_command", "none"),
+        OptionalKey("patch_sla_days", "none"), OptionalKey("runbooks_dir", "none"),
+        OptionalKey("alert_routes_command", "none"))
 DEFAULTS = {declared.key: declared.default for declared in KEYS}
-DRIFT_THRESHOLD = RequiredKey("drift_threshold", shared_check("drift_threshold"),
-                              needed_by="the drift check")
-ALERT_RULES_DIR = RequiredKey("alert_rules_dir", shared_check("alert_rules_dir"),
-                              needed_by="the alert-rules check")
+DRIFT_THRESHOLD = RequiredKey("drift_threshold", needed_by="the drift check")
+ALERT_RULES_DIR = RequiredKey("alert_rules_dir", needed_by="the alert-rules check")
 
 
 def resolve_config(config):
@@ -104,9 +82,7 @@ def resolve_config(config):
 def required(config, key):
     """A general key this check cannot run without, once every general key is in shape."""
     resolve_config(config)
-    declared = next(declared for declared in KEYS if declared.key == key)
-    return read_keys(config, [RequiredKey(key, declared.check, declared.template_list,
-                                          needed_by="this check")])[key]
+    return read_keys(config, [RequiredKey(key, needed_by="this check")])[key]
 
 
 def utc_date(timestamp):
@@ -784,6 +760,9 @@ def self_test():
                            result_of(drift, {"drift_threshold": threshold}, output), expected)
     failures += report("config", "an on_call placeholder list reads as unset",
                        resolve_config({"on_call": ["<handle>", "<handle>"]})["on_call"], "none")
+    failures += report("config", "an on_call list keeping a placeholder beside a handle",
+                       error_message(lambda: resolve_config({"on_call": ["rob", "<handle>"]})),
+                       "on_call still holds a placeholder entry")
     failures += report("drift", "a threshold list holding a placeholder is mistyped, not none",
                        error_message(lambda: drift({"drift_threshold": ["<n>", 0.2]}, "0.1\n")),
                        "drift_threshold ['<n>', 0.2] is not a finite JSON number")

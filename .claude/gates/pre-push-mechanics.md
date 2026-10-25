@@ -75,13 +75,14 @@ in full. It takes under a minute, so there is no subset worth trusting instead.
   the renamed row. `NO EXCEPTED BY COLUMN:` — a map table lacks the column; add it. `NOT
   A REGISTER:` — a table under Kit-wide exceptions is not headed Rule | Reason | Risk |
   Expiry | Remediation; restore its header.
-- `ACCEPTS:`, `UNDOCUMENTED:` or `UNLOADABLE:` from `config-examples.sh` — a script's
-  `RequiredKey`/`OptionalKey` takes `reference/project-json.md`'s placeholder for its key as
-  a real setting (give it `template_list`, or make its check reject the placeholder), declares
-  a key the example blocks never show (add it there, or move a self-test fixture's
-  declaration inside a function), or cannot be imported cleanly. `NO REFERENCE:` — the
-  reference holds no json object block, one that cannot parse, or a key shown two ways;
-  `NOTHING DECLARED:` — no script under `gates/` or `skills/` declares a key.
+- `ACCEPTS:` or `UNDOCUMENTED:` from `config-examples.sh` — a `project_rules.PROJECT_KEYS`
+  shape takes `reference/project-json.md`'s placeholder for its key as a real setting (give
+  it `template_list`, or make its check reject the placeholder), or a registered key's dotted
+  path is missing from the example blocks (add it there). `UNREGISTERED:` — a script declares
+  a key at its top level that the registry lacks (register its shape); `UNREADABLE:` — a kit
+  script cannot be read or parsed. `NO REFERENCE:` — the reference
+  holds no json object block, one that cannot parse, or a key shown two ways; `NO SCHEMA:` or
+  `NOTHING DECLARED:` — `gates/scripts/project_rules.py` is missing or its registry is empty.
 - `FAIL <check>: <case>` from `self-test.sh` — a check stopped catching its defect; fix the
   check, never the case.
 - A hook self-test count mismatch — the hook's behavior changed; read the named case.

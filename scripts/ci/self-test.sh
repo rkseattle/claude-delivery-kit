@@ -341,25 +341,31 @@ fresh_copy; printf '# Nothing here\n' > "$tmp/repo/reference/project-json.md"
 expect_saying "a reference with no json block" config-examples.sh "NO REFERENCE:"
 fresh_copy; sed -i.bak 's/^    "service_owner": /    "service_lead": /' "$tmp/repo/reference/project-json.md"
 expect_saying "a role key the roles example no longer shows" config-examples.sh "UNDOCUMENTED:"
-fresh_copy; rm -rf "$tmp/repo/skills"; rm "$tmp/repo/gates/scripts/adr_numbers.py"
-expect_saying "a tree in which no script declares a key" config-examples.sh "NOTHING DECLARED:"
-fresh_copy; sed -i.bak 's/"none", template_list=True)/"none")/' \
-  "$tmp/repo/skills/maintenance-review/scripts/maintenance_check.py"
+rules="$tmp/repo/gates/scripts/project_rules.py"
+fresh_copy; printf 'PROJECT_KEYS.clear()\n' >> "$rules"
+expect_saying "an empty registry" config-examples.sh "NOTHING DECLARED:"
+fresh_copy; rm "$rules"
+expect_saying "a root with no registry" config-examples.sh "NO SCHEMA:"
+fresh_copy
+sed -i.bak 's/KeyShape(check_on_call, template_list=True)/KeyShape(check_on_call)/' "$rules"
 expect_saying "a list key taking its placeholder list without template_list" config-examples.sh \
   "ACCEPTS:"
-fresh_copy; printf 'def reject(value):\n    raise ValueError("rejected")\n\n\nEXTRA = OptionalKey("on_call", reject, None)\n' \
-  >> "$tmp/repo/skills/design-feature/scripts/design_check.py"
+fresh_copy; printf 'PROJECT_KEYS["on_call"] = KeyShape(lambda value: positive_int("on_call", value))\n' \
+  >> "$rules"
 expect pass "a list key whose check rejects its placeholder list" config-examples.sh
-fresh_copy; printf 'EXTRA = OptionalKey("no_such_key", str, None)\n' \
+fresh_copy; sed -i.bak 's/^  "on_call": \["<handle>", "<handle>"\]/  "on_call": ["rob", "<handle>"]/' \
+  "$tmp/repo/reference/project-json.md"
+expect pass "a template list keeping a placeholder beside a real entry" config-examples.sh
+fresh_copy; printf 'PROJECT_KEYS["no_such_key"] = KeyShape(str)\n' >> "$rules"
+expect_saying "a registered key the reference never shows" config-examples.sh "UNDOCUMENTED:"
+fresh_copy; printf 'EXTRA = (OptionalKey("no_such_key", None),)\n' \
   >> "$tmp/repo/skills/design-feature/scripts/design_check.py"
-expect_saying "a declared key the reference never shows" config-examples.sh "UNDOCUMENTED:"
-fresh_copy; printf 'sys.exit(0)\n' >> "$tmp/repo/skills/design-feature/scripts/design_check.py"
-expect_saying "a declaring script that exits on import" config-examples.sh "UNLOADABLE:"
+expect_saying "a top-level declaration the registry lacks" config-examples.sh "UNREGISTERED:"
+fresh_copy; printf 'import project_rules\nEXTRA = project_rules.RequiredKey(key="no_such_key")\n' \
+  >> "$tmp/repo/skills/design-feature/scripts/design_check.py"
+expect_saying "an attribute call naming its key by keyword" config-examples.sh "UNREGISTERED:"
 fresh_copy; printf 'def (\n' >> "$tmp/repo/skills/design-feature/scripts/design_check.py"
-expect_saying "a declaring script that cannot parse" config-examples.sh "UNLOADABLE:"
-fresh_copy; mkdir -p "$tmp/repo/skills/x/scripts"
-printf '# RequiredKey( named only in a comment\n' > "$tmp/repo/skills/x/scripts/x.py"
-expect_saying "a script naming a declaration it does not hold" config-examples.sh "UNLOADABLE:"
+expect_saying "a kit script that cannot parse" config-examples.sh "UNREADABLE:"
 
 fresh_copy; sed -i.bak '/^    if: always()$/d' "$tmp/repo/.github/workflows/ci.yml"
 expect fail "the aggregate job without if: always()" all-jobs-passed.sh

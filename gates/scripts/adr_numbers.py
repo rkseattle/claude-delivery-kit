@@ -31,7 +31,7 @@ sys.dont_write_bytecode = True
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from project_rules import (OptionalKey, cli_case, error_message,  # noqa: E402
                            git_subcommand, isolated_git_environment, read_config, read_keys,
-                           report, run_git, shared_check)
+                           report, run_git)
 
 RECORD = re.compile(r"^(\d+)-[^/]+\.md$")
 GIT_ENVIRONMENT = None  # the self-test's isolated environment; None is the caller's
@@ -70,7 +70,7 @@ def duplicates(paths):
     return {number: sorted(held) for number, held in by_number.items() if len(held) > 1}
 
 
-ADR_DIR = OptionalKey("adr_dir", shared_check("adr_dir"), None)
+ADR_DIR = OptionalKey("adr_dir", None)
 
 
 def adr_dir_of(config):

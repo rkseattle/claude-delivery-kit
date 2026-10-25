@@ -66,10 +66,10 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)),
 from lint_draft import NFR_SECTION, VERIFY_TAG  # noqa: E402  what write-tickets writes
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)),
                                 "..", "..", "..", "gates", "scripts"))
-from project_rules import (BARE_FRAGMENT, DECIMAL, PLACEHOLDER, REGISTER_COLUMNS,  # noqa: E402
+from project_rules import (PLACEHOLDER, PROJECT_KEYS, REGISTER_COLUMNS,  # noqa: E402
                            isolated_git_environment, process_state, run_git,
-                           check_command, check_repo_path, complete_register_row,
-                           key_problems, read_keys, RequiredKey, shared_check,
+                           complete_register_row, device_entries, glob_list,
+                           key_problems, read_keys, RequiredKey, threshold_entries,
                            is_register_header, markdown_tables, markdown_tokens, words,
                            fence_split, markdown_value, named_disciplines,
                            read_config as load_config, report,
@@ -306,7 +306,7 @@ def check_notes(notes_path, flag_keys=None):
 
 
 def check_release_dir(value):
-    check_repo_path("release_dir", value)
+    PROJECT_KEYS["release_dir"].check(value)
 
 
 # The keys each named discipline needs, per gate: Appendix B's Testing addenda run at
@@ -324,40 +324,7 @@ GATE_KEYS = {
                     "data-ml": ("drift_check_command", "drift_threshold"),
                     "sre": ("alert_rules_dir",)},
 }
-DOTTED = r"\d+(?:\.\d+)*"
-DEVICE = re.compile(rf"^({BARE_FRAGMENT}) ({DOTTED})$")
-THRESHOLD = re.compile(rf"^({BARE_FRAGMENT}) ({DECIMAL})$")
 FLAGS_HEADING = "## Remote flags"
-
-
-def device_entries(value):
-    if not (isinstance(value, list) and value
-            and all(isinstance(entry, str) and DEVICE.fullmatch(entry) for entry in value)):
-        raise ValueError("device_matrix is not a non-empty list of `<os> <version>` entries, "
-                         "the version dotted digits")
-    return [DEVICE.fullmatch(entry).groups() for entry in value]
-
-
-def threshold_entries(value):
-    if not (isinstance(value, list) and value
-            and all(isinstance(entry, str) and THRESHOLD.fullmatch(entry) for entry in value)):
-        raise ValueError("model_eval_thresholds is not a non-empty list of `<metric> <minimum>` "
-                         "pairs, the minimum a decimal number")
-    metrics = [THRESHOLD.fullmatch(entry).group(1).lower() for entry in value]
-    if len(set(metrics)) != len(metrics):
-        raise ValueError("model_eval_thresholds names a metric twice")
-    return value
-
-
-def glob_list(value):
-    if not isinstance(value, str):
-        raise ValueError("security_sensitive_paths is not a space-separated list of globs")
-    unsupported = [pattern for pattern in value.split()
-                   if pattern.startswith("!") or re.search(r"[\[\]\\]", pattern)]
-    if unsupported:
-        raise ValueError(f"security_sensitive_paths holds {', '.join(unsupported)}: CODEOWNERS "
-                         "supports no `!` negation, `[ ]` ranges, or `\\` escapes")
-    return value.split()
 
 
 def owners_pathspec(pattern):
@@ -378,30 +345,9 @@ def owners_pathspec(pattern):
     return [f":(glob){spec}", below]
 
 
-def check_min_version(value):
-    if not (isinstance(value, str) and re.fullmatch(DOTTED, value)):
-        raise ValueError("min_supported_app_version is not dotted digits")
-
-
-# Each key a discipline needs, declared once; a key with no format here is a command. The two
-# list keys' examples in reference/project-json.md are placeholder lists, so those read as unset.
-FORMATS = {"device_matrix": RequiredKey("device_matrix", device_entries, template_list=True),
-           "model_eval_thresholds": RequiredKey("model_eval_thresholds", threshold_entries,
-                                                template_list=True),
-           "security_sensitive_paths": RequiredKey("security_sensitive_paths", glob_list),
-           "min_supported_app_version": RequiredKey("min_supported_app_version",
-                                                    check_min_version),
-           "patch_sla_days": RequiredKey("patch_sla_days", shared_check("patch_sla_days")),
-           "alert_rules_dir": RequiredKey("alert_rules_dir", shared_check("alert_rules_dir")),
-           "drift_threshold": RequiredKey("drift_threshold", shared_check("drift_threshold"))}
-NEEDED = {key: FORMATS.get(key) or RequiredKey(key, lambda value, key=key:
-                                               check_command(key, value))
-          for disciplines in GATE_KEYS.values() for keys in disciplines.values() for key in keys}
-
-
 def needed_value(config, key):
     """The value of a key a discipline needs, or ValueError naming what is wrong with it."""
-    return read_keys(config, [NEEDED[key]])[key]
+    return read_keys(config, [RequiredKey(key)])[key]
 
 
 def device_matrix(config):
@@ -424,7 +370,7 @@ def discipline_problems(config_path, gate=None):
         named = named_disciplines(config)
     except ValueError as error:
         return [str(error)]
-    return key_problems(config, [NEEDED[key]._replace(needed_by=discipline)
+    return key_problems(config, [RequiredKey(key, needed_by=discipline)
                                  for discipline in named
                                  for key in GATE_KEYS.get(gate, {}).get(discipline, ())])
 
@@ -1090,6 +1036,10 @@ def discipline_cases(directory, summary_file):
     failures += report("flags", "no section",
                        _error(check_flags, summary_file("## Changes\n- AB-1: x\n", "none.md"),
                               ["AB-1"]), "ValueError")
+    failures += report("gate-keys", "every key a discipline needs has a registered shape",
+                       sorted(key for disciplines in GATE_KEYS.values()
+                              for keys in disciplines.values() for key in keys
+                              if key not in PROJECT_KEYS), [])
     return failures + sensitive_cases(directory)
 
 

@@ -25,7 +25,7 @@ import sys
 sys.dont_write_bytecode = True
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)),
                                 "..", "..", "..", "gates", "scripts"))
-from project_rules import (check_repo_path, check_slug, cli_case, error_message,  # noqa: E402
+from project_rules import (PROJECT_KEYS, check_slug, cli_case, error_message,  # noqa: E402
                            error_of, parse_date, report, result_of, run_check)
 
 LATE_AFTER = 5
@@ -91,15 +91,16 @@ def self_test():
     for name, date, slug, expected in BRANCH_CASES:
         failures += report("branch", name, result_of(branch, date, slug), expected)
     # readiness_check.py's self-test covers the path rules; these pin the key and the unset.
-    failures += report("reviews-dir", "a relative path",
-                       error_of(check_repo_path, "incident_reviews_dir", "docs/incidents"), "ok")
-    named = error_message(lambda: check_repo_path("incident_reviews_dir", "/tmp/incidents"))
+    reviews_dir = PROJECT_KEYS["incident_reviews_dir"].check
+    failures += report("reviews-dir", "a relative path", error_of(reviews_dir, "docs/incidents"),
+                       "ok")
+    named = error_message(lambda: reviews_dir("/tmp/incidents"))
     named = "ok" if named is None else named.split()[0]
     failures += report("reviews-dir", "the error names incident_reviews_dir", named,
                        "incident_reviews_dir")
     for value in ("None", "NONE", "none"):
         failures += report("reviews-dir", f"{value} is unset",
-                           error_of(check_repo_path, "incident_reviews_dir", value), "ValueError")
+                           error_of(reviews_dir, value), "ValueError")
     script = os.path.abspath(__file__)
     for case in [
             ("late prints the count and late",
@@ -134,7 +135,8 @@ def main():
         return self_test()
     checks = {"working-days": lambda: timeliness(args.incident, args.start),
               "branch": lambda: branch(args.date, args.slug),
-              "reviews-dir": lambda: check_repo_path("incident_reviews_dir", args.value) or "ok"}
+              "reviews-dir": lambda: PROJECT_KEYS["incident_reviews_dir"].check(args.value)
+              or "ok"}
     return run_check(parser, checks, args.command)
 
 

@@ -22,14 +22,13 @@ import tempfile
 sys.dont_write_bytecode = True
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)),
                                 "..", "..", "..", "gates", "scripts"))
-from project_rules import (OptionalKey, RequiredKey, check_repo_path, cli_case,  # noqa: E402
-                           collected_errors, error_message, read_config, read_keys, report,
-                           run_check, shared_check)
+from project_rules import (KeyShape, OptionalKey, RequiredKey, check_repo_path,  # noqa: E402
+                           cli_case, collected_errors, error_message, read_config, read_keys,
+                           report, result_of, result_or_message, run_check)
 
 # adr_dir may be left unset: gates/design-exit.md fails an unset adr_dir only for a design with
 # a costly-to-reverse choice, which the gate, not this check, can see.
-KEYS = (RequiredKey("design_dir", lambda value: check_repo_path("design_dir", value)),
-        OptionalKey("adr_dir", shared_check("adr_dir"), None))
+KEYS = (RequiredKey("design_dir"), OptionalKey("adr_dir", None))
 
 
 def check_dirs(config):
@@ -47,11 +46,12 @@ DESIGN_DIR_UNSET = "design_dir is absent, none, blank, or a placeholder"
 def expected_message(config, keys):
     """What check_dirs should give, built apart from read_keys: keys itself when a string, the
     result; otherwise, in key order, the unset message for "design_dir unset" and
-    check_repo_path's error for each other named key."""
+    check_repo_path's error for each other named key, `None` for one it accepts, so a wrong
+    fixture fails its case rather than the self-test."""
     if isinstance(keys, str):
         return keys
     return "; ".join(DESIGN_DIR_UNSET if key == "design_dir unset" else
-                     error_message(lambda key=key: check_repo_path(key, config.get(key)))
+                     str(error_message(lambda key=key: check_repo_path(key, config.get(key))))
                      for key in ("design_dir unset", "design_dir", "adr_dir") if key in keys)
 
 
@@ -85,14 +85,6 @@ DIRS_CASES = [
 ]
 
 
-def result_or_message(call):
-    """The call's result, or the message of the ValueError it raises."""
-    try:
-        return call()
-    except ValueError as error:
-        return str(error)
-
-
 def text(key):
     """A check that the key's value is text, naming the key."""
     def check(value):
@@ -101,28 +93,41 @@ def text(key):
     return check
 
 
+# A fixture registry for read_keys' own cases: two plain keys, a template list, and a key
+# inside an object.
+FIXTURE_KEYS = {"k": KeyShape(text("k")), "j": KeyShape(text("j")),
+                "t": KeyShape(text("t"), template_list=True), "roles.k": KeyShape(text("roles.k"))}
+UNSET_K = "k is absent, none, blank, or a placeholder"
+
+
 def read_keys_cases():
-    """(name, config, keys, expected) for read_keys; declared in a function, as fixtures, so
-    scripts/ci/config-examples.sh reads only this script's own KEYS."""
+    """(name, config, keys, expected) for read_keys over FIXTURE_KEYS; declared in a function,
+    so scripts/ci/config-examples.sh, which scans top-level declarations, skips them."""
     return [
-        ("a required key unset is named", {}, [RequiredKey("k", text("k"))],
-         "k is absent, none, blank, or a placeholder"),
-        ("a required key says who needs it", {"k": "none"},
-         [RequiredKey("k", text("k"), needed_by="mobile")],
-         "k is absent, none, blank, or a placeholder, and mobile needs it"),
-        ("an optional key unset takes its default", {"k": "<k>"},
-         [OptionalKey("k", text("k"), 7)], {"k": 7}),
-        ("a set key is checked", {"k": 5}, [OptionalKey("k", text("k"), 7)], "k is not text"),
-        ("a template list reads as unset", {"k": ["<handle>"]},
-         [OptionalKey("k", text("k"), 7, template_list=True)], {"k": 7}),
+        ("a required key unset is named", {}, [RequiredKey("k")], UNSET_K),
+        ("a required key says who needs it", {"k": "none"}, [RequiredKey("k", needed_by="mobile")],
+         UNSET_K + ", and mobile needs it"),
+        ("an optional key unset takes its default", {"k": "<k>"}, [OptionalKey("k", 7)], {"k": 7}),
+        ("a set key is checked", {"k": 5}, [OptionalKey("k", 7)], "k is not text"),
+        ("a template list of placeholders reads as unset", {"t": ["<handle>", "<handle>"]},
+         [OptionalKey("t", 7)], {"t": 7}),
+        ("a template list keeping a placeholder beside a real entry is named",
+         {"t": ["rob", "<handle>"]}, [OptionalKey("t", 7)], "t still holds a placeholder entry"),
+        ("an empty template list is checked", {"t": []}, [OptionalKey("t", 7)], "t is not text"),
         ("any other list holding a placeholder is checked", {"k": ["<handle>"]},
-         [OptionalKey("k", text("k"), 7)], "k is not text"),
-        ("every problem is named", {"j": 5},
-         [RequiredKey("k", text("k")), RequiredKey("j", text("j"))],
-         "k is absent, none, blank, or a placeholder; j is not text"),
-        ("a required template list reads as unset", {"k": ["<os> <version>"]},
-         [RequiredKey("k", text("k"), template_list=True)],
-         "k is absent, none, blank, or a placeholder"),
+         [OptionalKey("k", 7)], "k is not text"),
+        ("every problem is named", {"j": 5}, [RequiredKey("k"), RequiredKey("j")],
+         UNSET_K + "; j is not text"),
+        ("a required template list reads as unset", {"t": ["<os> <version>"]}, [RequiredKey("t")],
+         "t is absent, none, blank, or a placeholder"),
+        ("a key inside an object is read by its path", {"roles": {"k": "rob"}},
+         [OptionalKey("roles.k", None)], {"roles.k": "rob"}),
+        ("a key under an absent object is unset", {}, [OptionalKey("roles.k", None)],
+         {"roles.k": None}),
+        ("a key under a null object is unset", {"roles": None}, [OptionalKey("roles.k", None)],
+         {"roles.k": None}),
+        ("a key under a non-object is named", {"roles": 5}, [OptionalKey("roles.k", None)],
+         "roles is not an object"),
     ]
 
 
@@ -137,8 +142,18 @@ def self_test():
                            result_or_message(lambda: check_dirs(config)),
                            expected_message(config, keys))
     for name, config, keys, expected in read_keys_cases():
-        failures += report("read_keys", name, result_or_message(lambda: read_keys(config, keys)),
+        failures += report("read_keys", name,
+                           result_or_message(lambda: read_keys(config, keys, FIXTURE_KEYS)),
                            expected)
+    failures += report("read_keys", "a path not in the registry is a KeyError",
+                       result_of(read_keys, {}, [OptionalKey("x", None)], FIXTURE_KEYS,
+                                 error=KeyError), "KeyError")
+    failures += report("read_keys", "a check passed as needed_by or a default is a TypeError",
+                       [result_of(read_keys, {}, [declared], FIXTURE_KEYS, error=TypeError)
+                        for declared in (RequiredKey("k", text("k")), OptionalKey("k", text("k")))],
+                       ["TypeError"] * 2)
+    failures += report("read_keys", "the registry defaults to PROJECT_KEYS",
+                       result_or_message(lambda: read_keys(VALID, KEYS)), VALID)
     failures += report("collected_errors", "a ValueError with no message still counts",
                        collected_errors([raise_empty, lambda: None]), [""])
     script = os.path.abspath(__file__)
