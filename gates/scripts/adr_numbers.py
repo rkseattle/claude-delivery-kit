@@ -31,7 +31,7 @@ sys.dont_write_bytecode = True
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from project_rules import (OptionalKey, cli_case, error_message,  # noqa: E402
                            git_subcommand, isolated_git_environment, read_config, read_keys,
-                           report, run_git)
+                           report, run_git, write_scratch)
 
 RECORD = re.compile(r"^(\d+)-[^/]+\.md$")
 GIT_ENVIRONMENT = None  # the self-test's isolated environment; None is the caller's
@@ -118,11 +118,8 @@ def self_test():
                        GIT_ENVIRONMENT["GIT_AUTHOR_NAME"], "override")
     GIT_ENVIRONMENT = isolated_git_environment()
     with tempfile.TemporaryDirectory() as root:
-        def write(path, text="x\n"):
-            full = os.path.join(root, path)
-            os.makedirs(os.path.dirname(full), exist_ok=True)
-            with open(full, "w", encoding="utf8") as handle:
-                handle.write(text)
+        def write(path, content="x\n"):
+            write_scratch(root, content, path)
 
         def commit(message):
             git(root, "add", "-A")
@@ -139,16 +136,16 @@ def self_test():
 
         config = os.path.join(root, ".claude", "project.json")
         git(root, "init", "--quiet", "--initial-branch=main")
-        write(".claude/project.json", '{"adr_dir": "none"}\n')
+        write(".claude/project.json", {"adr_dir": "none"})
         write("docs/adr/0001-a.md")
         commit("unset")
         failures += report("check", "adr_dir unset", check(config), (0, ["adr_dir not configured"]))
-        write(".claude/project.json", '{"adr_dir": "../outside"}\n')
+        write(".claude/project.json", {"adr_dir": "../outside"})
         commit("invalid")
         failures += report("check", "an adr_dir outside the repository", run(), 2)
-        write(".claude/project.json", '{"adr_dir": ["<directory>", "docs/adr"]}\n')
+        write(".claude/project.json", {"adr_dir": ["<directory>", "docs/adr"]})
         failures += report("check", "an adr_dir list holding a placeholder", run(), 2)
-        write(".claude/project.json", '{"adr_dir": "docs/adr"}\n')
+        write(".claude/project.json", {"adr_dir": "docs/adr"})
         write("docs/adr/README.md")
         write("docs/adr/template.md")
         write("docs/adr/0002-b.md")

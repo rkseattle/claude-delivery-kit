@@ -54,7 +54,8 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)),
 from project_rules import (MARKDOWN_VENDOR, YAML_VENDOR, OptionalKey, RequiredKey,  # noqa: E402
                            cli_case, error_message, foreign_code, isolated_git_environment,
                            parse_date, process_state, read_config, read_keys, report,
-                           result_of, run_check, run_git, single_number, vendored)
+                           result_of, run_check, run_git, single_number, vendored,
+                           write_scratch)
 
 RUNBOOK_MAX_AGE = 90
 TIMESTAMP = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:Z|[+-]\d{2}:\d{2})$")
@@ -417,8 +418,7 @@ def runbook_cases():
                            env=dated, capture_output=True, check=True)
 
         def write(name):
-            with open(os.path.join(root, "runbooks", name), "w", encoding="utf-8") as handle:
-                handle.write(name)
+            write_scratch(os.path.join(root, "runbooks"), name, name)
 
         os.makedirs(os.path.join(root, "runbooks"))
         git("init", "-q", "--template=")
@@ -468,9 +468,7 @@ def runbook_cases():
                                [row for row in rows if "ird" in row],
                                ['runbooks/we"ird.md\t2026-01-02'])
             os.makedirs(os.path.join(root, "svc", "runbooks"))
-            with open(os.path.join(root, "svc", "runbooks", "deep.md"), "w",
-                      encoding="utf-8") as handle:
-                handle.write("deep")
+            write_scratch(root, "deep", "svc/runbooks/deep.md")
             git("add", "--", "svc/runbooks/deep.md")
             git("commit", "-q", "-m", "deep", date="2026-01-03T12:00:00Z")
             os.chdir(os.path.join(root, "svc"))
@@ -559,9 +557,7 @@ def alert_rule_cases():
         os.chdir(root)
         try:
             for path, text in ALERT_RULE_FILES.items():
-                os.makedirs(os.path.dirname(path), exist_ok=True)
-                with open(path, "w", encoding="utf-8") as handle:
-                    handle.write(text)
+                write_scratch(root, text, path)
             config = {"alert_rules_dir": "ops/alerts"}
             failures += report("alert-rules", "alerts naming no SLO, no runbook, or neither",
                                result_of(unlinked_alerts, config),
@@ -609,8 +605,7 @@ def alert_rule_cases():
                                 "groups:\n- name: g\n  partial_response_strategy: warn\n"),
                                ("an impossible date", "groups:\n- name: g\n  rules:\n"
                                 "  - alert: A\n    expr: up\n    labels: {d: 2026-13-01}\n")]:
-                with open("ops/alerts/bad.yml", "wb") as handle:
-                    handle.write(text if isinstance(text, bytes) else text.encode())
+                write_scratch(root, text, "ops/alerts/bad.yml")
                 failures += report("alert-rules", name, result_of(unlinked_alerts, config),
                                    "ValueError")
             os.remove("ops/alerts/bad.yml")
@@ -626,13 +621,11 @@ def alert_rule_cases():
                 os.chmod("ops/alerts/locked", 0o755)
                 os.rmdir("ops/alerts/locked")
             os.makedirs("manifests")
-            with open("manifests/kustomization.yaml", "w", encoding="utf-8") as handle:
-                handle.write("kind: Kustomization\n")
+            write_scratch(root, "kind: Kustomization\n", "manifests/kustomization.yaml")
             failures += report("alert-rules", "manifests holding no rule group",
                                result_of(unlinked_alerts, {"alert_rules_dir": "manifests"}),
                                "ValueError")
-            with open(os.path.join(root, "project.json"), "w", encoding="utf-8") as handle:
-                json.dump(config, handle)
+            write_scratch(root, config, "project.json")
             run = subprocess.run([sys.executable, os.path.abspath(__file__), "alert-rules",
                                   "--config", os.path.join(root, "project.json")],
                                  capture_output=True, text=True, check=False)
@@ -694,9 +687,7 @@ def vendored_code_cases():
                 ("vendored, relative, and stdlib imports pass",
                  "import yaml\nfrom markdown_it import MarkdownIt\nfrom . import sibling\n"
                  "import os\n", ("clean", True))]:
-            path = os.path.join(directory, "fixture.py")
-            with open(path, "w", encoding="utf-8") as handle:
-                handle.write(text)
+            path = write_scratch(directory, text, "fixture.py")
             errors, imports = foreign_code([path], allowed)
             if expected[0] == "foreign" and imports is None:
                 print(f"skip vendored: {name} needs Python 3.10+")
@@ -714,10 +705,9 @@ def cli_cases():
     failures = 0
     script = os.path.abspath(__file__)
     with tempfile.TemporaryDirectory() as directory:
-        config = os.path.join(directory, "project.json")
-        with open(config, "w", encoding="utf-8") as handle:
-            json.dump({"patch_sla_days": 30, "on_call": ["rob"], "debt_share_target": 20,
-                       "drift_threshold": 0.25, "alert_routes_command": "routes\tall"}, handle)
+        config = write_scratch(directory, {
+            "patch_sla_days": 30, "on_call": ["rob"], "debt_share_target": 20,
+            "drift_threshold": 0.25, "alert_routes_command": "routes\tall"}, "project.json")
         pages = json.dumps([[alert("2026-01-01T00:00:00Z")]])
         for name, arguments, stdin, expected_output, expected_exit in [
                 ("config prints JSON values", ["config"], "",

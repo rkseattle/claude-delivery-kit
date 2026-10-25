@@ -44,7 +44,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)),
 from project_rules import (OptionalKey, RequiredKey,  # noqa: E402
                            check_slug, cli_case, error_of, fence_split,
                            isolated_git_environment, process_state, parse_date, read_config,
-                           read_keys, report, result_of, run_check)
+                           read_keys, report, result_of, run_check, write_scratch)
 
 SECTIONS = ("User notice", "Data", "Infrastructure", "Credentials")
 STATUS = re.compile(r"^Status: (pending|done)$")
@@ -311,9 +311,7 @@ def owner_fallback_cases():
     sarif_gate.py's fixtures isolate git; with neither, the check refuses."""
     failures = 0
     with tempfile.TemporaryDirectory() as directory:
-        named = os.path.join(directory, "named.gitconfig")
-        with open(named, "w", encoding="utf-8") as handle:
-            handle.write("[user]\n\tname = Rob K\n")
+        named = write_scratch(directory, "[user]\n\tname = Rob K\n", "named.gitconfig")
         for name, config, config_file, expected in [
                 ("no role reads git's user.name", {}, named, "Rob K"),
                 ("a null roles reads git's user.name", {"roles": None}, named, "Rob K"),
@@ -359,13 +357,9 @@ def self_test():
     failures += owner_fallback_cases()
     script = os.path.abspath(__file__)
     with tempfile.TemporaryDirectory() as directory:
-        done = os.path.join(directory, "billing.md")
-        with open(done, "w", encoding="utf-8") as handle:
-            handle.write(record([DONE] * 4))
-        config = os.path.join(directory, "project.json")
-        with open(config, "w", encoding="utf-8") as handle:
-            handle.write('{"retirements_dir": "docs/retirements", '
-                         '"roles": {"service_owner": "rob"}}')
+        done = write_scratch(directory, record([DONE] * 4), "billing.md")
+        config = write_scratch(directory, {"retirements_dir": "docs/retirements",
+                                        "roles": {"service_owner": "rob"}}, "project.json")
         record_arguments = ["--config", config, "--today", "2026-10-19"]
         for case in [
                 ("record done", ["record", "--file", done, *record_arguments], "done", 0),

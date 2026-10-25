@@ -16,14 +16,15 @@ scripts/ci/actions-pinned.sh, and, for the Markdown table, register and tracked-
 scripts/ci/rule-book-map.sh, and, for the key registry, scripts/ci/config-examples.sh,
 so no two of them can disagree on a key's shape, what an unset key, a placeholder, a
 discipline, a date, a printed number, a branch slug, a code fence, a Markdown field's value,
-a Markdown table, a register header, a complete exceptions-register row, a tracked path, or
-a git call and its failure is, and so no self-test's scratch repository inherits the
-caller's git. Each importer's self-test covers the rules it uses; this module has no entry
-point of its own.
+a Markdown table, a register header, a complete exceptions-register row, a tracked path, a
+self-test's scratch file, or a git call and its failure is, and so no self-test's scratch
+repository inherits the caller's git. Each importer's self-test covers the rules it uses;
+this module has no entry point of its own.
 """
 import ast
 import contextlib
 import datetime
+import itertools
 import json
 import math
 import os
@@ -620,6 +621,25 @@ def report(kind, name, got, expected):
         return 0
     print(f"FAIL {kind}: {name} — expected {expected!r}, got {got!r}")
     return 1
+
+
+SCRATCH_NUMBERS = itertools.count()  # write_scratch's unnamed files, one number per call
+
+
+def write_scratch(directory, content, name=None):
+    """A self-test's scratch file, written one way for every self-test: content as is when
+    text (UTF-8) or bytes, and as JSON otherwise, such as a project.json or a SARIF report,
+    to name, a path under directory whose folders are made as needed; returns the path.
+    With no name, each call writes a file of its own, `scratch-<n>.json`."""
+    path = os.path.join(directory, name or f"scratch-{next(SCRATCH_NUMBERS)}.json")
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    if isinstance(content, bytes):
+        with open(path, "wb") as handle:
+            handle.write(content)
+    else:
+        with open(path, "w", encoding="utf-8") as handle:
+            handle.write(content if isinstance(content, str) else json.dumps(content))
+    return path
 
 
 def result_of(function, *arguments, error=ValueError):

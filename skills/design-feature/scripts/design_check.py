@@ -16,7 +16,6 @@ script's.
 import argparse
 import contextlib
 import io
-import json
 import os
 import sys
 import tempfile
@@ -26,7 +25,8 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)),
                                 "..", "..", "..", "gates", "scripts"))
 from project_rules import (KeyShape, OptionalKey, RequiredKey, check_repo_path,  # noqa: E402
                            cli_case, collected_errors, error_message, read_config, read_keys,
-                           report, result_of, result_or_message, run_check, unset_keys)
+                           report, result_of, result_or_message, run_check, unset_keys,
+                           write_scratch)
 
 # adr_dir may be left unset: gates/design-exit.md fails an unset adr_dir only for a design with
 # a costly-to-reverse choice, which the gate, not this check, can see.
@@ -178,9 +178,7 @@ def self_test():
                              ("adr_dir absent", {"design_dir": "docs/design"}),
                              ("adr_dir absolute", {**VALID, "adr_dir": "/docs/adr"}),
                              ("both failing", BOTH_FAILING)]:
-            configs[name] = os.path.join(directory, f"{len(configs)}.json")
-            with open(configs[name], "w", encoding="utf-8") as handle:
-                json.dump(config, handle)
+            configs[name] = write_scratch(directory, config, f"{len(configs)}.json")
         unreadable = os.path.join(directory, "missing.json")
         for case in [
                 ("dirs ok", ["dirs", "--config", configs["valid"]], "ok", 0),

@@ -52,7 +52,6 @@ by a note in parentheses; `and` and `or` are joiners, and names compare without 
 """
 import argparse
 import hashlib
-import json
 import os
 import re
 import subprocess
@@ -73,7 +72,7 @@ from project_rules import (PLACEHOLDER, PROJECT_KEYS, REGISTER_COLUMNS,  # noqa:
                            is_register_header, markdown_tables, markdown_tokens, words,
                            fence_split, markdown_value, named_disciplines,
                            read_config as load_config, report,
-                           single_number)
+                           single_number, write_scratch)
 from project_rules import error_of as _error, result_of as _result  # noqa: E402  test helpers
 
 SEMVER = re.compile(r"^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$")
@@ -547,11 +546,10 @@ def self_test():
     for name, description, expected in CRITERIA_CASES:
         failures += report("criteria", name, criteria(description, TIERS), expected)
     with tempfile.TemporaryDirectory() as directory:
-        config = os.path.join(directory, "project.json")
-        with open(config, "w", encoding="utf-8") as handle:
-            json.dump({"verification_tiers": "ci (a named step in ci.yml) · self-test (a hook "
-                                              "self-test case, a fixture, or a case) · eval · "
-                                              "inspection (out-of-band: Rob reads it)"}, handle)
+        config = write_scratch(directory, {
+            "verification_tiers": "ci (a named step in ci.yml) · self-test (a hook self-test "
+                                  "case, a fixture, or a case) · eval · inspection "
+                                  "(out-of-band: Rob reads it)"}, "project.json")
         failures += report("criteria", "tiers read from verification_tiers prose",
                            declared_tiers(config), {"ci", "self-test", "eval", "inspection"})
         for name, value, expected in [
@@ -565,28 +563,23 @@ def self_test():
                 ("or as the only joiner", "unit or manual", {"unit", "manual"}),
                 ("a nested note", "ci (note (nested)) · eval", {"ci", "eval"}),
                 ("no tiers", "", "ValueError"), ("a non-string value", ["ci"], "ValueError")]:
-            path = os.path.join(directory, "tiers.json")
-            with open(path, "w", encoding="utf-8") as handle:
-                json.dump({"verification_tiers": value}, handle)
+            path = write_scratch(directory, {"verification_tiers": value}, "tiers.json")
             failures += report("criteria", name, _result(declared_tiers, path), expected)
 
-        def summary_file(text, name="summary.md", mode="w"):
-            path = os.path.join(directory, name)
-            with open(path, mode) as handle:
-                handle.write(text)
-            return path
+        def summary_file(text, name="summary.md"):
+            return write_scratch(directory, text, name)
 
         good = summary_file(SUMMARY)
         note = build_note(good, "v1.0.0")
         failures += report("note", "a reviewed summary builds its note",
                            note.splitlines()[0::2], ["Release-readiness: v1.0.0",
                                                      "Reviewed-by: product_owner pat 2026-10-16"])
-        for name, text, mode in [
-                ("a one-line summary", "Gate: PASS\n", "w"),
-                ("no review line", "# x\nCommit: a\nGate: PASS\n", "w"),
-                ("no verdict line", "# x\nReviewed-by: product_owner pat 2026-10-16\n", "w"),
-                ("a summary that is not UTF-8", b"\xff\xfe\nReviewed-by: x\nGate: PASS\n", "wb")]:
-            failures += report("note", name, _error(build_note, summary_file(text, "bad.md", mode),
+        for name, text in [
+                ("a one-line summary", "Gate: PASS\n"),
+                ("no review line", "# x\nCommit: a\nGate: PASS\n"),
+                ("no verdict line", "# x\nReviewed-by: product_owner pat 2026-10-16\n"),
+                ("a summary that is not UTF-8", b"\xff\xfe\nReviewed-by: x\nGate: PASS\n")]:
+            failures += report("note", name, _error(build_note, summary_file(text, "bad.md"),
                                                     "v1.0.0"), "ValueError")
         failures += report("note", "trailing whitespace and CRLF are stripped",
                            build_note(summary_file(SUMMARY.replace("\n", " \r\n"), "crlf.md"),
@@ -620,7 +613,7 @@ def self_test():
                  ["note", "--summary", summary_file("# x\nGate: PASS\n", "noreview.md"),
                   "--version", "v1.0.0"], "", "", 1),
                 ("criteria with a config that is not an object",
-                 ["criteria", "--config", summary_file("[]", "list.json")],
+                 ["criteria", "--config", write_scratch(directory, "[]", "list.json")],
                  "## Acceptance criteria\n", "INVALID:", 1),
                 ("criteria with a missing config",
                  ["criteria", "--config", os.path.join(directory, "absent.json")],
@@ -671,11 +664,11 @@ def self_test():
                                       os.path.join(directory, "register.md"), "--today",
                                       "2026-10-16"], "", "MISMATCH: no unexpired", 1),
                 ("disciplines ok", ["disciplines", "--config",
-                                    summary_file(json.dumps(READY), "ready.json"), "--gate",
+                                    write_scratch(directory, READY, "ready.json"), "--gate",
                                     "readiness"], "", "ok", 0),
                 ("disciplines names the key", ["disciplines", "--config",
-                                               summary_file(json.dumps({"disciplines": ["sre"]}),
-                                                            "sre.json"), "--gate", "release"],
+                                               write_scratch(directory, {"disciplines": ["sre"]},
+                                                          "sre.json"), "--gate", "release"],
                  "", "INVALID: error_budget_command is absent", 1),
                 ("oldest-devices lists one per OS", ["oldest-devices", "--config",
                                                      os.path.join(directory, "ready.json")],
@@ -872,7 +865,7 @@ def discipline_cases(directory, summary_file):
     failures = 0
 
     def problems(value, gate=None):
-        return discipline_problems(summary_file(json.dumps(value), "disciplines.json"), gate)
+        return discipline_problems(write_scratch(directory, value, "disciplines.json"), gate)
 
     for key, value in [("device_matrix", ["<os> <version>"]),
                        ("model_eval_thresholds", ["<metric> <minimum>"])]:
@@ -1059,11 +1052,9 @@ def sensitive_repository_cases(directory):
         failures += report("sensitive-paths", f"{pattern} as a pathspec", owners_pathspec(pattern),
                            expected)
     repo = os.path.join(directory, "repo")
-    os.makedirs(os.path.join(repo, ".claude"))
-    config = os.path.join(repo, ".claude", "project.json")
-    with open(config, "w", encoding="utf-8") as handle:
-        json.dump({"security_sensitive_paths":
-                   "src/auth/ *.pem /keys/top.key docs/*.md vault *secret*"}, handle)
+    config = write_scratch(os.path.join(repo, ".claude"), {
+        "security_sensitive_paths": "src/auth/ *.pem /keys/top.key docs/*.md vault *secret*"},
+        "project.json")
 
     def git(*arguments):
         subprocess.run(["git", "-c", "user.name=t", "-c", "user.email=t@t", "-c",
@@ -1072,10 +1063,7 @@ def sensitive_repository_cases(directory):
                        cwd=repo, capture_output=True, check=True)
 
     def write(path, text="x"):
-        full = os.path.join(repo, path)
-        os.makedirs(os.path.dirname(full), exist_ok=True)
-        with open(full, "w", encoding="utf-8") as handle:
-            handle.write(text)
+        write_scratch(repo, text, path)
 
     git("init", "-q", "--template=")
     write("src/auth/login.py")
@@ -1113,9 +1101,7 @@ def sensitive_repository_cases(directory):
         failures += report("sensitive-paths", name,
                            _result(sensitive_paths, config, scope_range), expected)
     for value in ("none", "<patterns>"):
-        unset = os.path.join(directory, "unset.json")
-        with open(unset, "w", encoding="utf-8") as handle:
-            json.dump({"security_sensitive_paths": value}, handle)
+        unset = write_scratch(directory, {"security_sensitive_paths": value}, "unset.json")
         failures += report("sensitive-paths", f"{value} is not a pattern list",
                            _result(sensitive_paths, unset, "v1.0.0..HEAD"), "ValueError")
     return failures

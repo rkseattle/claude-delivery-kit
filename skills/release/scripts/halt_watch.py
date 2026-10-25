@@ -23,7 +23,6 @@ round, since a check that cannot finish within its minute cannot run once a minu
 the watch cannot read is a halt too: a watch with nothing to check would pass.
 """
 import argparse
-import json
 import os
 import signal
 import subprocess
@@ -35,7 +34,8 @@ sys.dont_write_bytecode = True
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)),
                                 "..", "..", "..", "gates", "scripts"))
 from project_rules import (PROJECT_KEYS, cli_case, error_of,  # noqa: E402
-                           named_disciplines, read_config, report, result_of, run_check)
+                           named_disciplines, read_config, report, result_of, run_check,
+                           write_scratch)
 
 ROUND_SECONDS = 60
 BUDGET_SECONDS = 55
@@ -117,13 +117,6 @@ def watch(criteria, window, round_seconds=ROUND_SECONDS, budget_seconds=BUDGET_S
             time.sleep(POLL_SECONDS)
         stop(procs)
     return "window clean"
-
-
-def write_config(directory, value, name=None):
-    path = os.path.join(directory, name or f"project-{abs(hash(repr(value)))}.json")
-    with open(path, "w", encoding="utf-8") as handle:
-        handle.write(value if isinstance(value, str) else json.dumps(value))
-    return path
 
 
 WATCH_CASES = [
@@ -259,21 +252,21 @@ def self_test():
         failures += report("watch", "a clean round's background children are killed",
                            (got, os.path.exists(leftover)), ("window clean", False))
         for name, value, expected in LOAD_CASES:
-            path = "/nonexistent/project.json" if value is None else write_config(directory, value)
+            path = "/nonexistent/project.json" if value is None else write_scratch(directory, value)
             failures += report("load", name, result_of(load, path), expected)
         failures += cli_case(os.path.abspath(__file__), "no --config is a usage error", [], "", 2)
         for name, value, expected in CHECK_CASES:
-            failures += report("check", name, error_of(check, write_config(directory, value)),
+            failures += report("check", name, error_of(check, write_scratch(directory, value)),
                                expected)
         script = os.path.abspath(__file__)
         root = os.path.join(directory, "root")
         os.makedirs(os.path.join(root, ".claude"))
-        open(os.path.join(root, "root-marker"), "w").close()
+        write_scratch(root, "", "root-marker")
         elsewhere = os.path.join(directory, "elsewhere")
         os.makedirs(elsewhere)
         clock = ["--round-seconds", "0.5", "--budget-seconds", "0.4"]
         for name, arguments, value, expected_output, expected_exit in CLI_CASES:
-            config = write_config(os.path.join(root, ".claude"), value, "project.json")
+            config = write_scratch(os.path.join(root, ".claude"), value, "project.json")
             run = subprocess.run([sys.executable, script, *arguments, "--config", config, *clock],
                                  cwd=elsewhere, capture_output=True, text=True, check=False)
             stream = run.stderr if expected_output.startswith("INVALID") else run.stdout
@@ -281,9 +274,9 @@ def self_test():
             failures += report("cli", name, (last[0][:len(expected_output)], run.returncode),
                                (expected_output, expected_exit))
         signalled = os.path.join(directory, "signalled")
-        config = write_config(os.path.join(root, ".claude"),
-                              {"halt_criteria": [f"(sleep 1; touch '{signalled}') & wait"],
-                               "monitoring_window_minutes": 1}, "project.json")
+        config = write_scratch(os.path.join(root, ".claude"),
+                            {"halt_criteria": [f"(sleep 1; touch '{signalled}') & wait"],
+                             "monitoring_window_minutes": 1}, "project.json")
         watcher = subprocess.Popen([sys.executable, script, "--config", config,
                                     "--round-seconds", "30", "--budget-seconds", "25"],
                                    stdout=subprocess.PIPE, text=True)

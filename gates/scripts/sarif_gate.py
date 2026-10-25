@@ -42,7 +42,7 @@ import urllib.parse
 sys.dont_write_bytecode = True
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from project_rules import (cli_case, error_of, isolated_git_environment, report,  # noqa: E402
-                           run_git)
+                           run_git, write_scratch)
 
 HIGH_SEVERITY = 7.0  # GitHub code scanning: High is 7.0-8.9, Critical 9.0 and above
 
@@ -469,9 +469,8 @@ def git_cases():
     try:
         with tempfile.TemporaryDirectory() as scratch:
             repo = os.path.join(scratch, "repo")
-            def write(path, content, mode="w"):
-                with open(os.path.join(repo, path), mode) as handle:
-                    handle.write(content)
+            def write(path, content):
+                write_scratch(repo, content, path)
             git("init", "--quiet", repo)
             write("kept.py", "a = 1\nb = 2\nc = 3\n")
             git("add", "kept.py", cwd=repo)
@@ -479,7 +478,7 @@ def git_cases():
                 make_tree(os.path.join(scratch, "unborn"), cwd=repo),
                 sorted(os.listdir(os.path.join(scratch, "unborn")))), ("export", ["kept.py"]))
             write("gone.txt", "old\n")
-            write("blob.bin", b"\x00\x01", "wb")
+            write("blob.bin", b"\x00\x01")
             write(".gitattributes", "*.enc diff=reveal\n")
             write("secret.enc", "ciphertext\n")
             git("config", "diff.reveal.textconv", "sed s/ciphertext/PLAINTEXT/", cwd=repo)
@@ -492,7 +491,7 @@ def git_cases():
             git("commit", "--quiet", "-m", "base", cwd=repo)
             write("kept.py", "a = 1\nb = 2\nc = 3\nd = 4\n")
             write("new.py", "token = 'added'\n")
-            write("blob.bin", b"\x00\x01\x02", "wb")
+            write("blob.bin", b"\x00\x01\x02")
             write("secret.enc", "ciphertext2\n")
             git("rm", "--quiet", "gone.txt", cwd=repo)
             git("add", ".", cwd=repo)
@@ -588,10 +587,7 @@ def cli_cases():
     failures = 0
     with tempfile.TemporaryDirectory() as scratch:
         def write(name, content):
-            path = os.path.join(scratch, name)
-            with open(path, "w", encoding="utf8") as handle:
-                handle.write(content if isinstance(content, str) else json.dumps(content))
-            return path
+            return write_scratch(scratch, content, name)
         debt, staged = write("debt.sarif", DEBT), write("staged.sarif", NEW_FINDINGS_CASES[1][1])
         cases = [
             ("a missing report", ["secrets", os.path.join(scratch, "absent")], 2),
