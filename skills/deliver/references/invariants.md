@@ -151,7 +151,7 @@ in one direction unless something holds it. Each file has a cap:
 | `CLAUDE.md`                        | 400 |
 | Any gate                           | 300 |
 | `status-report.md`                 | 140 |
-| Any skill `SKILL.md` + references  | 490 |
+| Any skill `SKILL.md` + references  | 495 |
 | Any agent definition               | 140 |
 
 **A skill's cap covers its `references/` files too**, counted together with the body. The
@@ -159,14 +159,16 @@ split exists to cut what loads on every invocation, not to create room the budge
 see: a reference file is still text someone maintains, and an uncounted one is how the
 ratchet resumes under a different name.
 
-The skill cap is 490 rather than 320 because splitting a skill into references reflows
+The skill cap is 495 rather than 320 because splitting a skill into references reflows
 dense prose into more lines than it replaced — `deliver` went from 321 lines to 208 of
 body plus 252 of reference. The per-invocation load fell 44%, which is what the budget
 exists to control, while the raw total rose. A cap that punished that split would be
 measuring the wrong quantity. The agent and `status-report.md` caps moved 130 → 140 for
 the citations work, which named no displacement when it landed; Rob moved the skill cap 480
 → 490, "kit-wide: every skill gets 10 more lines", when `write-tickets`' named cuts fell
-short of building on an approved design; `plan-work` uses it for the same work.
+short of building on an approved design; `plan-work` uses it for the same work. Rob moved
+it to 495 so `write-tickets` could drop a fetched ticket's stale handoff label and update,
+not re-create, a ticket a stopped Step 8 already created.
 
 The caps sit just above today's sizes deliberately: the next addition to a near-full file
 has to displace something. **A proposal that would breach a cap must name what comes out**

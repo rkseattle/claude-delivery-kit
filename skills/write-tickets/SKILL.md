@@ -126,9 +126,7 @@ Exit 2, for an unreadable draft or project.json, bad `disciplines`, or bad `--re
 ## Step 6 — Adversarial ticket review
 
 Launch `ticket-adversary`. **The delegation prompt contains only the absolute path to the
-draft.** Not the request, not what you learned in Step 2, not where you expect trouble —
-it reads the tickets the way `plan-work` will, cold, and anything you add is context
-`plan-work` will not have.
+draft.** It reads the tickets as `plan-work` will, cold; anything added is context it lacks.
 
 Fix every BLOCKER and MAJOR in the ticket text. A finding that misread a ticket means the
 ticket is ambiguous: fix the text, never explain it to the reviewer. Re-lint, re-review.
@@ -143,6 +141,8 @@ points, blocked by — followed by:
 
 - clauses that need out-of-band verification, called out separately
 - each ticket Step 4 removed for serving no goal of the brief
+- each fetched ticket's labels other than `moscow-*`, `severity-*`, and its `Handoff:`; one
+  Rob names stale moves from its `Labels:` to a `<!-- stale label: <key> <label> -->` line
 - any sequenced split from Step 3, and every DECISION from the review
 - assumptions stated in place of questions
 
@@ -157,22 +157,27 @@ an explicit "approved", "create them", or equivalent; a clarifying question is n
 
 ## Step 8 — Create
 
-Look up issue and link types via the Atlassian MCP first; never guess a name or ID.
+Look up issue and link types via the Atlassian MCP first; never guess a name or ID. A
+ticket whose `Jira:` is filled and `Baseline:` empty came from a stopped run: update it as
+items 2–3 write it, add only item 4's missing links, and run item 6, with no Change impact.
+Journal each create in a `<!-- creating: <ID> -->` line that item 5 removes; one a resumed
+run finds is searched for by exact summary first, and a match takes item 5, then the above.
 
 1. Epics first, then the rest in draft order.
 2. Summary, parent, and labels: every `Labels:` value, the `Handoff:` label, for a
    non-empty `Priority:`, `moscow-<priority>` in lowercase — `Won't` is `moscow-wont` —
    and for a Bug, `severity-<severity>` in lowercase.
 3. Description: `Goal: <sentence>` first when the header has one, then every `##` section
-   except Open questions, Change impact, and review output, with each `[verify: …]` and
-   `[children: …]` tag inside a code span, which the connector's read conversion keeps.
+   except Open questions, Change impact, review output, and comments, with each
+   `[verify: …]` and `[children: …]` tag inside a code span, which the connector's read
+   conversion keeps.
 4. For each Blocked-by entry, a link of the blocking type with the blocker as outward.
 5. After each creation, write the key into its `Jira:` line and replace its local ID with
    the key everywhere in the draft — as a whole ID, never the `S1` in `S10` — before
    creating the next ticket.
 6. Read each ticket back with `jira_get_issue`, which returns Markdown. Check it carries
-   every label item 2 names and no other `moscow-*`, `severity-*`, or handoff label, save its
-   description verbatim to `docs/tickets/<slug>.<key>.md`, and run:
+   every label item 2 names and no other `moscow-*`, `severity-*`, handoff, or its stale label,
+   save its description verbatim to `docs/tickets/<slug>.<key>.md`, and run:
 
    ```bash
    python3 ${CLAUDE_PLUGIN_ROOT}/skills/write-tickets/scripts/lint_draft.py \
@@ -205,7 +210,7 @@ an issue that already exists, mapping:
 Run Steps 2–7 for `<TICKET-N ...>` arguments. Each ticket whose `Baseline:` is filled is
 updated instead of created: item 2's labels replace its `moscow-*`, `severity-*`, and
 handoff labels, a handoff label being one equal to a draft `Handoff:` or design `Work plan`
-label, and every other label stays, so a label this run cannot place is never deleted. Each
+label, or one a `stale label` line names for that ticket, and every other label stays. Each
 rewritten ticket carries `## Change impact` (rubric R15). After item 7, when item 5 has
 replaced every local ID, post each note once with `jira_add_comment`: a first line
 `Change impact`, then the section's lines, tags in code spans as in item 3. The comment ID
