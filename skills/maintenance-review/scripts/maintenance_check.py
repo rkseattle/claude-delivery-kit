@@ -264,6 +264,8 @@ def unlinked_alerts(config):
         except (OSError, ValueError, yaml.YAMLError) as error:
             raise ValueError(f"{path} is unreadable as UTF-8 YAML: "
                              f"{str(error).splitlines()[0]}")
+        except RecursionError:
+            raise ValueError(f"{path} is unreadable as UTF-8 YAML: it nests too deeply")
         for document in documents:
             groups = rule_groups(document, path)
             groups_read += len(groups)
@@ -587,6 +589,8 @@ def alert_rule_cases():
                                 "groups:\n- name: g\n  rules:\n  - alert: \"A\\tB\"\n"
                                 "    expr: up\n"),
                                ("a file that is not UTF-8", b"groups: [\xe9]\n"),
+                               ("a file nested past the recursion limit",
+                                "groups: " + "[" * 5000 + "]" * 5000 + "\n"),
                                ("a rule that is not a map",
                                 "groups:\n- name: g\n  rules:\n  - alert X\n"),
                                ("a rule neither alert nor record",
