@@ -44,12 +44,11 @@ repository inherits the caller's git. Each importer's self-test covers the rules
                                    `<KEY>-<slug>` from standard input's ticket key line and
                                    the words after it, the whole fitted to a branch's lock
                                    file; INVALID for a malformed key, or one outside --prefix
-    project_rules.py design-path [--dir DIR [--key KEY]]
+    project_rules.py design-path --dir DIR [--key KEY]
                                    the design or ADR path on standard input, when it is
-                                   one repository path ending `<slug>.md`, directly under
-                                   DIR when given, with no empty, `.`, or `..` component;
-                                   INVALID otherwise, naming KEY, design_dir by default,
-                                   for a bad DIR
+                                   one repository path `DIR/<slug>.md` with no empty, `.`,
+                                   or `..` component; INVALID otherwise, naming KEY,
+                                   design_dir by default, for a bad DIR
     project_rules.py --self-test   runs the key registry's own cases and those of JIRA_KEY,
                                    slug_of, pr_number, ticket_branch, text_input, run_check,
                                    collected_errors, cli_case, write_scratch, and each
@@ -509,29 +508,20 @@ def ticket_key(text, prefix=None):
     return key
 
 
-def design_path(path, directory=None, key="design_dir"):
-    """path, unchanged, when it is one repository path, as check_repo_path judges it, whose
-    last component is `<slug>.md`, SLUG's slug, as design-feature names its design docs and
-    ADRs; with directory, the value of key, checked by check_repo_path as the key registry
-    checks it, it must be `<directory>/<slug>.md`. ValueError otherwise, naming key for a bad
-    directory. A design or ADR path a request or a Jira field names reaches a command only
-    as this prints it."""
-    if directory is not None:
-        check_repo_path(key, directory)
+def design_path(path, directory, key="design_dir"):
+    """path, unchanged, when it is one repository path, as check_repo_path judges it, of the
+    form `<directory>/<slug>.md`, SLUG's slug, as design-feature names its design docs and
+    ADRs; directory, the value of key, is checked by check_repo_path as the key registry
+    checks it. ValueError otherwise, naming key for a bad directory. A design or ADR path a
+    request or a Jira field names reaches a command only as this prints it."""
+    check_repo_path(key, directory)
     check_repo_path("path", path)
     *parents, name = path.split("/")
     if not name.endswith(".md") or not SLUG.fullmatch(name[:-len(".md")]):
         raise ValueError(f"path {path!r} does not end in a <slug>.md file name")
-    if directory is not None and "/".join(parents) != directory.rstrip("/"):
+    if "/".join(parents) != directory.rstrip("/"):
         raise ValueError(f"path {path!r} is not directly under {key} {directory!r}")
     return path
-
-
-def design_path_cli(args):
-    """design-path's check: --key names --dir's key, so it is meaningless alone."""
-    if args.key is not None and args.dir is None:
-        raise ValueError("--key names the key of --dir and needs --dir")
-    return design_path(text_input(None), args.dir, args.key or "design_dir")
 
 
 def ticket_branch(text, prefix=None):
@@ -1215,8 +1205,12 @@ def self_test():
             ("an uppercase name is invalid", "docs/design/X.md", "INVALID:", 1)]:
         failures += cli_case(this, name, ["design-path", "--dir", "docs/design"], expected,
                              status, input=f"{path}\n", exact=status == 0)
-    failures += cli_case(this, "design-path without --dir checks the path alone", ["design-path"],
-                         "a/b.md", 0, input="a/b.md\n", exact=True)
+    failures += cli_case(this, "design-path without --dir is usage", ["design-path"], "", 2,
+                         input="docs/design/x.md\n")
+    failures += cli_case(this, "an ADR path prints under its --dir",
+                         ["design-path", "--dir", "docs/adr", "--key", "adr_dir"],
+                         "docs/adr/0001-use-location.md", 0,
+                         input="docs/adr/0001-use-location.md\n", exact=True)
     failures += cli_case(this, "an invalid --dir is invalid", ["design-path", "--dir", "../d"],
                          "INVALID:", 1, input="../d/x.md\n")
     failures += cli_case(this, "a trailing slash on --dir is the same directory",
@@ -1229,9 +1223,6 @@ def self_test():
                          ["design-path", "--dir", "docs/adr", "--key", "adr_dir"],
                          "INVALID: path 'docs/design/x.md' is not directly under adr_dir", 1,
                          input="docs/design/x.md\n")
-    failures += cli_case(this, "--key without --dir is invalid",
-                         ["design-path", "--key", "adr_dir"], "INVALID:", 1,
-                         input="docs/adr/0001-x.md\n")
     failures += cli_case(this, "an empty --dir component names design_dir",
                          ["design-path", "--dir", "docs//design"], "INVALID: design_dir", 1,
                          input="docs/design/x.md\n")
@@ -1250,8 +1241,8 @@ def main():
     commands.add_parser("ticket-key").add_argument("--prefix")
     commands.add_parser("ticket-keys").add_argument("--prefix", required=True)
     design = commands.add_parser("design-path")
-    design.add_argument("--dir")
-    design.add_argument("--key", choices=("design_dir", "adr_dir"))
+    design.add_argument("--dir", required=True)
+    design.add_argument("--key", choices=("design_dir", "adr_dir"), default="design_dir")
     args = parser.parse_args()
     if args.self_test:
         return self_test()
@@ -1263,7 +1254,8 @@ def main():
                               "ticket-key": lambda: ticket_key(text_input(None), args.prefix),
                               "ticket-keys": lambda: ticket_keys(text_input(None),
                                                                  args.prefix),
-                              "design-path": lambda: design_path_cli(args)},
+                              "design-path": lambda: design_path(text_input(None), args.dir,
+                                                                 args.key)},
                      args.command)
 
 

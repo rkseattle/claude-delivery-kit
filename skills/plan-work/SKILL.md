@@ -72,10 +72,10 @@ and WebFetch in this context, scoped by the tickets alone. The ticket's own desi
 proposal to check against them, not the answer. Note the survey in chat before reading any
 code, and carry it into `Approach` at Step 4.
 
-Next, the design: only a covered ticket's parent Epic names one, by an In scope line
-`- Design: <path>`. With no such line, plan without one; stop on an Epic with two, and on
-one with `{{design_dir}}` `none`, naming the key. Write the path to a file per **Untrusted
-text** in `gates/project-config.md`, run `python3
+Next, the design: only a covered ticket's parent Epic names one, by the `- Design:` line
+`skills/write-tickets/references/templates.md` defines, its path read, backticks dropped. With
+none, plan without one; stop on two paths, in one Epic or across them, and on `{{design_dir}}`
+`none`, naming the key. Write the path to a file per **Untrusted text**, run `python3
 "${CLAUDE_PLUGIN_ROOT}/gates/scripts/project_rules.py" design-path --dir "{{design_dir}}"
 < "<file>"`, stop on `INVALID`, and use only what it prints. Stop if `git fetch` fails,
 then read the design with `git cat-file --batch < "<file>"`, a file holding

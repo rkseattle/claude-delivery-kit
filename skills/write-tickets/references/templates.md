@@ -84,7 +84,8 @@ none: `- None`.
 | Bug   | Environment, Steps to reproduce, Expected, Actual, Evidence, Acceptance criteria, Touch points, Out of scope, Dependencies |
 
 An Epic or a Story may add **Non-functional requirements**, after Success measures or
-Behavior: one NFR line per quality threshold, in the format above.
+Behavior: one NFR line per quality threshold, in the format above. An Epic built from a
+design has exactly one In scope line `- Design: ` then the design's path in a code span.
 
 `{{disciplines}}` adds rule book Appendix B's fields, which the linter checks. `data-ml`:
 a Story labeled `data` adds **Data** before its ACs: filled `- Sources:`, `- Retention:`,

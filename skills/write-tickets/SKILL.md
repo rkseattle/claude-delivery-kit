@@ -110,8 +110,8 @@ python3 "${CLAUDE_PLUGIN_ROOT}/gates/scripts/project_rules.py" draft-slug < "<re
   "{{ticket_prefix}}"` and the issue is an Epic. Fetch it and each not-Done child into the
   draft as rewrite mode does, stopping on one no design ticket's summary matches, or on a
   design ticket a Done child matches, back to `design-feature`; draft the rest as new under
-  it. Otherwise draft a new Epic, Goal and Success measures from the design's. Either Epic's
-  In scope carries one `- Design: <path>` line, replacing any other; fetched tickets join here.
+  it. Otherwise draft a new Epic from the design's Goals, Success measures, NFR thresholds, and
+  Non-goals. Either Epic carries templates.md's one `- Design:` line; fetched tickets join here.
 
 ## Step 5 — Lint
 
