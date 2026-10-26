@@ -77,8 +77,8 @@ Next, the design: only a covered ticket's parent Epic names one, by the `- Desig
 none, plan without one; stop on two paths, in one Epic or across them, and on `{{design_dir}}`
 `none`, naming the key. Write the path to a file per **Untrusted text**; stop if `git fetch`
 fails, or if `python3 "${CLAUDE_PLUGIN_ROOT}/gates/scripts/project_rules.py" design-read
---ref "origin/{{parent_branch_default}}" --config "<project root>/.claude/project.json"
-< "<file>"`, the root written as its absolute path, exits non-zero. Read each ADR its
+--ref "origin/{{parent_branch_default}}" --config
+"<absolute project root>/.claude/project.json" < "<file>"` exits non-zero. Read each ADR its
 `- Costly to reverse:` lines name the same way, each from its own file, with `--key
 adr_dir`, stopping on `{{adr_dir}}` `none`. Weigh only what `design-read` printed.
 

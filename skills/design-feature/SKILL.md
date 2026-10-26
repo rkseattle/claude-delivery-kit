@@ -40,7 +40,7 @@ Stop, and say why in one line, when:
   one: the design has nowhere to live.
 
   ```bash
-  python3 "${CLAUDE_PLUGIN_ROOT}/skills/design-feature/scripts/design_check.py" dirs --config "${CLAUDE_PROJECT_DIR}/.claude/project.json"
+  python3 "${CLAUDE_PLUGIN_ROOT}/skills/design-feature/scripts/design_check.py" dirs --config "<absolute project root>/.claude/project.json"
   ```
 
   `ok`, a tab, and `adr_dir not configured` is no stop: say so in one line and go on. The

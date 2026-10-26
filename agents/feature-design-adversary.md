@@ -45,7 +45,7 @@ reads.
 7. Then read the code, the git history, and the Jira keys the design cites, verifying every
    claim `## Current state` makes. In one command, run `git fetch --refmap= origin
    {{parent_branch_default}} && python3 "${CLAUDE_PLUGIN_ROOT}/gates/scripts/adr_numbers.py"
-   --config "${CLAUDE_PROJECT_DIR}/.claude/project.json" --against "$(git rev-parse
+   --config "<absolute project root>/.claude/project.json" --against "$(git rev-parse
    FETCH_HEAD)"`, the fetched commit standing for `origin/{{parent_branch_default}}`:
    on exit 1, each `<number> <path>...` line naming one of this design's ADRs is a MAJOR
    under criterion 2, and each naming only other records is copied under the output's
