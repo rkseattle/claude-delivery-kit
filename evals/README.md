@@ -82,9 +82,10 @@ source it cannot reach is UNVERIFIABLE. The run then reaches Step 5's approvals.
 that stops at Step 4's review cap instead fails `waits-for-approval` too, so read a failed
 run's reply before scoring it as a gate failure. The session runs git and the dispatched
 `feature-design-adversary` runs Bash, so grant it. Whether the transcript records the
-reviewer's calls is unconfirmed, as for the `ci-failure-adversary-*` cases below; if it
-does, `no-shell-writes` and `no-branch-or-commit` count them too, so a failure there may be
-the reviewer's rather than the skill's:
+reviewer's calls is unconfirmed, as for the `ci-failure-adversary-*` cases below; the one
+command the reviewer prescribes, its `git fetch` and `adr_numbers.py` check, matches neither
+`no-shell-writes` nor `no-branch-or-commit`. The `creates-*` graders read the workspace
+after the run, so they catch a write the transcript graders cannot see:
 
 ```bash
 claude plugin eval . --scaffold --case design-feature-stops-at-approval --allow-tools Bash
