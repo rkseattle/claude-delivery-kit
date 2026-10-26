@@ -13,11 +13,11 @@ fail.
 
 `allowed_tools` grants only read-only tools. A case that lists `Bash`, `Write`, `Edit`,
 `WebFetch`, or `WebSearch` gets them only from `--allow-tools`, so a skill that writes a
-file fails every with-arm run without `Write`. Pass what each case lists:
+file fails every with-arm run without `Write`. Pass exactly what each case lists:
 `plan-project-stops-at-approval`, `design-feature-stops-at-approval`,
 `readme-docs-updates-an-existing-readme`, and both `release-*` cases list `Bash`, `Write`,
-and `Edit` (`release-readiness-stops-without-system-suite` all but `Edit`), and the
-per-case commands below grant the rest:
+and `Edit` (`release-readiness-stops-without-system-suite` all but `Edit`); the adversary
+cases' commands appear with them below. For example:
 
 ```bash
 claude plugin eval . --scaffold --case plan-project-stops-at-approval --allow-tools Bash Write Edit

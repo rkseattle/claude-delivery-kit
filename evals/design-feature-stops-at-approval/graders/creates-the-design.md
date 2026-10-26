@@ -1,6 +1,7 @@
 ---
 type: file_exists
 path: docs/design/*.md
+arm: both
 ---
 
 The run created a design doc under `design_dir`, read from the workspace after the run
