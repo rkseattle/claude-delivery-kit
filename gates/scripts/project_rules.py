@@ -58,8 +58,10 @@ repository inherits the caller's git. Each importer's self-test covers the rules
     project_rules.py brief-read --config FILE [--path]
                                    the brief that FILE's brief_file names, from the
                                    working tree, when its front matter `status` is
-                                   `accepted`; with --path, brief_file printed back once it
-                                   passes the key's check, the file unread; INVALID
+                                   `accepted`, or, written before 1.3.0 with no front
+                                   matter, its `## Decision` opens `Approved by`, warned
+                                   as deprecated; with --path, brief_file printed back once
+                                   it passes the key's check, the file unread; INVALID
                                    otherwise, naming the reason
     project_rules.py --self-test   runs the key registry's own cases and those of JIRA_KEY,
                                    slug_of, pr_number, ticket_branch, text_input, run_check,
@@ -558,8 +560,8 @@ def front_matter(text):
     line, trailing whitespace and a leading byte-order mark allowed, as Jekyll delimits
     front matter. A key written twice in one mapping, `<<` included, is refused, as YAML 1.2
     requires keys to be unique and PyYAML alone keeps the last; a key a merge supplies may
-    be overridden, as YAML's merge type allows. ValueError when there is no closed block, or it is not YAML or
-    not a mapping."""
+    be overridden, as YAML's merge type allows. ValueError when there is no closed block,
+    or it is not YAML or not a mapping."""
     lines = text.lstrip("\ufeff").splitlines(keepends=True)
     if not lines or lines[0].rstrip() != "---":
         raise ValueError("no front matter")
@@ -646,14 +648,17 @@ def approved_text(text, where):
 def brief_read(config, path_only=False):
     """The project brief brief_file names in config, read from the project's working tree,
     where plan-project writes it, as a regular file reached through no symlink, when
-    approved_text accepts it, the status gates/planning-exit.md's first criterion reads. With
-    path_only, brief_file printed back once the key registry accepts it, the file unread,
-    so plan-project writes only where every reader will look. ValueError naming brief_file
-    when it is unset or invalid, the file is missing, reached through a symlink, or not
-    UTF-8, or its status is not `accepted`."""
+    approved_text accepts it, the status gates/planning-exit.md's first criterion reads,
+    or, for a brief with no front matter, legacy_status does, warned as deprecated. With
+    path_only, brief_file printed back once the key registry accepts it and it names no
+    folder, the file unread, so plan-project writes only where every reader will look.
+    ValueError naming brief_file when it is unset, invalid, or a folder, the file is
+    missing, reached through a symlink, or not UTF-8, or it is not approved."""
     path = read_keys(read_config(config), [OptionalKey("brief_file", None)])["brief_file"]
     if path is None:
         raise ValueError("brief_file is unset in project.json")
+    if path.endswith("/") or os.path.isdir(os.path.join(project_root(config), path)):
+        raise ValueError(f"brief_file {path!r} names a directory, not a file")
     if path_only:
         return path
     root = os.path.realpath(project_root(config))
@@ -666,7 +671,44 @@ def brief_read(config, path_only=False):
             text = handle.read()
     except UnicodeDecodeError:
         raise ValueError(f"brief_file {path!r} is not UTF-8 text")
-    return approved_text(text, f"brief_file {path!r}")
+    where = f"brief_file {path!r}"
+    status = legacy_status(text)
+    if status is not None:
+        print(f"DEPRECATED: {where} records its decision only in ## Decision, as plan-project "
+              "wrote it before 1.3.0; add `status`, `date`, and `decision-makers` front "
+              "matter, which 1.4.0 will require", file=sys.stderr)
+        if status != "accepted":
+            raise ValueError(f"{where} has status {status!r}, not 'accepted'")
+        return text
+    return approved_text(text, where)
+
+
+# The release that drops legacy_status, as the deprecation library's removed_in names one;
+# the self-test fails once plugin.json reaches it with legacy_status still here.
+LEGACY_STATUS_REMOVED_IN = (1, 4, 0)
+
+
+def legacy_status(text):
+    """The decision of a brief written before front matter carried its status, as
+    plan-project 1.2.0 wrote one: opening on its `# ` title, with no `---` line before its
+    one `## Decision` section, read as CommonMark so a fenced, quoted, or listed decoy does
+    not count, whose first paragraph opens `Approved by ` or `Rejected by `: `accepted` or
+    `rejected`, else None. Read for one release, as a format is dropped over two."""
+    lines = text.lstrip("\ufeff").splitlines()
+    first = next((line for line in lines if line.strip()), "")
+    before = list(itertools.takewhile(lambda line: line.rstrip() != "## Decision", lines))
+    if not first.startswith("# ") or any(line.rstrip() == "---" for line in before):
+        return None
+    tokens = markdown_tokens(text)
+    decisions = [index for index, token in enumerate(tokens)
+                 if (token.type, token.tag, token.level) == ("heading_open", "h2", 0)
+                 and tokens[index + 1].content.strip() == "Decision"]
+    opening = tokens[decisions[0] + 3:decisions[0] + 5] if len(decisions) == 1 else []
+    if len(opening) != 2 or opening[0].type != "paragraph_open":
+        return None
+    decision = words(opening[1].content)
+    return "accepted" if decision.startswith("Approved by ") else \
+        "rejected" if decision.startswith("Rejected by ") else None
 
 
 def ticket_branch(text, prefix=None):
@@ -1087,7 +1129,8 @@ def design_read_self_test(this):
              "docs/design/pending.md": "---\nstatus: proposed\n---\n" + body,
              "docs/design/rejected.md": "---\nstatus: rejected\n---\n" + body,
              "docs/design/capital.md": "---\nstatus: Accepted\n---\n" + body,
-             "docs/design/nofront.md": "# N\n\nstatus: accepted\n\n## Decision\n\nApproved by rob.\n",
+             "docs/design/nofront.md": "# N\n\nstatus: accepted\n\n## Decision\n\n"
+                                       "Approved by rob.\n",
              "docs/design/late.md": "\n---\nstatus: accepted\n---\n" + body,
              "docs/design/unclosed.md": "---\nstatus: accepted\n" + body,
              "docs/design/listed.md": "---\n- status: accepted\n---\n" + body,
@@ -1272,9 +1315,32 @@ def design_read_self_test(this):
                  "brief_file 'docs/brief.md' has status 'proposed', not 'accepted'"),
                 ("a rejected brief is refused", None, "---\nstatus: rejected\n---\n# B\n",
                  "brief_file 'docs/brief.md' has status 'rejected', not 'accepted'"),
-                ("a brief with Approved prose and no front matter is refused", None,
+                ("a pre-1.3.0 brief approved in ## Decision is read", None,
                  "# B\n\n## Decision\nApproved by s on 2026-10-26.\n",
+                 "# B\n\n## Decision\nApproved by s on 2026-10-26.\n"),
+                ("a pre-1.3.0 brief rejected in ## Decision is rejected", None,
+                 "# B\n\n## Decision\nRejected by s on 2026-10-26.\nOut of budget.\n",
+                 "brief_file 'docs/brief.md' has status 'rejected', not 'accepted'"),
+                ("a pre-1.3.0 brief still Pending is refused", None,
+                 "# B\n\n## Decision\nPending — s.\n",
                  "brief_file 'docs/brief.md': no front matter"),
+                ("a fenced Approved decoy in a pre-1.3.0 brief is refused", None,
+                 "# B\n\n```\n## Decision\nApproved by s on 2026-10-26.\n```\n\n"
+                 "## Decision\nPending — s.\n", "brief_file 'docs/brief.md': no front matter"),
+                ("a brief_file naming a folder is refused", {"brief_file": "docs"}, accepted,
+                 "brief_file 'docs' names a directory"),
+                ("a padded opener over a rejected status is refused", None,
+                 "--- \nstatus: rejected\n---\n\n## Decision\nApproved by s on 2026-10-26.\n",
+                 "brief_file 'docs/brief.md' has status 'rejected'"),
+                ("a blank line over a rejected status is refused", None,
+                 "\n---\nstatus: rejected\n---\n\n## Decision\nApproved by s on 2026-10-26.\n",
+                 "brief_file 'docs/brief.md': no front matter"),
+                ("a comment over a proposed status is refused", None,
+                 "<!-- x -->\n---\nstatus: proposed\n---\n\n## Decision\nApproved by s.\n",
+                 "brief_file 'docs/brief.md': no front matter"),
+                ("a tab after the opener over a proposed status is refused", None,
+                 "---\t\nstatus: proposed\n---\n\n## Decision\nApproved by s on 2026-10-26.\n",
+                 "brief_file 'docs/brief.md' has status 'proposed'"),
                 ("a missing brief is refused", None, None,
                  "brief_file 'docs/brief.md' is not a regular file reached through no symlink"),
                 ("an unset brief_file is named", {}, accepted, "brief_file is unset"),
@@ -1287,8 +1353,14 @@ def design_read_self_test(this):
                 write_scratch(project, content, "docs/brief.md")
             write_scratch(project, {"brief_file": "docs/brief.md"} if setting is None
                           else setting, ".claude/project.json")
-            got = result_or_message(lambda: brief_read(config_file))
-            failures += report("brief_read", name, got == expected if expected == accepted
+            warning = io.StringIO()
+            with contextlib.redirect_stderr(warning):
+                got = result_or_message(lambda: brief_read(config_file))
+            read = expected in (accepted, content)
+            failures += report("brief_read", f"{name}: a warning only on a legacy read",
+                               warning.getvalue().startswith("DEPRECATED: "),
+                               content is not None and legacy_status(content) is not None)
+            failures += report("brief_read", name, got == expected if read
                                else got.startswith(expected), True)
         write_scratch(project, {"brief_file": "docs/brief.md"}, ".claude/project.json")
         os.remove(os.path.join(project, "docs", "brief.md"))
@@ -1296,7 +1368,8 @@ def design_read_self_test(this):
         os.symlink("real.md", os.path.join(project, "docs", "brief.md"))
         failures += report("brief_read", "a symlinked brief is refused",
                            result_or_message(lambda: brief_read(config_file)),
-                           "brief_file 'docs/brief.md' is not a regular file reached through no symlink")
+                           "brief_file 'docs/brief.md' is not a regular file reached through "
+                           "no symlink")
         failures += cli_case(this, "brief-read refuses a symlinked brief",
                              ["brief-read", "--config", config_file],
                              "INVALID: brief_file 'docs/brief.md' is not a regular file", 1)
@@ -1318,6 +1391,10 @@ def design_read_self_test(this):
         failures += report("brief_read", "--path prints brief_file without reading it",
                            brief_read(config_file, True), "docs/brief.md")
         for name, setting, expected in [
+                ("--path refuses a folder", {"brief_file": "docs"},
+                 "INVALID: brief_file 'docs' names a directory"),
+                ("--path refuses a trailing slash", {"brief_file": "docs/brief.md/"},
+                 "INVALID: brief_file 'docs/brief.md/' names a directory"),
                 ("--path names an unset brief_file", {}, "INVALID: brief_file is unset"),
                 ("--path names an invalid brief_file", {"brief_file": "../brief.md"},
                  "INVALID: brief_file '../brief.md' is not a relative path")]:
@@ -1330,9 +1407,37 @@ def design_read_self_test(this):
         failures += cli_case(this, "brief-read prints an accepted brief",
                              ["brief-read", "--config", config_file], accepted.strip(), 0,
                              exact=True)
+        legacy = "# B\n\n## Decision\nApproved by s on 2026-10-26.\n"
+        write_scratch(project, legacy, "docs/brief.md")
+        failures += cli_case(this, "brief-read prints a pre-1.3.0 approved brief",
+                             ["brief-read", "--config", config_file], legacy.strip(), 0,
+                             exact=True)
+    approved = "# B\n\n## Decision\n\nApproved by s on 2026-10-26.\n"
+    for name, text, expected in [
+            ("an Approved by Decision is accepted", approved, "accepted"),
+            ("a Rejected by Decision is rejected", "# B\n\n## Decision\n\nRejected by s.\n",
+             "rejected"),
+            ("a Pending Decision is none", "# B\n\n## Decision\n\nPending — s.\n", None),
+            ("two Decision sections are none", approved + "\n## Decision\n\nPending.\n", None),
+            ("an h3 Decision is none", "# B\n\n### Decision\n\nApproved by s.\n", None),
+            ("a quoted Approved by is none", "# B\n\n## Decision\n\n> Approved by s.\n", None),
+            ("a listed Approved by is none", "# B\n\n## Decision\n\n- Approved by s.\n", None),
+            ("Approved by in a second paragraph is none",
+             "# B\n\n## Decision\n\nPending.\n\nApproved by s.\n", None),
+            ("no Decision is none", "# B\n\nApproved by s.\n", None),
+            ("front matter under the title is none",
+             "# B\n---\nstatus: rejected\n---\n## Decision\nApproved by s.\n", None),
+            ("no title first is none", "\n---\nstatus: rejected\n---\n" + approved, None)]:
+        failures += report("legacy_status", name, legacy_status(text), expected)
+    with open(os.path.join(GATES_SCRIPTS, "..", "..", ".claude-plugin", "plugin.json"),
+              encoding="utf-8") as handle:
+        version = tuple(int(part) for part in json.load(handle)["version"].split("."))
+    failures += report("legacy_status", "removed by its removed_in release",
+                       version < LEGACY_STATUS_REMOVED_IN, True)
     for name, text, expected in [
             ("empty front matter is no mapping", "---\n---\n", "front matter is not a mapping"),
-            ("a '...' closer alone ends it", "---\nstatus: accepted\n...\n", {"status": "accepted"}),
+            ("a '...' closer alone ends it", "---\nstatus: accepted\n...\n",
+             {"status": "accepted"}),
             ("two merge keys are repeated", "---\n<<: {status: proposed}\n<<: {status: accepted}\n"
              "---\n", "front matter is not YAML (a key is repeated)"),
             ("1 and 1.0 are distinct keys", "---\n1: a\n1.0: b\n---\n", {1: "a", 1.0: "b"}),

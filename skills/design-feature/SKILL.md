@@ -102,9 +102,9 @@ Then stop, and say why in one line, when:
   "${CLAUDE_PLUGIN_ROOT}/gates/scripts/project_rules.py" brief-read --config
   "<absolute project root>/.claude/project.json"` exits non-zero.** The design restates the
   brief's goals, which an unapproved brief has not settled; name what it printed, and send
-  a `proposed` or missing one to the sponsor through `plan-project`; for `no front matter`,
-  name the `status: accepted` front matter a pre-1.3.0 brief needs. With `brief_file`
-  `none`, say in one line that there is no brief to frame the design against, and go on.
+  a `proposed`, missing, or `no front matter` one to the sponsor through `plan-project`.
+  Relay a `DEPRECATED:` line it prints. With `brief_file` `none`, say in one line that
+  there is no brief to frame the design against, and go on.
 - **`{{design_dir}}/<slug>.md` exists with front matter whose `status` is not
   `proposed`, or, written before designs carried front matter, with a `## Decision` that
   reads other than `Pending`.** It is decided, or in a state no step writes; name it rather

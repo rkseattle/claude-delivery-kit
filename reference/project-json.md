@@ -171,6 +171,9 @@ brief not approved or naming no goal, sending a pending one to the sponsor throu
 stopping on a brief missing or not approved. Both judge the brief approved by its front
 matter `status: accepted`, through `gates/scripts/project_rules.py brief-read`, as
 `plan-project` records it, and `plan-project` checks the path the same way before writing.
+Upgrading from 1.2.0: a brief approved then has no front matter and is still read, from its
+`## Decision`, with a deprecation warning; add `status: accepted`, `date`, and
+`decision-makers` front matter before 1.4.0, which reads only the front matter.
 The brief is committed, so the path must not be gitignored, and it is a relative path
 inside the repository, as each directory key is. Default `none`, under which `plan-project`
 stops, and `write-tickets` and `design-feature` read no goals.

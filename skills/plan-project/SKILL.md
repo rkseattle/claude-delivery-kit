@@ -37,8 +37,8 @@ Stop, and say why in one line, when:
   decides. The brief is committed in Step 5, and an ignored path fails there, after the
   sponsor has decided; name the rule.
 - **`{{brief_file}}` exists with front matter whose `status` is not `proposed`, or, written
-  before briefs carried front matter, with a `## Decision` that reads `Approved` or
-  `Rejected`.** It is decided, or in a state no step writes; name it rather than revise it,
+  before briefs carried front matter, with a `## Decision` that reads other than
+  `Pending`.** It is decided, or in a state no step writes; name it rather than revise it,
   and say a decided one gains its `status` by hand.
 
 **An interrupted Step 5 comes first, after the first two stops.** When

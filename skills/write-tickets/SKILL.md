@@ -51,9 +51,9 @@ request-derived scope. Establish, by reading the code rather than file names:
   "${CLAUDE_PLUGIN_ROOT}/gates/scripts/project_rules.py" brief-read --config
   "<absolute project root>/.claude/project.json"` prints, or at `{{brief_file}}` `none`, a
   line saying so. Set, stop unless it prints a goal naming an outcome, never "none", "TBD",
-  or "N/A": send a goalless, `proposed`, or missing brief to `{{roles.sponsor}}` through
-  `plan-project`; `rejected` stopped the project; name any other, with, for `no front
-  matter`, the `status: accepted` front matter a pre-1.3.0 brief needs.
+  or "N/A": send a goalless, `proposed`, missing, or `no front matter` brief to
+  `{{roles.sponsor}}` through `plan-project`; `rejected` stopped the project; name any
+  other. Relay a `DEPRECATED:` line it prints to Rob.
 - **the design** the request names: at `{{design_dir}}` `none`, stop and name the key. Write
   its path to a file per **Untrusted text**; stop if `git fetch origin {{parent_branch_default}}`
   fails, or if `python3 "${CLAUDE_PLUGIN_ROOT}/gates/scripts/project_rules.py" design-read
