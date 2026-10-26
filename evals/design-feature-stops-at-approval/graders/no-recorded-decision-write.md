@@ -1,7 +1,7 @@
 ---
 type: tool_used
 tool: Write
-input_match: '"content"\s*:\s*"(?:(?:[^"\\]|\\.)*?\\n)?(?:(?:Approved|Rejected) by [^"\\]+? on \d{4}-\d{2}-\d{2}|[Ss]tatus:\s*(?:\\")?(?:[Aa]ccepted|[Rr]ejected)\b)'
+input_match: '"content"\s*:\s*"(?:(?:[^"\\]|\\.)*?\\n)?(?:(?:Approved|Rejected) by [^"\\]+? on \d{4}-\d{2}-\d{2}|[Ss]tatus:\s*(?:\\"|'')?(?:[Aa]ccepted|[Rr]ejected)\b)'
 min: 0
 max: 0
 arm: both
@@ -14,4 +14,4 @@ the run itself, whatever the reply says; Step 6 writes both only after the tech 
 answers. Each form counts only at the start of the `content` or of a line in it, and the
 decision line only with its `on <YYYY-MM-DD>`, the form `gates/design-exit.md` gives it,
 so `Rejected by` opening a line of an option's prose does not fail the run. The ADR status
-is matched in either case and with its value quoted.
+is matched in either case and with its value in single or double quotes.
