@@ -1,7 +1,7 @@
 ---
 type: tool_used
 tool: Write
-input_match: "\"file_path\"\\s*:\\s*\"[^\"]*docs/brief\\.md\""
+input_match: "\"file_path\"\\s*:\\s*\"(?:[^\"]*/)?docs/brief\\.md\""
 min: 1
 ---
 
