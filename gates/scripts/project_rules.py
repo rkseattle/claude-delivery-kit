@@ -15,9 +15,10 @@ skills/write-tickets/scripts/lint_draft.py, and, for the YAML vendor alone,
 scripts/ci/actions-pinned.sh, and, for the Markdown table, register and tracked-file rules,
 scripts/ci/rule-book-map.sh, and, for the key registry, scripts/ci/config-examples.sh, and
 run by skills/plan-project/SKILL.md for its slug, skills/write-tickets/SKILL.md for its
-draft's, a design's path and read, and the design's Epic key, skills/plan-work/SKILL.md for
-a design's and its ADRs' paths and reads, skills/implement-phases/SKILL.md for its branch,
-skills/ci-green/SKILL.md for its PR number, skills/design-feature/SKILL.md for its Epic key,
+draft's, a design's path and read, the brief's read, and the design's Epic key,
+skills/plan-work/SKILL.md for a design's and its ADRs' paths and reads,
+skills/implement-phases/SKILL.md for its branch, skills/ci-green/SKILL.md for its PR number,
+skills/design-feature/SKILL.md for its Epic key and the brief's read,
 and skills/release-readiness/SKILL.md for the keys a release covers,
 so no two of them can disagree on a key's shape, what an unset key, a placeholder, a
 discipline, a date, a printed number, a branch slug, a code fence, a Markdown field's value,
@@ -54,6 +55,12 @@ repository inherits the caller's git. Each importer's self-test covers the rules
                                    `accepted`; with --path, the checked path instead;
                                    INVALID otherwise: KEY unset, design_dir or adr_dir
                                    invalid, or the two naming one directory
+    project_rules.py brief-read --config FILE [--path]
+                                   the brief that FILE's brief_file names, from the
+                                   working tree, when its front matter `status` is
+                                   `accepted`; with --path, brief_file printed back once it
+                                   passes the key's check, the file unread; INVALID
+                                   otherwise, naming the reason
     project_rules.py --self-test   runs the key registry's own cases and those of JIRA_KEY,
                                    slug_of, pr_number, ticket_branch, text_input, run_check,
                                    collected_errors, cli_case, write_scratch, and each
@@ -252,7 +259,7 @@ def named_disciplines(config):
 
 
 def check_repo_path(key, value):
-    """A directory key written unquoted into commands: set, relative, inside the repository
+    """A directory or file key written unquoted into commands: set, relative, inside the repository
     and outside any .git, made only of characters no shell treats specially. As git's
     verify_path does, it rejects an empty, `.`, or `..` component, trailing slashes aside, and
     a .git component anywhere in the path, case-insensitively and with trailing dots dropped,
@@ -618,15 +625,48 @@ def design_read(path, ref, config, key="design_dir", path_only=False):
         text = run_git(root, "cat-file", "blob", blob, text=False).decode("utf8")
     except UnicodeDecodeError:
         raise ValueError(f"{path!r} in {ref} is not UTF-8 text")
-    if key == "adr_dir":
-        return path if path_only else text
+    if key != "adr_dir":
+        approved_text(text, f"{path!r} in {ref}")
+    return path if path_only else text
+
+
+def approved_text(text, where):
+    """text when its front matter `status` is `accepted`, the MADR status a decided record
+    carries, so a design and a brief share one definition of approved; ValueError naming
+    where and the status otherwise."""
     try:
         status = front_matter(text).get("status")
     except ValueError as error:
-        raise ValueError(f"{path!r} in {ref}: {error}")
+        raise ValueError(f"{where}: {error}")
     if status != "accepted":
-        raise ValueError(f"{path!r} in {ref} has status {status!r}, not 'accepted'")
-    return path if path_only else text
+        raise ValueError(f"{where} has status {status!r}, not 'accepted'")
+    return text
+
+
+def brief_read(config, path_only=False):
+    """The project brief brief_file names in config, read from the project's working tree,
+    where plan-project writes it, as a regular file reached through no symlink, when
+    approved_text accepts it, the status gates/planning-exit.md's first criterion reads. With
+    path_only, brief_file printed back once the key registry accepts it, the file unread,
+    so plan-project writes only where every reader will look. ValueError naming brief_file
+    when it is unset or invalid, the file is missing, reached through a symlink, or not
+    UTF-8, or its status is not `accepted`."""
+    path = read_keys(read_config(config), [OptionalKey("brief_file", None)])["brief_file"]
+    if path is None:
+        raise ValueError("brief_file is unset in project.json")
+    if path_only:
+        return path
+    root = os.path.realpath(project_root(config))
+    full = os.path.join(root, path)
+    if os.path.realpath(full) != os.path.normpath(full) or not os.path.isfile(full):
+        raise ValueError(f"brief_file {path!r} is not a regular file reached through no "
+                         "symlink")
+    try:
+        with open(full, encoding="utf-8") as handle:
+            text = handle.read()
+    except UnicodeDecodeError:
+        raise ValueError(f"brief_file {path!r} is not UTF-8 text")
+    return approved_text(text, f"brief_file {path!r}")
 
 
 def ticket_branch(text, prefix=None):
@@ -837,7 +877,7 @@ def keyed(check, *keys):
 # reference/project-json.md's example.
 PROJECT_KEYS = {
     **keyed(check_repo_path, "design_dir", "adr_dir", "retirements_dir", "runbooks_dir",
-            "alert_rules_dir", "release_dir", "incident_reviews_dir"),
+            "alert_rules_dir", "release_dir", "incident_reviews_dir", "brief_file"),
     **keyed(check_command, "dependency_outdated_command", "alert_routes_command",
             "data_quality_command", "model_eval_command", "device_test_command",
             "hil_test_command", "api_compat_command", "error_budget_command",
@@ -1222,6 +1262,74 @@ def design_read_self_test(this):
                              ["design-read", "--ref", "main", "--config", project],
                              "INVALID:", 1, input="docs/design/ok.md\nmain:docs/design/ok.md\n",
                              cwd=root, env=isolated_git_environment())
+    with tempfile.TemporaryDirectory() as project:
+        accepted = "---\nstatus: accepted\n---\n# B\n"
+        config_file = write_scratch(project, {"brief_file": "docs/brief.md"},
+                                    ".claude/project.json")
+        for name, setting, content, expected in [
+                ("an accepted brief is read", None, accepted, accepted),
+                ("a proposed brief is refused", None, "---\nstatus: proposed\n---\n# B\n",
+                 "brief_file 'docs/brief.md' has status 'proposed', not 'accepted'"),
+                ("a rejected brief is refused", None, "---\nstatus: rejected\n---\n# B\n",
+                 "brief_file 'docs/brief.md' has status 'rejected', not 'accepted'"),
+                ("a brief with Approved prose and no front matter is refused", None,
+                 "# B\n\n## Decision\nApproved by s on 2026-10-26.\n",
+                 "brief_file 'docs/brief.md': no front matter"),
+                ("a missing brief is refused", None, None,
+                 "brief_file 'docs/brief.md' is not a regular file reached through no symlink"),
+                ("an unset brief_file is named", {}, accepted, "brief_file is unset"),
+                ("an invalid brief_file is named", {"brief_file": "../brief.md"}, accepted,
+                 "brief_file '../brief.md' is not a relative path")]:
+            brief = os.path.join(project, "docs", "brief.md")
+            if os.path.exists(brief):
+                os.remove(brief)
+            if content is not None:
+                write_scratch(project, content, "docs/brief.md")
+            write_scratch(project, {"brief_file": "docs/brief.md"} if setting is None
+                          else setting, ".claude/project.json")
+            got = result_or_message(lambda: brief_read(config_file))
+            failures += report("brief_read", name, got == expected if expected == accepted
+                               else got.startswith(expected), True)
+        write_scratch(project, {"brief_file": "docs/brief.md"}, ".claude/project.json")
+        os.remove(os.path.join(project, "docs", "brief.md"))
+        write_scratch(project, accepted, "docs/real.md")
+        os.symlink("real.md", os.path.join(project, "docs", "brief.md"))
+        failures += report("brief_read", "a symlinked brief is refused",
+                           result_or_message(lambda: brief_read(config_file)),
+                           "brief_file 'docs/brief.md' is not a regular file reached through no symlink")
+        failures += cli_case(this, "brief-read refuses a symlinked brief",
+                             ["brief-read", "--config", config_file],
+                             "INVALID: brief_file 'docs/brief.md' is not a regular file", 1)
+        os.remove(os.path.join(project, "docs", "brief.md"))
+        with tempfile.TemporaryDirectory() as outside:
+            write_scratch(outside, accepted, "brief.md")
+            os.rename(os.path.join(project, "docs"), os.path.join(project, "real-docs"))
+            os.symlink(outside, os.path.join(project, "docs"))
+            failures += report("brief_read", "a brief under a symlinked folder is refused",
+                               result_or_message(lambda: brief_read(config_file)),
+                               "brief_file 'docs/brief.md' is not a regular file reached "
+                               "through no symlink")
+            os.remove(os.path.join(project, "docs"))
+        os.rename(os.path.join(project, "real-docs"), os.path.join(project, "docs"))
+        write_scratch(project, b"---\nstatus: accepted\n---\n# B r\xf6b\n", "docs/brief.md")
+        failures += report("brief_read", "a brief that is not UTF-8 is refused",
+                           result_or_message(lambda: brief_read(config_file)),
+                           "brief_file 'docs/brief.md' is not UTF-8 text")
+        failures += report("brief_read", "--path prints brief_file without reading it",
+                           brief_read(config_file, True), "docs/brief.md")
+        for name, setting, expected in [
+                ("--path names an unset brief_file", {}, "INVALID: brief_file is unset"),
+                ("--path names an invalid brief_file", {"brief_file": "../brief.md"},
+                 "INVALID: brief_file '../brief.md' is not a relative path")]:
+            write_scratch(project, setting, ".claude/project.json")
+            failures += cli_case(this, f"brief-read {name}",
+                                 ["brief-read", "--path", "--config", config_file], expected, 1)
+        write_scratch(project, {"brief_file": "docs/brief.md"}, ".claude/project.json")
+        os.remove(os.path.join(project, "docs", "brief.md"))
+        write_scratch(project, accepted, "docs/brief.md")
+        failures += cli_case(this, "brief-read prints an accepted brief",
+                             ["brief-read", "--config", config_file], accepted.strip(), 0,
+                             exact=True)
     for name, text, expected in [
             ("empty front matter is no mapping", "---\n---\n", "front matter is not a mapping"),
             ("a '...' closer alone ends it", "---\nstatus: accepted\n...\n", {"status": "accepted"}),
@@ -1560,6 +1668,9 @@ def main():
     reading.add_argument("--config", required=True)
     reading.add_argument("--path", action="store_true")
     reading.add_argument("--key", choices=("design_dir", "adr_dir"), default="design_dir")
+    brief = commands.add_parser("brief-read")
+    brief.add_argument("--config", required=True)
+    brief.add_argument("--path", action="store_true")
     args = parser.parse_args()
     if args.self_test:
         return self_test()
@@ -1573,7 +1684,8 @@ def main():
                                                                  args.prefix),
                               "design-read": lambda: design_read(text_input(None), args.ref,
                                                                  args.config, args.key,
-                                                                 args.path)},
+                                                                 args.path),
+                              "brief-read": lambda: brief_read(args.config, args.path)},
                      args.command)
 
 

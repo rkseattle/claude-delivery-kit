@@ -24,7 +24,10 @@ optional keys are `brief_file`, `project_size`, `lifecycle_model`, `roles`,
 Stop, and say why in one line, when:
 
 - **`{{brief_file}}` is `none`** — absent or set so. Name the key: the brief has nowhere to
-  live, and a path this skill chose would be a guess about the project's layout.
+  live, and a path this skill chose would be a guess about the project's layout. Stop too,
+  naming it, when `python3 "${CLAUDE_PLUGIN_ROOT}/gates/scripts/project_rules.py" brief-read
+  --path --config "<absolute project root>/.claude/project.json"` prints `INVALID:`: every
+  reader of the brief checks its path that way.
 - **`.claude/state/current-plan.json` exists without `"paused": true`.** A delivery run is
   in flight, and the branch guard moves HEAD back to its branch after any command that
   leaves it, which would undo Step 5's switch.
@@ -33,8 +36,10 @@ Stop, and say why in one line, when:
 - **`{{brief_file}}` is ignored**, as **Ignored paths** in `gates/project-config.md`
   decides. The brief is committed in Step 5, and an ignored path fails there, after the
   sponsor has decided; name the rule.
-- **`{{brief_file}}` exists and its `## Decision` reads `Approved` or `Rejected`.** The
-  brief is decided; name the decision rather than revise it.
+- **`{{brief_file}}` exists with front matter whose `status` is not `proposed`, or, written
+  before briefs carried front matter, with a `## Decision` that reads `Approved` or
+  `Rejected`.** It is decided, or in a state no step writes; name it rather than revise it,
+  and say a decided one gains its `status` by hand.
 
 **An interrupted Step 5 comes first, after the first two stops.** When
 `git rev-parse --path-format=absolute --git-path plan-project` names a directory that
@@ -44,21 +49,28 @@ is in progress. First, when `git show brief/<slug>:{{brief_file}}` already holds
 that commit, and offer no abort. Otherwise continue, keeping the recorded decision: switch
 to `brief/<slug>`, or, if it is absent, cut it from the commit in `base` — from
 `origin/{{parent_branch_default}}` when a directory written before `base` existed has none —
-make the `## Decision` line match `decision`, and commit as Step 5 does. On an explicit
+make the `## Decision` line match `decision`, `status` match `status` — `accepted` or
+`rejected` as `decision` opens, when a directory written before `status` existed has none —
+and `date` match the date `decision` carries, and commit as Step 5 does. On an explicit
 abort instead, unstage the brief with `git restore --staged {{brief_file}}`, restore it from
 `presented.md`, switch to `{{parent_branch_default}}`, delete `brief/<slug>` if it has no
 commits of its own, and remove the directory — leaving index and tree as before Step 5, as
 `git rebase --abort` does. No other stop applies while it exists.
 
-An existing `{{brief_file}}` whose decision is `Pending`, or that has no `## Decision`
-section yet, is the draft: read it, and revise it in Step 2 rather than writing over it
-unread.
+Any other existing `{{brief_file}}` is the draft: read it, add the template's front matter
+where it is missing, and revise it in Step 2 rather than writing over it unread.
 
 ## Step 2 — Write the brief
 
 Write `{{brief_file}}` from this template, every section in this order:
 
 ```markdown
+---
+status: proposed
+date: <YYYY-MM-DD, from date +%F>
+decision-makers: <sponsor>
+---
+
 # <Project name> — project brief
 
 ## Problem
@@ -169,7 +181,7 @@ Then stop and wait. The answer is one of Stage-Gate's four:
   present again; the rest of Step 3 re-runs only if `origin/{{parent_branch_default}}`
   moved. Revision happens here, never after a rejection.
 - **Hold** — the sponsor defers the decision. Record nothing and commit nothing: the brief
-  stays `Pending` in the working tree, and a later run presents it again.
+  stays `Pending` and `proposed` in the working tree, and a later run presents it again.
 
 A clarifying question is not an answer. Only the sponsor's answer counts; one relayed by
 the person running the session is printed as relayed.
@@ -183,9 +195,10 @@ anything.
 Before touching the brief, write the operation's state where git keeps its own, in the
 directory `git rev-parse --path-format=absolute --git-path plan-project` names:
 `presented.md`, a copy of the brief as Step 4 presented it; `slug`; `base`, the commit
-`origin/{{parent_branch_default}}` names after that fetch; and `decision`, the line below.
-Then replace the `Pending — <sponsor>.` line under `## Decision` with the decision, the
-sponsor, and today's date from `date +%F`:
+`origin/{{parent_branch_default}}` names after that fetch; `decision`, the line below; and
+`status`, `accepted` or `rejected`. Then set the front matter's `status` to it and `date` to
+today's from `date +%F`, as MADR records a decision, and replace the `Pending — <sponsor>.`
+line under `## Decision` with the decision, the sponsor, and that date:
 
 ```markdown
 Approved by <sponsor> on <YYYY-MM-DD>.

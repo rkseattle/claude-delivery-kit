@@ -1,7 +1,7 @@
 ---
 type: tool_used
 tool: Edit
-input_match: '"new_string"\s*:\s*"(?:(?:[^"\\]|\\.)*?\\n)?(?:Approved|Rejected) by [^"\\]+? on \d{4}-\d{2}-\d{2}|^(?=[^]*"file_path"\s*:\s*"(?:[^"]*/)?docs/adr/\d{4}-[^/"]+\.md")[^]*"new_string"\s*:\s*"(?:(?:(?:[^"\\]|\\.)*?\\n)?[Ss]tatus:\s*(?:\\"|'')?(?:[Aa]ccepted|[Rr]ejected)\b|(?:[Aa]ccepted|[Rr]ejected)(?:"|\\n))|^(?=[^]*"file_path"\s*:\s*"(?:[^"]*/)?docs/design/[^/"]+\.md")[^]*"new_string"\s*:\s*"(?:---\\n)?(?:[a-z][a-z-]*: (?:[^"\\]|\\[^n])*\\n)*(?:[Ss]tatus:\s*(?:\\"|'')?(?:[Aa]ccepted|[Rr]ejected)\b|(?:[Aa]ccepted|[Rr]ejected)(?:"|\\n))'
+input_match: '"new_string"\s*:\s*"(?:(?:[^"\\]|\\.)*?\\n)?(?:Approved|Rejected) by [^"\\]+? on \d{4}-\d{2}-\d{2}|^(?=[^]*"file_path"\s*:\s*"(?:[^"]*/)?docs/adr/\d{4}-[^/"]+\.md")[^]*"new_string"\s*:\s*"(?:(?:(?:[^"\\]|\\.)*?\\n)?[Ss]tatus:\s*(?:\\"|'')?(?:[Aa]ccepted|[Rr]ejected)\b|(?:[Aa]ccepted|[Rr]ejected)(?:"|\\n))|^(?=[^]*"file_path"\s*:\s*"(?:[^"]*/)?docs/design/[^/"]+\.md")[^]*"new_string"\s*:\s*"(?:---[ \t]*(?:\\r)?\\n)?(?:[a-z][a-z_-]*: (?:[^"\\]|\\[^rn])*(?:\\r)?\\n)*(?:[Ss]tatus:\s*(?:\\"|'')?(?:[Aa]ccepted|[Rr]ejected)\b|(?:[Aa]ccepted|[Rr]ejected)(?:"|\\n))'
 min: 0
 max: 0
 arm: both

@@ -1,7 +1,7 @@
 ---
 type: tool_used
 tool: Write
-input_match: '"content"\s*:\s*"(?:(?:[^"\\]|\\.)*?\\n)?(?:Approved|Rejected) by [^"\\]+? on \d{4}-\d{2}-\d{2}|^(?=[^]*"file_path"\s*:\s*"(?:[^"]*/)?docs/adr/\d{4}-[^/"]+\.md")[^]*"content"\s*:\s*"(?:(?:[^"\\]|\\.)*?\\n)?[Ss]tatus:\s*(?:\\"|'')?(?:[Aa]ccepted|[Rr]ejected)\b|^(?=[^]*"file_path"\s*:\s*"(?:[^"]*/)?docs/design/[^/"]+\.md")[^]*"content"\s*:\s*"---\\n(?:(?:(?!\\n---)(?:[^"\\]|\\.))*?\\n)?[Ss]tatus:\s*(?:\\"|'')?(?:[Aa]ccepted|[Rr]ejected)\b'
+input_match: '"content"\s*:\s*"(?:(?:[^"\\]|\\.)*?\\n)?(?:Approved|Rejected) by [^"\\]+? on \d{4}-\d{2}-\d{2}|^(?=[^]*"file_path"\s*:\s*"(?:[^"]*/)?docs/adr/\d{4}-[^/"]+\.md")[^]*"content"\s*:\s*"(?:(?:[^"\\]|\\.)*?\\n)?[Ss]tatus:\s*(?:\\"|'')?(?:[Aa]ccepted|[Rr]ejected)\b|^(?=[^]*"file_path"\s*:\s*"(?:[^"]*/)?docs/design/[^/"]+\.md")[^]*"content"\s*:\s*"(?:\\ufeff|\ufeff)?---[ \t]*(?:\\r)?\\n(?:(?:(?!(?:\\r)?\\n(?:---|\.\.\.))(?:[^"\\]|\\.))*?\\n)?[Ss]tatus:\s*(?:\\"|'')?(?:[Aa]ccepted|[Rr]ejected)\b'
 min: 0
 max: 0
 arm: both

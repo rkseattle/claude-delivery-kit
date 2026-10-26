@@ -47,18 +47,17 @@ request-derived scope. Establish, by reading the code rather than file names:
 - **other instances of a root cause** the work fixes, by grep, not recall
 - for each tier in `{{verification_tiers}}`, where its evidence lives: the test directory,
   one existing test, and the command that runs it
-- **the brief's goals**, which `Goal:` lines draw on: the `## Goals` of `{{brief_file}}`,
-  read only when its `## Decision` reads `Approved`; otherwise say in one line why none were
-  read — `none`, no file at the path, no `## Decision` or one other than `Approved`, or no
-  goals. With `{{brief_file}}` set, stop unless it is `Approved` with a goal naming an
-  outcome, never "none", "TBD", or "N/A": a goalless one goes back to the sponsor; a
-  `Rejected` one stopped the project; a missing, `Pending`, or undecided one goes to
-  `{{roles.sponsor}}` through `plan-project`, which records the decision.
+- **the brief's goals**, for `Goal:` lines: the `## Goals` that `python3
+  "${CLAUDE_PLUGIN_ROOT}/gates/scripts/project_rules.py" brief-read --config
+  "<absolute project root>/.claude/project.json"` prints, or at `{{brief_file}}` `none`, a
+  line saying so. Set, stop unless it prints a goal naming an outcome, never "none", "TBD",
+  or "N/A": send a goalless, `proposed`, or missing brief to `{{roles.sponsor}}` through
+  `plan-project`; `rejected` stopped the project; name any other, with, for `no front
+  matter`, the `status: accepted` front matter a pre-1.3.0 brief needs.
 - **the design** the request names: at `{{design_dir}}` `none`, stop and name the key. Write
-  its path to a file per **Untrusted text**; stop if `git fetch origin
-  {{parent_branch_default}}` fails, or if `python3
-  "${CLAUDE_PLUGIN_ROOT}/gates/scripts/project_rules.py" design-read --ref
-  "origin/{{parent_branch_default}}" --config "<absolute project root>/.claude/project.json"
+  its path to a file per **Untrusted text**; stop if `git fetch origin {{parent_branch_default}}`
+  fails, or if `python3 "${CLAUDE_PLUGIN_ROOT}/gates/scripts/project_rules.py" design-read
+  --ref "origin/{{parent_branch_default}}" --config "<absolute project root>/.claude/project.json"
   < "<file>"` exits non-zero. Read the design only from what it prints, and the Epic's
   `- Design:` path only from what it prints with `--path`. Its `Work plan` is the slice: a
   Step 3 split, an added ticket, or a review finding changing a handoff's tickets stops the
@@ -88,7 +87,8 @@ In order:
 
 Write `docs/tickets/<slug>.md` (gitignored) in the templates' format, blockers before
 dependents; revise a draft already there if it is this request's, or ask. `<slug>` is what
-this prints for the request, fed per **Untrusted text**; on `INVALID:`, ask for Latin letters:
+this prints for the request, fed per **Untrusted text** in `gates/project-config.md`; on
+`INVALID:`, ask for Latin letters:
 
 ```bash
 python3 "${CLAUDE_PLUGIN_ROOT}/gates/scripts/project_rules.py" draft-slug < "<request file>"

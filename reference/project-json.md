@@ -168,9 +168,12 @@ request. `write-tickets` traces its `Goal:` lines to an approved brief's goals w
 checkout holds it, and removes work serving none; with `brief_file` set it stops on any
 brief not approved or naming no goal, sending a pending one to the sponsor through
 `plan-project`. `design-feature` restates the approved brief's goals as a design's goals,
-stopping on a brief missing or not approved. The brief is committed, so the path must not be
-gitignored. Default `none`, under which `plan-project` stops, and `write-tickets` and
-`design-feature` read no goals.
+stopping on a brief missing or not approved. Both judge the brief approved by its front
+matter `status: accepted`, through `gates/scripts/project_rules.py brief-read`, as
+`plan-project` records it, and `plan-project` checks the path the same way before writing.
+The brief is committed, so the path must not be gitignored, and it is a relative path
+inside the repository, as each directory key is. Default `none`, under which `plan-project`
+stops, and `write-tickets` and `design-feature` read no goals.
 
 `pr_review_limit_lines` serves rule book R9: a pull request reviewable in under an hour. It
 caps one PR's changed lines, insertions plus deletions against the parent branch.
