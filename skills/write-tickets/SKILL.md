@@ -57,8 +57,9 @@ request-derived scope. Establish, by reading the code rather than file names:
   `{{roles.sponsor}}` through `plan-project`, which records the decision.
 - **the design** the request names: at `{{design_dir}}` `none`, stop and name the key. Write
   its path to a file per **Untrusted text**; stop if `git fetch` fails, or if `python3
-  "${CLAUDE_PLUGIN_ROOT}/gates/scripts/project_rules.py" design-read --dir "{{design_dir}}"
-  --ref "origin/{{parent_branch_default}}" < "<file>"` exits non-zero. Read the design only
+  "${CLAUDE_PLUGIN_ROOT}/gates/scripts/project_rules.py" design-read --ref
+  "origin/{{parent_branch_default}}" --config "<project root>/.claude/project.json" < "<file>"`,
+  the root written as its absolute path, exits non-zero. Read the design only
   from what it prints, and the Epic's `- Design:` path only from that file. Its `Work plan`
   is then the slice: a Step 3 split, an added ticket, or a review finding that would change a
   handoff's tickets stops the run and sends the design back to `design-feature` for rework.

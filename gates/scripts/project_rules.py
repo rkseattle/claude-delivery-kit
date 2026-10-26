@@ -44,13 +44,14 @@ repository inherits the caller's git. Each importer's self-test covers the rules
                                    `<KEY>-<slug>` from standard input's ticket key line and
                                    the words after it, the whole fitted to a branch's lock
                                    file; INVALID for a malformed key, or one outside --prefix
-    project_rules.py design-read --dir DIR --ref REF [--key KEY]
+    project_rules.py design-read --ref REF --config FILE [--key KEY]
                                    the design, or with --key adr_dir the ADR, at the path
-                                   on standard input in REF, when the path is one `DIR/<slug>.md`
-                                   with no empty, `.`, or `..` component and names a regular
-                                   file, and a design's front matter `status` is `accepted`;
-                                   INVALID otherwise, naming KEY, design_dir by default, for
-                                   a bad DIR
+                                   on standard input in REF of FILE's repository, when the
+                                   path lies directly under KEY's directory in FILE,
+                                   design_dir by default, as `<slug>.md` or an ADR_RECORD
+                                   name with no empty, `.`, or `..` component, names a
+                                   regular file, and a design's front matter `status` is
+                                   `accepted`; INVALID otherwise, naming KEY when unset
     project_rules.py --self-test   runs the key registry's own cases and those of JIRA_KEY,
                                    slug_of, pr_number, ticket_branch, text_input, run_check,
                                    collected_errors, cli_case, write_scratch, and each
@@ -96,6 +97,9 @@ DISCIPLINES = ("security", "data-ml", "mobile", "embedded", "sre")
 DECIMAL = r"-?\d+(?:\.\d+)?"
 DATE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 SLUG = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
+# A decision record's file name, its number first: design-exit writes `NNNN-<title>.md`, and
+# readers take any number and title, as adr-tools lists `[0-9]*-*.md`.
+ADR_RECORD = re.compile(r"^(\d+)-[^/]+\.md$")
 
 
 def is_unset(value):
@@ -213,6 +217,12 @@ def markdown_value(text):
     """A Markdown field's value as its reader sees it, without inline emphasis, code-span
     markers, or backslash escapes, so `none`, **<flag>** or \\<flag\\> is judged as what it shows."""
     return INLINE_MARKUP.sub("", BACKSLASH_ESCAPE.sub(r"\1", text)).strip()
+
+
+def project_root(config_path):
+    """The project a project.json belongs to: the folder holding its `.claude/`, which every
+    path key is relative to, as git resolves a pathspec from the working directory."""
+    return os.path.dirname(os.path.dirname(os.path.abspath(config_path)))
 
 
 def read_config(config_path):
@@ -511,18 +521,26 @@ def ticket_key(text, prefix=None):
 
 
 def design_path(path, directory, key="design_dir"):
-    """path, unchanged, when it is one repository path, as check_repo_path judges it, of the
-    form `<directory>/<slug>.md`, SLUG's slug, as design-feature names its design docs and
-    ADRs; directory, the value of key, is checked by check_repo_path as the key registry
-    checks it. ValueError otherwise, naming key for a bad directory. design_read checks a
-    design or ADR path a request or a Jira field names with this before git reads it."""
+    """path, as check_repo_path judges one repository path, of the form `<directory>/<slug>.md`,
+    SLUG's slug, as design-feature names its design docs, or under adr_dir `<directory>/<an
+    ADR_RECORD name>`; directory, the value of key, is checked by check_repo_path as the key
+    registry checks it. A directory written with a trailing slash yields `<directory>/<name>`
+    with a doubled slash when a template joins them, so that one join is read as single, as
+    os.path.join reads it. ValueError otherwise, naming key for a bad directory. design_read
+    checks a design or ADR path a request or a Jira field names with this before git reads
+    it."""
     check_repo_path(key, directory)
+    if directory.endswith("/") and path.startswith(directory + "/"):
+        path = directory + path[len(directory) + 1:]
     check_repo_path("path", path)
     *parents, name = path.split("/")
-    if not name.endswith(".md") or not SLUG.fullmatch(name[:-len(".md")]):
-        raise ValueError(f"path {path!r} does not end in a <slug>.md file name")
     if "/".join(parents) != directory.rstrip("/"):
         raise ValueError(f"path {path!r} is not directly under {key} {directory!r}")
+    if key == "adr_dir" and not ADR_RECORD.fullmatch(name):
+        raise ValueError(f"path {path!r} does not end in a <number>-<title>.md file name")
+    if key != "adr_dir" and (not name.endswith(".md") or
+                             not SLUG.fullmatch(name[:-len(".md")])):
+        raise ValueError(f"path {path!r} does not end in a <slug>.md file name")
     return path
 
 
@@ -561,19 +579,30 @@ def front_matter(text):
     return mapping
 
 
-def design_read(path, directory, ref, key="design_dir", root=None):
-    """The text of the design, or with key adr_dir the ADR, at path in ref, as design_path checks the
-    path and git reads ref: a regular file, never a tree, symlink, or submodule; a design's
-    front matter `status` must be `accepted`, the MADR status gates/design-exit.md gives an
-    approved design. ValueError otherwise, saying which. One reader for write-tickets and
-    plan-work, as kepval is one checker of a KEP's status for every consumer."""
-    design_path(path, directory, key)
+def design_read(path, ref, config, key="design_dir"):
+    """The text of the design, or with key adr_dir the ADR, at path in ref: path lies under
+    the directory key holds in config, the project.json the calling skill read, so a key and
+    its directory cannot disagree, as design_path checks it, and git reads it from ref,
+    relative to project_root(config) as adr_numbers reads adr_dir, as a regular file, never
+    a tree, symlink, or submodule; a design's front matter `status` must be `accepted`, the
+    MADR status gates/design-exit.md gives an approved design. ValueError otherwise, saying
+    which. One reader for write-tickets and plan-work, as kepval is one checker of a KEP's
+    status for every consumer."""
+    root = project_root(config)
+    directory = read_keys(read_config(config), [OptionalKey(key, None)])[key]
+    if directory is None:
+        raise ValueError(f"{key} is unset in project.json")
+    if key == "adr_dir" and directory.rstrip("/") == str(
+            read_config(config).get("design_dir", "")).rstrip("/"):
+        raise ValueError("adr_dir and design_dir name one directory, so no read can tell an ADR "
+                         "from a design")
+    path = design_path(path, directory, key)
     try:
         commit = run_git(root, "rev-parse", "--verify", "--end-of-options",
                          f"{ref}^{{commit}}").strip()
     except ValueError as error:
         raise ValueError(f"ref {ref!r} does not name a commit ({error})")
-    entry = run_git(root, "ls-tree", "-z", "--full-tree", commit, "--", path).rstrip("\0")
+    entry = run_git(root, "ls-tree", "-z", commit, "--", path).rstrip("\0")
     if not entry:
         raise ValueError(f"{path!r} is absent from {ref}")
     mode, kind, blob = entry.split("\t", 1)[0].split()
@@ -1023,7 +1052,11 @@ def design_read_self_test(this):
              "docs/design/override.md": "---\nbase: &b {status: proposed}\n<<: *b\n"
                                         "status: accepted\n---\n" + body,
              "docs/design/loose.md": "\ufeff--- \nstatus: accepted\n...\n" + body,
-             "docs/design/tree.md/inner.md": approved, "docs/adr/0001-a.md": "---\nstatus: accepted\n---\n"}
+             "docs/design/tree.md/inner.md": approved,
+             "docs/adr/0001-a.md": "---\nstatus: accepted\n---\n",
+             "docs/adr/0002-Use-X.md": "---\nstatus: accepted\n---\n",
+             "sub/docs/design/nested.md": approved}
+    config = {"design_dir": "docs/design", "adr_dir": "docs/adr"}
     failures = 0
     with tempfile.TemporaryDirectory() as root, \
             process_state(isolated_git_environment(), root):
@@ -1032,8 +1065,11 @@ def design_read_self_test(this):
         os.symlink("ok.md", os.path.join(root, "docs/design/link.md"))
         write_scratch(root, b"---\nstatus: accepted\n---\n# L r\xf6b\n", "docs/design/latin.md")
         os.chmod(write_scratch(root, approved, "docs/design/exec.md"), 0o755)
+        project = write_scratch(root, config, ".claude/project.json")
         run_git(root, "init", "--quiet", "--initial-branch=main")
         run_git(root, "add", "-A")
+        run_git(root, "update-index", "--add", "--cacheinfo",
+                f"160000,{'1' * 40},docs/design/module.md")
         run_git(root, "commit", "--quiet", "-m", "designs")
         for name, path, adr, expected in [
                 ("an approved design is read", "docs/design/ok.md", False, approved),
@@ -1073,48 +1109,82 @@ def design_read_self_test(this):
                  "not a regular file"),
                 ("a design that is not UTF-8 is invalid", "docs/design/latin.md", False,
                  "not UTF-8"),
+                ("a submodule named like a design is invalid", "docs/design/module.md", False,
+                 "not a regular file"),
                 ("an ADR is read without a status check", "docs/adr/0001-a.md", True,
-                 files["docs/adr/0001-a.md"])]:
-            directory, key = ("docs/adr", "adr_dir") if adr else ("docs/design", "design_dir")
-            got = result_or_message(
-                lambda: design_read(path, directory, "main", key, root))
+                 files["docs/adr/0001-a.md"]),
+                ("an ADR with an uppercase title is read", "docs/adr/0002-Use-X.md", True,
+                 files["docs/adr/0002-Use-X.md"]),
+                ("an ADR with no number is invalid", "docs/adr/use-x.md", True,
+                 "<number>-<title>.md"),
+                ("a design path read as an ADR is invalid", "docs/design/pending.md", True,
+                 "not directly under adr_dir")]:
+            key = "adr_dir" if adr else "design_dir"
+            got = result_or_message(lambda: design_read(path, "main", project, key))
             read = expected in files.values()
             failures += report("design_read", name, got == expected if read else
                                expected in got and got not in files.values(), True)
         failures += report("design_read", "an unknown ref is named",
                            result_or_message(lambda: design_read(
-                               "docs/design/ok.md", "docs/design", "nope", root=root)).startswith(
+                               "docs/design/ok.md", "nope", project)).startswith(
                                "ref 'nope' does not name a commit (git rev-parse failed: fatal:"),
                            True)
+        for name, setting, expected in [
+                ("an unset adr_dir is named", {"design_dir": "docs/design"}, "adr_dir is unset"),
+                ("an invalid adr_dir is named", dict(config, adr_dir="../adr"), "adr_dir"),
+                ("one directory for designs and ADRs is refused",
+                 dict(config, adr_dir="docs/design/"), "adr_dir and design_dir name one")]:
+            write_scratch(root, setting, ".claude/project.json")
+            got = result_or_message(lambda: design_read("docs/adr/0001-a.md", "main", project,
+                                                        "adr_dir"))
+            failures += report("design_read", name, got.startswith(expected), True)
+        write_scratch(root, config, ".claude/project.json")
+        subproject = write_scratch(root, {"design_dir": "docs/design"}, "sub/.claude/project.json")
+        failures += report("design_read", "the named project.json is read, not the repository "
+                           "top's", result_or_message(lambda: design_read(
+                               "docs/adr/0001-a.md", "main", subproject, "adr_dir")),
+                           "adr_dir is unset in project.json")
+        failures += report("design_read", "a nested project's design is read from its folder",
+                           result_or_message(lambda: design_read(
+                               "docs/design/nested.md", "main", subproject)), approved)
+        failures += report("project_root", "the folder holding .claude/", project_root(subproject),
+                           os.path.join(root, "sub"))
         failures += cli_case(this, "design-read prints an approved design",
-                             ["design-read", "--dir", "docs/design", "--ref", "main"],
+                             ["design-read", "--ref", "main", "--config", project],
                              approved.strip(), 0, input="docs/design/ok.md\n", cwd=root,
                              env=isolated_git_environment(), exact=True)
         failures += cli_case(this, "design-read from a subdirectory reads from the root",
-                             ["design-read", "--dir", "docs/design", "--ref", "main"],
+                             ["design-read", "--ref", "main", "--config", project],
                              approved.strip(), 0, input="docs/design/ok.md\n",
                              cwd=os.path.join(root, "docs"), env=isolated_git_environment(),
                              exact=True)
         failures += cli_case(this, "design-read --key adr_dir reads an ADR",
-                             ["design-read", "--dir", "docs/adr", "--ref", "main", "--key",
-                              "adr_dir"], files["docs/adr/0001-a.md"].strip(), 0,
+                             ["design-read", "--ref", "main", "--config", project, "--key",
+                              "adr_dir"],
+                             files["docs/adr/0001-a.md"].strip(), 0,
                              input="docs/adr/0001-a.md\n", cwd=root,
                              env=isolated_git_environment(), exact=True)
-        failures += cli_case(this, "design-read --key adr_dir names adr_dir",
-                             ["design-read", "--dir", "../adr", "--ref", "main", "--key",
-                              "adr_dir"], "INVALID: adr_dir", 1,
-                             input="../adr/0001-a.md\n", cwd=root, env=isolated_git_environment())
-        failures += cli_case(this, "only --key adr_dir reads without a status check",
-                             ["design-read", "--dir", "docs/design", "--ref", "main", "--key",
-                              "adr_dir"], files["docs/design/pending.md"].strip(), 0,
-                             input="docs/design/pending.md\n", cwd=root,
-                             env=isolated_git_environment(), exact=True)
+        failures += cli_case(this, "--key adr_dir does not read a design unchecked",
+                             ["design-read", "--ref", "main", "--config", project, "--key",
+                              "adr_dir"],
+                             "INVALID: path 'docs/design/pending.md' is not directly under "
+                             "adr_dir", 1, input="docs/design/pending.md\n", cwd=root,
+                             env=isolated_git_environment())
+        failures += cli_case(this, "design-read has no --dir to name another directory",
+                             ["design-read", "--ref", "main", "--config", project, "--key",
+                              "adr_dir", "--dir",
+                              "docs/design"], "", 2, input="docs/design/pending.md\n",
+                             cwd=root, env=isolated_git_environment())
+        failures += cli_case(this, "design-read without --config is usage",
+                             ["design-read", "--ref", "main"], "", 2,
+                             input="docs/design/ok.md\n", cwd=root,
+                             env=isolated_git_environment())
         failures += cli_case(this, "design-read without --ref is usage",
-                             ["design-read", "--dir", "docs/design"], "", 2,
+                             ["design-read"], "", 2,
                              input="docs/design/ok.md\n", cwd=root,
                              env=isolated_git_environment())
         failures += cli_case(this, "design-read of a second line is invalid",
-                             ["design-read", "--dir", "docs/design", "--ref", "main"],
+                             ["design-read", "--ref", "main", "--config", project],
                              "INVALID:", 1, input="docs/design/ok.md\nmain:docs/design/ok.md\n",
                              cwd=root, env=isolated_git_environment())
     for name, text, expected in [
@@ -1128,10 +1198,17 @@ def design_read_self_test(this):
             ("a closer never opened is none", "status: accepted\n---\n", "no front matter")]:
         got = result_or_message(lambda: front_matter(text))
         failures += report("front_matter", name, got == expected, True)
-    with tempfile.TemporaryDirectory() as bare, process_state(isolated_git_environment(), bare):
-        failures += report("design_read", "outside a repository the cause is kept",
-                           "not a git repository" in result_or_message(lambda: design_read(
-                               "docs/design/ok.md", "docs/design", "main", root=bare)), True)
+    with tempfile.TemporaryDirectory() as bare:
+        # A ceiling at bare's parent keeps git from finding a repository the temporary
+        # directory itself sits in.
+        bare = os.path.realpath(bare)
+        outside = isolated_git_environment(GIT_CEILING_DIRECTORIES=os.path.dirname(bare))
+        with process_state(outside, bare):
+            config_file = write_scratch(bare, {"design_dir": "docs/design"},
+                                        ".claude/project.json")
+            failures += report("design_read", "outside a repository the cause is kept",
+                               "not a git repository" in result_or_message(lambda: design_read(
+                                   "docs/design/ok.md", "main", config_file)), True)
     return failures
 
 
@@ -1412,6 +1489,10 @@ def self_test():
          True),
         ("a trailing slash on the directory", "docs/design/x.md", "docs/design/", "design_dir",
          True),
+        ("a trailing slash joined by a template", "docs/design//x.md", "docs/design/",
+         "design_dir", True),
+        ("a second empty component after a trailing slash", "docs/design///x.md",
+         "docs/design/", "design_dir", ""),
         ("an invalid directory", "../d/x.md", "../d", "design_dir", "design_dir"),
         ("an invalid ADR directory names adr_dir", "../adr/0001-x.md", "../adr", "adr_dir",
          "adr_dir"),
@@ -1440,8 +1521,8 @@ def main():
     commands.add_parser("ticket-key").add_argument("--prefix")
     commands.add_parser("ticket-keys").add_argument("--prefix", required=True)
     reading = commands.add_parser("design-read")
-    reading.add_argument("--dir", required=True)
     reading.add_argument("--ref", required=True)
+    reading.add_argument("--config", required=True)
     reading.add_argument("--key", choices=("design_dir", "adr_dir"), default="design_dir")
     args = parser.parse_args()
     if args.self_test:
@@ -1454,8 +1535,8 @@ def main():
                               "ticket-key": lambda: ticket_key(text_input(None), args.prefix),
                               "ticket-keys": lambda: ticket_keys(text_input(None),
                                                                  args.prefix),
-                              "design-read": lambda: design_read(text_input(None), args.dir,
-                                                                 args.ref, args.key)},
+                              "design-read": lambda: design_read(text_input(None), args.ref,
+                                                                 args.config, args.key)},
                      args.command)
 
 

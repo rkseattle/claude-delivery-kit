@@ -12,27 +12,26 @@ criterion 2 names, and by this repository's CI on its own `adr_dir`.
         since their merge base, less those it deleted — what merging the branch would leave
     adr_numbers.py --self-test     runs every case below; exit 0 only if each one matches
 
-A record is a file directly under `adr_dir` named `NNNN-<title>.md`, its number read as an
-integer so `0003` and `003` collide. Against a ref, only a number one of the head's added
-records shares counts. Prints `unique N`, or `duplicate N` and one `<number> <path>
-<path>...` line per shared number; exit 0 only if unique. `adr_dir` unset
-prints `adr_dir not configured` and exits 0, since nothing can collide. Exit 2 is no
-answer: an unreadable project.json, an invalid `adr_dir`, or a git failure.
+A record is a file directly under `adr_dir` named as project_rules.ADR_RECORD reads one,
+`<number>-<title>.md`, its number read as an integer so `0003` and `003` collide. Against a
+ref, only a number one of the head's added records shares counts. Prints `unique N`, or
+`duplicate N` and one `<number> <path> <path>...` line per shared number; exit 0 only if
+unique. `adr_dir` unset prints `adr_dir not configured` and exits 0, since nothing can
+collide. Exit 2 is no answer: an unreadable project.json, an invalid `adr_dir`, or a git
+failure.
 """
 import argparse
 import collections
 import os
-import re
 import sys
 import tempfile
 
 sys.dont_write_bytecode = True
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from project_rules import (OptionalKey, cli_case, error_message,  # noqa: E402
-                           git_subcommand, isolated_git_environment, read_config, read_keys,
-                           report, run_git, write_scratch)
+from project_rules import (ADR_RECORD, OptionalKey, cli_case, error_message,  # noqa: E402
+                           git_subcommand, isolated_git_environment, project_root,
+                           read_config, read_keys, report, run_git, write_scratch)
 
-RECORD = re.compile(r"^(\d+)-[^/]+\.md$")
 GIT_ENVIRONMENT = None  # the self-test's isolated environment; None is the caller's
 
 
@@ -44,7 +43,7 @@ def records(root, ref, adr_dir):
     """The record paths directly under adr_dir at ref, since ls-tree without -r lists no
     subdirectory's files; none when ref has no adr_dir."""
     listed = git(root, "ls-tree", "--name-only", "-z", ref, "--", adr_dir + "/")
-    return {path for path in listed.split("\0") if RECORD.match(os.path.basename(path))}
+    return {path for path in listed.split("\0") if ADR_RECORD.match(os.path.basename(path))}
 
 
 def merged_records(root, adr_dir, against, head_ref="HEAD"):
@@ -65,7 +64,7 @@ def duplicates(paths):
     """{number: sorted paths} for each number more than one path holds."""
     by_number = collections.defaultdict(list)
     for path in paths:
-        by_number[int(RECORD.match(os.path.basename(path)).group(1))].append(path)
+        by_number[int(ADR_RECORD.match(os.path.basename(path)).group(1))].append(path)
     return {number: sorted(held) for number, held in by_number.items() if len(held) > 1}
 
 
@@ -81,7 +80,7 @@ def adr_dir_of(config):
 def check(config, against=None, head_ref="HEAD"):
     """(exit code, printed lines) for the CLI. The repository is the one holding config, at
     <root>/.claude/project.json."""
-    root = os.path.dirname(os.path.dirname(os.path.abspath(config)))
+    root = project_root(config)
     adr_dir = adr_dir_of(config)
     if adr_dir is None:
         return 0, ["adr_dir not configured"]

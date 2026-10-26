@@ -68,7 +68,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)),
                                 "..", "..", "..", "gates", "scripts"))
 from project_rules import (PROJECT_KEYS, REGISTER_COLUMNS, is_placeholder,  # noqa: E402
                            Outcome, cli_case, isolated_git_environment, mismatch, passed,
-                           process_state, run_check, run_git, text_input,
+                           process_state, project_root, run_check, run_git, text_input,
                            complete_register_row, device_entries, glob_list,
                            key_problems, read_keys, RequiredKey, threshold_entries,
                            is_register_header, markdown_tables, markdown_tokens, words,
@@ -388,7 +388,7 @@ def sensitive_paths(config_path, scope_range):
     globs = sensitive_globs(load_config(config_path))
     if not scope_range or scope_range.startswith("-"):
         raise ValueError(f"range {scope_range!r} is not a revision range")
-    root = os.path.dirname(os.path.dirname(os.path.abspath(config_path)))
+    root = project_root(config_path)
 
     def git(*arguments):
         return run_git(root, "-c", "core.quotePath=false", *arguments)
