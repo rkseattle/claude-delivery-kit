@@ -117,7 +117,7 @@ R11's context, at least two options considered, the one chosen and why, and cons
 ## Example
 
 ```
-# [S1] Rotate the refresh token on the refresh endpoint
+# [S1] Return a new access token from the refresh endpoint
 Type: Story
 Parent: E1
 Blocked by: T1
@@ -129,13 +129,13 @@ Jira:
 "Keep me signed in" users need a 30-day session; access tokens last one hour.
 
 ## Behavior
-POST /auth/refresh with a valid `rt` cookie rotates the access token and `rt`.
+POST /auth/refresh with a valid `rt` cookie returns a new access token.
 
 ## Acceptance criteria
 - AC1: POST /auth/refresh with a valid `rt` returns 200 with a body whose only field is `accessToken` [verify: automated @ tests/auth/refresh.test.ts]
 
 ## Touch points
-- src/auth/refresh.ts (new): rotation logic
+- src/auth/routes.ts (modify): add the refresh route and its handler
 
 ## Out of scope
 - Reuse detection for revoked tokens (S2)

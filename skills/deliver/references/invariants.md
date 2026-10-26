@@ -165,7 +165,8 @@ body plus 252 of reference. The per-invocation load fell 44%, which is what the 
 exists to control, while the raw total rose. A cap that punished that split would be
 measuring the wrong quantity. The agent and `status-report.md` caps moved 130 → 140 for
 the citations work, which named no displacement when it landed; Rob moved the skill cap 480
-→ 490 for `write-tickets` building on an approved design, its named cuts having fallen short.
+→ 490, "kit-wide: every skill gets 10 more lines", when `write-tickets`' named cuts fell
+short of building on an approved design; `plan-work` uses it for the same work.
 
 The caps sit just above today's sizes deliberately: the next addition to a near-full file
 has to displace something. **A proposal that would breach a cap must name what comes out**

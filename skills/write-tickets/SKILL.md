@@ -20,7 +20,7 @@ Read `${CLAUDE_PROJECT_DIR}/.claude/project.json` first: `{{ticket_prefix}}`,
 against invented tiers and roots fail at `plan-work` for reasons nobody can see.
 
 No ticket is created, edited, or transitioned before Step 7's approval; until then it
-writes only the draft and the input file its slug is derived from.
+writes only the draft and the input files of the checks it runs.
 
 ## Step 1 — Settle the decisions
 
@@ -107,11 +107,11 @@ python3 "${CLAUDE_PLUGIN_ROOT}/gates/scripts/project_rules.py" draft-slug < "<re
 - **Context**: why, with any linked source summarized. Never a reference to this session.
 - **Design**: a design `## Summary` opening `Epic: <KEY>` names its Epic; stop unless the
   key, fed as Step 2 feeds the path, passes `project_rules.py ticket-key --prefix
-  "{{ticket_prefix}}"`, and the issue exists as an Epic. Fetch it, and each child sharing a
-  design ticket's summary, into the draft as rewrite mode does, stopping on a not-Done
-  child that shares none, and draft the rest as new tickets under it; otherwise draft a new
-  Epic, its Goal and Success measures from the design's. Either Epic's In scope carries
-  `- Design: <path>`. The fetched tickets join this run here, at Step 4.
+  "{{ticket_prefix}}"` and the issue is an Epic. Fetch it and each not-Done child into the
+  draft as rewrite mode does, stopping on one no design ticket's summary matches, or on a
+  design ticket a Done child matches, back to `design-feature`; draft the rest as new under
+  it. Otherwise draft a new Epic, Goal and Success measures from the design's. Either Epic's
+  In scope carries one `- Design: <path>` line, replacing any other; fetched tickets join here.
 
 ## Step 5 — Lint
 

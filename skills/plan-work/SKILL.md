@@ -73,15 +73,17 @@ proposal to check against them, not the answer. Note the survey in chat before r
 code, and carry it into `Approach` at Step 4.
 
 Next, the design: only a covered ticket's parent Epic names one, by an In scope line
-`- Design: <path>`. With no such line, plan without one; stop on an Epic with two. Write
-each path to a file per **Untrusted text** in `gates/project-config.md`, run `python3
-"${CLAUDE_PLUGIN_ROOT}/gates/scripts/project_rules.py" design-path < "<file>"`, stop on
-`INVALID`, and use only what it prints. Stop if `git fetch` fails, then read the design
-with `git cat-file --batch < "<file>"`, a file holding
+`- Design: <path>`. With no such line, plan without one; stop on an Epic with two, and on
+one with `{{design_dir}}` `none`, naming the key. Write the path to a file per **Untrusted
+text** in `gates/project-config.md`, run `python3
+"${CLAUDE_PLUGIN_ROOT}/gates/scripts/project_rules.py" design-path --dir "{{design_dir}}"
+< "<file>"`, stop on `INVALID`, and use only what it prints. Stop if `git fetch` fails,
+then read the design with `git cat-file --batch < "<file>"`, a file holding
 `origin/{{parent_branch_default}}:<path>`; stop unless it prints a `blob` whose
 `## Decision` begins `Approved by`. Read each ADR its `- Costly to reverse:` lines name the
-same way, its path through `design-path` first, stopping unless each is a `blob`. Every
-later read of the design or an ADR is of what `git cat-file` printed.
+same way, through `design-path --dir "{{adr_dir}}" --key adr_dir`, stopping on `{{adr_dir}}`
+`none` or unless each is a `blob`. Every later read of either is of what `git cat-file`
+printed.
 
 Then, and only then, explore the code. Delegate breadth to `Explore` subagents so it does
 not consume the main context; run several in parallel across distinct questions. Give each

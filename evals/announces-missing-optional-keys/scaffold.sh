@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # A project.json with every required key and no optional ones, so each optional key
-# plan-work uses resolves to its documented default: none, [] for disciplines, 400 for
-# pr_review_limit_lines, or the person running the session for each role in roles.
+# plan-work uses, design_dir and adr_dir among them, resolves to its documented default:
+# none, [] for disciplines, 400 for pr_review_limit_lines, or the person running the
+# session for each role in roles.
 set -euo pipefail
 mkdir -p .claude
 cat > .claude/project.json <<'JSON'

@@ -76,8 +76,8 @@ Every skill except `readme-docs` runs only when invoked by name.
 - **`deliver`** — runs the five stages below in order and resumes an interrupted run.
   Every stage reads `project-config.md` and reports per `status-report.md`; `deliver`
   records rule-book exceptions in the `exceptions.md` format.
-  1. `plan-work` — reads the tickets and the code, writes a phased plan, and stops for
-     approval. Agent: `design-adversary`.
+  1. `plan-work` — reads the tickets, the code, and any approved design their Epic names,
+     writes a phased plan, and stops for approval. Agent: `design-adversary`.
   2. `implement-phases` — branches, moves Jira to In Progress, and commits each phase.
      Agent: `commit-adversary` before every commit. Gate: `definition-of-done.md`.
   3. `branch-review` — a cold review of the whole branch, with each fix spread to every

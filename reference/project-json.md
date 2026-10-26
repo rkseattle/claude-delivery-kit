@@ -123,9 +123,10 @@ since the record is committed. Default `none`, under which `retire-system` stops
 its decision records are committed, in the form `gates/design-exit.md` defines. Each follows
 `incident_reviews_dir`'s path rule, and is not gitignored, since both are committed.
 `design-feature` reads both, writing the design doc and its ADRs there, and `write-tickets`
-reads `design_dir` for the approved design a request names. Each defaults to `none`, under
-which the gate fails as it states: with `design_dir` `none`, `design-feature` stops and
-names the key, as `write-tickets` does when a request names a design; with `adr_dir`
+reads `design_dir` for the approved design a request names, as `plan-work` reads both for
+the design an Epic names. Each defaults to `none`, under which the gate fails as it states:
+with `design_dir` `none`, `design-feature` stops and names the key, as `write-tickets` and
+`plan-work` do when a request or an Epic names a design; with `adr_dir`
 `none`, `design-feature` goes on and says so, then stops, naming the key, before writing a
 costly-to-reverse choice, the one design the gate would fail.
 `ci-green`'s merge step runs `gates/scripts/adr_numbers.py` on `adr_dir`, which under `none`
@@ -208,8 +209,9 @@ names separated by `·`, commas, or semicolons, each optionally in backticks and
 a note in parentheses; `and` and `or` are joiners, and names compare without case.
 `release_dir` holds each version's test summary, its note file, the Must tickets'
 description copies the check reads, the release notes, and with disciplines named, the
-model thresholds, the error-budget reading, and the security sign-off. They are working files, not
-committed, so the path may be gitignored. The note `release-readiness` writes on the tested
+model thresholds, the error-budget reading, and the security sign-off. Its path follows
+`incident_reviews_dir`'s path rule, save that it may be gitignored, since these are working
+files, not committed. The note `release-readiness` writes on the tested
 commit under `refs/notes/release-readiness`, which `release` checks and pushes with the tag,
 records the summary's hash and verdict there; it is an integrity check, not a signed
 attestation. The hosted equivalents, a GitHub commit status or check run for the verdict and
@@ -350,8 +352,8 @@ the key.
     number, and `drift_threshold` is a JSON number; drift above it is reported, Appendix B2's
     trigger for retraining or rollback.
   - `sre` at maintenance: `alert_rules_dir` holds Prometheus rule files or
-    prometheus-operator `PrometheusRule`s, relative to the repository as `incident_reviews_dir`
-    is. `maintenance_check.py alert-rules` reports each alerting rule naming no SLO — an `slo`
+    prometheus-operator `PrometheusRule`s, at a path following `incident_reviews_dir`'s path
+    rule. `maintenance_check.py alert-rules` reports each alerting rule naming no SLO — an `slo`
     or `sloth_slo` label or annotation — or no runbook — a non-blank `runbook_url` or
     `runbook` annotation — saying which it lacks. Appendix B5 asks that every alert map to
     an SLO or a documented failure mode and link to a runbook; an alert mapped to a failure
