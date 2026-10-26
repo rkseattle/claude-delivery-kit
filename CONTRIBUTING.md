@@ -33,7 +33,8 @@ gates/                 the universal halves of the gates, listed in the README;
                        holds the project.json key registry and rules, check-script
                        entry point, and self-test helpers the release, review,
                        incident, maintenance, retirement, and design scripts share,
-                       with a self-test of its own;
+                       with a self-test of its own, and the slug, key, and PR-number
+                       subcommands skills run on text they must not hand the shell;
                        scripts/_vendor holds PyYAML, which the maintenance check reads
                        alert rules with
 hooks/                 hooks.json + the two hooks and their self-tests

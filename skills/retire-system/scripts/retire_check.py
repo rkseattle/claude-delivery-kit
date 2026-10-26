@@ -7,8 +7,9 @@ Called by skills/retire-system/SKILL.md (Steps 1, 4 and 5).
     retire_check.py retirements-dir --config PATH
         `ok` when retirements_dir is a relative path inside the repository, as release_dir
         must be
-    retire_check.py name --value NAME
-        `retire/<name>`, when the name is lowercase kebab-case
+    retire_check.py name [--value NAME]
+        `retire/<name>` for the name, or standard input, when it is lowercase kebab-case and
+        at most NAME_MAX characters, so its branch's lock file fits a file name
     retire_check.py record --file PATH --config PATH --today YYYY-MM-DD
         `done` when the record holds exactly the sections User notice, Data, Infrastructure,
         and Credentials, in that order, each `Status: done` with every checklist item ticked
@@ -41,10 +42,11 @@ import tempfile
 sys.dont_write_bytecode = True
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)),
                                 "..", "..", "..", "gates", "scripts"))
-from project_rules import (OptionalKey, RequiredKey,  # noqa: E402
+from project_rules import (BRANCH_SLUG_MAX, OptionalKey, RequiredKey,  # noqa: E402
                            check_slug, cli_case, error_of, fence_split,
                            isolated_git_environment, process_state, parse_date, read_config,
-                           passed, read_keys, report, result_of, run_check, write_scratch)
+                           passed, read_keys, report, result_of, run_check, text_input,
+                           write_scratch)
 
 SECTIONS = ("User notice", "Data", "Infrastructure", "Credentials")
 STATUS = re.compile(r"^Status: (pending|done)$")
@@ -62,7 +64,13 @@ HEADER_LINES = (TITLE, OWNER, STARTED)  # each exactly once
 SECTION_LINES = (STATUS, CONFIRMED, ITEM)
 
 
+# The longest name built from the name is the branch's lock file, `<name>.lock`.
+NAME_MAX = BRANCH_SLUG_MAX
+
+
 def branch(name):
+    if len(name) > NAME_MAX:
+        raise ValueError(f"name is {len(name)} characters, over {NAME_MAX}")
     return f"retire/{check_slug('name', name)}"
 
 
@@ -368,6 +376,14 @@ def self_test():
                 ("retirements-dir ok", ["retirements-dir", "--config", config], "ok", 0),
                 ("no subcommand is usage", [], "", 2)]:
             failures += cli_case(script, *case)
+        failures += cli_case(script, "name reads standard input", ["name"], "retire/billing", 0,
+                             input="billing\n")
+        failures += cli_case(script, "a name at the limit", ["name", "--value", "n" * 250],
+                             "retire/" + "n" * 250, 0, exact=True)
+        failures += cli_case(script, "a name over the limit", ["name", "--value", "n" * 251],
+                             "INVALID: name is 251 characters", 1)
+        failures += cli_case(script, "a name with a quote is invalid, not a shell error",
+                             ["name"], "INVALID:", 1, input="rob's-billing\n")
     return 1 if failures else 0
 
 
@@ -384,7 +400,7 @@ def main():
     parser.add_argument("--self-test", action="store_true")
     commands = parser.add_subparsers(dest="command")
     commands.add_parser("retirements-dir").add_argument("--config", required=True)
-    commands.add_parser("name").add_argument("--value", required=True)
+    commands.add_parser("name").add_argument("--value")
     checked = commands.add_parser("record")
     for option in ("--file", "--config", "--today"):
         checked.add_argument(option, required=True)
@@ -393,7 +409,7 @@ def main():
         return self_test()
     checks = {"retirements-dir": passed(lambda: read_keys(read_config(args.config),
                                                          [RETIREMENTS_DIR])),
-              "name": lambda: branch(args.value),
+              "name": lambda: branch(text_input(args.value)),
               "record": lambda: record_state(read_record(args.file),
                                              service_owner(read_config(args.config)),
                                              args.today,

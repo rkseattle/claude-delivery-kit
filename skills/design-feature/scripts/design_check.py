@@ -7,11 +7,14 @@ Written for the design-feature skill to run before it writes a design.
         `ok` when design_dir and adr_dir are each a relative path inside the repository, as
         release_dir must be; `ok\tadr_dir not configured` when adr_dir is unset, which
         gates/design-exit.md fails only for a design with a costly-to-reverse choice
+    design_check.py slug [--title TITLE]
+        the design's <slug> for the title, or standard input: project_rules.slug_of fitted
+        to SLUG_MAX; INVALID when no letter or digit is left
     design_check.py --self-test     runs every case below; exit 0 only if each one matches
 
-A failed check prints `INVALID: <what>` to standard error, naming every key that fails, and
-exits 1; exit 2 is usage. Whether either path is gitignored is the skill's check, not this
-script's.
+A failed check prints `INVALID: <what>` to standard error, naming every key that fails or
+the title, and exits 1; exit 2 is usage. Whether either path is gitignored is the skill's
+check, not this script's.
 """
 import argparse
 import os
@@ -21,9 +24,10 @@ import tempfile
 sys.dont_write_bytecode = True
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)),
                                 "..", "..", "..", "gates", "scripts"))
-from project_rules import (OptionalKey, RequiredKey, check_repo_path, cli_case,  # noqa: E402
-                           error_message, read_config, read_keys, report, result_or_message,
-                           run_check, unset_keys, write_scratch)
+from project_rules import (FILE_NAME_MAX, NO_LETTER, OptionalKey, RequiredKey,  # noqa: E402
+                           check_repo_path, cli_case, error_message, read_config, read_keys,
+                           report, result_or_message, run_check, slug_of, text_input, unset_keys,
+                           write_scratch)
 
 # adr_dir may be left unset: gates/design-exit.md fails an unset adr_dir only for a design with
 # a costly-to-reverse choice, which the gate, not this check, can see.
@@ -37,6 +41,15 @@ def check_dirs(config):
     unset = unset_keys(config, KEYS)
     return "\t".join(["ok", *(f"{declared.key} not configured" for declared in KEYS
                               if declared.key in unset)])
+
+
+# The longest name the skill builds from a slug is its ADR ignore check's `0000-<slug>.md`;
+# the branch's lock file, `<slug>.lock`, is shorter.
+SLUG_MAX = FILE_NAME_MAX - len("0000-") - len(".md")
+SLUG_CASES = [
+    ("fitted to the design's limit", "d" * 300, "d" * 247),
+    ("no letter", "日本語", NO_LETTER.format("日本語")),
+]
 
 
 DESIGN_DIR_UNSET = "design_dir is absent, none, blank, or a placeholder"
@@ -97,6 +110,9 @@ def self_test():
         failures += report("dirs", name,
                            result_or_message(lambda: check_dirs(config)),
                            expected_message(config, keys))
+    for name, title, expected in SLUG_CASES:
+        failures += report("slug", name, result_or_message(lambda: slug_of(title, SLUG_MAX)),
+                           expected)
     script = os.path.abspath(__file__)
     with tempfile.TemporaryDirectory() as directory:
         configs = {}
@@ -117,8 +133,13 @@ def self_test():
                  "INVALID: " + expected_message(BOTH_FAILING, BOTH_FAILING_KEYS), 1),
                 ("an unreadable config", ["dirs", "--config", unreadable], "INVALID:", 1),
                 ("dirs without --config is usage", ["dirs"], "", 2),
+                ("slug of no letter", ["slug", "--title", "日本語"], "INVALID: title ", 1),
                 ("no subcommand is usage", [], "", 2)]:
             failures += cli_case(script, *case)
+        failures += cli_case(script, "slug", ["slug", "--title", "Add a design-feature skill"],
+                             "add-a-design-feature-skill", 0, exact=True)
+        failures += cli_case(script, "slug reads the title from stdin", ["slug"], "rob-s-design",
+                             0, input="Rob's design\n", exact=True)
     return 1 if failures else 0
 
 
@@ -127,10 +148,12 @@ def main():
     parser.add_argument("--self-test", action="store_true")
     commands = parser.add_subparsers(dest="command")
     commands.add_parser("dirs").add_argument("--config", required=True)
+    commands.add_parser("slug").add_argument("--title")
     args = parser.parse_args()
     if args.self_test:
         return self_test()
-    return run_check(parser, {"dirs": lambda: check_dirs(read_config(args.config))},
+    return run_check(parser, {"dirs": lambda: check_dirs(read_config(args.config)),
+                              "slug": lambda: slug_of(text_input(args.title), SLUG_MAX)},
                      args.command)
 
 

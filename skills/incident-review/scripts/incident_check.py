@@ -6,6 +6,11 @@ Called by skills/incident-review/SKILL.md (Step 1).
     incident_check.py working-days --incident YYYY-MM-DD --start YYYY-MM-DD
         `<n>\ton time`, or `<n>\tlate` when n, the working days after the incident up to and
         including the start, is more than five
+    incident_check.py slug [--title WORDS]
+        the review's <slug> for the words, or standard input: project_rules.slug_of fitted
+        to SLUG_MAX; INVALID when no letter or digit is left
+    incident_check.py date [--value YYYY-MM-DD]
+        the date, or standard input, when it is a real YYYY-MM-DD
     incident_check.py branch --date YYYY-MM-DD --slug SLUG
         `incident/<date>-<slug>`, when the slug is lowercase kebab-case
     incident_check.py reviews-dir --value VALUE
@@ -25,8 +30,9 @@ import sys
 sys.dont_write_bytecode = True
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)),
                                 "..", "..", "..", "gates", "scripts"))
-from project_rules import (PROJECT_KEYS, check_slug, cli_case, error_message,  # noqa: E402
-                           error_of, parse_date, passed, report, result_of, run_check)
+from project_rules import (BRANCH_SLUG_MAX, PROJECT_KEYS, check_slug, cli_case,  # noqa: E402
+                           error_message, error_of, parse_date, passed, report, result_of,
+                           run_check, slug_of, text_input)
 
 LATE_AFTER = 5
 
@@ -44,6 +50,11 @@ def working_days(incident, start):
 def timeliness(incident, start):
     count = working_days(incident, start)
     return f"{count}\t{'late' if count > LATE_AFTER else 'on time'}"
+
+
+# The longest name built from a slug is the branch's lock file, `<YYYY-MM-DD>-<slug>.lock`,
+# longer than the review file, `<YYYY-MM-DD>-<slug>.md`.
+SLUG_MAX = BRANCH_SLUG_MAX - len("YYYY-MM-DD-")
 
 
 def branch(date, slug):
@@ -115,6 +126,16 @@ def self_test():
             ("reviews-dir none", ["reviews-dir", "--value", "none"], "INVALID:", 1),
             ("no subcommand is usage", [], "", 2)]:
         failures += cli_case(script, *case)
+    failures += cli_case(script, "slug prints the slug", ["slug", "--title", "DB failover!"],
+                         "db-failover", 0, exact=True)
+    failures += cli_case(script, "a slug is fitted to the branch's lock file",
+                         ["slug", "--title", "e" * 300], "e" * 239, 0, exact=True)
+    failures += cli_case(script, "date prints a real date", ["date"], "2026-10-12", 0,
+                         input="2026-10-12\n")
+    failures += cli_case(script, "a date holding shell text is refused before any use",
+                         ["date"], "INVALID:", 1, input="2026-10-12$(touch x)\n")
+    failures += cli_case(script, "slug reads the words from stdin", ["slug"], "rob-s-outage", 0,
+                         input="Rob's outage\n")
     return 1 if failures else 0
 
 
@@ -125,6 +146,8 @@ def main():
     days = commands.add_parser("working-days")
     days.add_argument("--incident", required=True)
     days.add_argument("--start", required=True)
+    commands.add_parser("slug").add_argument("--title")
+    commands.add_parser("date").add_argument("--value")
     name = commands.add_parser("branch")
     name.add_argument("--date", required=True)
     name.add_argument("--slug", required=True)
@@ -134,6 +157,8 @@ def main():
     if args.self_test:
         return self_test()
     checks = {"working-days": lambda: timeliness(args.incident, args.start),
+              "slug": lambda: slug_of(text_input(args.title), SLUG_MAX),
+              "date": lambda: parse_date(text_input(args.value)).isoformat(),
               "branch": lambda: branch(args.date, args.slug),
               "reviews-dir": passed(lambda: PROJECT_KEYS["incident_reviews_dir"].check(args.value))}
     return run_check(parser, checks, args.command)

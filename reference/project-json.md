@@ -119,12 +119,16 @@ retirement record. It follows `incident_reviews_dir`'s rule — a relative path 
 repository with no `.git` component, of the same characters, and not gitignored, since the
 record is committed. Default `none`, under which `retire-system` stops and names the key.
 
-`design_dir` and `adr_dir` serve rule book Phase 3 and R11: where a feature's design doc
-and its decision records are committed, in the form `gates/design-exit.md` defines. Each
-follows `incident_reviews_dir`'s rule — a relative path inside the repository with no
-`.git` component, of the same characters, and not gitignored, since both are committed.
-Each defaults to `none`, under which the gate fails as it states. `ci-green`'s merge step runs
-`gates/scripts/adr_numbers.py` on `adr_dir`, which under `none` passes and says so.
+`design_dir` and `adr_dir` serve rule book Phase 3 and R11: where a feature's design doc and
+its decision records are committed, in the form `gates/design-exit.md` defines. Each follows
+`incident_reviews_dir`'s rule — a relative path inside the repository with no `.git`
+component, of the same characters, and not gitignored, since both are committed.
+`design-feature` reads both, writing the design doc and its ADRs there. Each defaults to
+`none`, under which the gate fails as it states: with `design_dir` `none`, `design-feature`
+stops and names the key; with `adr_dir` `none` it goes on and says so, then stops, naming
+the key, before writing a costly-to-reverse choice, the one design the gate would fail.
+`ci-green`'s merge step runs `gates/scripts/adr_numbers.py` on `adr_dir`, which under `none`
+passes and says so.
 
 `secret_scan_command` and `sast_command` serve rule book R12 and Appendix B1's scans. Each
 writes SARIF 2.1.0 to standard output, redacted, with inline suppression comments ignored;
@@ -155,11 +159,13 @@ it — problem, users, goals, non-goals, numeric success measures, constraints, 
 risks, lifecycle, and an estimate range — checks the build and the parent branch's CI
 against `gates/planning-exit.md`, stops for the sponsor, then records the decision and
 commits the brief on `brief/<slug>`, which reaches the parent branch by an ordinary pull
-request. `write-tickets` traces its `Goal:` lines to an approved brief's goals wherever
-the checkout holds it, and removes work serving none; with `brief_file` set it stops on any brief not approved
-or naming no goal, sending a pending one to the sponsor through `plan-project`. The brief is committed, so the path
-must not be gitignored. Default `none`, under which `plan-project` stops and
-`write-tickets` reads no goals.
+request. `write-tickets` traces its `Goal:` lines to an approved brief's goals wherever the
+checkout holds it, and removes work serving none; with `brief_file` set it stops on any
+brief not approved or naming no goal, sending a pending one to the sponsor through
+`plan-project`. `design-feature` restates the approved brief's goals as a design's goals,
+stopping on a brief missing or not approved. The brief is committed, so the path must not be
+gitignored. Default `none`, under which `plan-project` stops, and `write-tickets` and
+`design-feature` read no goals.
 
 `pr_review_limit_lines` serves rule book R9: a pull request reviewable in under an hour. It
 caps one PR's changed lines, insertions plus deletions against the parent branch.
@@ -352,18 +358,19 @@ the key.
 - `roles` — a map from each role above to the person who holds it. `{{roles.<role>}}` in a
   skill resolves to that role's entry in `roles`, so `{{roles.tech_lead}}` names the tech
   lead. `plan-project` waits on the sponsor, `write-tickets` on the product owner after QA
-  confirms each `Must` ticket's ACs are testable, `release-readiness` on the product
-  owner's review of the test summary, `release` on the release manager before staging and
-  before each production stage, `plan-work` on the tech lead after QA approves the test
-  strategy, `ship-pr` hands QA the verification charter, `incident-review` and
-  `maintenance-review` wait on the service owner before creating a ticket, `retire-system`
-  before marking each section done, and `ci-green` and `deliver` send rule-book exceptions
-  to the tech lead, as `ci-green` does the merge question. Default: a role absent from
-  `roles` is the person running the session, and the skill addresses that person directly.
-  That is the absent-key rule above applied per role, so a missing role never resolves to
-  `none`, and a project with no `roles` key at all, or a `null` one, has the person running
-  the session in every role. A `roles` that is not an object, such as a list or a string,
-  is an error, never read as an empty map.
+  confirms each `Must` ticket's ACs are testable, `release-readiness` on the product owner's
+  review of the test summary, `release` on the release manager before staging and before
+  each production stage, `plan-work` on the tech lead after QA approves the test strategy,
+  `design-feature` on the tech lead after QA approves the test strategy and the product
+  owner the goals and non-goals, `ship-pr` hands QA the verification charter,
+  `incident-review` and `maintenance-review` wait on the service owner before creating a
+  ticket, `retire-system` before marking each section done, and `ci-green` and `deliver`
+  send rule-book exceptions to the tech lead, as `ci-green` does the merge question.
+  Default: a role absent from `roles` is the person running the session, and the skill
+  addresses that person directly. That is the absent-key rule above applied per role, so a
+  missing role never resolves to `none`, and a project with no `roles` key at all, or a
+  `null` one, has the person running the session in every role. A `roles` that is not an
+  object, such as a list or a string, is an error, never read as an empty map.
 - `on_call` — the handles of the people on the on-call rota, each one word. A route from
   `alert_routes_command` reaches a person only when its target equals one exactly, case
   included. Default `none`, under which `maintenance-review` reports the rota unset and every

@@ -22,6 +22,14 @@ git checkout {{parent_branch_default}} && git pull
 git checkout -b <ticket-slug>
 ```
 
+`<ticket-slug>` is what this prints for a file holding the primary ticket's key on its first
+line and a few words naming the change after it, handed over per **Untrusted text** in
+`gates/project-config.md`; an `INVALID:` line stops before the branch exists:
+
+```bash
+python3 "${CLAUDE_PLUGIN_ROOT}/gates/scripts/project_rules.py" ticket-branch --prefix "{{ticket_prefix}}" < "<branch file>"
+```
+
 Branch from `{{parent_branch_default}}` unless instructed otherwise. Then transition every
 covered ticket to **In Progress**. Look up the issue's available transitions via the
 Atlassian MCP first and use the ID it returns — never guess one.
@@ -255,12 +263,13 @@ Run every gate in `${CLAUDE_PLUGIN_ROOT}/gates/definition-of-done.md` and
 `{{mechanics_gate_dod}}`, including the conditional ones that apply to this phase's diff.
 All green. Read the result file at `{{results_file}}`, never exit codes.
 
-Commit with the ticket ID in the message, then mark this phase `"done": true` and fill in
-`finished_at`, `commit`, and `files` from the commit just made. If the file is missing — a
-resumed session, or this skill re-entered on an existing branch — rebuild it from the plan
-document's phase list, marking `done: true` every phase whose commit is already on the
-branch, and backfill from `git log`. Leave a rebuilt phase's timestamps absent rather than
-inventing them; report its duration as `unknown`.
+Commit with the ticket ID in the message, written to a file and committed with
+`git commit -F` per **Untrusted text** in `gates/project-config.md`, then mark this phase
+`"done": true` and fill in `finished_at`, `commit`, and `files` from the commit just made.
+If the file is missing — a resumed session, or this skill re-entered on an existing branch —
+rebuild it from the plan document's phase list, marking `done: true` every phase whose
+commit is already on the branch, and backfill from `git log`. Leave a rebuilt phase's
+timestamps absent rather than inventing them; report its duration as `unknown`.
 
 Then update `acceptance_criteria`: set `met: true` on every AC this phase satisfied, and put
 in `evidence` the specific thing that demonstrates it — a test name, a file and symbol, a

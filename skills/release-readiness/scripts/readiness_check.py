@@ -7,8 +7,9 @@ Called by skills/release-readiness/SKILL.md (Steps 1 to 4, 7), skills/release/SK
 (Step 1). The project.json rules it shares with the other scripts are in
 gates/scripts/project_rules.py.
 
-    readiness_check.py version --new X.Y.Z [--last vA.B.C]
-        `ok` when X.Y.Z is MAJOR.MINOR.PATCH and, with --last, greater in SemVer precedence
+    readiness_check.py version [--new X.Y.Z] [--last vA.B.C]
+        `ok` when X.Y.Z, or standard input when --new is absent, is MAJOR.MINOR.PATCH and,
+        with --last, greater in SemVer precedence
     readiness_check.py criteria --config PATH < DESCRIPTION
         one line per `- AC<n>:` under `## Acceptance criteria`: `<AC> <tier> <evidence> ok`,
         or a problem in place of ok — `no-tag`, `undeclared-tier` — and `no-criteria` alone
@@ -67,7 +68,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)),
                                 "..", "..", "..", "gates", "scripts"))
 from project_rules import (PROJECT_KEYS, REGISTER_COLUMNS, is_placeholder,  # noqa: E402
                            Outcome, cli_case, isolated_git_environment, mismatch, passed,
-                           process_state, run_check, run_git,
+                           process_state, run_check, run_git, text_input,
                            complete_register_row, device_entries, glob_list,
                            key_problems, read_keys, RequiredKey, threshold_entries,
                            is_register_header, markdown_tables, markdown_tokens, words,
@@ -610,6 +611,10 @@ def self_test():
         script = os.path.abspath(__file__)
         for name, arguments, stdin, expected_output, expected_exit in [
                 ("version ok", ["version", "--new", "1.2.0", "--last", "v1.1.9"], "", "ok", 0),
+                ("version reads standard input", ["version", "--last", "v1.1.9"], "1.2.0\n",
+                 "ok", 0),
+                ("a version holding shell text is invalid", ["version"], "$(touch x)\n",
+                 "INVALID:", 1),
                 ("version below", ["version", "--new", "1.0.0", "--last", "v1.1.0"], "",
                  "INVALID: 1.0.0 is not greater", 1),
                 ("a failed note writes nothing to standard output",
@@ -1110,7 +1115,7 @@ def main():
     parser.add_argument("--self-test", action="store_true")
     commands = parser.add_subparsers(dest="command")
     version = commands.add_parser("version")
-    version.add_argument("--new", required=True)
+    version.add_argument("--new")
     version.add_argument("--last")
     listing = commands.add_parser("criteria")
     listing.add_argument("--config", required=True)
@@ -1188,7 +1193,7 @@ def main():
         return Outcome(f"{state} {value}", 0 if state == "ok" else 1)
 
     return run_check(parser, {
-        "version": passed(lambda: check_version(args.new, args.last)),
+        "version": passed(lambda: check_version(text_input(args.new), args.last)),
         "criteria": criteria_rows,
         "note": lambda: build_note(args.summary, args.version),
         "nfrs": nfr_lines,

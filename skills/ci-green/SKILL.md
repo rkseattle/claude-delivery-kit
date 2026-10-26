@@ -9,7 +9,18 @@ allowed-tools: Read, Write, Edit, Grep, Glob, Bash, Task, WebSearch, WebFetch
 Drive PR $ARGUMENTS to fully green with no outstanding feedback and, where reviewers are
 configured, a human approval.
 
-Set `"stage": "ci-green"` and `"pr"` to the PR number in `.claude/state/current-plan.json`
+`<pr>` below is the PR's number. With `$ARGUMENTS` empty it is the current branch's PR: the
+`"pr"` that `ship-pr` recorded in `.claude/state/current-plan.json`, or else what
+`gh pr view --json number --jq .number` prints; when that fails too, stop and name its
+error. Otherwise, following **Untrusted text** in `gates/project-config.md`, read below,
+`$ARGUMENTS` is checked before any command uses it: hand it over as a file, stop on an
+`INVALID:` line, and take the number this prints:
+
+```bash
+python3 "${CLAUDE_PLUGIN_ROOT}/gates/scripts/project_rules.py" pr-number < "<pr file>"
+```
+
+Set `"stage": "ci-green"` and `"pr"` to that number in `.claude/state/current-plan.json`
 now, and update `stage_step` on entering each step below. `/deliver`'s Step 0 resumes from
 those; recording the PR number saves a resumed session re-deriving it, and distinguishes a
 branch awaiting CI from one still unpushed.
@@ -121,8 +132,9 @@ For every failing job:
    Rob declined for the same root cause, in `exclusions[]` or the plan, stays closed.
 
    Any change after item 4 — rework or a spread site — re-runs the Definition of Done and
-   folds into that same commit with `git commit --amend`, its message updated to name the
-   tests it now carries, then is verified again. Nothing is pushed before item 7.
+   folds into that same commit with `git commit --amend -F <message file>`, its message,
+   per **Untrusted text** in `gates/project-config.md`, updated to name the tests it now
+   carries, then is verified again. Nothing is pushed before item 7.
 7. **Push per `${CLAUDE_PLUGIN_ROOT}/gates/pre-push.md`** — including its step 1 rebase onto
    the parent branch. An open PR is exactly where the parent drifts:
    `{{parent_branch_default}}` moves while the run is red, and a fix pushed onto a stale base
@@ -170,8 +182,10 @@ Then, in this order:
 2. **Reply to every inline thread**, naming what changed and in which commit:
    ```bash
    gh api repos/{{repo_slug}}/pulls/<pr>/comments/<id>/replies \
-     --method POST -f body="Fixed in commit <sha>. <one-line explanation>."
+     --method POST -F body=@"<reply file>"
    ```
+   The reply, `Fixed in commit <sha>. <one-line explanation>.`, is free text, so it goes
+   over as a file per **Untrusted text** in `gates/project-config.md`; so does step 3's.
    Replies to Greptile comments start with `@greptile:` followed by a space.
 3. **Reply to the main PR summary comment** with a summary of all changes made, via the
    `issues/<pr>/comments` endpoint. Skip it only when every finding was handled inline and
@@ -358,8 +372,8 @@ answer. That ordering is not arbitrary: those lists live in the file this step d
 cleanup runs after the report or they are gone. Report the deletions with the merge outcome.
 
 ```bash
+plan=$(jq -r .plan .claude/state/current-plan.json) && rm -f -- "$plan"
 rm -f .claude/state/current-plan.json .claude/state/blocked-*
-rm -f docs/plans/<primary-ticket>*.md
 ```
 
 Both are working state for a delivery in flight, not artifacts of it: `docs/plans/` is

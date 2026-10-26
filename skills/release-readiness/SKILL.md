@@ -84,7 +84,7 @@ too, rather than reading as a first release:
 ```bash
 { last=$(git describe --tags --abbrev=0 --match 'v[0-9]*.[0-9]*.[0-9]*' --exclude 'v*-*' 2>&1) && range="$last..HEAD" ||
   case $last in *"No names found"*|*"No tags can describe"*) range=HEAD ;; *) echo "$last"; false ;; esac; } &&
-  git log --format=%s "$range" | grep -oE '[A-Z][A-Z0-9_]*-[0-9]+' | grep -xE '{{ticket_prefix}}-[0-9]+' | sort -u
+  git log --format=%s "$range" | python3 "${CLAUDE_PLUGIN_ROOT}/gates/scripts/project_rules.py" ticket-keys --prefix "{{ticket_prefix}}"
 ```
 
 Then check the version, passing `--last` only when the command above found a tag. Only a
@@ -93,9 +93,12 @@ excluded from the search, so it neither starts the range nor blocks the next ver
 Anything but `ok` stops the skill: a malformed version, or one not greater than the last in
 Semantic Versioning precedence, would mislabel history.
 
+The version, from `$ARGUMENTS`, is handed over as a file per **Untrusted text** in
+`gates/project-config.md`:
+
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/skills/release-readiness/scripts/readiness_check.py" version --new <version> --last v<last>
-python3 "${CLAUDE_PLUGIN_ROOT}/skills/release-readiness/scripts/readiness_check.py" version --new <version>
+python3 "${CLAUDE_PLUGIN_ROOT}/skills/release-readiness/scripts/readiness_check.py" version --last v<last> < "<version file>"
+python3 "${CLAUDE_PLUGIN_ROOT}/skills/release-readiness/scripts/readiness_check.py" version < "<version file>"
 ```
 
 The first line is for a release after a tag, the second for the first release.

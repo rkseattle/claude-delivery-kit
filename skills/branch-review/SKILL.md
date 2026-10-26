@@ -8,7 +8,14 @@ allowed-tools: Read, Write, Edit, Grep, Glob, Bash, Task, WebSearch, WebFetch
 
 Read `${CLAUDE_PLUGIN_ROOT}/gates/project-config.md` and follow it exactly.
 
-Full branch review. Base ref: $ARGUMENTS (default `{{parent_branch_default}}`).
+Full branch review. Base ref: $ARGUMENTS (default `{{parent_branch_default}}`). A base from
+`$ARGUMENTS` is handed over as a file per **Untrusted text** in `gates/project-config.md`
+before any command or delegation uses it, and replaced by the commit this prints; a
+failure stops the review, naming the ref:
+
+```bash
+git rev-parse --verify --quiet --end-of-options "$(cat "<base file>")^{commit}"
+```
 
 Run this after every phase is committed and before `/ship-pr`.
 
