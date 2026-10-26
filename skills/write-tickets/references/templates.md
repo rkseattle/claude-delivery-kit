@@ -139,7 +139,7 @@ POST /auth/refresh with a valid `rt` cookie returns a new access token.
 - src/auth/routes.ts (modify): add the refresh route and its handler
 
 ## Out of scope
-- Reuse detection for revoked tokens (S2)
+- Rotating the refresh token on each use (S2)
 
 ## Dependencies
 - T1: `refresh_tokens` table and repository functions
