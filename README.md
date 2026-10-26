@@ -71,8 +71,8 @@ Every skill except `readme-docs` runs only when invoked by name.
   - `design-feature` — writes a feature's design doc and its ADRs, has them reviewed cold,
     and commits them once the tech lead decides. Agent: `feature-design-adversary`.
     Gate: `design-exit.md`.
-  - `write-tickets` — turns a request into Jira tickets that `plan-work` can plan as
-    written. Agent: `ticket-adversary`.
+  - `write-tickets` — turns a request, or an approved design's work plan, into Jira tickets
+    that `plan-work` can plan as written. Agent: `ticket-adversary`.
 - **`deliver`** — runs the five stages below in order and resumes an interrupted run.
   Every stage reads `project-config.md` and reports per `status-report.md`; `deliver`
   records rule-book exceptions in the `exceptions.md` format.

@@ -126,20 +126,15 @@ Priority: Must
 Jira:
 
 ## Context
-Access tokens expire after one hour (`ACCESS_TTL` in src/auth/config.ts). Users with
-"Keep me signed in" need a 30-day session without re-entering credentials.
+"Keep me signed in" users need a 30-day session; access tokens last one hour.
 
 ## Behavior
-POST /auth/refresh with a valid `rt` cookie returns a new access token, sets a new `rt`,
-and revokes the old one.
+POST /auth/refresh with a valid `rt` cookie rotates the access token and `rt`.
 
 ## Acceptance criteria
 - AC1: POST /auth/refresh with a valid `rt` returns 200 with a body whose only field is `accessToken` [verify: automated @ tests/auth/refresh.test.ts]
-- AC2: The same request sets a new `rt` cookie with attributes `HttpOnly; Secure; SameSite=Strict` [verify: automated @ tests/auth/refresh.test.ts]
-- AC3: The old token's row has `revoked_at` and `replaced_by` set after the request [verify: automated @ tests/auth/refresh.test.ts]
 
 ## Touch points
-- src/auth/routes.ts (modify): register the refresh route
 - src/auth/refresh.ts (new): rotation logic
 
 ## Out of scope
@@ -147,5 +142,4 @@ and revokes the old one.
 
 ## Dependencies
 - T1: `refresh_tokens` table and repository functions
-- Code: `signAccessToken()` in src/auth/tokens.ts (exists on the parent branch)
 ```

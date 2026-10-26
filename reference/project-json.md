@@ -123,10 +123,12 @@ record is committed. Default `none`, under which `retire-system` stops and names
 its decision records are committed, in the form `gates/design-exit.md` defines. Each follows
 `incident_reviews_dir`'s rule — a relative path inside the repository with no `.git`
 component, of the same characters, and not gitignored, since both are committed.
-`design-feature` reads both, writing the design doc and its ADRs there. Each defaults to
-`none`, under which the gate fails as it states: with `design_dir` `none`, `design-feature`
-stops and names the key; with `adr_dir` `none` it goes on and says so, then stops, naming
-the key, before writing a costly-to-reverse choice, the one design the gate would fail.
+`design-feature` reads both, writing the design doc and its ADRs there, and `write-tickets`
+reads `design_dir` for the approved design a request names. Each defaults to `none`, under
+which the gate fails as it states: with `design_dir` `none`, `design-feature` stops and
+names the key, as `write-tickets` does when a request names a design; with `adr_dir`
+`none`, `design-feature` goes on and says so, then stops, naming the key, before writing a
+costly-to-reverse choice, the one design the gate would fail.
 `ci-green`'s merge step runs `gates/scripts/adr_numbers.py` on `adr_dir`, which under `none`
 passes and says so.
 

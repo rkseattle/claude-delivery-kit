@@ -8,16 +8,14 @@ allowed-tools: Read, Write, Edit, Grep, Glob, Bash, Task
 
 Write tickets for: $ARGUMENTS
 
-This skill produces tickets that the next stage can plan as written. `plan-work` is where a
-loose ticket turns into a split proposal, a `Deviation`, or a clause with no phase; the
-rubric at `${CLAUDE_PLUGIN_ROOT}/skills/write-tickets/references/rubric.md` lists what
-prevents each one. Read it and
+This skill produces tickets that the next stage can plan as written. Read
+`${CLAUDE_PLUGIN_ROOT}/skills/write-tickets/references/rubric.md` and
 `${CLAUDE_PLUGIN_ROOT}/skills/write-tickets/references/templates.md` before drafting.
 
 Read `${CLAUDE_PROJECT_DIR}/.claude/project.json` first: `{{ticket_prefix}}`,
 `{{jira_project}}`, `{{registry_file}}`, `{{source_roots}}`, `{{verification_tiers}}`,
 `{{plan_rules_file}}`, `{{build_command}}`, `{{parent_branch_default}}`, `{{brief_file}}`,
-`{{disciplines}}`, and `{{roles.*}}` all come from it. Read
+`{{disciplines}}`, `{{design_dir}}`, and `{{roles.*}}` all come from it. Read
 `${CLAUDE_PLUGIN_ROOT}/gates/project-config.md` and follow it exactly: tickets written
 against invented tiers and roots fail at `plan-work` for reasons nobody can see.
 
@@ -55,6 +53,14 @@ request-derived scope. Establish, by reading the code rather than file names:
   outcome, never "none", "TBD", or "N/A": a goalless one goes back to the sponsor; a
   `Rejected` one stopped the project; a missing, `Pending`, or undecided one goes to
   `{{roles.sponsor}}` through `plan-project`, which records the decision.
+- **the design** the request names: at `{{design_dir}}` `none`, stop and name the key; stop
+  unless its path, from the repository root, starts `{{design_dir}}/`, ends `.md`, and holds
+  no `..`. Stop if `git fetch` fails, then run `git cat-file --batch < "<file>"`, the file
+  holding `origin/{{parent_branch_default}}:<path>` per **Untrusted text**; stop unless it
+  prints a `blob` whose `## Decision` begins `Approved by`. Every later read of the design
+  is of that printed blob. Its `Work plan` is then the slice: a Step 3 split, an added
+  ticket, or a review finding that would change a handoff's tickets stops the run and sends
+  the design back to `design-feature` for rework.
 
 Then search Jira: `project = {{jira_project}}` with the request's key terms, for tickets
 that overlap or that the new ones depend on. Record each one's key and status.
@@ -74,7 +80,8 @@ In order:
 5. A prerequisite two tickets share — a migration, a new module, test infrastructure — is
    its own Task, labeled `enabling`.
 6. Group tickets into handoffs under a `Handoff:` label, in build order, each group within
-   `plan-work`'s handoff limit.
+   `plan-work`'s handoff limit. With a design, each `Work plan` handoff is one group, named
+   as the handoff, holding its tickets in its order.
 
 ## Step 4 — Draft
 
@@ -96,6 +103,12 @@ python3 "${CLAUDE_PLUGIN_ROOT}/gates/scripts/project_rules.py" draft-slug < "<re
 - **Goal**, when Step 2 read the brief's goals: each `Goal:` line and Epic `## Goal`
   restates the one it serves; a ticket whose goal serves none is removed (R14).
 - **Context**: why, with any linked source summarized. Never a reference to this session.
+- **Design**: a design `## Summary` opening `Epic: <KEY>` names its Epic; stop unless the
+  key, from a file, passes `${CLAUDE_PLUGIN_ROOT}/gates/scripts/project_rules.py ticket-key
+  --prefix "{{ticket_prefix}}"`. Fetch that Epic, and each child sharing a design ticket's
+  summary, into the draft as rewrite mode does, and draft the rest as new tickets under it;
+  otherwise draft a new Epic, its Goal and Success measures from the design's. Either
+  Epic's In scope carries `- Design: <path>`.
 
 ## Step 5 — Lint
 
@@ -104,6 +117,8 @@ python3 ${CLAUDE_PLUGIN_ROOT}/skills/write-tickets/scripts/lint_draft.py docs/ti
 ```
 
 Fix every ERROR, and fix each WARN or confirm its text is concrete; re-run until exit 0.
+With a design, stop, naming the handoff, when a group's tickets differ from the handoff's
+list in the design in count, summary, or order.
 Exit 2, for an unreadable draft or project.json, bad `disciplines`, or bad `--repo`, stops.
 
 ## Step 6 — Adversarial ticket review
@@ -149,15 +164,14 @@ Look up issue and link types via the Atlassian MCP first; never guess a name or 
    and for a Bug, `severity-<severity>` in lowercase.
 3. Description: `Goal: <sentence>` first when the header has one, then every `##` section
    except Open questions, Change impact, and review output, with each `[verify: …]` and
-   `[children: …]` tag inside a code span. The Atlassian connector's read conversion drops
-   a bare tag's brackets; a code span survives it verbatim.
+   `[children: …]` tag inside a code span, which the connector's read conversion keeps.
 4. For each Blocked-by entry, a link of the blocking type with the blocker as outward.
 5. After each creation, write the key into its `Jira:` line and replace its local ID with
    the key everywhere in the draft — as a whole ID, never the `S1` in `S10` — before
    creating the next ticket.
 6. Read each ticket back with `jira_get_issue`, which returns Markdown. Check it carries
-   every label item 2 names and no other `moscow-*` or `severity-*` label, save its
-   description verbatim to `docs/tickets/<slug>.<key>.md`, and run:
+   every label item 2 names and no other `moscow-*`, `severity-*`, or handoff label, save
+   its description verbatim to `docs/tickets/<slug>.<key>.md`, and run:
 
    ```bash
    python3 ${CLAUDE_PLUGIN_ROOT}/skills/write-tickets/scripts/lint_draft.py \
@@ -173,9 +187,9 @@ Look up issue and link types via the Atlassian MCP first; never guess a name or 
    local ID. Once every ticket exists, update each ticket whose draft text item 5 changed
    after its creation, and give it item 6 again.
 
-For `<TICKET-N ...>` arguments, fetch each into a draft with its key as the header ID and
-on its `Baseline:` and `Jira:` lines, so no local ID stands for an issue that already
-exists, mapping:
+For `<TICKET-N ...>` arguments and Step 4's fetched tickets, fetch each into a draft with
+its key as the header ID and on its `Baseline:` and `Jira:` lines, so no local ID stands for
+an issue that already exists, mapping:
 
 - its `moscow-*` label to `Priority:` — `moscow-wont` as `Won't`, the rest title-cased; no
   such label, or more than one, leaves `Priority:` empty for Step 1 to settle
@@ -187,15 +201,15 @@ exists, mapping:
 - a code span holding a whole `[verify: … @ …]` or `[children: …]` tag, or the
   `\verify: …\` an older write left, to the bare tag
 
-Run Steps 2–7, and update instead of create: item 2's labels replace the ticket's
-`moscow-*` and `severity-*` labels, and a `moscow-*` or `severity-*` label item 2 no
-longer writes is removed. Each rewritten ticket carries `## Change impact` (rubric R15).
-After item 7, when item 5 has replaced every local ID, post each note once with
-`jira_add_comment`: a first line `Change impact`, then the section's lines, tags in code
-spans as in item 3. The comment ID it returns confirms the post; a post that returns none
-is never retried, since it may have landed. Any stop after the first update — item 6's, a
-failed post, any other — brings Rob every note not yet confirmed. A ticket that must split
-keeps its key for the ACs it retains; say which new key holds the rest.
+Run Steps 2–7, and update each ticket whose `Baseline:` is filled instead of creating it:
+item 2's labels replace its `moscow-*`, `severity-*`, and handoff labels, and any such
+label item 2 no longer writes is removed. Each rewritten ticket carries
+`## Change impact` (rubric R15). After item 7, when item 5 has replaced every local ID, post
+each note once with `jira_add_comment`: a first line `Change impact`, then the section's
+lines, tags in code spans as in item 3. The comment ID it returns confirms the post; a post
+that returns none is never retried, since it may have landed. Any stop after the first
+update — item 6's, a failed post, any other — brings Rob every note not yet confirmed. A
+ticket that must split keeps its key for the ACs it retains; say which new key holds the rest.
 
 ## Step 9 — Report
 
