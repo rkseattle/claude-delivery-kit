@@ -15,8 +15,8 @@ skills/write-tickets/scripts/lint_draft.py, and, for the YAML vendor alone,
 scripts/ci/actions-pinned.sh, and, for the Markdown table, register and tracked-file rules,
 scripts/ci/rule-book-map.sh, and, for the key registry, scripts/ci/config-examples.sh, and
 run by skills/plan-project/SKILL.md for its slug, skills/write-tickets/SKILL.md for its
-draft's, a design path, and the design's Epic key, skills/plan-work/SKILL.md for a design
-path and its ADR paths, skills/implement-phases/SKILL.md for its branch,
+draft's, a design's path and read, and the design's Epic key, skills/plan-work/SKILL.md for
+a design's and its ADRs' paths and reads, skills/implement-phases/SKILL.md for its branch,
 skills/ci-green/SKILL.md for its PR number, skills/design-feature/SKILL.md for its Epic key,
 and skills/release-readiness/SKILL.md for the keys a release covers,
 so no two of them can disagree on a key's shape, what an unset key, a placeholder, a
@@ -44,11 +44,13 @@ repository inherits the caller's git. Each importer's self-test covers the rules
                                    `<KEY>-<slug>` from standard input's ticket key line and
                                    the words after it, the whole fitted to a branch's lock
                                    file; INVALID for a malformed key, or one outside --prefix
-    project_rules.py design-path --dir DIR [--key KEY]
-                                   the design or ADR path on standard input, when it is
-                                   one repository path `DIR/<slug>.md` with no empty, `.`,
-                                   or `..` component; INVALID otherwise, naming KEY,
-                                   design_dir by default, for a bad DIR
+    project_rules.py design-read --dir DIR --ref REF [--key KEY]
+                                   the design, or with --key adr_dir the ADR, at the path
+                                   on standard input in REF, when the path is one `DIR/<slug>.md`
+                                   with no empty, `.`, or `..` component and names a regular
+                                   file, and a design's `## Decision` opens `Approved by`;
+                                   INVALID otherwise, naming KEY, design_dir by default, for
+                                   a bad DIR
     project_rules.py --self-test   runs the key registry's own cases and those of JIRA_KEY,
                                    slug_of, pr_number, ticket_branch, text_input, run_check,
                                    collected_errors, cli_case, write_scratch, and each
@@ -512,8 +514,8 @@ def design_path(path, directory, key="design_dir"):
     """path, unchanged, when it is one repository path, as check_repo_path judges it, of the
     form `<directory>/<slug>.md`, SLUG's slug, as design-feature names its design docs and
     ADRs; directory, the value of key, is checked by check_repo_path as the key registry
-    checks it. ValueError otherwise, naming key for a bad directory. A design or ADR path a
-    request or a Jira field names reaches a command only as this prints it."""
+    checks it. ValueError otherwise, naming key for a bad directory. design_read checks a
+    design or ADR path a request or a Jira field names with this before git reads it."""
     check_repo_path(key, directory)
     check_repo_path("path", path)
     *parents, name = path.split("/")
@@ -522,6 +524,44 @@ def design_path(path, directory, key="design_dir"):
     if "/".join(parents) != directory.rstrip("/"):
         raise ValueError(f"path {path!r} is not directly under {key} {directory!r}")
     return path
+
+
+def design_read(path, directory, ref, key="design_dir", root=None):
+    """The text of the design, or with key adr_dir the ADR, at path in ref, as design_path checks the
+    path and git reads ref: a regular file, never a tree, symlink, or submodule; a design's
+    `## Decision` must open with `Approved by `, the form gates/design-exit.md gives an
+    approved design. ValueError otherwise, saying which. One reader for write-tickets and
+    plan-work, as kepval is one checker of a KEP's status for every consumer."""
+    design_path(path, directory, key)
+    try:
+        commit = run_git(root, "rev-parse", "--verify", "--end-of-options",
+                         f"{ref}^{{commit}}").strip()
+    except ValueError as error:
+        raise ValueError(f"ref {ref!r} does not name a commit ({error})")
+    entry = run_git(root, "ls-tree", "-z", "--full-tree", commit, "--", path).rstrip("\0")
+    if not entry:
+        raise ValueError(f"{path!r} is absent from {ref}")
+    mode, kind, blob = entry.split("\t", 1)[0].split()
+    if kind != "blob" or mode not in ("100644", "100755"):
+        raise ValueError(f"{path!r} in {ref} is not a regular file")
+    try:
+        text = run_git(root, "cat-file", "blob", blob, text=False).decode("utf8")
+    except UnicodeDecodeError:
+        raise ValueError(f"{path!r} in {ref} is not UTF-8 text")
+    if key == "adr_dir":
+        return text
+    tokens = markdown_tokens(text)
+    decisions = [index for index, token in enumerate(tokens)
+                 if (token.type, token.tag, token.level) == ("heading_open", "h2", 0)
+                 and tokens[index + 1].content.strip() == "Decision"]
+    if len(decisions) > 1:
+        raise ValueError(f"{path!r} in {ref} has more than one Decision")
+    opening = tokens[decisions[0] + 3:decisions[0] + 5] if decisions else []
+    first = opening[1].content if len(opening) == 2 and \
+        opening[0].type == "paragraph_open" else ""
+    if not words(first).startswith("Approved by "):
+        raise ValueError(f"{path!r} in {ref} has no Decision beginning 'Approved by'")
+    return text
 
 
 def ticket_branch(text, prefix=None):
@@ -930,6 +970,124 @@ def error_of(function, *arguments):
     return "ok"
 
 
+def design_read_self_test(this):
+    """design_read over a scratch repository holding an approved design, Pending, Rejected
+    and Decision-less ones, a tree and a symlink named like designs, and an ADR."""
+    approved = "# X\n\n## Decision\n\nApproved by rob on 2026-10-26.\n"
+    files = {"docs/design/ok.md": approved,
+             "docs/design/pending.md": "# P\n\n## Decision\n\nPending — rob.\n",
+             "docs/design/rejected.md": "# R\n\n## Decision\n\nRejected by rob on 2026-10-26.\n",
+             "docs/design/nodecision.md": "# N\n\nApproved by rob in prose.\n",
+             "docs/design/fenced.md": "# F\n\n```markdown\n## Decision\n\nApproved by rob on "
+                                      "2026-10-26.\n```\n\n## Decision\n\nPending — rob.\n",
+             "docs/design/quoted.md": "# Q\n\n> ## Decision\n>\n> Approved by rob.\n\n"
+                                      "## Decision\n\nPending — rob.\n",
+             "docs/design/listed.md": "# L\n\n- ## Decision\n\n  Approved by rob.\n\n"
+                                      "## Decision\n\nPending — rob.\n",
+             "docs/design/twice.md": approved + "\n## Decision\n\nRejected by rob on 2026-10-27.\n",
+             "docs/design/trailing.md": approved + "\n## Decision\n",
+             "docs/design/byzantine.md": "# B\n\n## Decision\n\nApproved byzantine.\n",
+             "docs/design/bare.md": "# E\n\n## Decision\n",
+             "docs/design/wrapped.md": "# W\n\n## Decision\n\nApproved by\nrob on 2026-10-26.\n",
+             "docs/design/listdecision.md": "# D\n\n## Decision\n\n- Approved by rob.\n",
+             "docs/design/indented.md": "# I\n\n    ## Decision\n\n    Approved by rob.\n\n"
+                                        "## Decision\n\nPending — rob.\n",
+             "docs/design/tree.md/inner.md": approved, "docs/adr/0001-a.md": "---\nstatus: accepted\n---\n"}
+    failures = 0
+    with tempfile.TemporaryDirectory() as root, \
+            process_state(isolated_git_environment(), root):
+        for name, text in files.items():
+            write_scratch(root, text, name)
+        os.symlink("ok.md", os.path.join(root, "docs/design/link.md"))
+        write_scratch(root, b"# L\n\n## Decision\n\nApproved by r\xf6b.\n", "docs/design/latin.md")
+        os.chmod(write_scratch(root, approved, "docs/design/exec.md"), 0o755)
+        run_git(root, "init", "--quiet", "--initial-branch=main")
+        run_git(root, "add", "-A")
+        run_git(root, "commit", "--quiet", "-m", "designs")
+        for name, path, adr, expected in [
+                ("an approved design is read", "docs/design/ok.md", False, approved),
+                ("a Pending design is invalid", "docs/design/pending.md", False, "no Decision"),
+                ("a Rejected design is invalid", "docs/design/rejected.md", False, "no Decision"),
+                ("a design with no Decision is invalid", "docs/design/nodecision.md", False,
+                 "no Decision"),
+                ("a fenced Decision decoy is invalid", "docs/design/fenced.md", False, "no Decision"),
+                ("an indented Decision decoy is invalid", "docs/design/indented.md", False,
+                 "no Decision"),
+                ("a blockquoted Decision decoy is invalid", "docs/design/quoted.md", False,
+                 "no Decision"),
+                ("a list-item Decision decoy is invalid", "docs/design/listed.md", False,
+                 "no Decision"),
+                ("a Decision opening with a list is invalid", "docs/design/listdecision.md",
+                 False, "no Decision"),
+                ("a design with two Decisions is invalid", "docs/design/twice.md", False,
+                 "more than one Decision"),
+                ("a trailing empty second Decision is invalid", "docs/design/trailing.md",
+                 False, "more than one Decision"),
+                ("a Decision opening 'Approved by' with no space is invalid",
+                 "docs/design/byzantine.md", False, "no Decision"),
+                ("an empty last Decision is invalid", "docs/design/bare.md", False,
+                 "no Decision"),
+                ("a Decision wrapped after 'Approved by' is read", "docs/design/wrapped.md",
+                 False, files["docs/design/wrapped.md"]),
+                ("an executable design is read", "docs/design/exec.md", False, approved),
+                ("a missing design is invalid", "docs/design/gone.md", False, "absent"),
+                ("a tree named like a design is invalid", "docs/design/tree.md", False,
+                 "not a regular file"),
+                ("a symlink named like a design is invalid", "docs/design/link.md", False,
+                 "not a regular file"),
+                ("a design that is not UTF-8 is invalid", "docs/design/latin.md", False,
+                 "not UTF-8"),
+                ("an ADR is read without a Decision", "docs/adr/0001-a.md", True,
+                 files["docs/adr/0001-a.md"])]:
+            directory, key = ("docs/adr", "adr_dir") if adr else ("docs/design", "design_dir")
+            got = result_or_message(
+                lambda: design_read(path, directory, "main", key, root))
+            read = expected in files.values()
+            failures += report("design_read", name, got == expected if read else
+                               expected in got and got not in files.values(), True)
+        failures += report("design_read", "an unknown ref is named",
+                           result_or_message(lambda: design_read(
+                               "docs/design/ok.md", "docs/design", "nope", root=root)).startswith(
+                               "ref 'nope' does not name a commit (git rev-parse failed: fatal:"),
+                           True)
+        failures += cli_case(this, "design-read prints an approved design",
+                             ["design-read", "--dir", "docs/design", "--ref", "main"],
+                             approved.strip(), 0, input="docs/design/ok.md\n", cwd=root,
+                             env=isolated_git_environment(), exact=True)
+        failures += cli_case(this, "design-read from a subdirectory reads from the root",
+                             ["design-read", "--dir", "docs/design", "--ref", "main"],
+                             approved.strip(), 0, input="docs/design/ok.md\n",
+                             cwd=os.path.join(root, "docs"), env=isolated_git_environment(),
+                             exact=True)
+        failures += cli_case(this, "design-read --key adr_dir reads an ADR",
+                             ["design-read", "--dir", "docs/adr", "--ref", "main", "--key",
+                              "adr_dir"], files["docs/adr/0001-a.md"].strip(), 0,
+                             input="docs/adr/0001-a.md\n", cwd=root,
+                             env=isolated_git_environment(), exact=True)
+        failures += cli_case(this, "design-read --key adr_dir names adr_dir",
+                             ["design-read", "--dir", "../adr", "--ref", "main", "--key",
+                              "adr_dir"], "INVALID: adr_dir", 1,
+                             input="../adr/0001-a.md\n", cwd=root, env=isolated_git_environment())
+        failures += cli_case(this, "only --key adr_dir reads without a Decision check",
+                             ["design-read", "--dir", "docs/design", "--ref", "main", "--key",
+                              "adr_dir"], files["docs/design/pending.md"].strip(), 0,
+                             input="docs/design/pending.md\n", cwd=root,
+                             env=isolated_git_environment(), exact=True)
+        failures += cli_case(this, "design-read without --ref is usage",
+                             ["design-read", "--dir", "docs/design"], "", 2,
+                             input="docs/design/ok.md\n", cwd=root,
+                             env=isolated_git_environment())
+        failures += cli_case(this, "design-read of a second line is invalid",
+                             ["design-read", "--dir", "docs/design", "--ref", "main"],
+                             "INVALID:", 1, input="docs/design/ok.md\nmain:docs/design/ok.md\n",
+                             cwd=root, env=isolated_git_environment())
+    with tempfile.TemporaryDirectory() as bare, process_state(isolated_git_environment(), bare):
+        failures += report("design_read", "outside a repository the cause is kept",
+                           "not a git repository" in result_or_message(lambda: design_read(
+                               "docs/design/ok.md", "docs/design", "main", root=bare)), True)
+    return failures
+
+
 def self_test():
     """The key registry's cases, over a fixture registry of two plain keys, a template list,
     and a key inside an object, and those of slug_of, JIRA_KEY, pr_number, ticket_branch,
@@ -1189,43 +1347,37 @@ def self_test():
                          ["ticket-keys", "--prefix", "AB"], "AB-12\nAB-3", 0,
                          input="AB-12 - x\nAB-3 and XY-1, AB-12 again, AB_C-4, _AB-5, 1AB-6\n",
                          exact=True)
-    for name, path, expected, status in [
-            ("design-path prints a design under --dir", "docs/design/x.md", "docs/design/x.md", 0),
-            ("a second line is invalid", "docs/design/x.md\ndocs/design/y.md", "INVALID:", 1),
-            ("a '..' component is invalid", "docs/design/../x.md", "INVALID:", 1),
-            ("a '.' component is invalid", "docs/design/./x.md", "INVALID:", 1),
-            ("an empty component is invalid", "docs/design//x.md", "INVALID:", 1),
-            ("a path outside --dir is invalid", "docs/designs/x.md", "INVALID:", 1),
-            ("a path that is not .md is invalid", "docs/design/x.txt", "INVALID:", 1),
-            ("a bare .md under --dir is invalid", "docs/design/.md", "INVALID:", 1),
-            ("a ref prefix is invalid", "HEAD:docs/design/x.md", "INVALID:", 1),
-            ("a nested path is invalid", "docs/design/sub/x.md", "INVALID:", 1),
-            ("a nested bare .md is invalid", "docs/design/sub/.md", "INVALID:", 1),
-            ("a name that is no slug is invalid", "docs/design/-x.md", "INVALID:", 1),
-            ("an uppercase name is invalid", "docs/design/X.md", "INVALID:", 1)]:
-        failures += cli_case(this, name, ["design-path", "--dir", "docs/design"], expected,
-                             status, input=f"{path}\n", exact=status == 0)
-    failures += cli_case(this, "design-path without --dir is usage", ["design-path"], "", 2,
-                         input="docs/design/x.md\n")
-    failures += cli_case(this, "an ADR path prints under its --dir",
-                         ["design-path", "--dir", "docs/adr", "--key", "adr_dir"],
-                         "docs/adr/0001-use-location.md", 0,
-                         input="docs/adr/0001-use-location.md\n", exact=True)
-    failures += cli_case(this, "an invalid --dir is invalid", ["design-path", "--dir", "../d"],
-                         "INVALID:", 1, input="../d/x.md\n")
-    failures += cli_case(this, "a trailing slash on --dir is the same directory",
-                         ["design-path", "--dir", "docs/design/"], "docs/design/x.md", 0,
-                         input="docs/design/x.md\n", exact=True)
-    failures += cli_case(this, "an invalid ADR --dir names adr_dir",
-                         ["design-path", "--dir", "../adr", "--key", "adr_dir"],
-                         "INVALID: adr_dir", 1, input="../adr/0001-x.md\n")
-    failures += cli_case(this, "an ADR path outside its --dir names adr_dir",
-                         ["design-path", "--dir", "docs/adr", "--key", "adr_dir"],
-                         "INVALID: path 'docs/design/x.md' is not directly under adr_dir", 1,
-                         input="docs/design/x.md\n")
-    failures += cli_case(this, "an empty --dir component names design_dir",
-                         ["design-path", "--dir", "docs//design"], "INVALID: design_dir", 1,
-                         input="docs/design/x.md\n")
+    path_cases = [
+        ("a design under its directory", "docs/design/x.md", "docs/design", "design_dir", True),
+        ("a second line", "docs/design/x.md\ndocs/design/y.md", "docs/design", "design_dir", ""),
+        ("a '..' component", "docs/design/../x.md", "docs/design", "design_dir", ""),
+        ("a '.' component", "docs/design/./x.md", "docs/design", "design_dir", ""),
+        ("an empty component", "docs/design//x.md", "docs/design", "design_dir", ""),
+        ("a path outside the directory", "docs/designs/x.md", "docs/design", "design_dir", ""),
+        ("a path that is not .md", "docs/design/x.txt", "docs/design", "design_dir", ""),
+        ("a bare .md", "docs/design/.md", "docs/design", "design_dir", ""),
+        ("a ref prefix", "HEAD:docs/design/x.md", "docs/design", "design_dir", ""),
+        ("a nested path", "docs/design/sub/x.md", "docs/design", "design_dir", ""),
+        ("a nested bare .md", "docs/design/sub/.md", "docs/design", "design_dir", ""),
+        ("a name that is no slug", "docs/design/-x.md", "docs/design", "design_dir", ""),
+        ("an uppercase name", "docs/design/X.md", "docs/design", "design_dir", ""),
+        ("an ADR under its directory", "docs/adr/0001-use-location.md", "docs/adr", "adr_dir",
+         True),
+        ("a trailing slash on the directory", "docs/design/x.md", "docs/design/", "design_dir",
+         True),
+        ("an invalid directory", "../d/x.md", "../d", "design_dir", "design_dir"),
+        ("an invalid ADR directory names adr_dir", "../adr/0001-x.md", "../adr", "adr_dir",
+         "adr_dir"),
+        ("an ADR path outside its directory names adr_dir", "docs/design/x.md", "docs/adr",
+         "adr_dir", "path 'docs/design/x.md' is not directly under adr_dir"),
+        ("an empty directory component names design_dir", "docs/design/x.md", "docs//design",
+         "design_dir", "design_dir"),
+    ]
+    for name, path, directory, key, expected in path_cases:
+        error = error_message(lambda: design_path(path, directory, key))
+        failures += report("design_path", name, error is None if expected is True else
+                           error is not None and error.startswith(expected), True)
+    failures += design_read_self_test(this)
     failures += cli_case(this, "no subcommand is usage", [], "", 2)
     return 1 if failures else 0
 
@@ -1240,9 +1392,10 @@ def main():
     commands.add_parser("draft-slug")
     commands.add_parser("ticket-key").add_argument("--prefix")
     commands.add_parser("ticket-keys").add_argument("--prefix", required=True)
-    design = commands.add_parser("design-path")
-    design.add_argument("--dir", required=True)
-    design.add_argument("--key", choices=("design_dir", "adr_dir"), default="design_dir")
+    reading = commands.add_parser("design-read")
+    reading.add_argument("--dir", required=True)
+    reading.add_argument("--ref", required=True)
+    reading.add_argument("--key", choices=("design_dir", "adr_dir"), default="design_dir")
     args = parser.parse_args()
     if args.self_test:
         return self_test()
@@ -1254,8 +1407,8 @@ def main():
                               "ticket-key": lambda: ticket_key(text_input(None), args.prefix),
                               "ticket-keys": lambda: ticket_keys(text_input(None),
                                                                  args.prefix),
-                              "design-path": lambda: design_path(text_input(None), args.dir,
-                                                                 args.key)},
+                              "design-read": lambda: design_read(text_input(None), args.dir,
+                                                                 args.ref, args.key)},
                      args.command)
 
 

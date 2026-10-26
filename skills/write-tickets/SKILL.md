@@ -26,7 +26,9 @@ writes only the draft and the input files of the checks it runs.
 
 State the requested outcome in one sentence. Then list every choice that changes behavior
 and is not yet made: data format, error shape, UI copy, limits, library, which layer owns
-the logic. Ask Rob all of them in one message and wait.
+the logic. With a design, read it first, as Step 2 says, and list only the choices it leaves
+open; a choice Rob wants made differently from the design sends the design back to
+`design-feature`. Ask Rob all of them in one message and wait.
 
 A choice that needs research to make becomes a spike Task (rubric R6), not a question in a
 ticket. If a choice is cheap to reverse, prefer a stated assumption to a blocking question,
@@ -54,15 +56,12 @@ request-derived scope. Establish, by reading the code rather than file names:
   `Rejected` one stopped the project; a missing, `Pending`, or undecided one goes to
   `{{roles.sponsor}}` through `plan-project`, which records the decision.
 - **the design** the request names: at `{{design_dir}}` `none`, stop and name the key. Write
-  its path to a file per **Untrusted text**, run `python3
-  "${CLAUDE_PLUGIN_ROOT}/gates/scripts/project_rules.py" design-path --dir "{{design_dir}}"
-  < "<file>"`, stop on `INVALID`, and use only what it prints from here on, the Epic's
-  `- Design:` line included. Stop if `git fetch` fails, then run `git cat-file --batch <
-  "<file>"`, a file holding `origin/{{parent_branch_default}}:<path>`; stop unless it prints
-  a `blob` whose `## Decision` begins `Approved by`. Every later read of the design is of
-  that printed blob. Its `Work plan` is then the slice: a Step 3 split, an added ticket, or
-  a review finding that would change a handoff's tickets stops the run and sends the design
-  back to `design-feature` for rework.
+  its path to a file per **Untrusted text**; stop if `git fetch` fails, or if `python3
+  "${CLAUDE_PLUGIN_ROOT}/gates/scripts/project_rules.py" design-read --dir "{{design_dir}}"
+  --ref "origin/{{parent_branch_default}}" < "<file>"` exits non-zero. Read the design only
+  from what it prints, and the Epic's `- Design:` path only from that file. Its `Work plan`
+  is then the slice: a Step 3 split, an added ticket, or a review finding that would change a
+  handoff's tickets stops the run and sends the design back to `design-feature` for rework.
 
 Then search Jira: `project = {{jira_project}}` with the request's key terms, for tickets
 that overlap or that the new ones depend on. Record each one's key and status.

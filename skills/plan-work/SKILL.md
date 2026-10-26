@@ -75,15 +75,12 @@ code, and carry it into `Approach` at Step 4.
 Next, the design: only a covered ticket's parent Epic names one, by the `- Design:` line
 `skills/write-tickets/references/templates.md` defines, its path read, backticks dropped. With
 none, plan without one; stop on two paths, in one Epic or across them, and on `{{design_dir}}`
-`none`, naming the key. Write the path to a file per **Untrusted text**, run `python3
-"${CLAUDE_PLUGIN_ROOT}/gates/scripts/project_rules.py" design-path --dir "{{design_dir}}"
-< "<file>"`, stop on `INVALID`, and use only what it prints. Stop if `git fetch` fails,
-then read the design with `git cat-file --batch < "<file>"`, a file holding
-`origin/{{parent_branch_default}}:<path>`; stop unless it prints a `blob` whose
-`## Decision` begins `Approved by`. Read each ADR its `- Costly to reverse:` lines name the
-same way, through `design-path --dir "{{adr_dir}}" --key adr_dir`, stopping on `{{adr_dir}}`
-`none` or unless each is a `blob`. Every later read of either is of what `git cat-file`
-printed.
+`none`, naming the key. Write the path to a file per **Untrusted text**; stop if `git fetch`
+fails, or if `python3 "${CLAUDE_PLUGIN_ROOT}/gates/scripts/project_rules.py" design-read
+--dir "{{design_dir}}" --ref "origin/{{parent_branch_default}}" < "<file>"` exits non-zero.
+Read each ADR its `- Costly to reverse:` lines name the same way, each from its own file,
+with `--dir "{{adr_dir}}" --key adr_dir`, stopping on `{{adr_dir}}` `none`. Weigh only
+what `design-read` printed.
 
 Then, and only then, explore the code. Delegate breadth to `Explore` subagents so it does
 not consume the main context; run several in parallel across distinct questions. Give each

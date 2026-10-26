@@ -34,7 +34,7 @@ gates/                 the universal halves of the gates, listed in the README;
                        entry point, and self-test helpers the release, review,
                        incident, maintenance, retirement, and design scripts share,
                        with a self-test of its own, and the slug, key, branch, PR-number,
-                       and design-path subcommands skills run on text they must not hand
+                       and design-read subcommands skills run on text they must not hand
                        the shell;
                        scripts/_vendor holds PyYAML, which the maintenance check reads
                        alert rules with

@@ -126,9 +126,11 @@ its decision records are committed, in the form `gates/design-exit.md` defines. 
 reads `design_dir` for the approved design a request names, as `plan-work` reads both for
 the design an Epic names. Each defaults to `none`, under which the gate fails as it states:
 with `design_dir` `none`, `design-feature` stops and names the key, as `write-tickets` and
-`plan-work` do when a request or an Epic names a design; with `adr_dir`
-`none`, `design-feature` goes on and says so, then stops, naming the key, before writing a
-costly-to-reverse choice, the one design the gate would fail.
+`plan-work` do when a request or an Epic names a design; with `adr_dir` `none`,
+`design-feature` goes on and says so, then stops, naming the key, before writing a
+costly-to-reverse choice, the one design the gate would fail, and `plan-work` stops, naming
+the key, on a design that names an ADR. `write-tickets` and `plan-work` read a design
+through `gates/scripts/project_rules.py design-read`.
 `ci-green`'s merge step runs `gates/scripts/adr_numbers.py` on `adr_dir`, which under `none`
 passes and says so.
 
