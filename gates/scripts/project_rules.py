@@ -1,8 +1,8 @@
 """The project.json rules, the record-parsing rules, the check-script entry point, and the
 self-test helpers, the kit's release, review, incident, maintenance, retirement, and design
 scripts share. Standard library only, except fence_split and markdown_tokens, which load the
-CommonMark parser vendored beside the README checker, and YAML_VENDOR, the PyYAML the
-maintenance check and scripts/ci/actions-pinned.sh load.
+CommonMark parser vendored beside the README checker, and front_matter, the maintenance
+check, and scripts/ci/actions-pinned.sh, which load YAML_VENDOR's PyYAML.
 
 Imported by skills/release/scripts/halt_watch.py,
 skills/release-readiness/scripts/readiness_check.py, skills/ci-green/scripts/review_gate.py,
@@ -48,7 +48,7 @@ repository inherits the caller's git. Each importer's self-test covers the rules
                                    the design, or with --key adr_dir the ADR, at the path
                                    on standard input in REF, when the path is one `DIR/<slug>.md`
                                    with no empty, `.`, or `..` component and names a regular
-                                   file, and a design's `## Decision` opens `Approved by`;
+                                   file, and a design's front matter `status` is `accepted`;
                                    INVALID otherwise, naming KEY, design_dir by default, for
                                    a bad DIR
     project_rules.py --self-test   runs the key registry's own cases and those of JIRA_KEY,
@@ -526,10 +526,45 @@ def design_path(path, directory, key="design_dir"):
     return path
 
 
+def front_matter(text):
+    """The YAML mapping between a document's opening `---` line and the next `---` or `...`
+    line, trailing whitespace and a leading byte-order mark allowed, as Jekyll delimits
+    front matter. A key written twice in one mapping, `<<` included, is refused, as YAML 1.2
+    requires keys to be unique and PyYAML alone keeps the last; a key a merge supplies may
+    be overridden, as YAML's merge type allows. ValueError when there is no closed block, or it is not YAML or
+    not a mapping."""
+    lines = text.lstrip("\ufeff").splitlines(keepends=True)
+    if not lines or lines[0].rstrip() != "---":
+        raise ValueError("no front matter")
+    end = next((index for index, line in enumerate(lines[1:], 1)
+                if line.rstrip() in ("---", "...")), None)
+    if end is None:
+        raise ValueError("front matter is not closed")
+    vendored(YAML_VENDOR)
+    import yaml
+
+    class UniqueKeys(yaml.SafeLoader):
+        def construct_mapping(self, node, deep=False):
+            keys = [(key.tag, key.value) if isinstance(key, yaml.ScalarNode)
+                    else self.construct_object(key, deep=True) for key, _ in node.value]
+            if any(keys.count(key) > 1 for key in keys):
+                raise yaml.constructor.ConstructorError(None, None, "a key is repeated",
+                                                        node.start_mark)
+            return super().construct_mapping(node, deep)
+
+    try:
+        mapping = yaml.load("".join(lines[1:end]), Loader=UniqueKeys)
+    except yaml.YAMLError as error:
+        raise ValueError(f"front matter is not YAML ({getattr(error, 'problem', None) or error})")
+    if not isinstance(mapping, dict):
+        raise ValueError("front matter is not a mapping")
+    return mapping
+
+
 def design_read(path, directory, ref, key="design_dir", root=None):
     """The text of the design, or with key adr_dir the ADR, at path in ref, as design_path checks the
     path and git reads ref: a regular file, never a tree, symlink, or submodule; a design's
-    `## Decision` must open with `Approved by `, the form gates/design-exit.md gives an
+    front matter `status` must be `accepted`, the MADR status gates/design-exit.md gives an
     approved design. ValueError otherwise, saying which. One reader for write-tickets and
     plan-work, as kepval is one checker of a KEP's status for every consumer."""
     design_path(path, directory, key)
@@ -550,17 +585,12 @@ def design_read(path, directory, ref, key="design_dir", root=None):
         raise ValueError(f"{path!r} in {ref} is not UTF-8 text")
     if key == "adr_dir":
         return text
-    tokens = markdown_tokens(text)
-    decisions = [index for index, token in enumerate(tokens)
-                 if (token.type, token.tag, token.level) == ("heading_open", "h2", 0)
-                 and tokens[index + 1].content.strip() == "Decision"]
-    if len(decisions) > 1:
-        raise ValueError(f"{path!r} in {ref} has more than one Decision")
-    opening = tokens[decisions[0] + 3:decisions[0] + 5] if decisions else []
-    first = opening[1].content if len(opening) == 2 and \
-        opening[0].type == "paragraph_open" else ""
-    if not words(first).startswith("Approved by "):
-        raise ValueError(f"{path!r} in {ref} has no Decision beginning 'Approved by'")
+    try:
+        status = front_matter(text).get("status")
+    except ValueError as error:
+        raise ValueError(f"{path!r} in {ref}: {error}")
+    if status != "accepted":
+        raise ValueError(f"{path!r} in {ref} has status {status!r}, not 'accepted'")
     return text
 
 
@@ -971,27 +1001,28 @@ def error_of(function, *arguments):
 
 
 def design_read_self_test(this):
-    """design_read over a scratch repository holding an approved design, Pending, Rejected
-    and Decision-less ones, a tree and a symlink named like designs, and an ADR."""
-    approved = "# X\n\n## Decision\n\nApproved by rob on 2026-10-26.\n"
+    """design_read over a scratch repository holding an approved design, ones whose front
+    matter is absent, malformed, or not `status: accepted`, a tree and a symlink named like
+    designs, and an ADR."""
+    approved = ("---\nstatus: accepted\ndate: 2026-10-26\ndecision-makers: rob\n---\n\n# X\n\n"
+                "## Decision\n\nApproved by rob on 2026-10-26.\n")
+    body = "\n# D\n\n## Decision\n\nApproved by rob on 2026-10-26.\n"
     files = {"docs/design/ok.md": approved,
-             "docs/design/pending.md": "# P\n\n## Decision\n\nPending — rob.\n",
-             "docs/design/rejected.md": "# R\n\n## Decision\n\nRejected by rob on 2026-10-26.\n",
-             "docs/design/nodecision.md": "# N\n\nApproved by rob in prose.\n",
-             "docs/design/fenced.md": "# F\n\n```markdown\n## Decision\n\nApproved by rob on "
-                                      "2026-10-26.\n```\n\n## Decision\n\nPending — rob.\n",
-             "docs/design/quoted.md": "# Q\n\n> ## Decision\n>\n> Approved by rob.\n\n"
-                                      "## Decision\n\nPending — rob.\n",
-             "docs/design/listed.md": "# L\n\n- ## Decision\n\n  Approved by rob.\n\n"
-                                      "## Decision\n\nPending — rob.\n",
-             "docs/design/twice.md": approved + "\n## Decision\n\nRejected by rob on 2026-10-27.\n",
-             "docs/design/trailing.md": approved + "\n## Decision\n",
-             "docs/design/byzantine.md": "# B\n\n## Decision\n\nApproved byzantine.\n",
-             "docs/design/bare.md": "# E\n\n## Decision\n",
-             "docs/design/wrapped.md": "# W\n\n## Decision\n\nApproved by\nrob on 2026-10-26.\n",
-             "docs/design/listdecision.md": "# D\n\n## Decision\n\n- Approved by rob.\n",
-             "docs/design/indented.md": "# I\n\n    ## Decision\n\n    Approved by rob.\n\n"
-                                        "## Decision\n\nPending — rob.\n",
+             "docs/design/crlf.md": approved.replace("\n", "\r\n"),
+             "docs/design/pending.md": "---\nstatus: proposed\n---\n" + body,
+             "docs/design/rejected.md": "---\nstatus: rejected\n---\n" + body,
+             "docs/design/capital.md": "---\nstatus: Accepted\n---\n" + body,
+             "docs/design/nofront.md": "# N\n\nstatus: accepted\n\n## Decision\n\nApproved by rob.\n",
+             "docs/design/late.md": "\n---\nstatus: accepted\n---\n" + body,
+             "docs/design/unclosed.md": "---\nstatus: accepted\n" + body,
+             "docs/design/listed.md": "---\n- status: accepted\n---\n" + body,
+             "docs/design/twice.md": "---\nstatus: proposed\nstatus: accepted\n---\n" + body,
+             "docs/design/broken.md": "---\nstatus: [accepted\n---\n" + body,
+             "docs/design/nostatus.md": "---\ndate: 2026-10-26\n---\n" + body,
+             "docs/design/merged.md": "---\nbase: &b {status: accepted}\n<<: *b\n---\n" + body,
+             "docs/design/override.md": "---\nbase: &b {status: proposed}\n<<: *b\n"
+                                        "status: accepted\n---\n" + body,
+             "docs/design/loose.md": "\ufeff--- \nstatus: accepted\n...\n" + body,
              "docs/design/tree.md/inner.md": approved, "docs/adr/0001-a.md": "---\nstatus: accepted\n---\n"}
     failures = 0
     with tempfile.TemporaryDirectory() as root, \
@@ -999,36 +1030,41 @@ def design_read_self_test(this):
         for name, text in files.items():
             write_scratch(root, text, name)
         os.symlink("ok.md", os.path.join(root, "docs/design/link.md"))
-        write_scratch(root, b"# L\n\n## Decision\n\nApproved by r\xf6b.\n", "docs/design/latin.md")
+        write_scratch(root, b"---\nstatus: accepted\n---\n# L r\xf6b\n", "docs/design/latin.md")
         os.chmod(write_scratch(root, approved, "docs/design/exec.md"), 0o755)
         run_git(root, "init", "--quiet", "--initial-branch=main")
         run_git(root, "add", "-A")
         run_git(root, "commit", "--quiet", "-m", "designs")
         for name, path, adr, expected in [
                 ("an approved design is read", "docs/design/ok.md", False, approved),
-                ("a Pending design is invalid", "docs/design/pending.md", False, "no Decision"),
-                ("a Rejected design is invalid", "docs/design/rejected.md", False, "no Decision"),
-                ("a design with no Decision is invalid", "docs/design/nodecision.md", False,
-                 "no Decision"),
-                ("a fenced Decision decoy is invalid", "docs/design/fenced.md", False, "no Decision"),
-                ("an indented Decision decoy is invalid", "docs/design/indented.md", False,
-                 "no Decision"),
-                ("a blockquoted Decision decoy is invalid", "docs/design/quoted.md", False,
-                 "no Decision"),
-                ("a list-item Decision decoy is invalid", "docs/design/listed.md", False,
-                 "no Decision"),
-                ("a Decision opening with a list is invalid", "docs/design/listdecision.md",
-                 False, "no Decision"),
-                ("a design with two Decisions is invalid", "docs/design/twice.md", False,
-                 "more than one Decision"),
-                ("a trailing empty second Decision is invalid", "docs/design/trailing.md",
-                 False, "more than one Decision"),
-                ("a Decision opening 'Approved by' with no space is invalid",
-                 "docs/design/byzantine.md", False, "no Decision"),
-                ("an empty last Decision is invalid", "docs/design/bare.md", False,
-                 "no Decision"),
-                ("a Decision wrapped after 'Approved by' is read", "docs/design/wrapped.md",
-                 False, files["docs/design/wrapped.md"]),
+                ("a CRLF design is read", "docs/design/crlf.md", False,
+                 files["docs/design/crlf.md"]),
+                ("a proposed design is invalid", "docs/design/pending.md", False,
+                 "status 'proposed', not 'accepted'"),
+                ("a rejected design is invalid", "docs/design/rejected.md", False,
+                 "status 'rejected', not 'accepted'"),
+                ("a capitalized status is invalid", "docs/design/capital.md", False,
+                 "status 'Accepted', not 'accepted'"),
+                ("a status line in the body is no front matter", "docs/design/nofront.md",
+                 False, "no front matter"),
+                ("front matter after a blank line is none", "docs/design/late.md", False,
+                 "no front matter"),
+                ("unclosed front matter is invalid", "docs/design/unclosed.md", False,
+                 "front matter is not closed"),
+                ("a list as front matter is invalid", "docs/design/listed.md", False,
+                 "front matter is not a mapping"),
+                ("a repeated status key is invalid", "docs/design/twice.md", False,
+                 "a key is repeated"),
+                ("front matter that is not YAML is invalid", "docs/design/broken.md", False,
+                 "front matter is not YAML ("),
+                ("front matter with no status is invalid", "docs/design/nostatus.md", False,
+                 "status None, not 'accepted'"),
+                ("a status from a merge key is read", "docs/design/merged.md", False,
+                 files["docs/design/merged.md"]),
+                ("an explicit status overrides a merged one", "docs/design/override.md", False,
+                 files["docs/design/override.md"]),
+                ("a BOM, a padded opener, and a '...' closer are read", "docs/design/loose.md",
+                 False, files["docs/design/loose.md"]),
                 ("an executable design is read", "docs/design/exec.md", False, approved),
                 ("a missing design is invalid", "docs/design/gone.md", False, "absent"),
                 ("a tree named like a design is invalid", "docs/design/tree.md", False,
@@ -1037,7 +1073,7 @@ def design_read_self_test(this):
                  "not a regular file"),
                 ("a design that is not UTF-8 is invalid", "docs/design/latin.md", False,
                  "not UTF-8"),
-                ("an ADR is read without a Decision", "docs/adr/0001-a.md", True,
+                ("an ADR is read without a status check", "docs/adr/0001-a.md", True,
                  files["docs/adr/0001-a.md"])]:
             directory, key = ("docs/adr", "adr_dir") if adr else ("docs/design", "design_dir")
             got = result_or_message(
@@ -1068,7 +1104,7 @@ def design_read_self_test(this):
                              ["design-read", "--dir", "../adr", "--ref", "main", "--key",
                               "adr_dir"], "INVALID: adr_dir", 1,
                              input="../adr/0001-a.md\n", cwd=root, env=isolated_git_environment())
-        failures += cli_case(this, "only --key adr_dir reads without a Decision check",
+        failures += cli_case(this, "only --key adr_dir reads without a status check",
                              ["design-read", "--dir", "docs/design", "--ref", "main", "--key",
                               "adr_dir"], files["docs/design/pending.md"].strip(), 0,
                              input="docs/design/pending.md\n", cwd=root,
@@ -1081,6 +1117,17 @@ def design_read_self_test(this):
                              ["design-read", "--dir", "docs/design", "--ref", "main"],
                              "INVALID:", 1, input="docs/design/ok.md\nmain:docs/design/ok.md\n",
                              cwd=root, env=isolated_git_environment())
+    for name, text, expected in [
+            ("empty front matter is no mapping", "---\n---\n", "front matter is not a mapping"),
+            ("a '...' closer alone ends it", "---\nstatus: accepted\n...\n", {"status": "accepted"}),
+            ("two merge keys are repeated", "---\n<<: {status: proposed}\n<<: {status: accepted}\n"
+             "---\n", "front matter is not YAML (a key is repeated)"),
+            ("1 and 1.0 are distinct keys", "---\n1: a\n1.0: b\n---\n", {1: "a", 1.0: "b"}),
+            ("a quoted and a plain key are one key", "---\nstatus: a\n\"status\": b\n---\n",
+             "front matter is not YAML (a key is repeated)"),
+            ("a closer never opened is none", "status: accepted\n---\n", "no front matter")]:
+        got = result_or_message(lambda: front_matter(text))
+        failures += report("front_matter", name, got == expected, True)
     with tempfile.TemporaryDirectory() as bare, process_state(isolated_git_environment(), bare):
         failures += report("design_read", "outside a repository the cause is kept",
                            "not a git repository" in result_or_message(lambda: design_read(

@@ -37,7 +37,7 @@ gates/                 the universal halves of the gates, listed in the README;
                        and design-read subcommands skills run on text they must not hand
                        the shell;
                        scripts/_vendor holds PyYAML, which the maintenance check reads
-                       alert rules with
+                       alert rules with and design-read a design's front matter
 hooks/                 hooks.json + the two hooks and their self-tests
 scripts/ci/            the CI checks, runnable locally; all.sh runs every one
 evals/                 the claude plugin eval suite; see evals/README.md

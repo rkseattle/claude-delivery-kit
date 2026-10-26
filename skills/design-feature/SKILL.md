@@ -19,9 +19,10 @@ and no commit until then, and no push at all.
 The flow is that of a Rust RFC or a KEP — draft, cold review, a decision by the accountable
 approver, then the record committed with its status — with each costly choice a MADR
 decision record, and the decision steps those of `plan-project` Steps 4 and 5. Where a KEP
-or an RFC records approval as reviews on a pull request, this skill records it in
-`## Decision` in the session and commits without pushing, as `gates/design-exit.md`
-requires; the design's ordinary pull request is reviewed as code, after the decision.
+or an RFC records approval as reviews on a pull request, this skill records it in its
+`status` and `## Decision` in the session and commits without pushing, as
+`gates/design-exit.md` requires; the design's ordinary pull request is reviewed as code,
+after the decision.
 
 ## Step 1 — Read the configuration and check the prerequisites
 
@@ -102,13 +103,15 @@ Then stop, and say why in one line, when:
   has not settled; name the decision it holds, and send a pending one to the sponsor through
   `plan-project`. With `brief_file` `none`, say in one line that there is no brief to frame
   the design against, and go on.
-- **`{{design_dir}}/<slug>.md` exists with a `## Decision` that reads other than
-  `Pending`.** The design is decided; name the decision rather than revise it.
+- **`{{design_dir}}/<slug>.md` exists with front matter whose `status` is not
+  `proposed`, or, written before designs carried front matter, with a `## Decision` that
+  reads other than `Pending`.** It is decided, or in a state no step writes; name it rather
+  than revise it, and say a decided one gains its `status` by hand.
 - **`design/<slug>` or `origin/design/<slug>` exists.** Ask rather than reuse it.
 
-An existing `{{design_dir}}/<slug>.md` whose decision is `Pending`, or that has no
-`## Decision` section yet, is the draft: read it and its ADRs, and revise them in place in
-Steps 2 and 3 rather than writing over them unread.
+Any other existing `{{design_dir}}/<slug>.md` is the draft: read it and its ADRs, add the
+front matter Step 3 writes where it is missing, and revise them in place in Steps 2 and 3
+rather than writing over them unread.
 
 ## Step 2 — Frame the feature and survey it
 
@@ -141,7 +144,8 @@ feature with neither is not yet found: look again rather than write it unsourced
 
 Then write every other section the gate's **Sections** list names, in its order, under its
 **Section rules** and **Work plan** rules — `## Threat model` only with `security` in
-`{{disciplines}}`. `## Decision` reads `Pending — <tech lead>.` A value neither the request,
+`{{disciplines}}`. The doc opens with front matter in each ADR's form below, `status:
+proposed`, and `## Decision` reads `Pending — <tech lead>.` A value neither the request,
 the Epic, the brief, nor the code supplies is a proposal: write it, mark it `(proposed)`,
 and list it at Step 5.
 
@@ -209,8 +213,8 @@ The tech lead's answer is one of `plan-project` Step 4's four:
   approver. Then `git fetch`, re-check against a moved parent as Step 6 does, and present
   again.
 - **Hold** — the tech lead defers. **Record nothing and commit nothing**: the doc stays
-  `Pending` and its ADRs `proposed` in the working tree, and a later run presents them
-  again.
+  `Pending`, and it and its ADRs `proposed`, in the working tree, and a later run presents
+  them again.
 
 A clarifying question is not an answer. An answer relayed by the person running the session
 is printed as relayed.
@@ -243,11 +247,11 @@ began it:
   decision`, a blank line, then one `Reviewed-by: <name>` trailer per step 8 reviewer Step 4
   named
 
-Then write `decision` under `## Decision`. Set each ADR's `status` to `accepted` for an
-approval or `rejected` for a rejection, and its `date` to the same date. An approval
-confirms every `(proposed)` value as written, so remove those marks with it; a rejection
-keeps them, since nothing was confirmed. A rejected design is committed too, its ADRs
-keeping their numbers: it is the record of the stop.
+Then write `decision` under `## Decision`. Set the design's and each ADR's `status` to
+`accepted` for an approval or `rejected` for a rejection, and its `date` to the same
+date. An approval confirms every `(proposed)` value as written, so remove those marks with
+it; a rejection keeps them, since nothing was confirmed. A rejected design is committed too,
+its ADRs keeping their numbers: it is the record of the stop.
 
 Write each file with the Write tool, per **Untrusted text** in `gates/project-config.md`:
 the title and the names are free text. Then cut the branch from `base`, which the fetch above

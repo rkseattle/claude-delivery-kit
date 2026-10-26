@@ -31,6 +31,12 @@ cat > .claude/agent-rules/feature-design-adversary.md <<'RULES'
   so it is UNVERIFIABLE, never a BLOCKER.
 RULES
 cat > docs/design/per-endpoint-webhook-rate-limits.md <<'MD'
+---
+status: proposed
+date: 2026-10-23
+decision-makers: abc-lead
+---
+
 # Per-endpoint webhook rate limits
 
 ## Summary

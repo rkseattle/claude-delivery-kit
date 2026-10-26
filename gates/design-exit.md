@@ -54,8 +54,10 @@ syntax experimental.
 
 ## Sections
 
-The design doc opens with a `# <title>` line, the title its `<slug>` is made from, then
-holds these `##` sections, in this order, and no other `##` section:
+The design doc opens with the front matter its ADRs carry — `status`, `date`, and
+`decision-makers`, under the ADR rules below — then a `# <title>` line, the title its
+`<slug>` is made from, then holds these `##` sections, in this order, and no other `##`
+section:
 
 1. `Summary`
 2. `Motivation`
@@ -245,12 +247,12 @@ approves, `{{roles.qa}}` approves `## Test strategy` and `{{roles.product_owner}
 `## Goals` and `## Non-goals`. A rejection from QA or the product owner is a request for
 rework on the section they reject, not a decision; only the tech lead rejects a design.
 The tech lead's answers are those of `plan-project` Step 4: approve, reject, rework, or
-hold. An approval is given in the session and is written down only in `## Decision`, so a
-session that ends first asks again. An edit to the design after a review re-runs that
-review, the cold one and step 8's alike; an edit to an approved section voids that approval
-and goes back to its approver, as a new commit dismisses a stale pull-request approval. A
-renumber under the ADR rules above changes no choice, so it re-runs criterion 2's checks
-but no review, and voids no approval.
+hold. An approval is given in the session and is written down only at Step 6, in `status`
+and, naming its approvers, in `## Decision`, so a session that ends first asks again. An
+edit to the design after a review re-runs that review, the cold one and step 8's alike; an
+edit to an approved section voids that approval and goes back to its approver, as a new
+commit dismisses a stale pull-request approval. A renumber under the ADR rules above changes
+no choice, so it re-runs criterion 2's checks but no review, and voids no approval.
 
 Each approver's name written below is the handle `roles` holds, or, for a role `roles`
 leaves out, the git `user.name` of the person running the session — asked for when unset —
@@ -279,3 +281,8 @@ approver takes Step 5's suffix,
 period, since with several approvers the suffix must say whose answer was relayed.
 A rejected design reads `Rejected by <tech lead> on <YYYY-MM-DD>.`, with the same suffix
 when relayed, followed by one line giving the reason.
+
+The design's `status` moves with its ADRs': `accepted` with an approval, `rejected` with a
+rejection, `date` the decision's date. A design is approved by its `status` alone, the
+field `${CLAUDE_PLUGIN_ROOT}/gates/scripts/project_rules.py design-read` checks, as kepval
+reads a KEP's `status`; `## Decision` records who approved it.

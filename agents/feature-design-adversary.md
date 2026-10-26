@@ -55,10 +55,10 @@ reads.
 
 ## Approval state
 
-A cold review runs before any decision. `Pending — <tech lead>.` in `## Decision`, ADRs at
-`status: proposed`, and no `Reviewed-by:` trailer are the expected form at this point, not
-failures. Check the form of whichever state the doc is in; never require an approval that
-the gate gives only after this review.
+A cold review runs before any decision. `Pending — <tech lead>.` in `## Decision`, the
+design and its ADRs at `status: proposed`, and no `Reviewed-by:` trailer are the expected
+form at this point, not failures. Check the form of whichever state the doc is in; never
+require an approval that the gate gives only after this review.
 
 ## What to attack
 
