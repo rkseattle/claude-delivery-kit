@@ -44,14 +44,15 @@ repository inherits the caller's git. Each importer's self-test covers the rules
                                    `<KEY>-<slug>` from standard input's ticket key line and
                                    the words after it, the whole fitted to a branch's lock
                                    file; INVALID for a malformed key, or one outside --prefix
-    project_rules.py design-read --ref REF --config FILE [--key KEY]
+    project_rules.py design-read --ref REF --config FILE [--key KEY] [--path]
                                    the design, or with --key adr_dir the ADR, at the path
                                    on standard input in REF of FILE's repository, when the
                                    path lies directly under KEY's directory in FILE,
                                    design_dir by default, as `<slug>.md` or an ADR_RECORD
                                    name with no empty, `.`, or `..` component, names a
                                    regular file, and a design's front matter `status` is
-                                   `accepted`; INVALID otherwise, naming KEY when unset
+                                   `accepted`; with --path, the checked path instead;
+                                   INVALID otherwise, naming KEY when unset
     project_rules.py --self-test   runs the key registry's own cases and those of JIRA_KEY,
                                    slug_of, pr_number, ticket_branch, text_input, run_check,
                                    collected_errors, cli_case, write_scratch, and each
@@ -579,15 +580,17 @@ def front_matter(text):
     return mapping
 
 
-def design_read(path, ref, config, key="design_dir"):
+def design_read(path, ref, config, key="design_dir", path_only=False):
     """The text of the design, or with key adr_dir the ADR, at path in ref: path lies under
     the directory key holds in config, the project.json the calling skill read, so a key and
     its directory cannot disagree, as design_path checks it, and git reads it from ref,
     relative to project_root(config) as adr_numbers reads adr_dir, as a regular file, never
     a tree, symlink, or submodule; a design's front matter `status` must be `accepted`, the
     MADR status gates/design-exit.md gives an approved design. ValueError otherwise, saying
-    which. One reader for write-tickets and plan-work, as kepval is one checker of a KEP's
-    status for every consumer."""
+    which. With path_only, the checked path instead of the text, printed back as git
+    check-ref-format --normalize prints a ref, so a caller uses only the checked value. One
+    reader for write-tickets and plan-work, as kepval is one checker of a KEP's status for
+    every consumer."""
     root = project_root(config)
     directory = read_keys(read_config(config), [OptionalKey(key, None)])[key]
     if directory is None:
@@ -613,14 +616,14 @@ def design_read(path, ref, config, key="design_dir"):
     except UnicodeDecodeError:
         raise ValueError(f"{path!r} in {ref} is not UTF-8 text")
     if key == "adr_dir":
-        return text
+        return path if path_only else text
     try:
         status = front_matter(text).get("status")
     except ValueError as error:
         raise ValueError(f"{path!r} in {ref}: {error}")
     if status != "accepted":
         raise ValueError(f"{path!r} in {ref} has status {status!r}, not 'accepted'")
-    return text
+    return path if path_only else text
 
 
 def ticket_branch(text, prefix=None):
@@ -1175,6 +1178,23 @@ def design_read_self_test(this):
                               "adr_dir", "--dir",
                               "docs/design"], "", 2, input="docs/design/pending.md\n",
                              cwd=root, env=isolated_git_environment())
+        write_scratch(root, dict(config, design_dir="docs/design/"), ".claude/project.json")
+        failures += cli_case(this, "design-read --path prints the checked path, one slash",
+                             ["design-read", "--ref", "main", "--config", project, "--path"],
+                             "docs/design/ok.md", 0, input="docs/design//ok.md\n", cwd=root,
+                             env=isolated_git_environment(), exact=True)
+        failures += cli_case(this, "design-read --path checks the status first",
+                             ["design-read", "--ref", "main", "--config", project, "--path"],
+                             "INVALID: 'docs/design/pending.md' in main has status 'proposed'",
+                             1, input="docs/design/pending.md\n", cwd=root,
+                             env=isolated_git_environment())
+        write_scratch(root, dict(config, adr_dir="docs/adr/"), ".claude/project.json")
+        failures += cli_case(this, "design-read --key adr_dir --path prints the checked ADR path",
+                             ["design-read", "--ref", "main", "--config", project, "--key",
+                              "adr_dir", "--path"], "docs/adr/0001-a.md", 0,
+                             input="docs/adr//0001-a.md\n", cwd=root,
+                             env=isolated_git_environment(), exact=True)
+        write_scratch(root, config, ".claude/project.json")
         failures += cli_case(this, "design-read without --config is usage",
                              ["design-read", "--ref", "main"], "", 2,
                              input="docs/design/ok.md\n", cwd=root,
@@ -1523,6 +1543,7 @@ def main():
     reading = commands.add_parser("design-read")
     reading.add_argument("--ref", required=True)
     reading.add_argument("--config", required=True)
+    reading.add_argument("--path", action="store_true")
     reading.add_argument("--key", choices=("design_dir", "adr_dir"), default="design_dir")
     args = parser.parse_args()
     if args.self_test:
@@ -1536,7 +1557,8 @@ def main():
                               "ticket-keys": lambda: ticket_keys(text_input(None),
                                                                  args.prefix),
                               "design-read": lambda: design_read(text_input(None), args.ref,
-                                                                 args.config, args.key)},
+                                                                 args.config, args.key,
+                                                                 args.path)},
                      args.command)
 
 

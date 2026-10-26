@@ -8,8 +8,7 @@ allowed-tools: Read, Write, Edit, Grep, Glob, Bash, Task
 
 Write tickets for: $ARGUMENTS
 
-This skill produces tickets that the next stage can plan as written. Read
-`${CLAUDE_PLUGIN_ROOT}/skills/write-tickets/references/rubric.md` and
+Read `${CLAUDE_PLUGIN_ROOT}/skills/write-tickets/references/rubric.md` and
 `${CLAUDE_PLUGIN_ROOT}/skills/write-tickets/references/templates.md` before drafting.
 
 Read `${CLAUDE_PROJECT_DIR}/.claude/project.json` first: `{{ticket_prefix}}`,
@@ -58,9 +57,9 @@ request-derived scope. Establish, by reading the code rather than file names:
 - **the design** the request names: at `{{design_dir}}` `none`, stop and name the key. Write
   its path to a file per **Untrusted text**; stop if `git fetch` fails, or if `python3
   "${CLAUDE_PLUGIN_ROOT}/gates/scripts/project_rules.py" design-read --ref
-  "origin/{{parent_branch_default}}" --config "<project root>/.claude/project.json" < "<file>"`,
-  the root written as its absolute path, exits non-zero. Read the design only
-  from what it prints, and the Epic's `- Design:` path only from that file. Its `Work plan`
+  "origin/{{parent_branch_default}}" --config "<absolute project root>/.claude/project.json"
+  < "<file>"` exits non-zero. Read the design only from what it prints, and the Epic's
+  `- Design:` path only from what the same command prints with `--path`. Its `Work plan`
   is then the slice: a Step 3 split, an added ticket, or a review finding that would change a
   handoff's tickets stops the run and sends the design back to `design-feature` for rework.
 
@@ -108,15 +107,16 @@ python3 "${CLAUDE_PLUGIN_ROOT}/gates/scripts/project_rules.py" draft-slug < "<re
 - **Design**: a design `## Summary` opening `Epic: <KEY>` names its Epic; stop unless the
   key, fed as Step 2 feeds the path, passes `project_rules.py ticket-key --prefix
   "{{ticket_prefix}}"` and the issue is an Epic. Fetch it and each not-Done child into the
-  draft as rewrite mode does, stopping on one no design ticket's summary matches, or on a
-  design ticket a Done child matches, back to `design-feature`; draft the rest as new under
-  it. Otherwise draft a new Epic from the design's Goals, Success measures, NFR thresholds, and
-  Non-goals. Either Epic carries templates.md's one `- Design:` line; fetched tickets join here.
+  draft as rewrite mode does, stopping, back to `design-feature`, on a not-Done child whose
+  summary no design ticket's equals, or a design ticket whose summary a Done child's equals;
+  draft the rest as new under it. Otherwise draft a new Epic from the design's Goals,
+  Success measures, NFR thresholds, and Non-goals. Either Epic carries templates.md's one
+  `- Design:` line; fetched tickets join here.
 
 ## Step 5 — Lint
 
 ```bash
-python3 ${CLAUDE_PLUGIN_ROOT}/skills/write-tickets/scripts/lint_draft.py docs/tickets/<slug>.md --repo "${CLAUDE_PROJECT_DIR}"
+python3 ${CLAUDE_PLUGIN_ROOT}/skills/write-tickets/scripts/lint_draft.py docs/tickets/<slug>.md --repo "<absolute project root>"
 ```
 
 Fix every ERROR, and fix each WARN or confirm its text is concrete; re-run until exit 0.
