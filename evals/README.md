@@ -11,6 +11,18 @@ claude plugin eval . --scaffold
 cases need it to write their `project.json`; without it they run in an empty workspace and
 fail.
 
+`allowed_tools` grants only read-only tools. A case that lists `Bash`, `Write`, `Edit`,
+`WebFetch`, or `WebSearch` gets them only from `--allow-tools`, so a skill that writes a
+file fails every with-arm run without `Write`. Pass what each case lists:
+`plan-project-stops-at-approval`, `design-feature-stops-at-approval`,
+`readme-docs-updates-an-existing-readme`, and both `release-*` cases list `Bash`, `Write`,
+and `Edit` (`release-readiness-stops-without-system-suite` all but `Edit`), and the
+per-case commands below grant the rest:
+
+```bash
+claude plugin eval . --scaffold --case plan-project-stops-at-approval --allow-tools Bash Write Edit
+```
+
 Each case runs with and without the plugin loaded, three times by default, so the report
 shows what the plugin contributes rather than what the model would have done anyway.
 
@@ -80,15 +92,17 @@ and answers step 8's question for outside reviewers with none; its scaffold's
 `.claude/agent-rules/feature-design-adversary.md` tells the dispatched reviewer that a
 source it cannot reach is UNVERIFIABLE. The run then reaches Step 5's approvals. A run
 that stops at Step 4's review cap instead fails `waits-for-approval` too, so read a failed
-run's reply before scoring it as a gate failure. The session runs git and the dispatched
-`feature-design-adversary` runs Bash, so grant it. Whether the transcript records the
+run's reply before scoring it as a gate failure, as for one that runs out of its 60 turns
+during review. The skill writes the design doc and its input files with Write and revises
+them with Edit, and the session and the dispatched `feature-design-adversary` run git
+through Bash, so grant all three. Whether the transcript records the
 reviewer's calls is unconfirmed, as for the `ci-failure-adversary-*` cases below; the one
 command the reviewer prescribes, its `git fetch` and `adr_numbers.py` check, matches neither
-`no-shell-writes` nor `no-branch-or-commit`. The `creates-*` graders read the workspace
-after the run, so they catch a write the transcript graders cannot see:
+`no-shell-writes` nor `no-branch-or-commit`. `creates-the-design` and `creates-nothing-else`
+read the paths the run created, so they catch a write the transcript graders cannot see:
 
 ```bash
-claude plugin eval . --scaffold --case design-feature-stops-at-approval --allow-tools Bash
+claude plugin eval . --scaffold --case design-feature-stops-at-approval --allow-tools Bash Write Edit
 ```
 
 `plan-work-stops-at-approval` sits at +0.17 because its `no-branch-created` grader passes
