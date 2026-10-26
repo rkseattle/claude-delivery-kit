@@ -131,8 +131,8 @@ draft.** It reads the tickets as `plan-work` will, cold; anything added is conte
 Fix every BLOCKER and MAJOR in the ticket text. A finding that misread a ticket means the
 ticket is ambiguous: fix the text, never explain it to the reviewer. Re-lint, re-review.
 Stop at no BLOCKERs or three rounds, whichever is first; revert-not-iterate applies. At
-the cap, bring the remaining findings to Rob. Append each round's output under
-`<!-- review round N -->` in the draft, never sent to Jira.
+the cap, bring the remaining findings to Rob. Append each round's output, and below it the
+`<!--` lines Steps 7 and 8 add, under `<!-- review round N -->`, never sent to Jira.
 
 ## Step 7 — Present for approval
 

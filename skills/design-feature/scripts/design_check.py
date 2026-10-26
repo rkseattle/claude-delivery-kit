@@ -5,7 +5,8 @@ Written for the design-feature skill to run before it writes a design.
 
     design_check.py dirs --config PATH
         `ok` when design_dir and adr_dir are each a relative path inside the repository, as
-        release_dir must be; `ok\tadr_dir not configured` when adr_dir is unset, which
+        release_dir must be, and not one directory, as project_rules.design_dirs rules;
+        `ok\tadr_dir not configured` when adr_dir is unset, which
         gates/design-exit.md fails only for a design with a costly-to-reverse choice
     design_check.py slug [--title TITLE]
         the design's <slug> for the title, or standard input: project_rules.slug_of fitted
@@ -25,7 +26,8 @@ sys.dont_write_bytecode = True
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)),
                                 "..", "..", "..", "gates", "scripts"))
 from project_rules import (FILE_NAME_MAX, NO_LETTER, OptionalKey, RequiredKey,  # noqa: E402
-                           check_repo_path, cli_case, error_message, read_config, read_keys,
+                           check_repo_path, cli_case, design_dirs, error_message, read_config,
+                           read_keys,
                            report, result_or_message, run_check, slug_of, text_input, unset_keys,
                            write_scratch)
 
@@ -36,8 +38,10 @@ KEYS = (RequiredKey("design_dir"), OptionalKey("adr_dir", None))
 
 def check_dirs(config):
     """"ok", with a note per optional key left unset, when every set key passes
-    check_repo_path and design_dir is set; otherwise ValueError naming each problem."""
+    check_repo_path, design_dir is set, and design_dirs finds two directories, the rule
+    design-read applies; otherwise ValueError naming each problem."""
     read_keys(config, KEYS)
+    design_dirs(config)
     unset = unset_keys(config, KEYS)
     return "\t".join(["ok", *(f"{declared.key} not configured" for declared in KEYS
                               if declared.key in unset)])
@@ -101,6 +105,8 @@ DIRS_CASES = [
     ("adr_dir a shell metacharacter", {**VALID, "adr_dir": "docs/adr;rm"}, ["adr_dir"]),
     ("both failing", BOTH_FAILING, BOTH_FAILING_KEYS),
     ("design_dir unset with adr_dir unset", {}, ["design_dir unset"]),
+    ("one directory for designs and ADRs", {"design_dir": "docs/d", "adr_dir": "docs/d/"},
+     "adr_dir and design_dir name one directory, so no read can tell an ADR from a design"),
 ]
 
 

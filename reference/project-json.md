@@ -131,9 +131,10 @@ with `design_dir` `none`, `design-feature` stops and names the key, as `write-ti
 costly-to-reverse choice, the one design the gate would fail, and `plan-work` stops, naming
 the key, on a design that names an ADR. `write-tickets` and `plan-work` read a design
 through `gates/scripts/project_rules.py design-read`, passing it this file to take each key
-from; each read needs both keys valid or unset, and never one directory.
+from; each read needs both keys valid or unset, and never one directory, compared ignoring
+case, as a case-insensitive disk reads them.
 `ci-green`'s merge step runs `gates/scripts/adr_numbers.py` on `adr_dir`, which under `none`
-passes and says so.
+passes and says so, unless `design_dir` is invalid, which fails it as `design-read` would.
 
 `secret_scan_command` and `sast_command` serve rule book R12 and Appendix B1's scans. Each
 writes SARIF 2.1.0 to standard output, redacted, with inline suppression comments ignored;
@@ -174,9 +175,10 @@ matter `status: accepted`, through `gates/scripts/project_rules.py brief-read`, 
 Upgrading from 1.2.0: a brief approved then has no front matter and is still read, from its
 `## Decision`, with a deprecation warning; add `status: accepted`, `date`, and
 `decision-makers` front matter before 1.4.0, which reads only the front matter.
-The brief is committed, so the path must not be gitignored, and it is a relative path
-inside the repository, as each directory key is. Default `none`, under which `plan-project`
-stops, and `write-tickets` and `design-feature` read no goals.
+`brief_file` is now checked as each directory key is: `plan-project` writes it unquoted into
+`git add` and `git commit`, where a space, shell metacharacter, or leading `-` never worked,
+so rename such a path. The brief is committed, so the path must not be gitignored. Default
+`none`, under which `plan-project` stops, and `write-tickets` and `design-feature` read no goals.
 
 `pr_review_limit_lines` serves rule book R9: a pull request reviewable in under an hour. It
 caps one PR's changed lines, insertions plus deletions against the parent branch.

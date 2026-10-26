@@ -14,9 +14,10 @@ gates/scripts/adr_numbers.py, and, for the discipline, tracked-file and self-tes
 skills/write-tickets/scripts/lint_draft.py, and, for the YAML vendor alone,
 scripts/ci/actions-pinned.sh, and, for the Markdown table, register and tracked-file rules,
 scripts/ci/rule-book-map.sh, and, for the key registry, scripts/ci/config-examples.sh, and
-run by skills/plan-project/SKILL.md for its slug, skills/write-tickets/SKILL.md for its
-draft's, a design's path and read, the brief's read, and the design's Epic key,
-skills/plan-work/SKILL.md for a design's and its ADRs' paths and reads,
+run by skills/plan-project/SKILL.md for its slug and its brief's path,
+skills/write-tickets/SKILL.md for its draft's, a design's path and read, the brief's read,
+and the design's Epic key, skills/plan-work/SKILL.md for a design's and its ADRs' paths,
+reads, and statuses,
 skills/implement-phases/SKILL.md for its branch, skills/ci-green/SKILL.md for its PR number,
 skills/design-feature/SKILL.md for its Epic key and the brief's read,
 and skills/release-readiness/SKILL.md for the keys a release covers,
@@ -45,14 +46,15 @@ repository inherits the caller's git. Each importer's self-test covers the rules
                                    `<KEY>-<slug>` from standard input's ticket key line and
                                    the words after it, the whole fitted to a branch's lock
                                    file; INVALID for a malformed key, or one outside --prefix
-    project_rules.py design-read --ref REF --config FILE [--key KEY] [--path]
+    project_rules.py design-read --ref REF --config FILE [--key KEY] [--path | --status]
                                    the design, or with --key adr_dir the ADR, at the path
                                    on standard input in REF of FILE's repository, when the
                                    path lies directly under KEY's directory in FILE,
                                    design_dir by default, as `<slug>.md` or an ADR_RECORD
                                    name with no empty, `.`, or `..` component, names a
                                    regular file, and a design's front matter `status` is
-                                   `accepted`; with --path, the checked path instead;
+                                   `accepted`; with --path, the checked path instead; with
+                                   --status, its front matter `status`, unjudged;
                                    INVALID otherwise: KEY unset, design_dir or adr_dir
                                    invalid, or the two naming one directory
     project_rules.py brief-read --config FILE [--path]
@@ -542,7 +544,7 @@ def design_path(path, directory, key="design_dir"):
     it."""
     check_repo_path(key, directory)
     if directory.endswith("/") and path.startswith(directory + "/"):
-        path = directory + path[len(directory) + 1:]
+        path = directory.rstrip("/") + "/" + path[len(directory) + 1:]
     check_repo_path("path", path)
     *parents, name = path.split("/")
     if "/".join(parents) != directory.rstrip("/"):
@@ -553,6 +555,11 @@ def design_path(path, directory, key="design_dir"):
                              not SLUG.fullmatch(name[:-len(".md")])):
         raise ValueError(f"path {path!r} does not end in a <slug>.md file name")
     return path
+
+
+# The deepest front matter read, as Symfony YAML's maxNestingLevel and Suricata cap theirs, so
+# the refusal falls at a fixed depth, not wherever Python's stack runs out.
+FRONT_MATTER_MAX_DEPTH = 128
 
 
 def front_matter(text):
@@ -573,6 +580,18 @@ def front_matter(text):
     import yaml
 
     class UniqueKeys(yaml.SafeLoader):
+        depth = 0
+
+        def compose_node(self, parent, index):
+            self.depth += 1
+            try:
+                if self.depth > FRONT_MATTER_MAX_DEPTH:
+                    raise yaml.composer.ComposerError(None, None, "nests too deeply",
+                                                      self.peek_event().start_mark)
+                return super().compose_node(parent, index)
+            finally:
+                self.depth -= 1
+
         def construct_mapping(self, node, deep=False):
             keys = [(key.tag, key.value) if isinstance(key, yaml.ScalarNode)
                     else self.construct_object(key, deep=True) for key, _ in node.value]
@@ -585,12 +604,26 @@ def front_matter(text):
         mapping = yaml.load("".join(lines[1:end]), Loader=UniqueKeys)
     except yaml.YAMLError as error:
         raise ValueError(f"front matter is not YAML ({getattr(error, 'problem', None) or error})")
+    except RecursionError:
+        raise ValueError("front matter is not YAML (nests too deeply)")
     if not isinstance(mapping, dict):
         raise ValueError("front matter is not a mapping")
     return mapping
 
 
-def design_read(path, ref, config, key="design_dir", path_only=False):
+def design_dirs(config):
+    """{design_dir, adr_dir} from a project.json dict, each valid or None, and never one
+    directory, since a file under it could be read as either: the one rule design_check's
+    dirs, design_read, and adr_numbers apply. ValueError naming the problem otherwise."""
+    keys = read_keys(config, [OptionalKey("design_dir", None), OptionalKey("adr_dir", None)])
+    if None not in keys.values() and \
+            len({value.rstrip("/").casefold() for value in keys.values()}) == 1:
+        raise ValueError("adr_dir and design_dir name one directory, so no read can tell an "
+                         "ADR from a design")
+    return keys
+
+
+def design_read(path, ref, config, key="design_dir", path_only=False, status_only=False):
     """The text of the design, or with key adr_dir the ADR, at path in ref: path lies under
     the directory key holds in config, the project.json the calling skill read, so a key and
     its directory cannot disagree, with design_dir and adr_dir both valid or unset and never
@@ -598,19 +631,16 @@ def design_read(path, ref, config, key="design_dir", path_only=False):
     path, and git reads it from ref, relative to project_root(config) as adr_numbers reads
     adr_dir, as a regular file, never a tree, symlink, or submodule; a design's front matter
     `status` must be `accepted`, the MADR status gates/design-exit.md gives an approved
-    design. ValueError otherwise, saying which. With path_only, the checked path instead of
+    design. ValueError otherwise, saying which. With status_only, the front matter `status`
+    as text, unjudged, so a caller asks this reader whether an ADR is accepted rather than
+    reading it by eye. With path_only, the checked path instead of
     the text, printed back as git check-ref-format --normalize prints a ref, so a caller
     uses only the checked value. One reader for write-tickets and plan-work, as kepval is
     one checker of a KEP's status for every consumer."""
     root = project_root(config)
-    keys = read_keys(read_config(config), [OptionalKey("design_dir", None),
-                                           OptionalKey("adr_dir", None)])
-    directory = keys[key]
+    directory = design_dirs(read_config(config))[key]
     if directory is None:
         raise ValueError(f"{key} is unset in project.json")
-    if None not in keys.values() and len({value.rstrip("/") for value in keys.values()}) == 1:
-        raise ValueError("adr_dir and design_dir name one directory, so no read can tell an ADR "
-                         "from a design")
     path = design_path(path, directory, key)
     try:
         commit = run_git(root, "rev-parse", "--verify", "--end-of-options",
@@ -627,6 +657,16 @@ def design_read(path, ref, config, key="design_dir", path_only=False):
         text = run_git(root, "cat-file", "blob", blob, text=False).decode("utf8")
     except UnicodeDecodeError:
         raise ValueError(f"{path!r} in {ref} is not UTF-8 text")
+    if status_only and path_only:
+        raise ValueError("design_read prints the path or the status, not both")
+    if status_only:
+        try:
+            status = front_matter(text).get("status")
+        except ValueError as error:
+            raise ValueError(f"{path!r} in {ref}: {error}")
+        if not isinstance(status, str):
+            raise ValueError(f"{path!r} in {ref} has no text status ({status!r})")
+        return status
     if key != "adr_dir":
         approved_text(text, f"{path!r} in {ref}")
     return path if path_only else text
@@ -1287,6 +1327,29 @@ def design_read_self_test(this):
                              1, input="docs/design/pending.md\n", cwd=root,
                              env=isolated_git_environment())
         write_scratch(root, dict(config, adr_dir="docs/adr/"), ".claude/project.json")
+        failures += cli_case(this, "design-read --key adr_dir --status prints its status",
+                             ["design-read", "--ref", "main", "--config", project, "--key",
+                              "adr_dir", "--status"], "accepted", 0,
+                             input="docs/adr/0001-a.md\n", cwd=root,
+                             env=isolated_git_environment(), exact=True)
+        failures += cli_case(this, "design-read --status names a design with no front matter",
+                             ["design-read", "--ref", "main", "--config", project, "--status"],
+                             "INVALID: 'docs/design/nofront.md' in main: no front matter", 1,
+                             input="docs/design/nofront.md\n", cwd=root,
+                             env=isolated_git_environment())
+        failures += cli_case(this, "design-read --status names a missing status",
+                             ["design-read", "--ref", "main", "--config", project, "--status"],
+                             "INVALID: 'docs/design/nostatus.md' in main has no text status", 1,
+                             input="docs/design/nostatus.md\n", cwd=root,
+                             env=isolated_git_environment())
+        failures += cli_case(this, "design-read takes --path or --status, not both",
+                             ["design-read", "--ref", "main", "--config", project, "--path",
+                              "--status"], "", 2, input="docs/design/ok.md\n", cwd=root,
+                             env=isolated_git_environment())
+        failures += cli_case(this, "design-read --status prints a proposed design's status",
+                             ["design-read", "--ref", "main", "--config", project, "--status"],
+                             "proposed", 0, input="docs/design/pending.md\n", cwd=root,
+                             env=isolated_git_environment(), exact=True)
         failures += cli_case(this, "design-read --key adr_dir --path prints the checked ADR path",
                              ["design-read", "--ref", "main", "--config", project, "--key",
                               "adr_dir", "--path"], "docs/adr/0001-a.md", 0,
@@ -1388,6 +1451,13 @@ def design_read_self_test(this):
         failures += report("brief_read", "a brief that is not UTF-8 is refused",
                            result_or_message(lambda: brief_read(config_file)),
                            "brief_file 'docs/brief.md' is not UTF-8 text")
+        for name, unsafe in [("a space", "docs/project brief.md"), ("a ';'", "docs/b;x.md"),
+                             ("a leading '-'", "-all.md")]:
+            write_scratch(project, {"brief_file": unsafe}, ".claude/project.json")
+            failures += report("brief_read", f"a brief_file with {name}, unsafe unquoted, is "
+                               "refused", result_or_message(lambda: brief_read(config_file, True))
+                               .startswith(f"brief_file {unsafe!r} is not a relative path"), True)
+        write_scratch(project, {"brief_file": "docs/brief.md"}, ".claude/project.json")
         failures += report("brief_read", "--path prints brief_file without reading it",
                            brief_read(config_file, True), "docs/brief.md")
         for name, setting, expected in [
@@ -1412,6 +1482,25 @@ def design_read_self_test(this):
         failures += cli_case(this, "brief-read prints a pre-1.3.0 approved brief",
                              ["brief-read", "--config", config_file], legacy.strip(), 0,
                              exact=True)
+    for name, config, expected in [
+            ("two directories are kept", {"design_dir": "d", "adr_dir": "a"},
+             {"design_dir": "d", "adr_dir": "a"}),
+            ("one directory in two cases is refused",
+             {"design_dir": "docs/ADR", "adr_dir": "docs/adr"},
+             "adr_dir and design_dir name one directory, so no read can tell an ADR from a "
+             "design"),
+            ("one directory is refused", {"design_dir": "d", "adr_dir": "d/"},
+             "adr_dir and design_dir name one directory, so no read can tell an ADR from a "
+             "design"),
+            ("unset keys are None", {}, {"design_dir": None, "adr_dir": None}),
+            ("an invalid design_dir is named", {"design_dir": "../d"},
+             "design_dir '../d' is not a relative path"),
+            ("an invalid adr_dir beside a valid design_dir is named",
+             {"design_dir": "d", "adr_dir": "/a"}, "adr_dir '/a' is not a relative path")]:
+        got = result_or_message(lambda: design_dirs(config))
+        failures += report("design_dirs", name, got.startswith(expected)
+                           if isinstance(expected, str) and isinstance(got, str) else got,
+                           True if isinstance(expected, str) else expected)
     approved = "# B\n\n## Decision\n\nApproved by s on 2026-10-26.\n"
     for name, text, expected in [
             ("an Approved by Decision is accepted", approved, "accepted"),
@@ -1434,6 +1523,9 @@ def design_read_self_test(this):
         version = tuple(int(part) for part in json.load(handle)["version"].split("."))
     failures += report("legacy_status", "removed by its removed_in release",
                        version < LEGACY_STATUS_REMOVED_IN, True)
+    def nested(depth):
+        return [] if depth == 1 else [nested(depth - 1)]
+
     for name, text, expected in [
             ("empty front matter is no mapping", "---\n---\n", "front matter is not a mapping"),
             ("a '...' closer alone ends it", "---\nstatus: accepted\n...\n",
@@ -1443,7 +1535,15 @@ def design_read_self_test(this):
             ("1 and 1.0 are distinct keys", "---\n1: a\n1.0: b\n---\n", {1: "a", 1.0: "b"}),
             ("a quoted and a plain key are one key", "---\nstatus: a\n\"status\": b\n---\n",
              "front matter is not YAML (a key is repeated)"),
-            ("a closer never opened is none", "status: accepted\n---\n", "no front matter")]:
+            ("a closer never opened is none", "status: accepted\n---\n", "no front matter"),
+            ("front matter nested past the recursion limit is refused",
+             "---\nk: " + "[" * 5000 + "]" * 5000 + "\n---\n",
+             "front matter is not YAML (nests too deeply)"),
+            ("front matter just under the depth cap is read",
+             "---\nk: " + "[" * 126 + "]" * 126 + "\n---\n", {"k": nested(126)}),
+            ("front matter past the depth cap is refused",
+             "---\nk: " + "[" * 128 + "]" * 128 + "\n---\n",
+             "front matter is not YAML (nests too deeply)")]:
         got = result_or_message(lambda: front_matter(text))
         failures += report("front_matter", name, got == expected, True)
     with tempfile.TemporaryDirectory() as bare:
@@ -1741,6 +1841,8 @@ def self_test():
          "design_dir", True),
         ("a second empty component after a trailing slash", "docs/design///x.md",
          "docs/design/", "design_dir", ""),
+        ("two trailing slashes joined by a template", "docs/design///x.md", "docs/design//",
+         "design_dir", True),
         ("an invalid directory", "../d/x.md", "../d", "design_dir", "design_dir"),
         ("an invalid ADR directory names adr_dir", "../adr/0001-x.md", "../adr", "adr_dir",
          "adr_dir"),
@@ -1771,8 +1873,10 @@ def main():
     reading = commands.add_parser("design-read")
     reading.add_argument("--ref", required=True)
     reading.add_argument("--config", required=True)
-    reading.add_argument("--path", action="store_true")
     reading.add_argument("--key", choices=("design_dir", "adr_dir"), default="design_dir")
+    output = reading.add_mutually_exclusive_group()
+    output.add_argument("--path", action="store_true")
+    output.add_argument("--status", action="store_true")
     brief = commands.add_parser("brief-read")
     brief.add_argument("--config", required=True)
     brief.add_argument("--path", action="store_true")
@@ -1789,7 +1893,7 @@ def main():
                                                                  args.prefix),
                               "design-read": lambda: design_read(text_input(None), args.ref,
                                                                  args.config, args.key,
-                                                                 args.path),
+                                                                 args.path, args.status),
                               "brief-read": lambda: brief_read(args.config, args.path)},
                      args.command)
 

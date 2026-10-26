@@ -184,8 +184,9 @@ in the plan alone.
 
 A design the Epic names is weighed the same way: its `Components and interfaces` and ADRs
 are proposals against the survey. Name each departure from them and its reason. A departure
-from an ADR whose `status:` is `accepted` stops the plan: name the ADR to Rob, since
-superseding it is a design decision of its own.
+from an ADR for which Step 3's ADR read, with `--status` added, prints `accepted` stops the
+plan, as does a non-zero exit: name the ADR to Rob, since superseding it is a design decision
+of its own.
 
 ## Components and interfaces
 
