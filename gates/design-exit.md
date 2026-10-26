@@ -110,8 +110,8 @@ a rule below requires content.
   - Costly to reverse: <choice> — ADR: <path>
   ```
 
-  `<path>` is the choice's ADR under `{{adr_dir}}`, relative to the repository root, per
-  the ADR rules below.
+  `<path>` is the choice's ADR under `{{adr_dir}}`, relative to the project root, the
+  folder holding `.claude/`, as every `project.json` path is, per the ADR rules below.
 - **`Components and interfaces`** — opens with a C4 container-level diagram in a Mermaid
   `flowchart` block: one system, the applications and data stores inside it, and the
   people and systems it talks to. Then, for each container the feature changes, a C4

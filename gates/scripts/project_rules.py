@@ -52,7 +52,8 @@ repository inherits the caller's git. Each importer's self-test covers the rules
                                    name with no empty, `.`, or `..` component, names a
                                    regular file, and a design's front matter `status` is
                                    `accepted`; with --path, the checked path instead;
-                                   INVALID otherwise, naming KEY when unset
+                                   INVALID otherwise: KEY unset, design_dir or adr_dir
+                                   invalid, or the two naming one directory
     project_rules.py --self-test   runs the key registry's own cases and those of JIRA_KEY,
                                    slug_of, pr_number, ticket_branch, text_input, run_check,
                                    collected_errors, cli_case, write_scratch, and each
@@ -583,20 +584,22 @@ def front_matter(text):
 def design_read(path, ref, config, key="design_dir", path_only=False):
     """The text of the design, or with key adr_dir the ADR, at path in ref: path lies under
     the directory key holds in config, the project.json the calling skill read, so a key and
-    its directory cannot disagree, as design_path checks it, and git reads it from ref,
-    relative to project_root(config) as adr_numbers reads adr_dir, as a regular file, never
-    a tree, symlink, or submodule; a design's front matter `status` must be `accepted`, the
-    MADR status gates/design-exit.md gives an approved design. ValueError otherwise, saying
-    which. With path_only, the checked path instead of the text, printed back as git
-    check-ref-format --normalize prints a ref, so a caller uses only the checked value. One
-    reader for write-tickets and plan-work, as kepval is one checker of a KEP's status for
-    every consumer."""
+    its directory cannot disagree, with design_dir and adr_dir both valid or unset and never
+    one directory, since a file under it could be read as either. design_path checks the
+    path, and git reads it from ref, relative to project_root(config) as adr_numbers reads
+    adr_dir, as a regular file, never a tree, symlink, or submodule; a design's front matter
+    `status` must be `accepted`, the MADR status gates/design-exit.md gives an approved
+    design. ValueError otherwise, saying which. With path_only, the checked path instead of
+    the text, printed back as git check-ref-format --normalize prints a ref, so a caller
+    uses only the checked value. One reader for write-tickets and plan-work, as kepval is
+    one checker of a KEP's status for every consumer."""
     root = project_root(config)
-    directory = read_keys(read_config(config), [OptionalKey(key, None)])[key]
+    keys = read_keys(read_config(config), [OptionalKey("design_dir", None),
+                                           OptionalKey("adr_dir", None)])
+    directory = keys[key]
     if directory is None:
         raise ValueError(f"{key} is unset in project.json")
-    if key == "adr_dir" and directory.rstrip("/") == str(
-            read_config(config).get("design_dir", "")).rstrip("/"):
+    if None not in keys.values() and len({value.rstrip("/") for value in keys.values()}) == 1:
         raise ValueError("adr_dir and design_dir name one directory, so no read can tell an ADR "
                          "from a design")
     path = design_path(path, directory, key)
@@ -1132,14 +1135,26 @@ def design_read_self_test(this):
                                "docs/design/ok.md", "nope", project)).startswith(
                                "ref 'nope' does not name a commit (git rev-parse failed: fatal:"),
                            True)
-        for name, setting, expected in [
-                ("an unset adr_dir is named", {"design_dir": "docs/design"}, "adr_dir is unset"),
-                ("an invalid adr_dir is named", dict(config, adr_dir="../adr"), "adr_dir"),
-                ("one directory for designs and ADRs is refused",
-                 dict(config, adr_dir="docs/design/"), "adr_dir and design_dir name one")]:
+        adr_read = ("docs/adr/0001-a.md", "adr_dir")
+        approved_design_read = ("docs/design/ok.md", "design_dir")
+        for name, setting, read, expected in [
+                ("an unset adr_dir is named", {"design_dir": "docs/design"}, adr_read,
+                 "adr_dir is unset"),
+                ("an invalid adr_dir is named", dict(config, adr_dir="../adr"), adr_read,
+                 "adr_dir '../adr' is not a relative path"),
+                ("an invalid adr_dir is named reading a design", dict(config, adr_dir="../adr"),
+                 approved_design_read, "adr_dir '../adr' is not a relative path"),
+                ("an invalid design_dir is named reading an ADR",
+                 dict(config, design_dir="../design"), adr_read,
+                 "design_dir '../design' is not a relative path"),
+                ("one directory for designs and ADRs is refused reading an ADR",
+                 dict(config, adr_dir="docs/design/"), adr_read,
+                 "adr_dir and design_dir name one"),
+                ("one directory for designs and ADRs is refused reading a design",
+                 dict(config, adr_dir="docs/design"), approved_design_read,
+                 "adr_dir and design_dir name one")]:
             write_scratch(root, setting, ".claude/project.json")
-            got = result_or_message(lambda: design_read("docs/adr/0001-a.md", "main", project,
-                                                        "adr_dir"))
+            got = result_or_message(lambda: design_read(read[0], "main", project, read[1]))
             failures += report("design_read", name, got.startswith(expected), True)
         write_scratch(root, config, ".claude/project.json")
         subproject = write_scratch(root, {"design_dir": "docs/design"}, "sub/.claude/project.json")

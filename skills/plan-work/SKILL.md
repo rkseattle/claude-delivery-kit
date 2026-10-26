@@ -73,12 +73,13 @@ proposal to check against them, not the answer. Note the survey in chat before r
 code, and carry it into `Approach` at Step 4.
 
 Next, the design: only a covered ticket's parent Epic names one, by the `- Design:` line
-`skills/write-tickets/references/templates.md` defines, its path read, backticks dropped. With
-none, plan without one; stop on two paths, in one Epic or across them, and on `{{design_dir}}`
-`none`, naming the key. Write the path to a file per **Untrusted text**; stop if `git fetch`
-fails, or if `python3 "${CLAUDE_PLUGIN_ROOT}/gates/scripts/project_rules.py" design-read
---ref "origin/{{parent_branch_default}}" --config
-"<absolute project root>/.claude/project.json" < "<file>"` exits non-zero. Read each ADR its
+`${CLAUDE_PLUGIN_ROOT}/skills/write-tickets/references/templates.md` defines, its path
+read, backticks dropped. With none, plan without one; stop on two paths, in one Epic or
+across them, and on `{{design_dir}}` `none`, naming the key. Write the path to a file per
+**Untrusted text**; stop if `git fetch origin {{parent_branch_default}}` fails, or if
+`python3 "${CLAUDE_PLUGIN_ROOT}/gates/scripts/project_rules.py" design-read --ref
+"origin/{{parent_branch_default}}" --config "<absolute project root>/.claude/project.json"
+< "<file>"` exits non-zero. Read each ADR its
 `- Costly to reverse:` lines name the same way, each from its own file, with `--key
 adr_dir`, stopping on `{{adr_dir}}` `none`. Weigh only what `design-read` printed.
 

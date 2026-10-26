@@ -131,7 +131,7 @@ with `design_dir` `none`, `design-feature` stops and names the key, as `write-ti
 costly-to-reverse choice, the one design the gate would fail, and `plan-work` stops, naming
 the key, on a design that names an ADR. `write-tickets` and `plan-work` read a design
 through `gates/scripts/project_rules.py design-read`, passing it this file to take each key
-from.
+from; each read needs both keys valid or unset, and never one directory.
 `ci-green`'s merge step runs `gates/scripts/adr_numbers.py` on `adr_dir`, which under `none`
 passes and says so.
 

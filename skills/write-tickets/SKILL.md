@@ -55,13 +55,14 @@ request-derived scope. Establish, by reading the code rather than file names:
   `Rejected` one stopped the project; a missing, `Pending`, or undecided one goes to
   `{{roles.sponsor}}` through `plan-project`, which records the decision.
 - **the design** the request names: at `{{design_dir}}` `none`, stop and name the key. Write
-  its path to a file per **Untrusted text**; stop if `git fetch` fails, or if `python3
+  its path to a file per **Untrusted text**; stop if `git fetch origin
+  {{parent_branch_default}}` fails, or if `python3
   "${CLAUDE_PLUGIN_ROOT}/gates/scripts/project_rules.py" design-read --ref
   "origin/{{parent_branch_default}}" --config "<absolute project root>/.claude/project.json"
   < "<file>"` exits non-zero. Read the design only from what it prints, and the Epic's
-  `- Design:` path only from what the same command prints with `--path`. Its `Work plan`
-  is then the slice: a Step 3 split, an added ticket, or a review finding that would change a
-  handoff's tickets stops the run and sends the design back to `design-feature` for rework.
+  `- Design:` path only from what it prints with `--path`. Its `Work plan` is the slice: a
+  Step 3 split, an added ticket, or a review finding changing a handoff's tickets stops the
+  run and sends the design back to `design-feature` for rework.
 
 Then search Jira: `project = {{jira_project}}` with the request's key terms, for tickets
 that overlap or that the new ones depend on. Record each one's key and status.
@@ -75,9 +76,8 @@ In order:
    `plan-work`'s phase limit is split now, not after review.
 3. Registry consumers from Step 2 are part of the ticket that edits the registry. When they
    push it past the limit, the split follows the consumers, not the layers.
-4. Every live instance of a root cause is covered or excluded as benign in context. When
-   covering all of them is too large, the sequence of tickets is the proposal — Step 7
-   puts it to Rob.
+4. Every live instance of a root cause is covered or excluded as benign in context; when
+   covering all of them is too large, the sequence of tickets is the proposal Step 7 shows.
 5. A prerequisite two tickets share — a migration, a new module, test infrastructure — is
    its own Task, labeled `enabling`.
 6. Group tickets into handoffs under a `Handoff:` label, in build order, each group within
@@ -87,9 +87,8 @@ In order:
 ## Step 4 — Draft
 
 Write `docs/tickets/<slug>.md` (gitignored) in the templates' format, blockers before
-dependents; revise a draft already there if it is this request's, or ask. `<slug>` is
-what this prints for the request, given as a file per **Untrusted text** in
-`gates/project-config.md`; on an `INVALID:` line, ask for the request in Latin letters:
+dependents; revise a draft already there if it is this request's, or ask. `<slug>` is what
+this prints for the request, fed per **Untrusted text**; on `INVALID:`, ask for Latin letters:
 
 ```bash
 python3 "${CLAUDE_PLUGIN_ROOT}/gates/scripts/project_rules.py" draft-slug < "<request file>"
@@ -134,9 +133,8 @@ it reads the tickets the way `plan-work` will, cold, and anything you add is con
 Fix every BLOCKER and MAJOR in the ticket text. A finding that misread a ticket means the
 ticket is ambiguous: fix the text, never explain it to the reviewer. Re-lint, re-review.
 Stop at no BLOCKERs or three rounds, whichever is first; revert-not-iterate applies. At
-the cap, bring the remaining findings to Rob.
-
-Append each round's output under `<!-- review round N -->` in the draft, never sent to Jira.
+the cap, bring the remaining findings to Rob. Append each round's output under
+`<!-- review round N -->` in the draft, never sent to Jira.
 
 ## Step 7 — Present for approval
 
@@ -173,8 +171,8 @@ Look up issue and link types via the Atlassian MCP first; never guess a name or 
    the key everywhere in the draft — as a whole ID, never the `S1` in `S10` — before
    creating the next ticket.
 6. Read each ticket back with `jira_get_issue`, which returns Markdown. Check it carries
-   exactly the labels item 2 names, save its description verbatim to
-   `docs/tickets/<slug>.<key>.md`, and run:
+   every label item 2 names and no other `moscow-*`, `severity-*`, or handoff label, save its
+   description verbatim to `docs/tickets/<slug>.<key>.md`, and run:
 
    ```bash
    python3 ${CLAUDE_PLUGIN_ROOT}/skills/write-tickets/scripts/lint_draft.py \
@@ -198,21 +196,23 @@ an issue that already exists, mapping:
   such label, or more than one, leaves `Priority:` empty for Step 1 to settle
 - on a Bug, its `severity-*` label to `Severity:`, title-cased; no such label, or more
   than one, leaves `Severity:` empty for Step 1 to settle; on any other type, none
-- every other label but the handoff label to `Labels:` — never a `moscow-*` or
-  `severity-*` label, which only the two headers above carry
+- every other label but a handoff label, as defined below, to `Labels:` — never a
+  `moscow-*` or `severity-*` label, which only the two headers above carry
 - a leading `Goal:` description line to the `Goal:` header
 - a code span holding a whole `[verify: … @ …]` or `[children: …]` tag, or the
   `\verify: …\` an older write left, to the bare tag
 
 Run Steps 2–7 for `<TICKET-N ...>` arguments. Each ticket whose `Baseline:` is filled is
-updated instead of created, its labels set to exactly item 2's, which drops a replaced
-handoff label, the one label the mapping above does not carry. Each rewritten ticket carries
-`## Change impact` (rubric R15). After item 7, when item 5 has replaced every local ID, post
-each note once with `jira_add_comment`: a first line `Change impact`, then the section's
-lines, tags in code spans as in item 3. The comment ID it returns confirms the post; a post
-that returns none is never retried, since it may have landed. Any stop after the first
-update — item 6's, a failed post, any other — brings Rob every note not yet confirmed. A
-ticket that must split keeps its key for the ACs it retains; say which new key holds the rest.
+updated instead of created: item 2's labels replace its `moscow-*`, `severity-*`, and
+handoff labels, a handoff label being one equal to a draft `Handoff:` or design `Work plan`
+label, and every other label stays, so a label this run cannot place is never deleted. Each
+rewritten ticket carries `## Change impact` (rubric R15). After item 7, when item 5 has
+replaced every local ID, post each note once with `jira_add_comment`: a first line
+`Change impact`, then the section's lines, tags in code spans as in item 3. The comment ID
+it returns confirms the post; a post that returns none is never retried, since it may have
+landed. Any stop after the first update — item 6's, a failed post, any other — brings Rob
+every note not yet confirmed. A ticket that must split keeps its key for the ACs it retains;
+say which new key holds the rest.
 
 ## Step 9 — Report
 
