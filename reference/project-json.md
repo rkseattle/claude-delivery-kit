@@ -94,8 +94,9 @@ done, default `Done`. The checks before the merge, and the decline and failure p
 exception path, which has none; the tech lead then merges outside the run.
 
 `incident_reviews_dir` serves rule book Phase 7 step 3: where `incident-review` commits each
-review. It must be a relative path inside the repository with no `.git` component, in any
-case or with trailing dots, as git refuses to track one, starting with a letter, digit, or
+review. It must be a relative path inside the repository with no empty, `.`, or `..`
+component, trailing slashes aside, and no `.git` component, in any case or with trailing
+dots, as git refuses to track one, starting with a letter, digit, or
 `_` and made only of letters, digits, `.`, `_`, `-`, and `/`, and not gitignored, since the
 review is committed.
 Default `none`, under which `incident-review` stops and names the key.
@@ -115,14 +116,12 @@ under which its section of the report says it is unset, except `iteration_days`,
 except that `security` makes `patch_sla_days` required.
 
 `retirements_dir` serves rule book Phase 7 step 7: where `retire-system` commits each
-retirement record. It follows `incident_reviews_dir`'s rule — a relative path inside the
-repository with no `.git` component, of the same characters, and not gitignored, since the
-record is committed. Default `none`, under which `retire-system` stops and names the key.
+retirement record. It follows `incident_reviews_dir`'s path rule, and is not gitignored,
+since the record is committed. Default `none`, under which `retire-system` stops and names the key.
 
 `design_dir` and `adr_dir` serve rule book Phase 3 and R11: where a feature's design doc and
 its decision records are committed, in the form `gates/design-exit.md` defines. Each follows
-`incident_reviews_dir`'s rule — a relative path inside the repository with no `.git`
-component, of the same characters, and not gitignored, since both are committed.
+`incident_reviews_dir`'s path rule, and is not gitignored, since both are committed.
 `design-feature` reads both, writing the design doc and its ADRs there, and `write-tickets`
 reads `design_dir` for the approved design a request names. Each defaults to `none`, under
 which the gate fails as it states: with `design_dir` `none`, `design-feature` stops and

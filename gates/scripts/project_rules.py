@@ -238,16 +238,18 @@ def named_disciplines(config):
 
 def check_repo_path(key, value):
     """A directory key written unquoted into commands: set, relative, inside the repository
-    and outside any .git, made only of characters no shell treats specially. A .git component
-    is judged anywhere in the path, case-insensitively and with trailing dots dropped, as
-    git's verify_path rejects it, since a case-insensitive disk reads .GIT as .git, Windows
-    reads .git. as .git, and git tracks nothing under one."""
+    and outside any .git, made only of characters no shell treats specially. As git's
+    verify_path does, it rejects an empty, `.`, or `..` component, trailing slashes aside, and
+    a .git component anywhere in the path, case-insensitively and with trailing dots dropped,
+    since a case-insensitive disk reads .GIT as .git, Windows reads .git. as .git, and git
+    tracks nothing under one."""
+    parts = value.rstrip("/").split("/") if isinstance(value, str) else []
     if (is_unset(value) or not isinstance(value, str) or not REPO_PATH.fullmatch(value)
-            or os.path.isabs(value)
-            or os.path.normpath(value).split(os.sep)[0] in ("..", ".")
-            or any(part.rstrip(".").casefold() == ".git" for part in value.split("/"))):
+            or os.path.isabs(value) or any(part in ("", ".", "..") for part in parts)
+            or any(part.rstrip(".").casefold() == ".git" for part in parts)):
         raise ValueError(f"{key} {value!r} is not a relative path inside the repository with no "
-                         "'.git' component (in any case, trailing dots aside), starting with a "
+                         "empty, '.', '..', or '.git' component (in any case, trailing dots "
+                         "aside), starting with a "
                          "letter, digit, or '_', and made only of letters, digits, '.', '_', "
                          "'-', and '/'")
 
@@ -507,20 +509,17 @@ def ticket_key(text, prefix=None):
 
 def design_path(path, directory=None):
     """path, unchanged, when it is one repository path, as check_repo_path judges it, whose
-    last component is `<slug>.md`, SLUG's slug as design-feature names its design docs, and
-    whose other components are neither empty, `.`, nor `..`; with directory, checked by
-    check_repo_path as the key registry checks design_dir, it must be `<directory>/<slug>.md`,
-    directory compared as normpath reads it. ValueError otherwise. A design path a request or
-    a Jira field names reaches a command only as this prints it."""
+    last component is `<slug>.md`, SLUG's slug as design-feature names its design docs; with
+    directory, checked by check_repo_path as the key registry checks design_dir, it must be
+    `<directory>/<slug>.md`. ValueError otherwise. A design path a request or a Jira field
+    names reaches a command only as this prints it."""
     if directory is not None:
         check_repo_path("design_dir", directory)
     check_repo_path("design path", path)
     *parents, name = path.split("/")
-    if any(part in ("", ".", "..") for part in parents):
-        raise ValueError(f"design path {path!r} has an empty, '.', or '..' component")
     if not name.endswith(".md") or not SLUG.fullmatch(name[:-len(".md")]):
         raise ValueError(f"design path {path!r} does not end in a <slug>.md file name")
-    if directory is not None and "/".join(parents) != os.path.normpath(directory):
+    if directory is not None and "/".join(parents) != directory.rstrip("/"):
         raise ValueError(f"design path {path!r} is not directly under {directory!r}")
     return path
 
@@ -1029,6 +1028,14 @@ def self_test():
                        result_or_message(lambda: read_keys({"design_dir": "/abs"},
                                                            [OptionalKey("design_dir", None)])),
                        error_message(lambda: check_repo_path("design_dir", "/abs")))
+    for name, value, accepted in [("a trailing slash is kept", "docs/design/", True),
+                                  ("an empty component", "docs//design", False),
+                                  ("a '.' component", "docs/./design", False),
+                                  ("a leading './'", "./docs", False),
+                                  ("a '..' that stays inside", "docs/x/../design", False)]:
+        failures += report("check_repo_path", name,
+                           error_message(lambda value=value: check_repo_path("k", value)) is None,
+                           accepted)
     printed, errors = io.StringIO(), io.StringIO()
     checks = {"empty": lambda: "", "rows": lambda: ["a", "b"], "invalid": raise_empty}
     with contextlib.redirect_stdout(printed), contextlib.redirect_stderr(errors):
@@ -1205,9 +1212,9 @@ def self_test():
     failures += cli_case(this, "a trailing slash on --dir is the same directory",
                          ["design-path", "--dir", "docs/design/"], "docs/design/x.md", 0,
                          input="docs/design/x.md\n", exact=True)
-    failures += cli_case(this, "--dir is compared as normpath reads it",
-                         ["design-path", "--dir", "docs//design"], "docs/design/x.md", 0,
-                         input="docs/design/x.md\n", exact=True)
+    failures += cli_case(this, "an empty --dir component names design_dir",
+                         ["design-path", "--dir", "docs//design"], "INVALID: design_dir", 1,
+                         input="docs/design/x.md\n")
     failures += cli_case(this, "no subcommand is usage", [], "", 2)
     return 1 if failures else 0
 
