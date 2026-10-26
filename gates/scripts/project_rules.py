@@ -15,9 +15,9 @@ skills/write-tickets/scripts/lint_draft.py, and, for the YAML vendor alone,
 scripts/ci/actions-pinned.sh, and, for the Markdown table, register and tracked-file rules,
 scripts/ci/rule-book-map.sh, and, for the key registry, scripts/ci/config-examples.sh, and
 run by skills/plan-project/SKILL.md for its slug, skills/write-tickets/SKILL.md for its
-draft's, skills/implement-phases/SKILL.md for its branch, skills/ci-green/SKILL.md for its
-PR number, skills/design-feature/SKILL.md for its Epic key, and
-skills/release-readiness/SKILL.md for the keys a release covers,
+draft's and a design path, skills/implement-phases/SKILL.md for its branch,
+skills/ci-green/SKILL.md for its PR number, skills/design-feature/SKILL.md for its Epic key,
+and skills/release-readiness/SKILL.md for the keys a release covers,
 so no two of them can disagree on a key's shape, what an unset key, a placeholder, a
 discipline, a date, a printed number, a branch slug, a code fence, a Markdown field's value,
 a Markdown table, a register header, a complete exceptions-register row, a tracked path, a
@@ -43,6 +43,11 @@ repository inherits the caller's git. Each importer's self-test covers the rules
                                    `<KEY>-<slug>` from standard input's ticket key line and
                                    the words after it, the whole fitted to a branch's lock
                                    file; INVALID for a malformed key, or one outside --prefix
+    project_rules.py design-path [--dir DIR]
+                                   the design path on standard input, when it is one
+                                   repository path ending `<slug>.md`, directly under DIR
+                                   when given, with no empty, `.`, or `..` component;
+                                   INVALID otherwise
     project_rules.py --self-test   runs the key registry's own cases and those of JIRA_KEY,
                                    slug_of, pr_number, ticket_branch, text_input, run_check,
                                    collected_errors, cli_case, write_scratch, and each
@@ -498,6 +503,26 @@ def ticket_key(text, prefix=None):
     if prefix is not None and not key.startswith(f"{project_prefix(prefix)}-"):
         raise ValueError(f"{key!r} is not a {prefix} key")
     return key
+
+
+def design_path(path, directory=None):
+    """path, unchanged, when it is one repository path, as check_repo_path judges it, whose
+    last component is `<slug>.md`, SLUG's slug as design-feature names its design docs, and
+    whose other components are neither empty, `.`, nor `..`; with directory, checked by
+    check_repo_path as the key registry checks design_dir, it must be `<directory>/<slug>.md`,
+    directory compared as normpath reads it. ValueError otherwise. A design path a request or
+    a Jira field names reaches a command only as this prints it."""
+    if directory is not None:
+        check_repo_path("design_dir", directory)
+    check_repo_path("design path", path)
+    *parents, name = path.split("/")
+    if any(part in ("", ".", "..") for part in parents):
+        raise ValueError(f"design path {path!r} has an empty, '.', or '..' component")
+    if not name.endswith(".md") or not SLUG.fullmatch(name[:-len(".md")]):
+        raise ValueError(f"design path {path!r} does not end in a <slug>.md file name")
+    if directory is not None and "/".join(parents) != os.path.normpath(directory):
+        raise ValueError(f"design path {path!r} is not directly under {directory!r}")
+    return path
 
 
 def ticket_branch(text, prefix=None):
@@ -1157,6 +1182,32 @@ def self_test():
                          ["ticket-keys", "--prefix", "AB"], "AB-12\nAB-3", 0,
                          input="AB-12 - x\nAB-3 and XY-1, AB-12 again, AB_C-4, _AB-5, 1AB-6\n",
                          exact=True)
+    for name, path, expected, status in [
+            ("design-path prints a design under --dir", "docs/design/x.md", "docs/design/x.md", 0),
+            ("a second line is invalid", "docs/design/x.md\ndocs/design/y.md", "INVALID:", 1),
+            ("a '..' component is invalid", "docs/design/../x.md", "INVALID:", 1),
+            ("a '.' component is invalid", "docs/design/./x.md", "INVALID:", 1),
+            ("an empty component is invalid", "docs/design//x.md", "INVALID:", 1),
+            ("a path outside --dir is invalid", "docs/designs/x.md", "INVALID:", 1),
+            ("a path that is not .md is invalid", "docs/design/x.txt", "INVALID:", 1),
+            ("a bare .md under --dir is invalid", "docs/design/.md", "INVALID:", 1),
+            ("a ref prefix is invalid", "HEAD:docs/design/x.md", "INVALID:", 1),
+            ("a nested path is invalid", "docs/design/sub/x.md", "INVALID:", 1),
+            ("a nested bare .md is invalid", "docs/design/sub/.md", "INVALID:", 1),
+            ("a name that is no slug is invalid", "docs/design/-x.md", "INVALID:", 1),
+            ("an uppercase name is invalid", "docs/design/X.md", "INVALID:", 1)]:
+        failures += cli_case(this, name, ["design-path", "--dir", "docs/design"], expected,
+                             status, input=f"{path}\n", exact=status == 0)
+    failures += cli_case(this, "design-path without --dir checks the path alone", ["design-path"],
+                         "a/b.md", 0, input="a/b.md\n", exact=True)
+    failures += cli_case(this, "an invalid --dir is invalid", ["design-path", "--dir", "../d"],
+                         "INVALID:", 1, input="../d/x.md\n")
+    failures += cli_case(this, "a trailing slash on --dir is the same directory",
+                         ["design-path", "--dir", "docs/design/"], "docs/design/x.md", 0,
+                         input="docs/design/x.md\n", exact=True)
+    failures += cli_case(this, "--dir is compared as normpath reads it",
+                         ["design-path", "--dir", "docs//design"], "docs/design/x.md", 0,
+                         input="docs/design/x.md\n", exact=True)
     failures += cli_case(this, "no subcommand is usage", [], "", 2)
     return 1 if failures else 0
 
@@ -1171,6 +1222,7 @@ def main():
     commands.add_parser("draft-slug")
     commands.add_parser("ticket-key").add_argument("--prefix")
     commands.add_parser("ticket-keys").add_argument("--prefix", required=True)
+    commands.add_parser("design-path").add_argument("--dir")
     args = parser.parse_args()
     if args.self_test:
         return self_test()
@@ -1181,7 +1233,9 @@ def main():
                               "draft-slug": lambda: slug_of(text_input(None), DRAFT_SLUG_MAX),
                               "ticket-key": lambda: ticket_key(text_input(None), args.prefix),
                               "ticket-keys": lambda: ticket_keys(text_input(None),
-                                                                 args.prefix)},
+                                                                 args.prefix),
+                              "design-path": lambda: design_path(text_input(None),
+                                                                 args.dir)},
                      args.command)
 
 

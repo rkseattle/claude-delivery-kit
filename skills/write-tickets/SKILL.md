@@ -1,7 +1,7 @@
 ---
 name: write-tickets
-description: Turn a feature request, spec, or bug report into Jira epics, stories, tasks, and bugs that plan-work can plan without proposing a split, writing a Deviation, or leaving an AC clause unphased. Drafts to a file, lints it, has ticket-adversary review it cold, and creates the tickets only after approval.
-argument-hint: <what to write tickets for> | <TICKET-N ...> to rewrite existing ones
+description: Turn a feature request, spec, bug report, or approved feature design into Jira epics, stories, tasks, and bugs that plan-work can plan without proposing a split, writing a Deviation, or leaving an AC clause unphased. Drafts to a file, lints it, has ticket-adversary review it cold, and creates the tickets only after approval.
+argument-hint: <what to write tickets for> | <design path> | <TICKET-N ...> to rewrite existing ones
 disable-model-invocation: true
 allowed-tools: Read, Write, Edit, Grep, Glob, Bash, Task
 ---
@@ -53,14 +53,16 @@ request-derived scope. Establish, by reading the code rather than file names:
   outcome, never "none", "TBD", or "N/A": a goalless one goes back to the sponsor; a
   `Rejected` one stopped the project; a missing, `Pending`, or undecided one goes to
   `{{roles.sponsor}}` through `plan-project`, which records the decision.
-- **the design** the request names: at `{{design_dir}}` `none`, stop and name the key; stop
-  unless its path, from the repository root, starts `{{design_dir}}/`, ends `.md`, and holds
-  no `..`. Stop if `git fetch` fails, then run `git cat-file --batch < "<file>"`, the file
-  holding `origin/{{parent_branch_default}}:<path>` per **Untrusted text**; stop unless it
-  prints a `blob` whose `## Decision` begins `Approved by`. Every later read of the design
-  is of that printed blob. Its `Work plan` is then the slice: a Step 3 split, an added
-  ticket, or a review finding that would change a handoff's tickets stops the run and sends
-  the design back to `design-feature` for rework.
+- **the design** the request names: at `{{design_dir}}` `none`, stop and name the key. Write
+  its path to a file per **Untrusted text**, run `python3
+  "${CLAUDE_PLUGIN_ROOT}/gates/scripts/project_rules.py" design-path --dir "{{design_dir}}"
+  < "<file>"`, stop on `INVALID`, and use only what it prints from here on, the Epic's
+  `- Design:` line included. Stop if `git fetch` fails, then run `git cat-file --batch <
+  "<file>"`, a file holding `origin/{{parent_branch_default}}:<path>`; stop unless it prints
+  a `blob` whose `## Decision` begins `Approved by`. Every later read of the design is of
+  that printed blob. Its `Work plan` is then the slice: a Step 3 split, an added ticket, or
+  a review finding that would change a handoff's tickets stops the run and sends the design
+  back to `design-feature` for rework.
 
 Then search Jira: `project = {{jira_project}}` with the request's key terms, for tickets
 that overlap or that the new ones depend on. Record each one's key and status.
@@ -104,11 +106,12 @@ python3 "${CLAUDE_PLUGIN_ROOT}/gates/scripts/project_rules.py" draft-slug < "<re
   restates the one it serves; a ticket whose goal serves none is removed (R14).
 - **Context**: why, with any linked source summarized. Never a reference to this session.
 - **Design**: a design `## Summary` opening `Epic: <KEY>` names its Epic; stop unless the
-  key, from a file, passes `${CLAUDE_PLUGIN_ROOT}/gates/scripts/project_rules.py ticket-key
-  --prefix "{{ticket_prefix}}"`. Fetch that Epic, and each child sharing a design ticket's
-  summary, into the draft as rewrite mode does, and draft the rest as new tickets under it;
-  otherwise draft a new Epic, its Goal and Success measures from the design's. Either
-  Epic's In scope carries `- Design: <path>`.
+  key, fed as Step 2 feeds the path, passes `project_rules.py ticket-key --prefix
+  "{{ticket_prefix}}"`, and the issue exists as an Epic. Fetch it, and each child sharing a
+  design ticket's summary, into the draft as rewrite mode does, stopping on a not-Done
+  child that shares none, and draft the rest as new tickets under it; otherwise draft a new
+  Epic, its Goal and Success measures from the design's. Either Epic's In scope carries
+  `- Design: <path>`. The fetched tickets join this run here, at Step 4.
 
 ## Step 5 — Lint
 
@@ -170,8 +173,8 @@ Look up issue and link types via the Atlassian MCP first; never guess a name or 
    the key everywhere in the draft — as a whole ID, never the `S1` in `S10` — before
    creating the next ticket.
 6. Read each ticket back with `jira_get_issue`, which returns Markdown. Check it carries
-   every label item 2 names and no other `moscow-*`, `severity-*`, or handoff label, save
-   its description verbatim to `docs/tickets/<slug>.<key>.md`, and run:
+   exactly the labels item 2 names, save its description verbatim to
+   `docs/tickets/<slug>.<key>.md`, and run:
 
    ```bash
    python3 ${CLAUDE_PLUGIN_ROOT}/skills/write-tickets/scripts/lint_draft.py \
@@ -201,9 +204,9 @@ an issue that already exists, mapping:
 - a code span holding a whole `[verify: … @ …]` or `[children: …]` tag, or the
   `\verify: …\` an older write left, to the bare tag
 
-Run Steps 2–7, and update each ticket whose `Baseline:` is filled instead of creating it:
-item 2's labels replace its `moscow-*`, `severity-*`, and handoff labels, and any such
-label item 2 no longer writes is removed. Each rewritten ticket carries
+Run Steps 2–7 for `<TICKET-N ...>` arguments. Each ticket whose `Baseline:` is filled is
+updated instead of created, its labels set to exactly item 2's, which drops a replaced
+handoff label, the one label the mapping above does not carry. Each rewritten ticket carries
 `## Change impact` (rubric R15). After item 7, when item 5 has replaced every local ID, post
 each note once with `jira_add_comment`: a first line `Change impact`, then the section's
 lines, tags in code spans as in item 3. The comment ID it returns confirms the post; a post
