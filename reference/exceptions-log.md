@@ -1,3 +1,4 @@
 | Rule | Reason | Risk | Expiry | Remediation |
 | ---- | ------ | ---- | ------ | ----------- |
 | implement-phases Step 2c: `commit-adversary` review before every commit | Rob (tech lead) waived it for CDK-45 commit a69c1fb, a behavior-preserving switch of four scripts to shared helpers whose self-tests keep their case counts | A defect in that commit reaches the branch without a cold review | 2027-01-21 | `branch-review` reads the whole branch, a69c1fb included; at expiry, remove the row |
+| ci-green Step 5: approving review (rule book R2) | `reviewers` is `none`, so no one but the author could review CDK-45's PR #25; Rob (tech lead) merged it on 2026-10-25 after CI went green | A defect in PR #25 reached main with no second reader beyond the automated reviews | 2027-01-23 | Set `reviewers` in `.claude/project.json` to someone other than the author; at expiry, remove the row |
