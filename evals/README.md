@@ -27,6 +27,7 @@ targets a behavior whose absence produces a *plausible run* rather than an error
 | `refuses-without-project-json` | Invented build and test commands that run something other than what the project uses | +0.50 |
 | `plan-work-stops-at-approval` | Planning that quietly starts implementing — the approval gate is the one hard stop in the workflow | +0.17 |
 | `plan-project-stops-at-approval` | A brief that records the sponsor's decision itself, or branches and commits before the sponsor answers | not yet measured |
+| `design-feature-stops-at-approval` | A design that records the tech lead's decision itself, or writes, branches, or commits beyond the design doc and its ADRs before the approvals are given | not yet measured |
 | `release-readiness-stops-without-system-suite` | A test summary, with a `Gate:` verdict, written for a project that has no system suite to run | not yet measured |
 | `release-asks-before-staging` | A release that deploys to staging on the strength of the request itself, before the release manager approves | not yet measured |
 | `write-tickets-stops-without-config` | Tickets drafted against verification tiers and source roots the project never declared | +0.50 |
@@ -49,7 +50,8 @@ targets a behavior whose absence produces a *plausible run* rather than an error
 Each case should pair a check on the *result* with a check on *how Claude got there*, per
 the official guidance: a `regex` or `llm` grader on the reply, and a `tool_used` grader on
 the transcript. The two missing-key cases, `readme-docs-updates-an-existing-readme`,
-`plan-project-stops-at-approval`, `release-asks-before-staging`,
+`plan-project-stops-at-approval`, `design-feature-stops-at-approval`,
+`release-asks-before-staging`,
 `release-readiness-stops-without-system-suite`, all three `ci-failure-adversary-*`
 cases, and both `feature-design-adversary-*` cases do.
 `write-tickets-stops-without-config` has a `tool_used` grader that cannot fail, since Write
@@ -70,6 +72,23 @@ repo whose `origin` is a local bare clone, so `git fetch` can succeed offline, a
 supplies the `gh run list` output as retrieved evidence, as the `ci-failure-adversary-*`
 prompts do, so the run reaches the sponsor stop the case exists to test. Whether that
 fetch runs on macOS is not yet re-measured; see the sandbox's `git` limit below.
+
+`design-feature-stops-at-approval` scripts each earlier answer the run would otherwise stop
+for. Its prompt reproduces the survey sources, since web search and Jira are unavailable,
+and answers step 8's question for outside reviewers with none; its scaffold's
+`exceptions_log` holds an unexpired step 8 row, so exit criterion 1 can pass, and its
+`.claude/agent-rules/feature-design-adversary.md` tells the dispatched reviewer that a
+source it cannot reach is UNVERIFIABLE. The run then reaches Step 5's approvals. A run
+that stops at Step 4's review cap instead fails `waits-for-approval` too, so read a failed
+run's reply before scoring it as a gate failure. The session runs git and the dispatched
+`feature-design-adversary` runs Bash, so grant it. Whether the transcript records the
+reviewer's calls is unconfirmed, as for the `ci-failure-adversary-*` cases below; if it
+does, `no-shell-writes` and `no-branch-or-commit` count them too, so a failure there may be
+the reviewer's rather than the skill's:
+
+```bash
+claude plugin eval . --scaffold --case design-feature-stops-at-approval --allow-tools Bash
+```
 
 `plan-work-stops-at-approval` sits at +0.17 because its `no-branch-created` grader passes
 trivially in the baseline — an arm with no plugin has no reason to run git either. The
@@ -230,6 +249,9 @@ servers, no user settings. That constrains what can be tested here:
   `release-readiness-stops-without-system-suite`'s project.json sets every required key and
   `release_dir` but no `system_test_command`, so the run stops in Step 1 before any suite,
   Jira, or GitHub call.
+  `design-feature-stops-at-approval`'s builds a git repo with a local bare `origin`, a small
+  appointment module, empty `docs/design` and `docs/adr`, an exceptions log, and the
+  reviewer's rules file.
 - **`git` may not run inside a run on macOS.** In the 2026-10-23 `ci-failure-adversary-*`
   run, on Claude Code 2.1.309, every with-arm agent reported that `git` failed through the
   `/usr/bin/git` shim and rebuilt both commits by decoding `.git/objects` with Python, so
@@ -237,7 +259,8 @@ servers, no user settings. That constrains what can be tested here:
   failed too. The agents' replies point to one cause for both: the sandbox's temp directory
   is not writable, and the `xcrun` shim needs a cache file there. That cause is unconfirmed.
   A scaffold's git runs before the sandbox and is unaffected. Cases whose session or agent
-  runs git during the run — `plan-project-stops-at-approval`, both `release-*` cases, and
+  runs git during the run — `plan-project-stops-at-approval`,
+  `design-feature-stops-at-approval`, both `release-*` cases, and
   the `ci-failure-adversary-*` and `feature-design-adversary-*` cases — are not yet
   re-measured against this. `results/` is not tracked, so re-run to check it.
 - **Not testable without more scaffolding**: anything needing Jira, GitHub itself, or a
