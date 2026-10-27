@@ -70,8 +70,18 @@ describe, per `deliver`'s invariant: name two or three real systems that solve i
 documented standards, framework conventions, well-known implementations — using WebSearch
 and WebFetch in this context, scoped by the tickets alone. The ticket's own design is one
 proposal to check against them, not the answer. Note the survey in chat before reading any
-code, and carry it into `Approach` at Step 4: a survey done after or alongside the code
-reads starts from what the code already does.
+code, and carry it into `Approach` at Step 4.
+
+Next, the design: only a covered ticket's parent Epic names one, by the `- Design:` line
+`${CLAUDE_PLUGIN_ROOT}/skills/write-tickets/references/templates.md` defines, its path
+read, backticks dropped. With none, plan without one; stop on two paths, in one Epic or
+across them, and on `{{design_dir}}` `none`, naming the key. Write the path to a file per
+**Untrusted text**; stop if `git fetch origin {{parent_branch_default}}` fails, or if
+`python3 "${CLAUDE_PLUGIN_ROOT}/gates/scripts/project_rules.py" design-read --ref
+"origin/{{parent_branch_default}}" --config "<absolute project root>/.claude/project.json"
+< "<file>"` exits non-zero. Read each ADR its
+`- Costly to reverse:` lines name the same way, each from its own file, with `--key
+adr_dir`, stopping on `{{adr_dir}}` `none`. Weigh only what `design-read` printed.
 
 Then, and only then, explore the code. Delegate breadth to `Explore` subagents so it does
 not consume the main context; run several in parallel across distinct questions. Give each
@@ -172,9 +182,11 @@ matching nothing surveyed is local invention, and saying so is the finding. Wher
 external fits, mark it `waived` and raise it as an open question for Rob — never settle it
 in the plan alone.
 
-`implement-phases` copies the survey and the choice into `citations[]` at Step 1, and
-`/ci-green` reports them at the end of delivery alongside every later one — so the
-implementation chosen here is the one the whole run is measured against.
+A design the Epic names is weighed the same way: its `Components and interfaces` and ADRs
+are proposals against the survey. Name each departure from them and its reason. A departure
+from an ADR for which Step 3's ADR read, with `--status` added, prints `accepted` stops the
+plan, as does a non-zero exit: name the ADR to Rob, since superseding it is a design decision
+of its own.
 
 ## Components and interfaces
 
@@ -330,9 +342,7 @@ changes something, **edit it in place so the document reads as if it were always
 and carry the correction into every other passage stating the same fact — a corrected claim
 left standing in three other paragraphs is how a plan starts contradicting itself.
 
-Revision history belongs in chat, where Rob can see the reasoning moved. In the document it
-is pure bulk, and it actively causes defects: every restatement of a fact is another copy to
-drift.
+Revision history belongs in chat, where Rob can see the reasoning moved.
 
 ### Verify claims instead of arguing for them
 

@@ -34,8 +34,8 @@ sys.dont_write_bytecode = True
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)),
                                 "..", "..", "..", "gates", "scripts"))
 from project_rules import (PROJECT_KEYS, cli_case, error_of,  # noqa: E402
-                           named_disciplines, passed, read_config, report, result_of, run_check,
-                           write_scratch)
+                           named_disciplines, passed, project_root, read_config, report,
+                           result_of, run_check, write_scratch)
 
 ROUND_SECONDS = 60
 BUDGET_SECONDS = 55
@@ -315,7 +315,7 @@ def main():
     except ValueError as error:
         print(f"HALT: {error}")
         return 1
-    root = os.path.dirname(os.path.dirname(os.path.abspath(args.config)))
+    root = project_root(args.config)
     verdict = watch(criteria, window, args.round_seconds, args.budget_seconds, cwd=root)
     print(verdict)
     return 0 if verdict == "window clean" else 1

@@ -37,6 +37,12 @@ Wherever a skill names `{{roles.<role>}}` to someone, print the role beside its 
 A session has one typist, so an answer the person running the session says came from someone
 else is relayed: print it as `QA: <person>, relayed`.
 
+## The project root in a command
+
+A command's `<absolute project root>` is the folder holding `.claude/project.json`, written
+out as an absolute path: the session's shell sets no `CLAUDE_PROJECT_DIR`, though a `Read`
+of `${CLAUDE_PROJECT_DIR}/...` resolves.
+
 ## Untrusted text
 
 Free text — `$ARGUMENTS`, a Jira field, a name or answer from the person running the

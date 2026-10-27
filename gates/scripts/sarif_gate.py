@@ -60,6 +60,8 @@ def load(path):
         parsed = json.loads(text)
     except json.JSONDecodeError as error:
         raise ValueError(f"{path} is not JSON: {error.msg}") from error
+    except RecursionError as error:
+        raise ValueError(f"{path} is not JSON: it nests too deeply") from error
     if not isinstance(parsed, dict) or parsed.get("version") != "2.1.0":
         raise ValueError(f"{path} is not SARIF 2.1.0")
     runs = parsed.get("runs")
@@ -593,6 +595,8 @@ def cli_cases():
             ("a missing report", ["secrets", os.path.join(scratch, "absent")], 2),
             ("an empty report", ["secrets", write("empty", "")], 2),
             ("a report that is not JSON", ["secrets", write("text", "Scan complete")], 2),
+            ("a report nested past the recursion limit",
+             ["secrets", write("deep", "[" * 200000 + "]" * 200000)], 2),
             ("a report of another SARIF version", ["secrets", write("v1", {"version": "1.0.0", "runs": []})], 2),
             ("a report without runs[]", ["secrets", write("noruns", {"version": "2.1.0"})], 2),
             ("a report with no runs", ["secrets", write("zeroruns", sarif())], 2),

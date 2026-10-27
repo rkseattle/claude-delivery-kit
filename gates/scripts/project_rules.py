@@ -1,8 +1,8 @@
 """The project.json rules, the record-parsing rules, the check-script entry point, and the
 self-test helpers, the kit's release, review, incident, maintenance, retirement, and design
 scripts share. Standard library only, except fence_split and markdown_tokens, which load the
-CommonMark parser vendored beside the README checker, and YAML_VENDOR, the PyYAML the
-maintenance check and scripts/ci/actions-pinned.sh load.
+CommonMark parser vendored beside the README checker, and front_matter, the maintenance
+check, and scripts/ci/actions-pinned.sh, which load YAML_VENDOR's PyYAML.
 
 Imported by skills/release/scripts/halt_watch.py,
 skills/release-readiness/scripts/readiness_check.py, skills/ci-green/scripts/review_gate.py,
@@ -14,10 +14,13 @@ gates/scripts/adr_numbers.py, and, for the discipline, tracked-file and self-tes
 skills/write-tickets/scripts/lint_draft.py, and, for the YAML vendor alone,
 scripts/ci/actions-pinned.sh, and, for the Markdown table, register and tracked-file rules,
 scripts/ci/rule-book-map.sh, and, for the key registry, scripts/ci/config-examples.sh, and
-run by skills/plan-project/SKILL.md for its slug, skills/write-tickets/SKILL.md for its
-draft's, skills/implement-phases/SKILL.md for its branch, skills/ci-green/SKILL.md for its
-PR number, skills/design-feature/SKILL.md for its Epic key, and
-skills/release-readiness/SKILL.md for the keys a release covers,
+run by skills/plan-project/SKILL.md for its slug and its brief's path,
+skills/write-tickets/SKILL.md for its draft's, a design's path and read, the brief's read,
+and the design's Epic key, skills/plan-work/SKILL.md for a design's and its ADRs' paths,
+reads, and statuses,
+skills/implement-phases/SKILL.md for its branch, skills/ci-green/SKILL.md for its PR number,
+skills/design-feature/SKILL.md for its Epic key and the brief's read,
+and skills/release-readiness/SKILL.md for the keys a release covers,
 so no two of them can disagree on a key's shape, what an unset key, a placeholder, a
 discipline, a date, a printed number, a branch slug, a code fence, a Markdown field's value,
 a Markdown table, a register header, a complete exceptions-register row, a tracked path, a
@@ -43,6 +46,35 @@ repository inherits the caller's git. Each importer's self-test covers the rules
                                    `<KEY>-<slug>` from standard input's ticket key line and
                                    the words after it, the whole fitted to a branch's lock
                                    file; INVALID for a malformed key, or one outside --prefix
+    project_rules.py design-read --ref REF --config FILE [--key KEY] [--path | --status]
+                                   the design, or with --key adr_dir the ADR, at the path
+                                   on standard input in REF of FILE's repository, when the
+                                   path lies directly under KEY's directory in FILE,
+                                   design_dir by default, as `<slug>.md` or an ADR_RECORD
+                                   name with no empty, `.`, or `..` component, names a
+                                   regular file, and a design's front matter `status` is
+                                   `accepted`; with --path, the checked path instead; with
+                                   --status, its front matter `status`, unjudged;
+                                   INVALID otherwise: KEY unset, design_dir or adr_dir
+                                   invalid, or the two naming one directory
+    project_rules.py front-matter-status --file PATH --config FILE
+                                   the status of the working-tree record at PATH, relative
+                                   to FILE's project: its front matter `status`, or, written
+                                   before front matter, its `## Decision` read as
+                                   legacy_status reads it: `none` for a draft, `undecided`
+                                   for a Decision it cannot read; INVALID for a PATH failing
+                                   the path check or no regular file reached through no
+                                   symlink, text that is not UTF-8, a record with neither
+                                   front matter nor a `# ` title, or front matter that is
+                                   unreadable or has no text status
+    project_rules.py brief-read --config FILE [--path]
+                                   the brief that FILE's brief_file names, from the
+                                   working tree, when its front matter `status` is
+                                   `accepted`, or, written before 1.3.0 with no front
+                                   matter, its `## Decision` opens `Approved by`, warned
+                                   as deprecated; with --path, brief_file printed back once
+                                   it passes the key's check, the file unread; INVALID
+                                   otherwise, naming the reason
     project_rules.py --self-test   runs the key registry's own cases and those of JIRA_KEY,
                                    slug_of, pr_number, ticket_branch, text_input, run_check,
                                    collected_errors, cli_case, write_scratch, and each
@@ -53,6 +85,7 @@ import argparse
 import ast
 import contextlib
 import datetime
+import functools
 import io
 import itertools
 import json
@@ -84,10 +117,16 @@ PLACEHOLDER = re.compile(r"^\s*<.*>\s*$")
 BARE_FRAGMENT = r"[A-Za-z0-9_][A-Za-z0-9._-]*"
 BARE_ARGUMENT = re.compile(rf"^{BARE_FRAGMENT}$")
 REPO_PATH = re.compile(r"^[A-Za-z0-9_][A-Za-z0-9._/-]*$")
+# A file key's path, as REPO_PATH but allowed a leading `.`, as `.github/brief.md` worked
+# unquoted in 1.2.0; a leading `-`, a space, and every shell metacharacter stay refused.
+REPO_FILE = re.compile(r"^[A-Za-z0-9_.][A-Za-z0-9._/-]*$")
 DISCIPLINES = ("security", "data-ml", "mobile", "embedded", "sre")
 DECIMAL = r"-?\d+(?:\.\d+)?"
 DATE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 SLUG = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
+# A decision record's file name, its number first: design-exit writes `NNNN-<title>.md`, and
+# readers take any number and title, as adr-tools lists `[0-9]*-*.md`.
+ADR_RECORD = re.compile(r"^(\d+)-[^/]+\.md$")
 
 
 def is_unset(value):
@@ -207,11 +246,30 @@ def markdown_value(text):
     return INLINE_MARKUP.sub("", BACKSLASH_ESCAPE.sub(r"\1", text)).strip()
 
 
+def project_root(config_path):
+    """The project a project.json belongs to: the folder holding its `.claude/`, which every
+    path key is relative to, as git resolves a pathspec from the working directory."""
+    return os.path.dirname(os.path.dirname(os.path.abspath(config_path)))
+
+
+def json_text(text, where):
+    """text parsed as JSON, or ValueError naming where, when it is not JSON or nests past
+    what Python's decoder can read: the json module has no depth limit to set, so its
+    RecursionError is the refusal, turned into the ValueError every check prints."""
+    try:
+        return json.loads(text)
+    except ValueError as error:
+        raise ValueError(f"{where}: not JSON: {error}")
+    except RecursionError:
+        raise ValueError(f"{where}: not JSON: it nests too deeply")
+
+
 def read_config(config_path):
     """project.json as a dict, or raise ValueError naming what is wrong."""
     try:
         with open(config_path, encoding="utf-8") as handle:
-            config = json.load(handle)
+            text = handle.read()
+        config = json_text(text, "project.json")
     except (OSError, ValueError) as error:
         raise ValueError(f"project.json unreadable: {error}")
     if not isinstance(config, dict):
@@ -231,20 +289,21 @@ def named_disciplines(config):
     return value
 
 
-def check_repo_path(key, value):
-    """A directory key written unquoted into commands: set, relative, inside the repository
-    and outside any .git, made only of characters no shell treats specially. A .git component
-    is judged anywhere in the path, case-insensitively and with trailing dots dropped, as
-    git's verify_path rejects it, since a case-insensitive disk reads .GIT as .git, Windows
-    reads .git. as .git, and git tracks nothing under one."""
-    if (is_unset(value) or not isinstance(value, str) or not REPO_PATH.fullmatch(value)
-            or os.path.isabs(value)
-            or os.path.normpath(value).split(os.sep)[0] in ("..", ".")
-            or any(part.rstrip(".").casefold() == ".git" for part in value.split("/"))):
+def check_repo_path(key, value, pattern=REPO_PATH, first="letter, digit, or '_'"):
+    """A directory or file key written unquoted into commands: set, relative, inside the repository
+    and outside any .git, made only of characters no shell treats specially. As git's
+    verify_path does, it rejects an empty, `.`, or `..` component, trailing slashes aside, and
+    a .git component anywhere in the path, case-insensitively and with trailing dots dropped,
+    since a case-insensitive disk reads .GIT as .git, Windows reads .git. as .git, and git
+    tracks nothing under one."""
+    parts = value.rstrip("/").split("/") if isinstance(value, str) else []
+    if (is_unset(value) or not isinstance(value, str) or not pattern.fullmatch(value)
+            or os.path.isabs(value) or any(part in ("", ".", "..") for part in parts)
+            or any(part.rstrip(".").casefold() == ".git" for part in parts)):
         raise ValueError(f"{key} {value!r} is not a relative path inside the repository with no "
-                         "'.git' component (in any case, trailing dots aside), starting with a "
-                         "letter, digit, or '_', and made only of letters, digits, '.', '_', "
-                         "'-', and '/'")
+                         "empty, '.', or '..' component, no '.git' component in any case "
+                         f"with or without trailing dots, starting with a {first}, and made "
+                         "only of letters, digits, '.', '_', '-', and '/'")
 
 
 def parse_date(value):
@@ -500,6 +559,268 @@ def ticket_key(text, prefix=None):
     return key
 
 
+def design_path(path, directory, key="design_dir"):
+    """path, as check_repo_path judges one repository path, of the form `<directory>/<slug>.md`,
+    SLUG's slug, as design-feature names its design docs, or under adr_dir `<directory>/<an
+    ADR_RECORD name>`; directory, the value of key, is checked by check_repo_path as the key
+    registry checks it. A directory written with a trailing slash yields `<directory>/<name>`
+    with a doubled slash when a template joins them, so that one join is read as single, as
+    os.path.join reads it. ValueError otherwise, naming key for a bad directory. design_read
+    checks a design or ADR path a request or a Jira field names with this before git reads
+    it."""
+    check_repo_path(key, directory)
+    if directory.endswith("/") and path.startswith(directory + "/"):
+        path = directory.rstrip("/") + "/" + path[len(directory) + 1:]
+    check_repo_path("path", path)
+    *parents, name = path.split("/")
+    if "/".join(parents) != directory.rstrip("/"):
+        raise ValueError(f"path {path!r} is not directly under {key} {directory!r}")
+    if key == "adr_dir" and not ADR_RECORD.fullmatch(name):
+        raise ValueError(f"path {path!r} does not end in a <number>-<title>.md file name")
+    if key != "adr_dir" and (not name.endswith(".md") or
+                             not SLUG.fullmatch(name[:-len(".md")])):
+        raise ValueError(f"path {path!r} does not end in a <slug>.md file name")
+    return path
+
+
+# The deepest YAML a kit script reads, as Symfony YAML's maxNestingLevel and Suricata cap theirs,
+# so the refusal falls at a fixed depth, not wherever Python's stack runs out.
+YAML_MAX_DEPTH = 128
+
+
+@functools.lru_cache(maxsize=None)
+def depth_capped_loader():
+    """PyYAML's SafeLoader refusing a document nested past YAML_MAX_DEPTH with a YAMLError
+    saying it nests too deeply, the one loader every kit script reads YAML through."""
+    vendored(YAML_VENDOR)
+    import yaml
+
+    class DepthCapped(yaml.SafeLoader):
+        depth = 0
+
+        def compose_node(self, parent, index):
+            self.depth += 1
+            try:
+                if self.depth > YAML_MAX_DEPTH:
+                    raise yaml.composer.ComposerError(None, None, "nests too deeply",
+                                                      self.peek_event().start_mark)
+                return super().compose_node(parent, index)
+            finally:
+                self.depth -= 1
+
+    return DepthCapped
+
+
+def front_matter(text):
+    """The YAML mapping between a document's opening `---` line and the next `---` or `...`
+    line, trailing whitespace and a leading byte-order mark allowed, as Jekyll delimits
+    front matter. A key written twice in one mapping, `<<` included, is refused, as YAML 1.2
+    requires keys to be unique and PyYAML alone keeps the last; a key a merge supplies may
+    be overridden, as YAML's merge type allows. ValueError when there is no closed block,
+    or it is not YAML or not a mapping."""
+    lines = text.lstrip("\ufeff").splitlines(keepends=True)
+    if not lines or lines[0].rstrip() != "---":
+        raise ValueError("no front matter")
+    end = next((index for index, line in enumerate(lines[1:], 1)
+                if line.rstrip() in ("---", "...")), None)
+    if end is None:
+        raise ValueError("front matter is not closed")
+    loader = depth_capped_loader()
+    import yaml
+
+    class UniqueKeys(loader):
+        def construct_mapping(self, node, deep=False):
+            keys = [(key.tag, key.value) if isinstance(key, yaml.ScalarNode)
+                    else self.construct_object(key, deep=True) for key, _ in node.value]
+            if any(keys.count(key) > 1 for key in keys):
+                raise yaml.constructor.ConstructorError(None, None, "a key is repeated",
+                                                        node.start_mark)
+            return super().construct_mapping(node, deep)
+
+    try:
+        mapping = yaml.load("".join(lines[1:end]), Loader=UniqueKeys)
+    except yaml.YAMLError as error:
+        raise ValueError(f"front matter is not YAML ({getattr(error, 'problem', None) or error})")
+    if not isinstance(mapping, dict):
+        raise ValueError("front matter is not a mapping")
+    return mapping
+
+
+def front_matter_status(path, config):
+    """The status of the working-tree record at path, relative to project_root(config) and
+    built by the caller from checked values, so a skill reads whether a draft is decided
+    from this script, not by eye: its front matter
+    `status`, or for a record written before front matter, what legacy_status reads from its
+    `## Decision`. ValueError for front matter that is
+    unreadable or has no text status, or a path that is no regular file reached through no
+    symlink, as brief_read requires."""
+    path = re.sub(r"/{2,}", "/", path)
+    check_repo_path("path", path, REPO_FILE, "letter, digit, '_', or '.'")
+    full = os.path.join(os.path.realpath(project_root(config)), path)
+    if os.path.realpath(full) != os.path.normpath(full) or not os.path.isfile(full):
+        raise ValueError(f"{path!r} is not a regular file reached through no symlink")
+    try:
+        with open(full, encoding="utf-8") as handle:
+            text = handle.read()
+    except UnicodeDecodeError:
+        raise ValueError(f"{path!r} is not UTF-8 text")
+    first = next((line for line in text.lstrip("\ufeff").splitlines() if line.strip()), "")
+    if first.startswith("# "):
+        return legacy_status(text)
+    return status_of(text, repr(path))
+
+
+def design_dirs(config):
+    """{design_dir, adr_dir} from a project.json dict, each valid or None, and never one
+    directory, since a file under it could be read as either: the one rule design_check's
+    dirs, design_read, and adr_numbers apply. ValueError naming the problem otherwise."""
+    keys = read_keys(config, [OptionalKey("design_dir", None), OptionalKey("adr_dir", None)])
+    if None not in keys.values() and \
+            len({value.rstrip("/").casefold() for value in keys.values()}) == 1:
+        raise ValueError("adr_dir and design_dir name one directory, so no read can tell an "
+                         "ADR from a design")
+    return keys
+
+
+def design_read(path, ref, config, key="design_dir", path_only=False, status_only=False):
+    """The text of the design, or with key adr_dir the ADR, at path in ref: path lies under
+    the directory key holds in config, the project.json the calling skill read, so a key and
+    its directory cannot disagree, with design_dir and adr_dir both valid or unset and never
+    one directory, since a file under it could be read as either. design_path checks the
+    path, and git reads it from ref, relative to project_root(config) as adr_numbers reads
+    adr_dir, as a regular file, never a tree, symlink, or submodule; a design's front matter
+    `status` must be `accepted`, the MADR status gates/design-exit.md gives an approved
+    design. ValueError otherwise, saying which. With status_only, the front matter `status`
+    as text, unjudged, so a caller asks this reader whether an ADR is accepted rather than
+    reading it by eye. With path_only, the checked path instead of
+    the text, printed back as git check-ref-format --normalize prints a ref, so a caller
+    uses only the checked value. One reader for write-tickets and plan-work, as kepval is
+    one checker of a KEP's status for every consumer."""
+    if status_only and path_only:
+        raise ValueError("design_read prints the path or the status, not both")
+    root = project_root(config)
+    directory = design_dirs(read_config(config))[key]
+    if directory is None:
+        raise ValueError(f"{key} is unset in project.json")
+    path = design_path(path, directory, key)
+    try:
+        commit = run_git(root, "rev-parse", "--verify", "--end-of-options",
+                         f"{ref}^{{commit}}").strip()
+    except ValueError as error:
+        raise ValueError(f"ref {ref!r} does not name a commit ({error})")
+    entry = run_git(root, "ls-tree", "-z", commit, "--", path).rstrip("\0")
+    if not entry:
+        raise ValueError(f"{path!r} is absent from {ref}")
+    mode, kind, blob = entry.split("\t", 1)[0].split()
+    if kind != "blob" or mode not in ("100644", "100755"):
+        raise ValueError(f"{path!r} in {ref} is not a regular file")
+    try:
+        text = run_git(root, "cat-file", "blob", blob, text=False).decode("utf8")
+    except UnicodeDecodeError:
+        raise ValueError(f"{path!r} in {ref} is not UTF-8 text")
+    if status_only:
+        return status_of(text, f"{path!r} in {ref}")
+    if key != "adr_dir":
+        approved_text(text, f"{path!r} in {ref}")
+    return path if path_only else text
+
+
+def status_of(text, where):
+    """The front matter `status` of text, as text; ValueError naming where when the front
+    matter is missing or unreadable or its status is absent or not text. The one read of a
+    record's status for approved_text, design_read, and front_matter_status."""
+    try:
+        status = front_matter(text).get("status")
+    except ValueError as error:
+        raise ValueError(f"{where}: {error}")
+    if not isinstance(status, str):
+        raise ValueError(f"{where} has no text status ({status!r})")
+    return status
+
+
+def approved_text(text, where):
+    """text when its front matter `status` is `accepted`, the MADR status a decided record
+    carries, so a design and a brief share one definition of approved; ValueError naming
+    where and the status otherwise."""
+    status = status_of(text, where)
+    if status != "accepted":
+        raise ValueError(f"{where} has status {status!r}, not 'accepted'")
+    return text
+
+
+def brief_read(config, path_only=False):
+    """The project brief brief_file names in config, read from the project's working tree,
+    where plan-project writes it, as a regular file reached through no symlink, when
+    approved_text accepts it, the status gates/planning-exit.md's first criterion reads,
+    or, for a brief with no front matter, legacy_status does, warned as deprecated. With
+    path_only, brief_file printed back once the key registry accepts it and it names no
+    folder, the file unread, so plan-project writes only where every reader will look.
+    ValueError naming brief_file when it is unset, invalid, or a folder, the file is
+    missing, reached through a symlink, or not UTF-8, or it is not approved."""
+    path = read_keys(read_config(config), [OptionalKey("brief_file", None)])["brief_file"]
+    if path is None:
+        raise ValueError("brief_file is unset in project.json")
+    if path.endswith("/") or os.path.isdir(os.path.join(project_root(config), path)):
+        raise ValueError(f"brief_file {path!r} names a directory, not a file")
+    if path_only:
+        return path
+    root = os.path.realpath(project_root(config))
+    full = os.path.join(root, path)
+    if os.path.realpath(full) != os.path.normpath(full) or not os.path.isfile(full):
+        raise ValueError(f"brief_file {path!r} is not a regular file reached through no "
+                         "symlink")
+    try:
+        with open(full, encoding="utf-8") as handle:
+            text = handle.read()
+    except UnicodeDecodeError:
+        raise ValueError(f"brief_file {path!r} is not UTF-8 text")
+    where = f"brief_file {path!r}"
+    status = legacy_status(text)
+    if status in ("accepted", "rejected"):
+        print(f"DEPRECATED: {where} records its decision only in ## Decision, as plan-project "
+              "wrote it before 1.3.0; add `status`, `date`, and `decision-makers` front "
+              "matter, which 1.4.0 will require", file=sys.stderr)
+        if status != "accepted":
+            raise ValueError(f"{where} has status {status!r}, not 'accepted'")
+        return text
+    return approved_text(text, where)
+
+
+# The release that drops legacy_status, as the deprecation library's removed_in names one;
+# the self-test fails once plugin.json reaches it with legacy_status still here.
+LEGACY_STATUS_REMOVED_IN = (1, 4, 0)
+
+
+def legacy_status(text):
+    """The decision of a brief written before front matter carried its status, as
+    plan-project 1.2.0 wrote one: opening on its `# ` title, with no `---` line before its
+    one `## Decision` section, read as CommonMark so a fenced, quoted, or listed decoy does
+    not count, whose first paragraph opens `Approved by `, `Rejected by `, or `Pending`:
+    `accepted`, `rejected`, or `none`, and `none` too with no `## Decision` yet, the draft a
+    skill resumes; `undecided` for any other Decision, two of them, one not opening on a
+    paragraph, or a `---` line before it; None for a record not opening on its title. Read for one release, as a format is dropped over two."""
+    lines = text.lstrip("\ufeff").splitlines()
+    first = next((line for line in lines if line.strip()), "")
+    if not first.startswith("# "):
+        return None
+    before = list(itertools.takewhile(lambda line: line.rstrip() != "## Decision", lines))
+    if any(line.rstrip() == "---" for line in before):
+        return "undecided"
+    tokens = markdown_tokens(text)
+    decisions = [index for index, token in enumerate(tokens)
+                 if (token.type, token.tag, token.level) == ("heading_open", "h2", 0)
+                 and tokens[index + 1].content.strip() == "Decision"]
+    if not decisions:
+        return "none"
+    opening = tokens[decisions[0] + 3:decisions[0] + 5] if len(decisions) == 1 else []
+    if len(opening) != 2 or opening[0].type != "paragraph_open":
+        return "undecided"
+    decision = words(opening[1].content)
+    return "accepted" if decision.startswith("Approved by ") else \
+        "rejected" if decision.startswith("Rejected by ") else \
+        "none" if decision.startswith("Pending") else "undecided"
+
+
 def ticket_branch(text, prefix=None):
     """`<KEY>-<slug>` from a ticket key on the first line, checked by ticket_key, and a few
     words naming the change after it, the slug fitted so the branch's lock file,
@@ -709,6 +1030,8 @@ def keyed(check, *keys):
 PROJECT_KEYS = {
     **keyed(check_repo_path, "design_dir", "adr_dir", "retirements_dir", "runbooks_dir",
             "alert_rules_dir", "release_dir", "incident_reviews_dir"),
+    "brief_file": KeyShape(lambda value: check_repo_path("brief_file", value, REPO_FILE,
+                                                         "letter, digit, '_', or '.'")),
     **keyed(check_command, "dependency_outdated_command", "alert_routes_command",
             "data_quality_command", "model_eval_command", "device_test_command",
             "hil_test_command", "api_compat_command", "error_budget_command",
@@ -906,6 +1229,494 @@ def error_of(function, *arguments):
     return "ok"
 
 
+def design_read_self_test(this):
+    """design_read over a scratch repository holding an approved design, ones whose front
+    matter is absent, malformed, or not `status: accepted`, a tree and a symlink named like
+    designs, and an ADR."""
+    approved = ("---\nstatus: accepted\ndate: 2026-10-26\ndecision-makers: rob\n---\n\n# X\n\n"
+                "## Decision\n\nApproved by rob on 2026-10-26.\n")
+    body = "\n# D\n\n## Decision\n\nApproved by rob on 2026-10-26.\n"
+    files = {"docs/design/ok.md": approved,
+             "docs/design/crlf.md": approved.replace("\n", "\r\n"),
+             "docs/design/pending.md": "---\nstatus: proposed\n---\n" + body,
+             "docs/design/rejected.md": "---\nstatus: rejected\n---\n" + body,
+             "docs/design/capital.md": "---\nstatus: Accepted\n---\n" + body,
+             "docs/design/nofront.md": "# N\n\nstatus: accepted\n\n## Decision\n\n"
+                                       "Approved by rob.\n",
+             "docs/design/late.md": "\n---\nstatus: accepted\n---\n" + body,
+             "docs/design/unclosed.md": "---\nstatus: accepted\n" + body,
+             "docs/design/listed.md": "---\n- status: accepted\n---\n" + body,
+             "docs/design/twice.md": "---\nstatus: proposed\nstatus: accepted\n---\n" + body,
+             "docs/design/broken.md": "---\nstatus: [accepted\n---\n" + body,
+             "docs/design/nostatus.md": "---\ndate: 2026-10-26\n---\n" + body,
+             "docs/design/merged.md": "---\nbase: &b {status: accepted}\n<<: *b\n---\n" + body,
+             "docs/design/override.md": "---\nbase: &b {status: proposed}\n<<: *b\n"
+                                        "status: accepted\n---\n" + body,
+             "docs/design/loose.md": "\ufeff--- \nstatus: accepted\n...\n" + body,
+             "docs/design/tree.md/inner.md": approved,
+             "docs/adr/0001-a.md": "---\nstatus: accepted\n---\n",
+             "docs/adr/0002-Use-X.md": "---\nstatus: accepted\n---\n",
+             "sub/docs/design/nested.md": approved}
+    config = {"design_dir": "docs/design", "adr_dir": "docs/adr"}
+    failures = 0
+    with tempfile.TemporaryDirectory() as root, \
+            process_state(isolated_git_environment(), root):
+        for name, text in files.items():
+            write_scratch(root, text, name)
+        os.symlink("ok.md", os.path.join(root, "docs/design/link.md"))
+        write_scratch(root, b"---\nstatus: accepted\n---\n# L r\xf6b\n", "docs/design/latin.md")
+        os.chmod(write_scratch(root, approved, "docs/design/exec.md"), 0o755)
+        project = write_scratch(root, config, ".claude/project.json")
+        run_git(root, "init", "--quiet", "--initial-branch=main")
+        run_git(root, "add", "-A")
+        run_git(root, "update-index", "--add", "--cacheinfo",
+                f"160000,{'1' * 40},docs/design/module.md")
+        run_git(root, "commit", "--quiet", "-m", "designs")
+        for name, path, adr, expected in [
+                ("an approved design is read", "docs/design/ok.md", False, approved),
+                ("a CRLF design is read", "docs/design/crlf.md", False,
+                 files["docs/design/crlf.md"]),
+                ("a proposed design is invalid", "docs/design/pending.md", False,
+                 "status 'proposed', not 'accepted'"),
+                ("a rejected design is invalid", "docs/design/rejected.md", False,
+                 "status 'rejected', not 'accepted'"),
+                ("a capitalized status is invalid", "docs/design/capital.md", False,
+                 "status 'Accepted', not 'accepted'"),
+                ("a status line in the body is no front matter", "docs/design/nofront.md",
+                 False, "no front matter"),
+                ("front matter after a blank line is none", "docs/design/late.md", False,
+                 "no front matter"),
+                ("unclosed front matter is invalid", "docs/design/unclosed.md", False,
+                 "front matter is not closed"),
+                ("a list as front matter is invalid", "docs/design/listed.md", False,
+                 "front matter is not a mapping"),
+                ("a repeated status key is invalid", "docs/design/twice.md", False,
+                 "a key is repeated"),
+                ("front matter that is not YAML is invalid", "docs/design/broken.md", False,
+                 "front matter is not YAML ("),
+                ("front matter with no status is invalid", "docs/design/nostatus.md", False,
+                 "has no text status (None)"),
+                ("a status from a merge key is read", "docs/design/merged.md", False,
+                 files["docs/design/merged.md"]),
+                ("an explicit status overrides a merged one", "docs/design/override.md", False,
+                 files["docs/design/override.md"]),
+                ("a BOM, a padded opener, and a '...' closer are read", "docs/design/loose.md",
+                 False, files["docs/design/loose.md"]),
+                ("an executable design is read", "docs/design/exec.md", False, approved),
+                ("a missing design is invalid", "docs/design/gone.md", False, "absent"),
+                ("a tree named like a design is invalid", "docs/design/tree.md", False,
+                 "not a regular file"),
+                ("a symlink named like a design is invalid", "docs/design/link.md", False,
+                 "not a regular file"),
+                ("a design that is not UTF-8 is invalid", "docs/design/latin.md", False,
+                 "not UTF-8"),
+                ("a submodule named like a design is invalid", "docs/design/module.md", False,
+                 "not a regular file"),
+                ("an ADR is read without a status check", "docs/adr/0001-a.md", True,
+                 files["docs/adr/0001-a.md"]),
+                ("an ADR with an uppercase title is read", "docs/adr/0002-Use-X.md", True,
+                 files["docs/adr/0002-Use-X.md"]),
+                ("an ADR with no number is invalid", "docs/adr/use-x.md", True,
+                 "<number>-<title>.md"),
+                ("a design path read as an ADR is invalid", "docs/design/pending.md", True,
+                 "not directly under adr_dir")]:
+            key = "adr_dir" if adr else "design_dir"
+            got = result_or_message(lambda: design_read(path, "main", project, key))
+            read = expected in files.values()
+            failures += report("design_read", name, got == expected if read else
+                               expected in got and got not in files.values(), True)
+        failures += report("design_read", "an unknown ref is named",
+                           result_or_message(lambda: design_read(
+                               "docs/design/ok.md", "nope", project)).startswith(
+                               "ref 'nope' does not name a commit (git rev-parse failed: fatal:"),
+                           True)
+        adr_read = ("docs/adr/0001-a.md", "adr_dir")
+        approved_design_read = ("docs/design/ok.md", "design_dir")
+        for name, setting, read, expected in [
+                ("an unset adr_dir is named", {"design_dir": "docs/design"}, adr_read,
+                 "adr_dir is unset"),
+                ("an invalid adr_dir is named", dict(config, adr_dir="../adr"), adr_read,
+                 "adr_dir '../adr' is not a relative path"),
+                ("an invalid adr_dir is named reading a design", dict(config, adr_dir="../adr"),
+                 approved_design_read, "adr_dir '../adr' is not a relative path"),
+                ("an invalid design_dir is named reading an ADR",
+                 dict(config, design_dir="../design"), adr_read,
+                 "design_dir '../design' is not a relative path"),
+                ("one directory for designs and ADRs is refused reading an ADR",
+                 dict(config, adr_dir="docs/design/"), adr_read,
+                 "adr_dir and design_dir name one"),
+                ("one directory for designs and ADRs is refused reading a design",
+                 dict(config, adr_dir="docs/design"), approved_design_read,
+                 "adr_dir and design_dir name one")]:
+            write_scratch(root, setting, ".claude/project.json")
+            got = result_or_message(lambda: design_read(read[0], "main", project, read[1]))
+            failures += report("design_read", name, got.startswith(expected), True)
+        write_scratch(root, config, ".claude/project.json")
+        subproject = write_scratch(root, {"design_dir": "docs/design"}, "sub/.claude/project.json")
+        failures += report("design_read", "the named project.json is read, not the repository "
+                           "top's", result_or_message(lambda: design_read(
+                               "docs/adr/0001-a.md", "main", subproject, "adr_dir")),
+                           "adr_dir is unset in project.json")
+        failures += report("design_read", "a nested project's design is read from its folder",
+                           result_or_message(lambda: design_read(
+                               "docs/design/nested.md", "main", subproject)), approved)
+        failures += report("project_root", "the folder holding .claude/", project_root(subproject),
+                           os.path.join(root, "sub"))
+        failures += cli_case(this, "design-read prints an approved design",
+                             ["design-read", "--ref", "main", "--config", project],
+                             approved.strip(), 0, input="docs/design/ok.md\n", cwd=root,
+                             env=isolated_git_environment(), exact=True)
+        failures += cli_case(this, "design-read from a subdirectory reads from the root",
+                             ["design-read", "--ref", "main", "--config", project],
+                             approved.strip(), 0, input="docs/design/ok.md\n",
+                             cwd=os.path.join(root, "docs"), env=isolated_git_environment(),
+                             exact=True)
+        failures += cli_case(this, "design-read --key adr_dir reads an ADR",
+                             ["design-read", "--ref", "main", "--config", project, "--key",
+                              "adr_dir"],
+                             files["docs/adr/0001-a.md"].strip(), 0,
+                             input="docs/adr/0001-a.md\n", cwd=root,
+                             env=isolated_git_environment(), exact=True)
+        failures += cli_case(this, "--key adr_dir does not read a design unchecked",
+                             ["design-read", "--ref", "main", "--config", project, "--key",
+                              "adr_dir"],
+                             "INVALID: path 'docs/design/pending.md' is not directly under "
+                             "adr_dir", 1, input="docs/design/pending.md\n", cwd=root,
+                             env=isolated_git_environment())
+        failures += cli_case(this, "design-read has no --dir to name another directory",
+                             ["design-read", "--ref", "main", "--config", project, "--key",
+                              "adr_dir", "--dir",
+                              "docs/design"], "", 2, input="docs/design/pending.md\n",
+                             cwd=root, env=isolated_git_environment())
+        write_scratch(root, dict(config, design_dir="docs/design/"), ".claude/project.json")
+        failures += cli_case(this, "design-read --path prints the checked path, one slash",
+                             ["design-read", "--ref", "main", "--config", project, "--path"],
+                             "docs/design/ok.md", 0, input="docs/design//ok.md\n", cwd=root,
+                             env=isolated_git_environment(), exact=True)
+        failures += cli_case(this, "design-read --path checks the status first",
+                             ["design-read", "--ref", "main", "--config", project, "--path"],
+                             "INVALID: 'docs/design/pending.md' in main has status 'proposed'",
+                             1, input="docs/design/pending.md\n", cwd=root,
+                             env=isolated_git_environment())
+        write_scratch(root, dict(config, adr_dir="docs/adr/"), ".claude/project.json")
+        failures += cli_case(this, "design-read --key adr_dir --status prints its status",
+                             ["design-read", "--ref", "main", "--config", project, "--key",
+                              "adr_dir", "--status"], "accepted", 0,
+                             input="docs/adr/0001-a.md\n", cwd=root,
+                             env=isolated_git_environment(), exact=True)
+        failures += cli_case(this, "design-read --status names a design with no front matter",
+                             ["design-read", "--ref", "main", "--config", project, "--status"],
+                             "INVALID: 'docs/design/nofront.md' in main: no front matter", 1,
+                             input="docs/design/nofront.md\n", cwd=root,
+                             env=isolated_git_environment())
+        failures += cli_case(this, "design-read --status names a missing status",
+                             ["design-read", "--ref", "main", "--config", project, "--status"],
+                             "INVALID: 'docs/design/nostatus.md' in main has no text status", 1,
+                             input="docs/design/nostatus.md\n", cwd=root,
+                             env=isolated_git_environment())
+        failures += cli_case(this, "design-read takes --path or --status, not both",
+                             ["design-read", "--ref", "main", "--config", project, "--path",
+                              "--status"], "", 2, input="docs/design/ok.md\n", cwd=root,
+                             env=isolated_git_environment())
+        failures += cli_case(this, "design-read --status prints a proposed design's status",
+                             ["design-read", "--ref", "main", "--config", project, "--status"],
+                             "proposed", 0, input="docs/design/pending.md\n", cwd=root,
+                             env=isolated_git_environment(), exact=True)
+        failures += cli_case(this, "design-read --key adr_dir --path prints the checked ADR path",
+                             ["design-read", "--ref", "main", "--config", project, "--key",
+                              "adr_dir", "--path"], "docs/adr/0001-a.md", 0,
+                             input="docs/adr//0001-a.md\n", cwd=root,
+                             env=isolated_git_environment(), exact=True)
+        write_scratch(root, config, ".claude/project.json")
+        failures += cli_case(this, "design-read without --config is usage",
+                             ["design-read", "--ref", "main"], "", 2,
+                             input="docs/design/ok.md\n", cwd=root,
+                             env=isolated_git_environment())
+        failures += cli_case(this, "design-read without --ref is usage",
+                             ["design-read"], "", 2,
+                             input="docs/design/ok.md\n", cwd=root,
+                             env=isolated_git_environment())
+        failures += cli_case(this, "design-read of a second line is invalid",
+                             ["design-read", "--ref", "main", "--config", project],
+                             "INVALID:", 1, input="docs/design/ok.md\nmain:docs/design/ok.md\n",
+                             cwd=root, env=isolated_git_environment())
+    with tempfile.TemporaryDirectory() as project:
+        accepted = "---\nstatus: accepted\n---\n# B\n"
+        config_file = write_scratch(project, {"brief_file": "docs/brief.md"},
+                                    ".claude/project.json")
+        for name, setting, content, expected in [
+                ("an accepted brief is read", None, accepted, accepted),
+                ("a proposed brief is refused", None, "---\nstatus: proposed\n---\n# B\n",
+                 "brief_file 'docs/brief.md' has status 'proposed', not 'accepted'"),
+                ("a rejected brief is refused", None, "---\nstatus: rejected\n---\n# B\n",
+                 "brief_file 'docs/brief.md' has status 'rejected', not 'accepted'"),
+                ("a pre-1.3.0 brief approved in ## Decision is read", None,
+                 "# B\n\n## Decision\nApproved by s on 2026-10-26.\n",
+                 "# B\n\n## Decision\nApproved by s on 2026-10-26.\n"),
+                ("a pre-1.3.0 brief rejected in ## Decision is rejected", None,
+                 "# B\n\n## Decision\nRejected by s on 2026-10-26.\nOut of budget.\n",
+                 "brief_file 'docs/brief.md' has status 'rejected', not 'accepted'"),
+                ("a pre-1.3.0 brief still Pending is refused", None,
+                 "# B\n\n## Decision\nPending — s.\n",
+                 "brief_file 'docs/brief.md': no front matter"),
+                ("a fenced Approved decoy in a pre-1.3.0 brief is refused", None,
+                 "# B\n\n```\n## Decision\nApproved by s on 2026-10-26.\n```\n\n"
+                 "## Decision\nPending — s.\n", "brief_file 'docs/brief.md': no front matter"),
+                ("a brief_file naming a folder is refused", {"brief_file": "docs"}, accepted,
+                 "brief_file 'docs' names a directory"),
+                ("a padded opener over a rejected status is refused", None,
+                 "--- \nstatus: rejected\n---\n\n## Decision\nApproved by s on 2026-10-26.\n",
+                 "brief_file 'docs/brief.md' has status 'rejected'"),
+                ("a blank line over a rejected status is refused", None,
+                 "\n---\nstatus: rejected\n---\n\n## Decision\nApproved by s on 2026-10-26.\n",
+                 "brief_file 'docs/brief.md': no front matter"),
+                ("a comment over a proposed status is refused", None,
+                 "<!-- x -->\n---\nstatus: proposed\n---\n\n## Decision\nApproved by s.\n",
+                 "brief_file 'docs/brief.md': no front matter"),
+                ("a tab after the opener over a proposed status is refused", None,
+                 "---\t\nstatus: proposed\n---\n\n## Decision\nApproved by s on 2026-10-26.\n",
+                 "brief_file 'docs/brief.md' has status 'proposed'"),
+                ("a missing brief is refused", None, None,
+                 "brief_file 'docs/brief.md' is not a regular file reached through no symlink"),
+                ("an unset brief_file is named", {}, accepted, "brief_file is unset"),
+                ("an invalid brief_file is named", {"brief_file": "../brief.md"}, accepted,
+                 "brief_file '../brief.md' is not a relative path")]:
+            brief = os.path.join(project, "docs", "brief.md")
+            if os.path.exists(brief):
+                os.remove(brief)
+            if content is not None:
+                write_scratch(project, content, "docs/brief.md")
+            write_scratch(project, {"brief_file": "docs/brief.md"} if setting is None
+                          else setting, ".claude/project.json")
+            warning = io.StringIO()
+            with contextlib.redirect_stderr(warning):
+                got = result_or_message(lambda: brief_read(config_file))
+            read = expected in (accepted, content)
+            failures += report("brief_read", f"{name}: a warning only on a legacy read",
+                               warning.getvalue().startswith("DEPRECATED: "),
+                               content is not None
+                               and legacy_status(content) in ("accepted", "rejected"))
+            failures += report("brief_read", name, got == expected if read
+                               else got.startswith(expected), True)
+        write_scratch(project, {"brief_file": "docs/brief.md"}, ".claude/project.json")
+        os.remove(os.path.join(project, "docs", "brief.md"))
+        write_scratch(project, accepted, "docs/real.md")
+        os.symlink("real.md", os.path.join(project, "docs", "brief.md"))
+        failures += report("brief_read", "a symlinked brief is refused",
+                           result_or_message(lambda: brief_read(config_file)),
+                           "brief_file 'docs/brief.md' is not a regular file reached through "
+                           "no symlink")
+        failures += cli_case(this, "brief-read refuses a symlinked brief",
+                             ["brief-read", "--config", config_file],
+                             "INVALID: brief_file 'docs/brief.md' is not a regular file", 1)
+        os.remove(os.path.join(project, "docs", "brief.md"))
+        with tempfile.TemporaryDirectory() as outside:
+            write_scratch(outside, accepted, "brief.md")
+            os.rename(os.path.join(project, "docs"), os.path.join(project, "real-docs"))
+            os.symlink(outside, os.path.join(project, "docs"))
+            failures += report("brief_read", "a brief under a symlinked folder is refused",
+                               result_or_message(lambda: brief_read(config_file)),
+                               "brief_file 'docs/brief.md' is not a regular file reached "
+                               "through no symlink")
+            os.remove(os.path.join(project, "docs"))
+        os.rename(os.path.join(project, "real-docs"), os.path.join(project, "docs"))
+        write_scratch(project, b"---\nstatus: accepted\n---\n# B r\xf6b\n", "docs/brief.md")
+        failures += report("brief_read", "a brief that is not UTF-8 is refused",
+                           result_or_message(lambda: brief_read(config_file)),
+                           "brief_file 'docs/brief.md' is not UTF-8 text")
+        write_scratch(project, {"brief_file": ".github/brief.md"}, ".claude/project.json")
+        failures += report("brief_read", "a leading-dot brief_file, valid in 1.2.0, is kept",
+                           brief_read(config_file, True), ".github/brief.md")
+        for name, unsafe in [("a space", "docs/project brief.md"), ("a ';'", "docs/b;x.md"),
+                             ("a leading '-'", "-all.md")]:
+            write_scratch(project, {"brief_file": unsafe}, ".claude/project.json")
+            failures += report("brief_read", f"a brief_file with {name}, unsafe unquoted, is "
+                               "refused", result_or_message(lambda: brief_read(config_file, True))
+                               .startswith(f"brief_file {unsafe!r} is not a relative path"), True)
+        write_scratch(project, {"brief_file": "docs/brief.md"}, ".claude/project.json")
+        failures += report("brief_read", "--path prints brief_file without reading it",
+                           brief_read(config_file, True), "docs/brief.md")
+        for name, setting, expected in [
+                ("--path refuses a folder", {"brief_file": "docs"},
+                 "INVALID: brief_file 'docs' names a directory"),
+                ("--path refuses a trailing slash", {"brief_file": "docs/brief.md/"},
+                 "INVALID: brief_file 'docs/brief.md/' names a directory"),
+                ("--path names an unset brief_file", {}, "INVALID: brief_file is unset"),
+                ("--path names an invalid brief_file", {"brief_file": "../brief.md"},
+                 "INVALID: brief_file '../brief.md' is not a relative path")]:
+            write_scratch(project, setting, ".claude/project.json")
+            failures += cli_case(this, f"brief-read {name}",
+                                 ["brief-read", "--path", "--config", config_file], expected, 1)
+        write_scratch(project, {"brief_file": "docs/brief.md"}, ".claude/project.json")
+        os.remove(os.path.join(project, "docs", "brief.md"))
+        write_scratch(project, accepted, "docs/brief.md")
+        failures += cli_case(this, "brief-read prints an accepted brief",
+                             ["brief-read", "--config", config_file], accepted.strip(), 0,
+                             exact=True)
+        legacy = "# B\n\n## Decision\nApproved by s on 2026-10-26.\n"
+        write_scratch(project, legacy, "docs/brief.md")
+        failures += cli_case(this, "brief-read prints a pre-1.3.0 approved brief",
+                             ["brief-read", "--config", config_file], legacy.strip(), 0,
+                             exact=True)
+    for name, config, expected in [
+            ("two directories are kept", {"design_dir": "d", "adr_dir": "a"},
+             {"design_dir": "d", "adr_dir": "a"}),
+            ("one directory in two cases is refused",
+             {"design_dir": "docs/ADR", "adr_dir": "docs/adr"},
+             "adr_dir and design_dir name one directory, so no read can tell an ADR from a "
+             "design"),
+            ("one directory is refused", {"design_dir": "d", "adr_dir": "d/"},
+             "adr_dir and design_dir name one directory, so no read can tell an ADR from a "
+             "design"),
+            ("unset keys are None", {}, {"design_dir": None, "adr_dir": None}),
+            ("an invalid design_dir is named", {"design_dir": "../d"},
+             "design_dir '../d' is not a relative path"),
+            ("an invalid adr_dir beside a valid design_dir is named",
+             {"design_dir": "d", "adr_dir": "/a"}, "adr_dir '/a' is not a relative path")]:
+        got = result_or_message(lambda: design_dirs(config))
+        failures += report("design_dirs", name, got.startswith(expected)
+                           if isinstance(expected, str) and isinstance(got, str) else got,
+                           True if isinstance(expected, str) else expected)
+    approved = "# B\n\n## Decision\n\nApproved by s on 2026-10-26.\n"
+    for name, text, expected in [
+            ("an Approved by Decision is accepted", approved, "accepted"),
+            ("a Rejected by Decision is rejected", "# B\n\n## Decision\n\nRejected by s.\n",
+             "rejected"),
+            ("a Pending Decision is none", "# B\n\n## Decision\n\nPending — s.\n", "none"),
+            ("two Decision sections are undecided", approved + "\n## Decision\n\nPending.\n",
+             "undecided"),
+            ("an h3 Decision is no Decision yet", "# B\n\n### Decision\n\nApproved by s.\n",
+             "none"),
+            ("a quoted Approved by is undecided", "# B\n\n## Decision\n\n> Approved by s.\n",
+             "undecided"),
+            ("a listed Approved by is undecided", "# B\n\n## Decision\n\n- Approved by s.\n",
+             "undecided"),
+            ("Approved by in a second paragraph is none",
+             "# B\n\n## Decision\n\nPending.\n\nApproved by s.\n", "none"),
+            ("a hand-edited Decision is undecided", "# B\n\n## Decision\n\nApproved.\n",
+             "undecided"),
+            ("no Decision yet is none, a draft", "# B\n\nApproved by s.\n", "none"),
+            ("front matter under the title is undecided",
+             "# B\n---\nstatus: rejected\n---\n## Decision\nApproved by s.\n", "undecided"),
+            ("a thematic break before the Decision is undecided",
+             "# B\n\nIntro\n\n---\n\n## Decision\n\nRejected by s.\n", "undecided"),
+            ("no title first is none", "\n---\nstatus: rejected\n---\n" + approved, None)]:
+        failures += report("legacy_status", name, legacy_status(text), expected)
+    with open(os.path.join(GATES_SCRIPTS, "..", "..", ".claude-plugin", "plugin.json"),
+              encoding="utf-8") as handle:
+        version = tuple(int(part) for part in json.load(handle)["version"].split("."))
+    failures += report("legacy_status", "removed by its removed_in release",
+                       version < LEGACY_STATUS_REMOVED_IN, True)
+    with tempfile.TemporaryDirectory() as deep:
+        failures += report("read_config", "project.json nested past the recursion limit",
+                           result_or_message(lambda: read_config(write_scratch(
+                               deep, "[" * 200000 + "]" * 200000, "project.json"))),
+                           "project.json unreadable: project.json: not JSON: it nests too "
+                           "deeply")
+    with tempfile.TemporaryDirectory() as drafts:
+        drafts_config = write_scratch(drafts, {}, ".claude/project.json")
+        for name, text, expected in [
+                ("a proposed draft's status", "---\nstatus: proposed\n---\n# D\n", "proposed"),
+                ("a draft with no front matter is none", "# D\n\n## Decision\nPending.\n",
+                 "none"),
+                ("a status that is not text is refused", "---\nstatus: [a]\n---\n",
+                 "has no text status"),
+                ("unreadable front matter is refused", "---\nstatus: [a\n---\n",
+                 "front matter is not YAML"),
+                ("front matter with no status is refused", "---\ndate: 2026-10-26\n---\n",
+                 "has no text status (None)"),
+                ("a pre-front-matter approved record reads accepted",
+                 "# D\n\n## Decision\n\nApproved by s on 2026-10-26.\n", "accepted"),
+                ("a pre-front-matter rejected record reads rejected",
+                 "# D\n\n## Decision\n\nRejected by s on 2026-10-26.\n", "rejected"),
+                ("a pre-front-matter hand-edited Decision reads undecided",
+                 "# D\n\n## Decision\n\nApproved.\n", "undecided"),
+                ("a BOM before the title reads as pre-front-matter",
+                 "\ufeff# D\n\n## Decision\n\nPending.\n", "none"),
+                ("neither front matter nor a title is refused", "Notes\n", "no front matter")]:
+            write_scratch(drafts, text, "d.md")
+            got = result_or_message(lambda: front_matter_status("d.md", drafts_config))
+            failures += report("front_matter_status", name, got == expected if
+                               expected in ("proposed", "none", "accepted", "rejected",
+                                            "undecided") else expected in got, True)
+        write_scratch(drafts, "---\nstatus: proposed\n---\n# D\n", "cli.md")
+        failures += cli_case(this, "front-matter-status prints a draft's status",
+                             ["front-matter-status", "--file", "cli.md", "--config",
+                              drafts_config], "proposed", 0, exact=True)
+        write_scratch(drafts, "---\ndate: x\n---\n", "cli.md")
+        failures += cli_case(this, "front-matter-status names a missing status",
+                             ["front-matter-status", "--file", "cli.md", "--config",
+                              drafts_config], "INVALID:", 1)
+        write_scratch(drafts, "---\nstatus: proposed\n---\n", "s.md")
+        hidden = subprocess.run([sys.executable, "-S", os.path.abspath(this),
+                                 "front-matter-status", "--file", "s.md", "--config",
+                                 drafts_config],
+                                capture_output=True, text=True, check=False)
+        failures += report("front_matter", "reads with the vendored PyYAML alone (python -S)",
+                           (hidden.returncode, hidden.stdout.strip()), (0, "proposed"))
+        with tempfile.TemporaryDirectory() as outside:
+            write_scratch(outside, "---\nstatus: accepted\n---\n", "d.md")
+            os.symlink(outside, os.path.join(drafts, "linked"))
+            failures += report("front_matter_status", "a record under a symlinked folder is "
+                               "refused", result_or_message(lambda: front_matter_status(
+                                   "linked/d.md", drafts_config)).endswith(
+                                   "is not a regular file reached through no symlink"), True)
+        write_scratch(drafts, "---\nstatus: proposed\n---\n", "d.md")
+        os.makedirs(os.path.join(drafts, "docs"), exist_ok=True)
+        write_scratch(drafts, "---\nstatus: proposed\n---\n", "docs/d.md")
+        failures += report("front_matter_status", "a template's doubled slash is read as one",
+                           front_matter_status("docs//d.md", drafts_config), "proposed")
+        for name, bad in [("a '..' path", "../d.md"), ("a leading '-'", "-d.md"),
+                          ("a .git component", ".git/d.md")]:
+            failures += report("front_matter_status", f"{name} is refused", result_or_message(
+                lambda: front_matter_status(bad, drafts_config)).startswith("path "), True)
+        write_scratch(drafts, b"---\nstatus: r\xf6\n---\n", "latin.md")
+        failures += report("front_matter_status", "text that is not UTF-8 is named",
+                           result_or_message(lambda: front_matter_status(
+                               "latin.md", drafts_config)), "'latin.md' is not UTF-8 text")
+        failures += report("front_matter_status", "a missing file is refused",
+                           result_or_message(lambda: front_matter_status(
+                               "gone.md", drafts_config)).endswith(
+                               "is not a regular file reached through no symlink"), True)
+    def nested(depth):
+        return [] if depth == 1 else [nested(depth - 1)]
+
+    for name, text, expected in [
+            ("empty front matter is no mapping", "---\n---\n", "front matter is not a mapping"),
+            ("a '...' closer alone ends it", "---\nstatus: accepted\n...\n",
+             {"status": "accepted"}),
+            ("two merge keys are repeated", "---\n<<: {status: proposed}\n<<: {status: accepted}\n"
+             "---\n", "front matter is not YAML (a key is repeated)"),
+            ("1 and 1.0 are distinct keys", "---\n1: a\n1.0: b\n---\n", {1: "a", 1.0: "b"}),
+            ("a quoted and a plain key are one key", "---\nstatus: a\n\"status\": b\n---\n",
+             "front matter is not YAML (a key is repeated)"),
+            ("a closer never opened is none", "status: accepted\n---\n", "no front matter"),
+            ("front matter nested past the recursion limit is refused",
+             "---\nk: " + "[" * 5000 + "]" * 5000 + "\n---\n",
+             "front matter is not YAML (nests too deeply)"),
+            ("front matter at the depth cap is read",
+             "---\nk: " + "[" * 127 + "]" * 127 + "\n---\n", {"k": nested(127)}),
+            ("front matter just under the depth cap is read",
+             "---\nk: " + "[" * 126 + "]" * 126 + "\n---\n", {"k": nested(126)}),
+            ("front matter past the depth cap is refused",
+             "---\nk: " + "[" * 128 + "]" * 128 + "\n---\n",
+             "front matter is not YAML (nests too deeply)")]:
+        got = result_or_message(lambda: front_matter(text))
+        failures += report("front_matter", name, got == expected, True)
+    with tempfile.TemporaryDirectory() as bare:
+        # A ceiling at bare's parent keeps git from finding a repository the temporary
+        # directory itself sits in.
+        bare = os.path.realpath(bare)
+        outside = isolated_git_environment(GIT_CEILING_DIRECTORIES=os.path.dirname(bare))
+        with process_state(outside, bare):
+            config_file = write_scratch(bare, {"design_dir": "docs/design"},
+                                        ".claude/project.json")
+            failures += report("design_read", "outside a repository the cause is kept",
+                               "not a git repository" in result_or_message(lambda: design_read(
+                                   "docs/design/ok.md", "main", config_file)), True)
+    return failures
+
+
 def self_test():
     """The key registry's cases, over a fixture registry of two plain keys, a template list,
     and a key inside an object, and those of slug_of, JIRA_KEY, pr_number, ticket_branch,
@@ -1004,6 +1815,14 @@ def self_test():
                        result_or_message(lambda: read_keys({"design_dir": "/abs"},
                                                            [OptionalKey("design_dir", None)])),
                        error_message(lambda: check_repo_path("design_dir", "/abs")))
+    for name, value, accepted in [("a trailing slash is kept", "docs/design/", True),
+                                  ("an empty component", "docs//design", False),
+                                  ("a '.' component", "docs/./design", False),
+                                  ("a trailing '.' component", "docs/design/.", False),
+                                  ("a '..' that stays inside", "docs/x/../design", False)]:
+        failures += report("check_repo_path", name,
+                           error_message(lambda value=value: check_repo_path("k", value)) is None,
+                           accepted)
     printed, errors = io.StringIO(), io.StringIO()
     checks = {"empty": lambda: "", "rows": lambda: ["a", "b"], "invalid": raise_empty}
     with contextlib.redirect_stdout(printed), contextlib.redirect_stderr(errors):
@@ -1157,6 +1976,43 @@ def self_test():
                          ["ticket-keys", "--prefix", "AB"], "AB-12\nAB-3", 0,
                          input="AB-12 - x\nAB-3 and XY-1, AB-12 again, AB_C-4, _AB-5, 1AB-6\n",
                          exact=True)
+    path_cases = [
+        ("a design under its directory", "docs/design/x.md", "docs/design", "design_dir", True),
+        ("a second line", "docs/design/x.md\ndocs/design/y.md", "docs/design", "design_dir", ""),
+        ("a '..' component", "docs/design/../x.md", "docs/design", "design_dir", ""),
+        ("a '.' component", "docs/design/./x.md", "docs/design", "design_dir", ""),
+        ("an empty component", "docs/design//x.md", "docs/design", "design_dir", ""),
+        ("a path outside the directory", "docs/designs/x.md", "docs/design", "design_dir", ""),
+        ("a path that is not .md", "docs/design/x.txt", "docs/design", "design_dir", ""),
+        ("a bare .md", "docs/design/.md", "docs/design", "design_dir", ""),
+        ("a ref prefix", "HEAD:docs/design/x.md", "docs/design", "design_dir", ""),
+        ("a nested path", "docs/design/sub/x.md", "docs/design", "design_dir", ""),
+        ("a nested bare .md", "docs/design/sub/.md", "docs/design", "design_dir", ""),
+        ("a name that is no slug", "docs/design/-x.md", "docs/design", "design_dir", ""),
+        ("an uppercase name", "docs/design/X.md", "docs/design", "design_dir", ""),
+        ("an ADR under its directory", "docs/adr/0001-use-location.md", "docs/adr", "adr_dir",
+         True),
+        ("a trailing slash on the directory", "docs/design/x.md", "docs/design/", "design_dir",
+         True),
+        ("a trailing slash joined by a template", "docs/design//x.md", "docs/design/",
+         "design_dir", True),
+        ("a second empty component after a trailing slash", "docs/design///x.md",
+         "docs/design/", "design_dir", ""),
+        ("two trailing slashes joined by a template", "docs/design///x.md", "docs/design//",
+         "design_dir", True),
+        ("an invalid directory", "../d/x.md", "../d", "design_dir", "design_dir"),
+        ("an invalid ADR directory names adr_dir", "../adr/0001-x.md", "../adr", "adr_dir",
+         "adr_dir"),
+        ("an ADR path outside its directory names adr_dir", "docs/design/x.md", "docs/adr",
+         "adr_dir", "path 'docs/design/x.md' is not directly under adr_dir"),
+        ("an empty directory component names design_dir", "docs/design/x.md", "docs//design",
+         "design_dir", "design_dir"),
+    ]
+    for name, path, directory, key, expected in path_cases:
+        error = error_message(lambda: design_path(path, directory, key))
+        failures += report("design_path", name, error is None if expected is True else
+                           error is not None and error.startswith(expected), True)
+    failures += design_read_self_test(this)
     failures += cli_case(this, "no subcommand is usage", [], "", 2)
     return 1 if failures else 0
 
@@ -1171,6 +2027,19 @@ def main():
     commands.add_parser("draft-slug")
     commands.add_parser("ticket-key").add_argument("--prefix")
     commands.add_parser("ticket-keys").add_argument("--prefix", required=True)
+    reading = commands.add_parser("design-read")
+    reading.add_argument("--ref", required=True)
+    reading.add_argument("--config", required=True)
+    reading.add_argument("--key", choices=("design_dir", "adr_dir"), default="design_dir")
+    output = reading.add_mutually_exclusive_group()
+    output.add_argument("--path", action="store_true")
+    output.add_argument("--status", action="store_true")
+    status = commands.add_parser("front-matter-status")
+    status.add_argument("--file", required=True)
+    status.add_argument("--config", required=True)
+    brief = commands.add_parser("brief-read")
+    brief.add_argument("--config", required=True)
+    brief.add_argument("--path", action="store_true")
     args = parser.parse_args()
     if args.self_test:
         return self_test()
@@ -1181,7 +2050,13 @@ def main():
                               "draft-slug": lambda: slug_of(text_input(None), DRAFT_SLUG_MAX),
                               "ticket-key": lambda: ticket_key(text_input(None), args.prefix),
                               "ticket-keys": lambda: ticket_keys(text_input(None),
-                                                                 args.prefix)},
+                                                                 args.prefix),
+                              "design-read": lambda: design_read(text_input(None), args.ref,
+                                                                 args.config, args.key,
+                                                                 args.path, args.status),
+                              "brief-read": lambda: brief_read(args.config, args.path),
+                              "front-matter-status": lambda: front_matter_status(args.file,
+                                                                                 args.config)},
                      args.command)
 
 

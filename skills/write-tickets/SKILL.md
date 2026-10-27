@@ -1,34 +1,33 @@
 ---
 name: write-tickets
-description: Turn a feature request, spec, or bug report into Jira epics, stories, tasks, and bugs that plan-work can plan without proposing a split, writing a Deviation, or leaving an AC clause unphased. Drafts to a file, lints it, has ticket-adversary review it cold, and creates the tickets only after approval.
-argument-hint: <what to write tickets for> | <TICKET-N ...> to rewrite existing ones
+description: Turn a feature request, spec, bug report, or approved feature design into Jira epics, stories, tasks, and bugs that plan-work can plan without proposing a split, writing a Deviation, or leaving an AC clause unphased. Drafts to a file, lints it, has ticket-adversary review it cold, and creates the tickets only after approval.
+argument-hint: <what to write tickets for> | <design path> | <TICKET-N ...> to rewrite existing ones
 disable-model-invocation: true
 allowed-tools: Read, Write, Edit, Grep, Glob, Bash, Task
 ---
 
 Write tickets for: $ARGUMENTS
 
-This skill produces tickets that the next stage can plan as written. `plan-work` is where a
-loose ticket turns into a split proposal, a `Deviation`, or a clause with no phase; the
-rubric at `${CLAUDE_PLUGIN_ROOT}/skills/write-tickets/references/rubric.md` lists what
-prevents each one. Read it and
+Read `${CLAUDE_PLUGIN_ROOT}/skills/write-tickets/references/rubric.md` and
 `${CLAUDE_PLUGIN_ROOT}/skills/write-tickets/references/templates.md` before drafting.
 
 Read `${CLAUDE_PROJECT_DIR}/.claude/project.json` first: `{{ticket_prefix}}`,
 `{{jira_project}}`, `{{registry_file}}`, `{{source_roots}}`, `{{verification_tiers}}`,
 `{{plan_rules_file}}`, `{{build_command}}`, `{{parent_branch_default}}`, `{{brief_file}}`,
-`{{disciplines}}`, and `{{roles.*}}` all come from it. Read
+`{{disciplines}}`, `{{design_dir}}`, and `{{roles.*}}` all come from it. Read
 `${CLAUDE_PLUGIN_ROOT}/gates/project-config.md` and follow it exactly: tickets written
 against invented tiers and roots fail at `plan-work` for reasons nobody can see.
 
 No ticket is created, edited, or transitioned before Step 7's approval; until then it
-writes only the draft and the input file its slug is derived from.
+writes only the draft and the input files of the checks it runs.
 
 ## Step 1 — Settle the decisions
 
 State the requested outcome in one sentence. Then list every choice that changes behavior
 and is not yet made: data format, error shape, UI copy, limits, library, which layer owns
-the logic. Ask Rob all of them in one message and wait.
+the logic. With a design, read it first, as Step 2 says, and list only the choices it leaves
+open; a choice Rob wants made differently from the design sends the design back to
+`design-feature`. Ask Rob all of them in one message and wait.
 
 A choice that needs research to make becomes a spike Task (rubric R6), not a question in a
 ticket. If a choice is cheap to reverse, prefer a stated assumption to a blocking question,
@@ -48,13 +47,21 @@ request-derived scope. Establish, by reading the code rather than file names:
 - **other instances of a root cause** the work fixes, by grep, not recall
 - for each tier in `{{verification_tiers}}`, where its evidence lives: the test directory,
   one existing test, and the command that runs it
-- **the brief's goals**, which `Goal:` lines draw on: the `## Goals` of `{{brief_file}}`,
-  read only when its `## Decision` reads `Approved`; otherwise say in one line why none were
-  read — `none`, no file at the path, no `## Decision` or one other than `Approved`, or no
-  goals. With `{{brief_file}}` set, stop unless it is `Approved` with a goal naming an
-  outcome, never "none", "TBD", or "N/A": a goalless one goes back to the sponsor; a
-  `Rejected` one stopped the project; a missing, `Pending`, or undecided one goes to
-  `{{roles.sponsor}}` through `plan-project`, which records the decision.
+- **the brief's goals**, for `Goal:` lines: the `## Goals` that `python3
+  "${CLAUDE_PLUGIN_ROOT}/gates/scripts/project_rules.py" brief-read --config
+  "<absolute project root>/.claude/project.json"` prints, or at `{{brief_file}}` `none`, a
+  line saying so. Set, stop unless it prints a goal naming an outcome, never "none", "TBD",
+  or "N/A": send a goalless, `proposed`, missing, or `no front matter` brief to
+  `{{roles.sponsor}}` through `plan-project`; `rejected` stopped the project; name any
+  other. Relay a `DEPRECATED:` line it prints to Rob.
+- **the design** the request names: at `{{design_dir}}` `none`, stop and name the key. Write
+  its path to a file per **Untrusted text**; stop if `git fetch origin {{parent_branch_default}}`
+  fails, or if `python3 "${CLAUDE_PLUGIN_ROOT}/gates/scripts/project_rules.py" design-read
+  --ref "origin/{{parent_branch_default}}" --config "<absolute project root>/.claude/project.json"
+  < "<file>"` exits non-zero. Read the design only from what it prints, and the Epic's
+  `- Design:` path only from what it prints with `--path`. Its `Work plan` is the slice: a
+  Step 3 split, an added ticket, or a review finding changing a handoff's tickets stops the
+  run and sends the design back to `design-feature` for rework.
 
 Then search Jira: `project = {{jira_project}}` with the request's key terms, for tickets
 that overlap or that the new ones depend on. Record each one's key and status.
@@ -68,20 +75,20 @@ In order:
    `plan-work`'s phase limit is split now, not after review.
 3. Registry consumers from Step 2 are part of the ticket that edits the registry. When they
    push it past the limit, the split follows the consumers, not the layers.
-4. Every live instance of a root cause is covered or excluded as benign in context. When
-   covering all of them is too large, the sequence of tickets is the proposal — Step 7
-   puts it to Rob.
+4. Every live instance of a root cause is covered or excluded as benign in context; when
+   covering all of them is too large, the sequence of tickets is the proposal Step 7 shows.
 5. A prerequisite two tickets share — a migration, a new module, test infrastructure — is
    its own Task, labeled `enabling`.
 6. Group tickets into handoffs under a `Handoff:` label, in build order, each group within
-   `plan-work`'s handoff limit.
+   `plan-work`'s handoff limit. With a design, each `Work plan` handoff is one group, named
+   as the handoff, holding its tickets in its order.
 
 ## Step 4 — Draft
 
 Write `docs/tickets/<slug>.md` (gitignored) in the templates' format, blockers before
-dependents; revise a draft already there if it is this request's, or ask. `<slug>` is
-what this prints for the request, given as a file per **Untrusted text** in
-`gates/project-config.md`; on an `INVALID:` line, ask for the request in Latin letters:
+dependents; revise a draft already there if it is this request's, or ask. `<slug>` is what
+this prints for the request, fed per **Untrusted text** in `gates/project-config.md`; on
+`INVALID:`, ask for Latin letters:
 
 ```bash
 python3 "${CLAUDE_PLUGIN_ROOT}/gates/scripts/project_rules.py" draft-slug < "<request file>"
@@ -96,29 +103,36 @@ python3 "${CLAUDE_PLUGIN_ROOT}/gates/scripts/project_rules.py" draft-slug < "<re
 - **Goal**, when Step 2 read the brief's goals: each `Goal:` line and Epic `## Goal`
   restates the one it serves; a ticket whose goal serves none is removed (R14).
 - **Context**: why, with any linked source summarized. Never a reference to this session.
+- **Design**: a design `## Summary` opening `Epic: <KEY>` names its Epic; stop unless the
+  key, fed as Step 2 feeds the path, passes `project_rules.py ticket-key --prefix
+  "{{ticket_prefix}}"` and the issue is an Epic. Fetch it and each not-Done child into the
+  draft as rewrite mode does, stopping, back to `design-feature`, on a not-Done child whose
+  summary no design ticket's equals, or a design ticket whose summary a Done child's equals;
+  draft the rest as new under it. Otherwise draft a new Epic from the design's Goals,
+  Success measures, NFR thresholds, and Non-goals. Either Epic carries templates.md's one
+  `- Design:` line; fetched tickets join here.
 
 ## Step 5 — Lint
 
 ```bash
-python3 ${CLAUDE_PLUGIN_ROOT}/skills/write-tickets/scripts/lint_draft.py docs/tickets/<slug>.md --repo "${CLAUDE_PROJECT_DIR}"
+python3 ${CLAUDE_PLUGIN_ROOT}/skills/write-tickets/scripts/lint_draft.py docs/tickets/<slug>.md --repo "<absolute project root>"
 ```
 
 Fix every ERROR, and fix each WARN or confirm its text is concrete; re-run until exit 0.
+With a design, stop, naming the handoff, when a group's tickets differ from the handoff's
+list in the design in count, summary, or order.
 Exit 2, for an unreadable draft or project.json, bad `disciplines`, or bad `--repo`, stops.
 
 ## Step 6 — Adversarial ticket review
 
 Launch `ticket-adversary`. **The delegation prompt contains only the absolute path to the
-draft.** Not the request, not what you learned in Step 2, not where you expect trouble —
-it reads the tickets the way `plan-work` will, cold, and anything you add is context
-`plan-work` will not have.
+draft.** It reads the tickets as `plan-work` will, cold; anything added is context it lacks.
 
 Fix every BLOCKER and MAJOR in the ticket text. A finding that misread a ticket means the
 ticket is ambiguous: fix the text, never explain it to the reviewer. Re-lint, re-review.
 Stop at no BLOCKERs or three rounds, whichever is first; revert-not-iterate applies. At
-the cap, bring the remaining findings to Rob.
-
-Append each round's output under `<!-- review round N -->` in the draft, never sent to Jira.
+the cap, bring the remaining findings to Rob. Append each round's output, and below it the
+`<!--` lines Steps 7 and 8 add, under `<!-- review round N -->`, never sent to Jira.
 
 ## Step 7 — Present for approval
 
@@ -127,6 +141,8 @@ points, blocked by — followed by:
 
 - clauses that need out-of-band verification, called out separately
 - each ticket Step 4 removed for serving no goal of the brief
+- each fetched ticket's labels other than `moscow-*`, `severity-*`, and its `Handoff:`; one
+  Rob names stale moves from its `Labels:` to a `<!-- stale label: <key> <label> -->` line
 - any sequenced split from Step 3, and every DECISION from the review
 - assumptions stated in place of questions
 
@@ -141,23 +157,27 @@ an explicit "approved", "create them", or equivalent; a clarifying question is n
 
 ## Step 8 — Create
 
-Look up issue and link types via the Atlassian MCP first; never guess a name or ID.
+Look up issue and link types via the Atlassian MCP first; never guess a name or ID. A
+ticket whose `Jira:` is filled and `Baseline:` empty came from a stopped run: update it as
+items 2–3 write it, add only item 4's missing links, and run item 6, with no Change impact.
+Journal each create in a `<!-- creating: <ID> -->` line that item 5 removes; one a resumed
+run finds is searched for by exact summary first, and a match takes item 5, then the above.
 
 1. Epics first, then the rest in draft order.
 2. Summary, parent, and labels: every `Labels:` value, the `Handoff:` label, for a
    non-empty `Priority:`, `moscow-<priority>` in lowercase — `Won't` is `moscow-wont` —
    and for a Bug, `severity-<severity>` in lowercase.
 3. Description: `Goal: <sentence>` first when the header has one, then every `##` section
-   except Open questions, Change impact, and review output, with each `[verify: …]` and
-   `[children: …]` tag inside a code span. The Atlassian connector's read conversion drops
-   a bare tag's brackets; a code span survives it verbatim.
+   except Open questions, Change impact, review output, and comments, with each
+   `[verify: …]` and `[children: …]` tag inside a code span, which the connector's read
+   conversion keeps.
 4. For each Blocked-by entry, a link of the blocking type with the blocker as outward.
 5. After each creation, write the key into its `Jira:` line and replace its local ID with
    the key everywhere in the draft — as a whole ID, never the `S1` in `S10` — before
    creating the next ticket.
 6. Read each ticket back with `jira_get_issue`, which returns Markdown. Check it carries
-   every label item 2 names and no other `moscow-*` or `severity-*` label, save its
-   description verbatim to `docs/tickets/<slug>.<key>.md`, and run:
+   every label item 2 names and no other `moscow-*`, `severity-*`, handoff, or its stale label,
+   save its description verbatim to `docs/tickets/<slug>.<key>.md`, and run:
 
    ```bash
    python3 ${CLAUDE_PLUGIN_ROOT}/skills/write-tickets/scripts/lint_draft.py \
@@ -173,29 +193,31 @@ Look up issue and link types via the Atlassian MCP first; never guess a name or 
    local ID. Once every ticket exists, update each ticket whose draft text item 5 changed
    after its creation, and give it item 6 again.
 
-For `<TICKET-N ...>` arguments, fetch each into a draft with its key as the header ID and
-on its `Baseline:` and `Jira:` lines, so no local ID stands for an issue that already
-exists, mapping:
+For `<TICKET-N ...>` arguments and Step 4's fetched tickets, fetch each into a draft with
+its key as the header ID and on its `Baseline:` and `Jira:` lines, so no local ID stands for
+an issue that already exists, mapping:
 
 - its `moscow-*` label to `Priority:` — `moscow-wont` as `Won't`, the rest title-cased; no
   such label, or more than one, leaves `Priority:` empty for Step 1 to settle
 - on a Bug, its `severity-*` label to `Severity:`, title-cased; no such label, or more
   than one, leaves `Severity:` empty for Step 1 to settle; on any other type, none
-- every other label but the handoff label to `Labels:` — never a `moscow-*` or
-  `severity-*` label, which only the two headers above carry
+- every other label but a handoff label, as defined below, to `Labels:` — never a
+  `moscow-*` or `severity-*` label, which only the two headers above carry
 - a leading `Goal:` description line to the `Goal:` header
 - a code span holding a whole `[verify: … @ …]` or `[children: …]` tag, or the
   `\verify: …\` an older write left, to the bare tag
 
-Run Steps 2–7, and update instead of create: item 2's labels replace the ticket's
-`moscow-*` and `severity-*` labels, and a `moscow-*` or `severity-*` label item 2 no
-longer writes is removed. Each rewritten ticket carries `## Change impact` (rubric R15).
-After item 7, when item 5 has replaced every local ID, post each note once with
-`jira_add_comment`: a first line `Change impact`, then the section's lines, tags in code
-spans as in item 3. The comment ID it returns confirms the post; a post that returns none
-is never retried, since it may have landed. Any stop after the first update — item 6's, a
-failed post, any other — brings Rob every note not yet confirmed. A ticket that must split
-keeps its key for the ACs it retains; say which new key holds the rest.
+Run Steps 2–7 for `<TICKET-N ...>` arguments. Each ticket whose `Baseline:` is filled is
+updated instead of created: item 2's labels replace its `moscow-*`, `severity-*`, and
+handoff labels, a handoff label being one equal to a draft `Handoff:` or design `Work plan`
+label, or one a `stale label` line names for that ticket, and every other label stays. Each
+rewritten ticket carries `## Change impact` (rubric R15). After item 7, when item 5 has
+replaced every local ID, post each note once with `jira_add_comment`: a first line
+`Change impact`, then the section's lines, tags in code spans as in item 3. The comment ID
+it returns confirms the post; a post that returns none is never retried, since it may have
+landed. Any stop after the first update — item 6's, a failed post, any other — brings Rob
+every note not yet confirmed. A ticket that must split keeps its key for the ACs it retains;
+say which new key holds the rest.
 
 ## Step 9 — Report
 

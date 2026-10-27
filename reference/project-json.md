@@ -94,8 +94,9 @@ done, default `Done`. The checks before the merge, and the decline and failure p
 exception path, which has none; the tech lead then merges outside the run.
 
 `incident_reviews_dir` serves rule book Phase 7 step 3: where `incident-review` commits each
-review. It must be a relative path inside the repository with no `.git` component, in any
-case or with trailing dots, as git refuses to track one, starting with a letter, digit, or
+review. It must be a relative path inside the repository with no empty, `.`, or `..`
+component, trailing slashes aside, and no `.git` component, in any case or with trailing
+dots, as git refuses to track one, starting with a letter, digit, or
 `_` and made only of letters, digits, `.`, `_`, `-`, and `/`, and not gitignored, since the
 review is committed.
 Default `none`, under which `incident-review` stops and names the key.
@@ -115,20 +116,25 @@ under which its section of the report says it is unset, except `iteration_days`,
 except that `security` makes `patch_sla_days` required.
 
 `retirements_dir` serves rule book Phase 7 step 7: where `retire-system` commits each
-retirement record. It follows `incident_reviews_dir`'s rule — a relative path inside the
-repository with no `.git` component, of the same characters, and not gitignored, since the
-record is committed. Default `none`, under which `retire-system` stops and names the key.
+retirement record. It follows `incident_reviews_dir`'s path rule, and is not gitignored,
+since the record is committed. Default `none`, under which `retire-system` stops and names the key.
 
 `design_dir` and `adr_dir` serve rule book Phase 3 and R11: where a feature's design doc and
 its decision records are committed, in the form `gates/design-exit.md` defines. Each follows
-`incident_reviews_dir`'s rule — a relative path inside the repository with no `.git`
-component, of the same characters, and not gitignored, since both are committed.
-`design-feature` reads both, writing the design doc and its ADRs there. Each defaults to
-`none`, under which the gate fails as it states: with `design_dir` `none`, `design-feature`
-stops and names the key; with `adr_dir` `none` it goes on and says so, then stops, naming
-the key, before writing a costly-to-reverse choice, the one design the gate would fail.
+`incident_reviews_dir`'s path rule, and is not gitignored, since both are committed.
+`design-feature` reads both, writing the design doc and its ADRs there, and `write-tickets`
+reads `design_dir` for the approved design a request names, as `plan-work` reads both for
+the design an Epic names. Each defaults to `none`, under which the gate fails as it states:
+with `design_dir` `none`, `design-feature` stops and names the key, as `write-tickets` and
+`plan-work` do when a request or an Epic names a design; with `adr_dir` `none`,
+`design-feature` goes on and says so, then stops, naming the key, before writing a
+costly-to-reverse choice, the one design the gate would fail, and `plan-work` stops, naming
+the key, on a design that names an ADR. `write-tickets` and `plan-work` read a design
+through `gates/scripts/project_rules.py design-read`, passing it this file to take each key
+from; each read needs both keys valid or unset, and never one directory, compared ignoring
+case, as a case-insensitive disk reads them.
 `ci-green`'s merge step runs `gates/scripts/adr_numbers.py` on `adr_dir`, which under `none`
-passes and says so.
+passes and says so, unless `design_dir` is invalid, which fails it as `design-read` would.
 
 `secret_scan_command` and `sast_command` serve rule book R12 and Appendix B1's scans. Each
 writes SARIF 2.1.0 to standard output, redacted, with inline suppression comments ignored;
@@ -163,7 +169,16 @@ request. `write-tickets` traces its `Goal:` lines to an approved brief's goals w
 checkout holds it, and removes work serving none; with `brief_file` set it stops on any
 brief not approved or naming no goal, sending a pending one to the sponsor through
 `plan-project`. `design-feature` restates the approved brief's goals as a design's goals,
-stopping on a brief missing or not approved. The brief is committed, so the path must not be
+stopping on a brief missing or not approved. Both judge the brief approved by its front
+matter `status: accepted`, through `gates/scripts/project_rules.py brief-read`, as
+`plan-project` records it, and `plan-project` checks the path the same way before writing.
+Upgrading from 1.2.0: a brief approved then has no front matter and is still read, from its
+`## Decision`, with a deprecation warning; add `status: accepted`, `date`, and
+`decision-makers` front matter before 1.4.0, which reads only the front matter. `brief_file`
+is now checked as each directory key is, save that it may start with `.`: `plan-project`
+writes it unquoted into `git add` and `git commit`, where a space, a shell metacharacter, a
+leading `-`, or an empty, `.`, or `..` component never worked, so rename such a path;
+directory keys refuse those components too. The brief is committed, so the path must not be
 gitignored. Default `none`, under which `plan-project` stops, and `write-tickets` and
 `design-feature` read no goals.
 
@@ -207,8 +222,9 @@ names separated by `·`, commas, or semicolons, each optionally in backticks and
 a note in parentheses; `and` and `or` are joiners, and names compare without case.
 `release_dir` holds each version's test summary, its note file, the Must tickets'
 description copies the check reads, the release notes, and with disciplines named, the
-model thresholds, the error-budget reading, and the security sign-off. They are working files, not
-committed, so the path may be gitignored. The note `release-readiness` writes on the tested
+model thresholds, the error-budget reading, and the security sign-off. Its path follows
+`incident_reviews_dir`'s path rule, save that it may be gitignored, since these are working
+files, not committed. The note `release-readiness` writes on the tested
 commit under `refs/notes/release-readiness`, which `release` checks and pushes with the tag,
 records the summary's hash and verdict there; it is an integrity check, not a signed
 attestation. The hosted equivalents, a GitHub commit status or check run for the verdict and
@@ -349,8 +365,8 @@ the key.
     number, and `drift_threshold` is a JSON number; drift above it is reported, Appendix B2's
     trigger for retraining or rollback.
   - `sre` at maintenance: `alert_rules_dir` holds Prometheus rule files or
-    prometheus-operator `PrometheusRule`s, relative to the repository as `incident_reviews_dir`
-    is. `maintenance_check.py alert-rules` reports each alerting rule naming no SLO — an `slo`
+    prometheus-operator `PrometheusRule`s, at a path following `incident_reviews_dir`'s path
+    rule. `maintenance_check.py alert-rules` reports each alerting rule naming no SLO — an `slo`
     or `sloth_slo` label or annotation — or no runbook — a non-blank `runbook_url` or
     `runbook` annotation — saying which it lacks. Appendix B5 asks that every alert map to
     an SLO or a documented failure mode and link to a runbook; an alert mapped to a failure

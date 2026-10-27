@@ -1,13 +1,11 @@
 # Ticket rubric — what `plan-work` needs from a ticket
 
-`write-tickets` writes against this file and `ticket-adversary` reviews against it. Each
-criterion names the `plan-work` behavior it prevents. `plan-work` is where a loose ticket
-becomes a split proposal, a `Deviation`, or an AC clause with no phase — so a ticket is
-ready when `plan-work` can plan it without doing any of the three.
+`plan-work` is where a loose ticket becomes a split proposal, a `Deviation`, or an AC
+clause with no phase — so a ticket is ready when `plan-work` can plan it without doing any
+of the three.
 
-Limits are not restated here. The handoff limit is in `plan-work` Step 1 and the phase
-limit is in its **Size** section; read them from
-`${CLAUDE_PLUGIN_ROOT}/skills/plan-work/SKILL.md` so there is one number to change.
+Limits are not restated here: read the handoff limit (Step 1) and the phase limit (**Size**)
+from `${CLAUDE_PLUGIN_ROOT}/skills/plan-work/SKILL.md`, so there is one number to change.
 
 ## Story, Task, Bug
 

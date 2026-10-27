@@ -52,7 +52,8 @@ sys.dont_write_bytecode = True
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)),
                                 "..", "..", "..", "gates", "scripts"))
 from project_rules import (MARKDOWN_VENDOR, YAML_VENDOR, OptionalKey, RequiredKey,  # noqa: E402
-                           cli_case, error_message, foreign_code, isolated_git_environment,
+                           cli_case, depth_capped_loader, error_message, foreign_code, json_text,
+                           isolated_git_environment,
                            parse_date, process_state, read_config, read_keys, report,
                            result_of, run_check, run_git, single_number, vendored,
                            write_scratch)
@@ -259,7 +260,8 @@ def unlinked_alerts(config):
     for path in paths:
         try:
             with open(path, encoding="utf-8") as handle:
-                documents = [document for document in yaml.safe_load_all(handle)
+                documents = [document for document in
+                             yaml.load_all(handle, Loader=depth_capped_loader())
                              if document is not None]
         except (OSError, ValueError, yaml.YAMLError) as error:
             raise ValueError(f"{path} is unreadable as UTF-8 YAML: "
@@ -587,6 +589,8 @@ def alert_rule_cases():
                                 "groups:\n- name: g\n  rules:\n  - alert: \"A\\tB\"\n"
                                 "    expr: up\n"),
                                ("a file that is not UTF-8", b"groups: [\xe9]\n"),
+                               ("a file nested past the recursion limit",
+                                "groups: " + "[" * 5000 + "]" * 5000 + "\n"),
                                ("a rule that is not a map",
                                 "groups:\n- name: g\n  rules:\n  - alert X\n"),
                                ("a rule neither alert nor record",
@@ -714,6 +718,9 @@ def cli_cases():
                  "high\t289\tleft-pad", 0),
                 ("alerts rejects text that is not JSON", ["alerts", "--today", "2026-10-17"],
                  "<html>", "INVALID:", 1),
+                ("alerts rejects JSON nested past the recursion limit",
+                 ["alerts", "--today", "2026-10-17"], "[" * 200000 + "]" * 200000,
+                 "INVALID: the alerts: not JSON: it nests too deeply", 1),
                 ("drift over", ["drift"], "0.3\n", "over 0.3", 0),
                 ("drift within", ["drift"], "0.1\n", "within 0.1", 0),
                 ("routes prints unrouted", ["routes"], "a #ops\n", "a\t#ops", 0),
@@ -775,10 +782,7 @@ def self_test():
 
 def alerts_json(text):
     """The Dependabot alert pages piped in, or ValueError when they are not JSON."""
-    try:
-        return json.loads(text)
-    except ValueError as error:
-        raise ValueError(f"the alerts are not JSON: {error}")
+    return json_text(text, "the alerts")
 
 
 def main():

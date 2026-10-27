@@ -18,7 +18,7 @@ import sys
 root, gates = sys.argv[1:3]
 sys.dont_write_bytecode = True
 sys.path.insert(0, gates)
-from project_rules import YAML_VENDOR, vendored  # noqa: E402
+from project_rules import YAML_VENDOR, depth_capped_loader, vendored  # noqa: E402
 
 vendored(YAML_VENDOR)
 import yaml  # noqa: E402
@@ -62,7 +62,7 @@ unpinned, unparseable = [], []
 for path in workflows:
     try:
         with open(path, encoding="utf-8") as handle:
-            nodes = list(uses_nodes(yaml.compose(handle, Loader=yaml.SafeLoader)))
+            nodes = list(uses_nodes(yaml.compose(handle, Loader=depth_capped_loader())))
     except (OSError, ValueError, yaml.YAMLError) as error:
         unparseable.append(f"UNPARSEABLE {path}: {(str(error).splitlines() or [type(error).__name__])[0]}")
         continue
