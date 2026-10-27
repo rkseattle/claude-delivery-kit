@@ -307,6 +307,9 @@ expect_saying "a job-level reusable workflow on a branch" actions-pinned.sh "NOT
 fresh_copy; printf 'on: push\njobs:\n  x:\n    runs-on: ubuntu-latest\n    steps:\n      - uses: %s@%s\n' \
   actions/checkout v4 > "$tmp/repo/.github/workflows/other.yaml"
 expect_saying "a .yaml workflow naming a tag" actions-pinned.sh "NOT PINNED"
+fresh_copy; python3 -c 'print("on: push\njobs: " + "[" * 500 + "]" * 500)' \
+  > "$tmp/repo/.github/workflows/deep.yml"
+expect_saying "a workflow nested past the YAML depth cap" actions-pinned.sh "UNPARSEABLE"
 fresh_copy; printf '      # - uses: %s@%s\n' actions/checkout v4 >> "$tmp/repo/.github/workflows/ci.yml"
 expect pass "a commented-out uses: line" actions-pinned.sh
 fresh_copy; printf '      - uses: %s\n      - uses: "%s"\n      - uses: %s   #  v4\n' \
@@ -332,6 +335,10 @@ expect_saying "a root with no reference to read" config-examples.sh "NO REFERENC
 fence="\`\`\`"
 fresh_copy; printf '\n%sjson\n{"no": \n%s\n' "$fence" "$fence" >> "$tmp/repo/reference/project-json.md"
 expect_saying "a reference json block that cannot parse" config-examples.sh "NO REFERENCE:"
+fresh_copy; { printf '\n%sjson\n' "$fence"; python3 -c 'print("[" * 200000 + "]" * 200000)'
+  printf '%s\n' "$fence"; } >> "$tmp/repo/reference/project-json.md"
+expect_saying "a reference json block nested past the recursion limit" config-examples.sh \
+  "nests too deeply"
 fresh_copy; printf '\n%sjson\n["a"]\n%s\n' "$fence" "$fence" >> "$tmp/repo/reference/project-json.md"
 expect_saying "a reference json block that is not an object" config-examples.sh "NO REFERENCE:"
 fresh_copy; printf '\n%sjson\n{"adr_dir": "elsewhere"}\n%s\n' "$fence" "$fence" \

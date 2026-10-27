@@ -105,10 +105,12 @@ Then stop, and say why in one line, when:
   a `proposed`, missing, or `no front matter` one to the sponsor through `plan-project`.
   Relay a `DEPRECATED:` line it prints. With `brief_file` `none`, say in one line that
   there is no brief to frame the design against, and go on.
-- **`{{design_dir}}/<slug>.md` exists with front matter whose `status` is not
-  `proposed`, or, written before designs carried front matter, with a `## Decision` that
-  reads other than `Pending`.** It is decided, or in a state no step writes; name it rather
-  than revise it, and say a decided one gains its `status` by hand.
+- **`{{design_dir}}/<slug>.md` exists, and `python3
+  "${CLAUDE_PLUGIN_ROOT}/gates/scripts/project_rules.py" front-matter-status --file
+  "{{design_dir}}/<slug>.md" --config "<absolute project root>/.claude/project.json"` prints
+  anything but `proposed` or `none`, `INVALID:` included.** It is decided, or in a state no step
+  writes; name what it printed rather than revise it, and say a decided one gains its
+  `status` by hand.
 - **`design/<slug>` or `origin/design/<slug>` exists.** Ask rather than reuse it.
 
 Any other existing `{{design_dir}}/<slug>.md` is the draft: read it and its ADRs, add the

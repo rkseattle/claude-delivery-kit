@@ -17,9 +17,9 @@ A record is a file directly under `adr_dir` named as project_rules.ADR_RECORD re
 ref, only a number one of the head's added records shares counts. Prints `unique N`, or
 `duplicate N` and one `<number> <path> <path>...` line per shared number; exit 0 only if
 unique. `adr_dir` unset, with `design_dir` valid or unset, prints `adr_dir not configured`
-and exits 0, since nothing can collide. Exit 2 is no answer: an unreadable project.json, an invalid `adr_dir` or
-`design_dir`, the two naming one directory, as project_rules.design_dirs rules, or a git
-failure.
+and exits 0, since nothing can collide. Exit 2 is no answer: an unreadable project.json,
+an invalid `adr_dir` or `design_dir`, the two naming one directory, as
+project_rules.design_dirs rules, or a git failure.
 """
 import argparse
 import collections

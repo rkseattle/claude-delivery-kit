@@ -36,10 +36,12 @@ Stop, and say why in one line, when:
 - **`{{brief_file}}` is ignored**, as **Ignored paths** in `gates/project-config.md`
   decides. The brief is committed in Step 5, and an ignored path fails there, after the
   sponsor has decided; name the rule.
-- **`{{brief_file}}` exists with front matter whose `status` is not `proposed`, or, written
-  before briefs carried front matter, with a `## Decision` that reads other than
-  `Pending`.** It is decided, or in a state no step writes; name it rather than revise it,
-  and say a decided one gains its `status` by hand.
+- **`{{brief_file}}` exists, and `python3
+  "${CLAUDE_PLUGIN_ROOT}/gates/scripts/project_rules.py" front-matter-status --file
+  "{{brief_file}}" --config "<absolute project root>/.claude/project.json"` prints
+  anything but `proposed` or `none`, `INVALID:` included.** It is decided, or in a state no step
+  writes; name what it printed rather than revise it, and say a decided one gains its
+  `status` by hand.
 
 **An interrupted Step 5 comes first, after the first two stops.** When
 `git rev-parse --path-format=absolute --git-path plan-project` names a directory that

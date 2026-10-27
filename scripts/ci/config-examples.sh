@@ -34,7 +34,8 @@ def example_values(root, project_rules):
     try:
         with open(path, encoding="utf-8") as handle:
             text = handle.read()
-        blocks = [json.loads(token.content) for token in project_rules.markdown_tokens(text)
+        blocks = [project_rules.json_text(token.content, "a json block")
+                  for token in project_rules.markdown_tokens(text)
                   if token.type == "fence" and token.info.split()[:1] == ["json"]]
     except (OSError, ValueError) as error:
         raise ValueError(f"NO REFERENCE: {path}: {error}")

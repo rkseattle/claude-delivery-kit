@@ -174,11 +174,13 @@ matter `status: accepted`, through `gates/scripts/project_rules.py brief-read`, 
 `plan-project` records it, and `plan-project` checks the path the same way before writing.
 Upgrading from 1.2.0: a brief approved then has no front matter and is still read, from its
 `## Decision`, with a deprecation warning; add `status: accepted`, `date`, and
-`decision-makers` front matter before 1.4.0, which reads only the front matter.
-`brief_file` is now checked as each directory key is: `plan-project` writes it unquoted into
-`git add` and `git commit`, where a space, shell metacharacter, or leading `-` never worked,
-so rename such a path. The brief is committed, so the path must not be gitignored. Default
-`none`, under which `plan-project` stops, and `write-tickets` and `design-feature` read no goals.
+`decision-makers` front matter before 1.4.0, which reads only the front matter. `brief_file`
+is now checked as each directory key is, save that it may start with `.`: `plan-project`
+writes it unquoted into `git add` and `git commit`, where a space, a shell metacharacter, a
+leading `-`, or an empty, `.`, or `..` component never worked, so rename such a path;
+directory keys refuse those components too. The brief is committed, so the path must not be
+gitignored. Default `none`, under which `plan-project` stops, and `write-tickets` and
+`design-feature` read no goals.
 
 `pr_review_limit_lines` serves rule book R9: a pull request reviewable in under an hour. It
 caps one PR's changed lines, insertions plus deletions against the parent branch.

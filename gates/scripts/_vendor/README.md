@@ -2,8 +2,9 @@
 
 `skills/maintenance-review/scripts/maintenance_check.py` reads Prometheus alerting rules
 with PyYAML's pure-Python package, so it needs nothing installed. `yaml/` is the sdist's
-`lib/yaml` directory, copied unmodified, with the sdist's `LICENSE` beside it. Only
-`yaml.safe_load_all` is called, which constructs no arbitrary Python object; without the
+`lib/yaml` directory, copied unmodified, with the sdist's `LICENSE` beside it. Every read goes
+through `project_rules.depth_capped_loader()`, a `SafeLoader` capped at a fixed nesting depth,
+which constructs no arbitrary Python object; without the
 `_yaml` C extension, `yaml/cyaml.py`'s import fails and is skipped, as PyYAML intends.
 
 | Package | Version | License | sdist SHA-256 |

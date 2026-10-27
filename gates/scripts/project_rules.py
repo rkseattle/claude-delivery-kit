@@ -57,6 +57,16 @@ repository inherits the caller's git. Each importer's self-test covers the rules
                                    --status, its front matter `status`, unjudged;
                                    INVALID otherwise: KEY unset, design_dir or adr_dir
                                    invalid, or the two naming one directory
+    project_rules.py front-matter-status --file PATH --config FILE
+                                   the status of the working-tree record at PATH, relative
+                                   to FILE's project: its front matter `status`, or, written
+                                   before front matter, its `## Decision` read as
+                                   legacy_status reads it: `none` for a draft, `undecided`
+                                   for a Decision it cannot read; INVALID for a PATH failing
+                                   the path check or no regular file reached through no
+                                   symlink, text that is not UTF-8, a record with neither
+                                   front matter nor a `# ` title, or front matter that is
+                                   unreadable or has no text status
     project_rules.py brief-read --config FILE [--path]
                                    the brief that FILE's brief_file names, from the
                                    working tree, when its front matter `status` is
@@ -75,6 +85,7 @@ import argparse
 import ast
 import contextlib
 import datetime
+import functools
 import io
 import itertools
 import json
@@ -106,6 +117,9 @@ PLACEHOLDER = re.compile(r"^\s*<.*>\s*$")
 BARE_FRAGMENT = r"[A-Za-z0-9_][A-Za-z0-9._-]*"
 BARE_ARGUMENT = re.compile(rf"^{BARE_FRAGMENT}$")
 REPO_PATH = re.compile(r"^[A-Za-z0-9_][A-Za-z0-9._/-]*$")
+# A file key's path, as REPO_PATH but allowed a leading `.`, as `.github/brief.md` worked
+# unquoted in 1.2.0; a leading `-`, a space, and every shell metacharacter stay refused.
+REPO_FILE = re.compile(r"^[A-Za-z0-9_.][A-Za-z0-9._/-]*$")
 DISCIPLINES = ("security", "data-ml", "mobile", "embedded", "sre")
 DECIMAL = r"-?\d+(?:\.\d+)?"
 DATE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
@@ -238,11 +252,24 @@ def project_root(config_path):
     return os.path.dirname(os.path.dirname(os.path.abspath(config_path)))
 
 
+def json_text(text, where):
+    """text parsed as JSON, or ValueError naming where, when it is not JSON or nests past
+    what Python's decoder can read: the json module has no depth limit to set, so its
+    RecursionError is the refusal, turned into the ValueError every check prints."""
+    try:
+        return json.loads(text)
+    except ValueError as error:
+        raise ValueError(f"{where}: not JSON: {error}")
+    except RecursionError:
+        raise ValueError(f"{where}: not JSON: it nests too deeply")
+
+
 def read_config(config_path):
     """project.json as a dict, or raise ValueError naming what is wrong."""
     try:
         with open(config_path, encoding="utf-8") as handle:
-            config = json.load(handle)
+            text = handle.read()
+        config = json_text(text, "project.json")
     except (OSError, ValueError) as error:
         raise ValueError(f"project.json unreadable: {error}")
     if not isinstance(config, dict):
@@ -262,7 +289,7 @@ def named_disciplines(config):
     return value
 
 
-def check_repo_path(key, value):
+def check_repo_path(key, value, pattern=REPO_PATH, first="letter, digit, or '_'"):
     """A directory or file key written unquoted into commands: set, relative, inside the repository
     and outside any .git, made only of characters no shell treats specially. As git's
     verify_path does, it rejects an empty, `.`, or `..` component, trailing slashes aside, and
@@ -270,14 +297,13 @@ def check_repo_path(key, value):
     since a case-insensitive disk reads .GIT as .git, Windows reads .git. as .git, and git
     tracks nothing under one."""
     parts = value.rstrip("/").split("/") if isinstance(value, str) else []
-    if (is_unset(value) or not isinstance(value, str) or not REPO_PATH.fullmatch(value)
+    if (is_unset(value) or not isinstance(value, str) or not pattern.fullmatch(value)
             or os.path.isabs(value) or any(part in ("", ".", "..") for part in parts)
             or any(part.rstrip(".").casefold() == ".git" for part in parts)):
         raise ValueError(f"{key} {value!r} is not a relative path inside the repository with no "
                          "empty, '.', or '..' component, no '.git' component in any case "
-                         "with or without trailing dots, starting with a "
-                         "letter, digit, or '_', and made only of letters, digits, '.', '_', "
-                         "'-', and '/'")
+                         f"with or without trailing dots, starting with a {first}, and made "
+                         "only of letters, digits, '.', '_', '-', and '/'")
 
 
 def parse_date(value):
@@ -557,9 +583,32 @@ def design_path(path, directory, key="design_dir"):
     return path
 
 
-# The deepest front matter read, as Symfony YAML's maxNestingLevel and Suricata cap theirs, so
-# the refusal falls at a fixed depth, not wherever Python's stack runs out.
-FRONT_MATTER_MAX_DEPTH = 128
+# The deepest YAML a kit script reads, as Symfony YAML's maxNestingLevel and Suricata cap theirs,
+# so the refusal falls at a fixed depth, not wherever Python's stack runs out.
+YAML_MAX_DEPTH = 128
+
+
+@functools.lru_cache(maxsize=None)
+def depth_capped_loader():
+    """PyYAML's SafeLoader refusing a document nested past YAML_MAX_DEPTH with a YAMLError
+    saying it nests too deeply, the one loader every kit script reads YAML through."""
+    vendored(YAML_VENDOR)
+    import yaml
+
+    class DepthCapped(yaml.SafeLoader):
+        depth = 0
+
+        def compose_node(self, parent, index):
+            self.depth += 1
+            try:
+                if self.depth > YAML_MAX_DEPTH:
+                    raise yaml.composer.ComposerError(None, None, "nests too deeply",
+                                                      self.peek_event().start_mark)
+                return super().compose_node(parent, index)
+            finally:
+                self.depth -= 1
+
+    return DepthCapped
 
 
 def front_matter(text):
@@ -576,22 +625,10 @@ def front_matter(text):
                 if line.rstrip() in ("---", "...")), None)
     if end is None:
         raise ValueError("front matter is not closed")
-    vendored(YAML_VENDOR)
+    loader = depth_capped_loader()
     import yaml
 
-    class UniqueKeys(yaml.SafeLoader):
-        depth = 0
-
-        def compose_node(self, parent, index):
-            self.depth += 1
-            try:
-                if self.depth > FRONT_MATTER_MAX_DEPTH:
-                    raise yaml.composer.ComposerError(None, None, "nests too deeply",
-                                                      self.peek_event().start_mark)
-                return super().compose_node(parent, index)
-            finally:
-                self.depth -= 1
-
+    class UniqueKeys(loader):
         def construct_mapping(self, node, deep=False):
             keys = [(key.tag, key.value) if isinstance(key, yaml.ScalarNode)
                     else self.construct_object(key, deep=True) for key, _ in node.value]
@@ -604,11 +641,33 @@ def front_matter(text):
         mapping = yaml.load("".join(lines[1:end]), Loader=UniqueKeys)
     except yaml.YAMLError as error:
         raise ValueError(f"front matter is not YAML ({getattr(error, 'problem', None) or error})")
-    except RecursionError:
-        raise ValueError("front matter is not YAML (nests too deeply)")
     if not isinstance(mapping, dict):
         raise ValueError("front matter is not a mapping")
     return mapping
+
+
+def front_matter_status(path, config):
+    """The status of the working-tree record at path, relative to project_root(config) and
+    built by the caller from checked values, so a skill reads whether a draft is decided
+    from this script, not by eye: its front matter
+    `status`, or for a record written before front matter, what legacy_status reads from its
+    `## Decision`. ValueError for front matter that is
+    unreadable or has no text status, or a path that is no regular file reached through no
+    symlink, as brief_read requires."""
+    path = re.sub(r"/{2,}", "/", path)
+    check_repo_path("path", path, REPO_FILE, "letter, digit, '_', or '.'")
+    full = os.path.join(os.path.realpath(project_root(config)), path)
+    if os.path.realpath(full) != os.path.normpath(full) or not os.path.isfile(full):
+        raise ValueError(f"{path!r} is not a regular file reached through no symlink")
+    try:
+        with open(full, encoding="utf-8") as handle:
+            text = handle.read()
+    except UnicodeDecodeError:
+        raise ValueError(f"{path!r} is not UTF-8 text")
+    first = next((line for line in text.lstrip("\ufeff").splitlines() if line.strip()), "")
+    if first.startswith("# "):
+        return legacy_status(text)
+    return status_of(text, repr(path))
 
 
 def design_dirs(config):
@@ -637,6 +696,8 @@ def design_read(path, ref, config, key="design_dir", path_only=False, status_onl
     the text, printed back as git check-ref-format --normalize prints a ref, so a caller
     uses only the checked value. One reader for write-tickets and plan-work, as kepval is
     one checker of a KEP's status for every consumer."""
+    if status_only and path_only:
+        raise ValueError("design_read prints the path or the status, not both")
     root = project_root(config)
     directory = design_dirs(read_config(config))[key]
     if directory is None:
@@ -657,29 +718,31 @@ def design_read(path, ref, config, key="design_dir", path_only=False, status_onl
         text = run_git(root, "cat-file", "blob", blob, text=False).decode("utf8")
     except UnicodeDecodeError:
         raise ValueError(f"{path!r} in {ref} is not UTF-8 text")
-    if status_only and path_only:
-        raise ValueError("design_read prints the path or the status, not both")
     if status_only:
-        try:
-            status = front_matter(text).get("status")
-        except ValueError as error:
-            raise ValueError(f"{path!r} in {ref}: {error}")
-        if not isinstance(status, str):
-            raise ValueError(f"{path!r} in {ref} has no text status ({status!r})")
-        return status
+        return status_of(text, f"{path!r} in {ref}")
     if key != "adr_dir":
         approved_text(text, f"{path!r} in {ref}")
     return path if path_only else text
+
+
+def status_of(text, where):
+    """The front matter `status` of text, as text; ValueError naming where when the front
+    matter is missing or unreadable or its status is absent or not text. The one read of a
+    record's status for approved_text, design_read, and front_matter_status."""
+    try:
+        status = front_matter(text).get("status")
+    except ValueError as error:
+        raise ValueError(f"{where}: {error}")
+    if not isinstance(status, str):
+        raise ValueError(f"{where} has no text status ({status!r})")
+    return status
 
 
 def approved_text(text, where):
     """text when its front matter `status` is `accepted`, the MADR status a decided record
     carries, so a design and a brief share one definition of approved; ValueError naming
     where and the status otherwise."""
-    try:
-        status = front_matter(text).get("status")
-    except ValueError as error:
-        raise ValueError(f"{where}: {error}")
+    status = status_of(text, where)
     if status != "accepted":
         raise ValueError(f"{where} has status {status!r}, not 'accepted'")
     return text
@@ -713,7 +776,7 @@ def brief_read(config, path_only=False):
         raise ValueError(f"brief_file {path!r} is not UTF-8 text")
     where = f"brief_file {path!r}"
     status = legacy_status(text)
-    if status is not None:
+    if status in ("accepted", "rejected"):
         print(f"DEPRECATED: {where} records its decision only in ## Decision, as plan-project "
               "wrote it before 1.3.0; add `status`, `date`, and `decision-makers` front "
               "matter, which 1.4.0 will require", file=sys.stderr)
@@ -732,23 +795,30 @@ def legacy_status(text):
     """The decision of a brief written before front matter carried its status, as
     plan-project 1.2.0 wrote one: opening on its `# ` title, with no `---` line before its
     one `## Decision` section, read as CommonMark so a fenced, quoted, or listed decoy does
-    not count, whose first paragraph opens `Approved by ` or `Rejected by `: `accepted` or
-    `rejected`, else None. Read for one release, as a format is dropped over two."""
+    not count, whose first paragraph opens `Approved by `, `Rejected by `, or `Pending`:
+    `accepted`, `rejected`, or `none`, and `none` too with no `## Decision` yet, the draft a
+    skill resumes; `undecided` for any other Decision, two of them, one not opening on a
+    paragraph, or a `---` line before it; None for a record not opening on its title. Read for one release, as a format is dropped over two."""
     lines = text.lstrip("\ufeff").splitlines()
     first = next((line for line in lines if line.strip()), "")
-    before = list(itertools.takewhile(lambda line: line.rstrip() != "## Decision", lines))
-    if not first.startswith("# ") or any(line.rstrip() == "---" for line in before):
+    if not first.startswith("# "):
         return None
+    before = list(itertools.takewhile(lambda line: line.rstrip() != "## Decision", lines))
+    if any(line.rstrip() == "---" for line in before):
+        return "undecided"
     tokens = markdown_tokens(text)
     decisions = [index for index, token in enumerate(tokens)
                  if (token.type, token.tag, token.level) == ("heading_open", "h2", 0)
                  and tokens[index + 1].content.strip() == "Decision"]
+    if not decisions:
+        return "none"
     opening = tokens[decisions[0] + 3:decisions[0] + 5] if len(decisions) == 1 else []
     if len(opening) != 2 or opening[0].type != "paragraph_open":
-        return None
+        return "undecided"
     decision = words(opening[1].content)
     return "accepted" if decision.startswith("Approved by ") else \
-        "rejected" if decision.startswith("Rejected by ") else None
+        "rejected" if decision.startswith("Rejected by ") else \
+        "none" if decision.startswith("Pending") else "undecided"
 
 
 def ticket_branch(text, prefix=None):
@@ -959,7 +1029,9 @@ def keyed(check, *keys):
 # reference/project-json.md's example.
 PROJECT_KEYS = {
     **keyed(check_repo_path, "design_dir", "adr_dir", "retirements_dir", "runbooks_dir",
-            "alert_rules_dir", "release_dir", "incident_reviews_dir", "brief_file"),
+            "alert_rules_dir", "release_dir", "incident_reviews_dir"),
+    "brief_file": KeyShape(lambda value: check_repo_path("brief_file", value, REPO_FILE,
+                                                         "letter, digit, '_', or '.'")),
     **keyed(check_command, "dependency_outdated_command", "alert_routes_command",
             "data_quality_command", "model_eval_command", "device_test_command",
             "hil_test_command", "api_compat_command", "error_budget_command",
@@ -1223,7 +1295,7 @@ def design_read_self_test(this):
                 ("front matter that is not YAML is invalid", "docs/design/broken.md", False,
                  "front matter is not YAML ("),
                 ("front matter with no status is invalid", "docs/design/nostatus.md", False,
-                 "status None, not 'accepted'"),
+                 "has no text status (None)"),
                 ("a status from a merge key is read", "docs/design/merged.md", False,
                  files["docs/design/merged.md"]),
                 ("an explicit status overrides a merged one", "docs/design/override.md", False,
@@ -1422,7 +1494,8 @@ def design_read_self_test(this):
             read = expected in (accepted, content)
             failures += report("brief_read", f"{name}: a warning only on a legacy read",
                                warning.getvalue().startswith("DEPRECATED: "),
-                               content is not None and legacy_status(content) is not None)
+                               content is not None
+                               and legacy_status(content) in ("accepted", "rejected"))
             failures += report("brief_read", name, got == expected if read
                                else got.startswith(expected), True)
         write_scratch(project, {"brief_file": "docs/brief.md"}, ".claude/project.json")
@@ -1451,6 +1524,9 @@ def design_read_self_test(this):
         failures += report("brief_read", "a brief that is not UTF-8 is refused",
                            result_or_message(lambda: brief_read(config_file)),
                            "brief_file 'docs/brief.md' is not UTF-8 text")
+        write_scratch(project, {"brief_file": ".github/brief.md"}, ".claude/project.json")
+        failures += report("brief_read", "a leading-dot brief_file, valid in 1.2.0, is kept",
+                           brief_read(config_file, True), ".github/brief.md")
         for name, unsafe in [("a space", "docs/project brief.md"), ("a ';'", "docs/b;x.md"),
                              ("a leading '-'", "-all.md")]:
             write_scratch(project, {"brief_file": unsafe}, ".claude/project.json")
@@ -1506,16 +1582,24 @@ def design_read_self_test(this):
             ("an Approved by Decision is accepted", approved, "accepted"),
             ("a Rejected by Decision is rejected", "# B\n\n## Decision\n\nRejected by s.\n",
              "rejected"),
-            ("a Pending Decision is none", "# B\n\n## Decision\n\nPending — s.\n", None),
-            ("two Decision sections are none", approved + "\n## Decision\n\nPending.\n", None),
-            ("an h3 Decision is none", "# B\n\n### Decision\n\nApproved by s.\n", None),
-            ("a quoted Approved by is none", "# B\n\n## Decision\n\n> Approved by s.\n", None),
-            ("a listed Approved by is none", "# B\n\n## Decision\n\n- Approved by s.\n", None),
+            ("a Pending Decision is none", "# B\n\n## Decision\n\nPending — s.\n", "none"),
+            ("two Decision sections are undecided", approved + "\n## Decision\n\nPending.\n",
+             "undecided"),
+            ("an h3 Decision is no Decision yet", "# B\n\n### Decision\n\nApproved by s.\n",
+             "none"),
+            ("a quoted Approved by is undecided", "# B\n\n## Decision\n\n> Approved by s.\n",
+             "undecided"),
+            ("a listed Approved by is undecided", "# B\n\n## Decision\n\n- Approved by s.\n",
+             "undecided"),
             ("Approved by in a second paragraph is none",
-             "# B\n\n## Decision\n\nPending.\n\nApproved by s.\n", None),
-            ("no Decision is none", "# B\n\nApproved by s.\n", None),
-            ("front matter under the title is none",
-             "# B\n---\nstatus: rejected\n---\n## Decision\nApproved by s.\n", None),
+             "# B\n\n## Decision\n\nPending.\n\nApproved by s.\n", "none"),
+            ("a hand-edited Decision is undecided", "# B\n\n## Decision\n\nApproved.\n",
+             "undecided"),
+            ("no Decision yet is none, a draft", "# B\n\nApproved by s.\n", "none"),
+            ("front matter under the title is undecided",
+             "# B\n---\nstatus: rejected\n---\n## Decision\nApproved by s.\n", "undecided"),
+            ("a thematic break before the Decision is undecided",
+             "# B\n\nIntro\n\n---\n\n## Decision\n\nRejected by s.\n", "undecided"),
             ("no title first is none", "\n---\nstatus: rejected\n---\n" + approved, None)]:
         failures += report("legacy_status", name, legacy_status(text), expected)
     with open(os.path.join(GATES_SCRIPTS, "..", "..", ".claude-plugin", "plugin.json"),
@@ -1523,6 +1607,77 @@ def design_read_self_test(this):
         version = tuple(int(part) for part in json.load(handle)["version"].split("."))
     failures += report("legacy_status", "removed by its removed_in release",
                        version < LEGACY_STATUS_REMOVED_IN, True)
+    with tempfile.TemporaryDirectory() as deep:
+        failures += report("read_config", "project.json nested past the recursion limit",
+                           result_or_message(lambda: read_config(write_scratch(
+                               deep, "[" * 200000 + "]" * 200000, "project.json"))),
+                           "project.json unreadable: project.json: not JSON: it nests too "
+                           "deeply")
+    with tempfile.TemporaryDirectory() as drafts:
+        drafts_config = write_scratch(drafts, {}, ".claude/project.json")
+        for name, text, expected in [
+                ("a proposed draft's status", "---\nstatus: proposed\n---\n# D\n", "proposed"),
+                ("a draft with no front matter is none", "# D\n\n## Decision\nPending.\n",
+                 "none"),
+                ("a status that is not text is refused", "---\nstatus: [a]\n---\n",
+                 "has no text status"),
+                ("unreadable front matter is refused", "---\nstatus: [a\n---\n",
+                 "front matter is not YAML"),
+                ("front matter with no status is refused", "---\ndate: 2026-10-26\n---\n",
+                 "has no text status (None)"),
+                ("a pre-front-matter approved record reads accepted",
+                 "# D\n\n## Decision\n\nApproved by s on 2026-10-26.\n", "accepted"),
+                ("a pre-front-matter rejected record reads rejected",
+                 "# D\n\n## Decision\n\nRejected by s on 2026-10-26.\n", "rejected"),
+                ("a pre-front-matter hand-edited Decision reads undecided",
+                 "# D\n\n## Decision\n\nApproved.\n", "undecided"),
+                ("a BOM before the title reads as pre-front-matter",
+                 "\ufeff# D\n\n## Decision\n\nPending.\n", "none"),
+                ("neither front matter nor a title is refused", "Notes\n", "no front matter")]:
+            write_scratch(drafts, text, "d.md")
+            got = result_or_message(lambda: front_matter_status("d.md", drafts_config))
+            failures += report("front_matter_status", name, got == expected if
+                               expected in ("proposed", "none", "accepted", "rejected",
+                                            "undecided") else expected in got, True)
+        write_scratch(drafts, "---\nstatus: proposed\n---\n# D\n", "cli.md")
+        failures += cli_case(this, "front-matter-status prints a draft's status",
+                             ["front-matter-status", "--file", "cli.md", "--config",
+                              drafts_config], "proposed", 0, exact=True)
+        write_scratch(drafts, "---\ndate: x\n---\n", "cli.md")
+        failures += cli_case(this, "front-matter-status names a missing status",
+                             ["front-matter-status", "--file", "cli.md", "--config",
+                              drafts_config], "INVALID:", 1)
+        write_scratch(drafts, "---\nstatus: proposed\n---\n", "s.md")
+        hidden = subprocess.run([sys.executable, "-S", os.path.abspath(this),
+                                 "front-matter-status", "--file", "s.md", "--config",
+                                 drafts_config],
+                                capture_output=True, text=True, check=False)
+        failures += report("front_matter", "reads with the vendored PyYAML alone (python -S)",
+                           (hidden.returncode, hidden.stdout.strip()), (0, "proposed"))
+        with tempfile.TemporaryDirectory() as outside:
+            write_scratch(outside, "---\nstatus: accepted\n---\n", "d.md")
+            os.symlink(outside, os.path.join(drafts, "linked"))
+            failures += report("front_matter_status", "a record under a symlinked folder is "
+                               "refused", result_or_message(lambda: front_matter_status(
+                                   "linked/d.md", drafts_config)).endswith(
+                                   "is not a regular file reached through no symlink"), True)
+        write_scratch(drafts, "---\nstatus: proposed\n---\n", "d.md")
+        os.makedirs(os.path.join(drafts, "docs"), exist_ok=True)
+        write_scratch(drafts, "---\nstatus: proposed\n---\n", "docs/d.md")
+        failures += report("front_matter_status", "a template's doubled slash is read as one",
+                           front_matter_status("docs//d.md", drafts_config), "proposed")
+        for name, bad in [("a '..' path", "../d.md"), ("a leading '-'", "-d.md"),
+                          ("a .git component", ".git/d.md")]:
+            failures += report("front_matter_status", f"{name} is refused", result_or_message(
+                lambda: front_matter_status(bad, drafts_config)).startswith("path "), True)
+        write_scratch(drafts, b"---\nstatus: r\xf6\n---\n", "latin.md")
+        failures += report("front_matter_status", "text that is not UTF-8 is named",
+                           result_or_message(lambda: front_matter_status(
+                               "latin.md", drafts_config)), "'latin.md' is not UTF-8 text")
+        failures += report("front_matter_status", "a missing file is refused",
+                           result_or_message(lambda: front_matter_status(
+                               "gone.md", drafts_config)).endswith(
+                               "is not a regular file reached through no symlink"), True)
     def nested(depth):
         return [] if depth == 1 else [nested(depth - 1)]
 
@@ -1539,6 +1694,8 @@ def design_read_self_test(this):
             ("front matter nested past the recursion limit is refused",
              "---\nk: " + "[" * 5000 + "]" * 5000 + "\n---\n",
              "front matter is not YAML (nests too deeply)"),
+            ("front matter at the depth cap is read",
+             "---\nk: " + "[" * 127 + "]" * 127 + "\n---\n", {"k": nested(127)}),
             ("front matter just under the depth cap is read",
              "---\nk: " + "[" * 126 + "]" * 126 + "\n---\n", {"k": nested(126)}),
             ("front matter past the depth cap is refused",
@@ -1877,6 +2034,9 @@ def main():
     output = reading.add_mutually_exclusive_group()
     output.add_argument("--path", action="store_true")
     output.add_argument("--status", action="store_true")
+    status = commands.add_parser("front-matter-status")
+    status.add_argument("--file", required=True)
+    status.add_argument("--config", required=True)
     brief = commands.add_parser("brief-read")
     brief.add_argument("--config", required=True)
     brief.add_argument("--path", action="store_true")
@@ -1894,7 +2054,9 @@ def main():
                               "design-read": lambda: design_read(text_input(None), args.ref,
                                                                  args.config, args.key,
                                                                  args.path, args.status),
-                              "brief-read": lambda: brief_read(args.config, args.path)},
+                              "brief-read": lambda: brief_read(args.config, args.path),
+                              "front-matter-status": lambda: front_matter_status(args.file,
+                                                                                 args.config)},
                      args.command)
 
 
