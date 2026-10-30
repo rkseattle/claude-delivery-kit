@@ -15,8 +15,9 @@ fail.
 `WebFetch`, or `WebSearch` gets them only from `--allow-tools`, so a skill that writes a
 file fails every with-arm run without `Write`. Pass exactly what each case lists:
 `plan-project-stops-at-approval`, `design-feature-stops-at-approval`,
-`design-feature-reopens-an-accepted-design`, `readme-docs-updates-an-existing-readme`, and both `release-*` cases list `Bash`, `Write`,
-and `Edit` (`release-readiness-stops-without-system-suite` all but `Edit`); the adversary
+`design-feature-reopens-an-accepted-design`, `readme-docs-updates-an-existing-readme`, and
+both `release-*` cases list `Bash`, `Write`, and `Edit`
+(`release-readiness-stops-without-system-suite` all but `Edit`); the adversary
 cases' commands appear with them below. For example:
 
 ```bash

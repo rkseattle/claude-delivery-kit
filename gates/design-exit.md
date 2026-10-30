@@ -293,7 +293,7 @@ reads a KEP's `status`; `## Decision` records who approved it.
 ## Status transitions
 
 A design's `status` moves only by these, each but the first committed on `design/<slug>`,
-or for a reopen `design/<slug>-rev<N>`, and merged by pull request, as a merged KEP is
+or for a reopen `design/<slug>-rev<N>`, `<N>` from 2, and merged by pull request, as a merged KEP is
 revised: a draft's first `proposed`, in the working tree; a new design's `accepted` or
 `rejected`; `proposed → accepted` or `rejected`; and the reopen `accepted → proposed`. Any
 other move, or a decision or reopen on `{{parent_branch_default}}` itself, is invalid;

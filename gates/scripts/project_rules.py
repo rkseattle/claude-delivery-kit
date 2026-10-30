@@ -784,7 +784,7 @@ def design_transition(path, ref, config):
         raise ValueError(f"{path!r} moves {shown}, which gates/design-exit.md does not allow")
     slug = path.rsplit("/", 1)[1][:-len(".md")]
     branch = run_git(project_root(config), "branch", "--show-current").strip()
-    if not re.fullmatch(rf"design/{re.escape(slug)}(-rev[1-9][0-9]*)?", branch):
+    if not re.fullmatch(rf"design/{re.escape(slug)}(-rev(?:[2-9]|[1-9][0-9]+))?", branch):
         shown_branch = repr(branch) if branch else "a detached HEAD"
         raise ValueError(f"{path!r} moves {shown} on {shown_branch}, not on design/{slug} or "
                          f"design/{slug}-rev<N>")
@@ -1826,8 +1826,10 @@ def design_transition_self_test(this):
                 ("a rejection on a revision branch passes", "proposed", "rejected",
                  "design/proposed-rev2", "ok proposed -> rejected"),
                 ("a reopen on main is refused", "accepted", "proposed", "main", on_main),
-                ("a reopen on revision 1 passes", "accepted", "proposed",
-                 "design/accepted-rev1", "ok accepted -> proposed"),
+                ("a reopen on revision 1, the design's own branch, is refused", "accepted",
+                 "proposed", "design/accepted-rev1", "on 'design/accepted-rev1'"),
+                ("a reopen on revision 10 passes", "accepted", "proposed",
+                 "design/accepted-rev10", "ok accepted -> proposed"),
                 ("a reopen on its revision branch passes", "accepted", "proposed",
                  "design/accepted-rev2", "ok accepted -> proposed"),
                 ("a reopen on another design's branch is refused", "accepted", "proposed",
@@ -1864,6 +1866,28 @@ def design_transition_self_test(this):
             run_git(root, "checkout", "--quiet", "--", ".")
             if design == "new":
                 os.remove(os.path.join(root, path))
+        path = "docs/design/accepted.md"
+        run_git(root, "switch", "--quiet", "-c", "design/accepted-rev2")
+        write_scratch(root, front.format("proposed"), path)
+        run_git(root, "commit", "--quiet", "-am", "reopen")
+        for name, status, expected in [
+                ("a reopened design rejected against its reopen commit passes", "rejected",
+                 "ok proposed -> rejected"),
+                ("a reopened design approved against its reopen commit passes", "accepted",
+                 "ok proposed -> accepted")]:
+            write_scratch(root, front.format(status), path)
+            failures += report("design_transition", name, result_or_message(
+                lambda: design_transition(path, "HEAD", project)), expected)
+        run_git(root, "checkout", "--quiet", "--", ".")
+        run_git(root, "switch", "--quiet", "main")
+        run_git(root, "branch", "--quiet", "-D", "design/accepted-rev2")
+        write_scratch(root, front.format("proposed"), path)
+        run_git(root, "commit", "--quiet", "-am", "a reopen by hand on main")
+        write_scratch(root, front.format("accepted"), path)
+        failures += report("design_transition", "a hand reopen approved on main is refused",
+                           "on 'main', not on design/" in result_or_message(
+                               lambda: design_transition(path, "HEAD", project)), True)
+        run_git(root, "reset", "--quiet", "--hard", "HEAD~1")
         write_scratch(root, front.format("proposed"), "docs/design/accepted.md")
         failures += cli_case(this, "design-transition names the reopen made on main",
                              ["design-transition", "--ref", "main", "--config", project],

@@ -56,7 +56,8 @@ file names, or `design/<slug>` when there is no such file. First, when
 already holds the first line of `decision`, the commit landed and only cleanup was lost:
 remove the directory, report that commit, and offer no abort. Otherwise continue, keeping
 the recorded decision: switch to its branch (or cut it from the commit in `base` if
-absent), make every edit Step 6 makes from `decision` and `status`, and commit as Step 6
+absent and it is `design/<slug>`; a missing revision branch lost its reopen commit, so stop
+and say to abort and reopen again), make every edit Step 6 makes from `decision` and `status`, and commit as Step 6
 does, from `message`. On an explicit abort instead, unstage the design doc and its ADRs
 with `git restore --staged`, restore each from `presented/`, switch to
 `{{parent_branch_default}}`, delete its branch if it has no commits of its own, and
@@ -66,8 +67,9 @@ does. No other stop applies while it exists, and `$ARGUMENTS` is not needed.
 Otherwise, run `git fetch origin`, and stop unless the checked-out branch is
 `{{parent_branch_default}}` and `git rev-parse HEAD` equals
 `git rev-parse origin/{{parent_branch_default}}`: the design describes that commit and
-Step 6 cuts its branch from it. A `design/<slug>-rev<N>` branch is no stop: reopen mode
-continues it, and its base is `git merge-base HEAD origin/{{parent_branch_default}}`. Say
+Step 6 cuts its branch from it. A `design/<name>-rev<N>` branch is no stop here: reopen
+mode continues it, its base `git merge-base HEAD origin/{{parent_branch_default}}`, and
+once `<slug>` is printed below, stop unless `<name>` is `<slug>`. Say
 which branch to switch to, or that it must be brought level with its `origin` ref. Then
 record that commit; Step 6 compares against it.
 
@@ -119,7 +121,7 @@ Then stop, and say why in one line, when:
   than reuse it.
 
 A `proposed` doc that is also on `origin/{{parent_branch_default}}` was reopened by hand
-on the parent: it takes reopen mode too. Any other existing `{{design_dir}}/<slug>.md` is
+on the parent: it takes reopen mode under the same conditions, or stops as above. Any other existing `{{design_dir}}/<slug>.md` is
 the draft: read it and its ADRs, add the
 front matter Step 3 writes where it is missing, and revise them in place in Steps 2 and 3
 rather than writing over them unread.
@@ -232,7 +234,8 @@ is printed as relayed.
 
 ## Step 6 — Record the decision and commit
 
-Run `git fetch` first. When `origin/design/<slug>` now exists, stop and ask, as Step 1 does.
+Run `git fetch` first. When `origin/design/<slug>` now exists outside reopen mode, stop
+and ask, as Step 1 does.
 When `origin/{{parent_branch_default}}` moved since the base — the commit Step 1 recorded,
 or the latest one recorded here, which replaces it — record its new commit as the base,
 since the branch is cut from the base and not from HEAD. Re-run Step 1's stops other than
@@ -260,7 +263,8 @@ began it:
   decision`, a blank line, then one `Reviewed-by: <name>` trailer per step 8 reviewer Step 4
   named
 
-Then write `decision` under `## Decision`. Set the design's and each ADR's `status` to
+Then write `decision` under `## Decision`. Set the design's and each ADR's `status` — in
+reopen mode, each ADR this revision added; an accepted ADR is never edited — to
 `accepted` for an approval or `rejected` for a rejection, and its `date` to the same
 date. An approval confirms every `(proposed)` value as written, so remove those marks with
 it; a rejection keeps them, since nothing was confirmed. A rejected design is committed too,
@@ -275,7 +279,7 @@ move it refused. Then commit the design doc and its ADRs alone, from `message`:
 
 ```bash
 git switch -c design/<slug> <base>
-python3 "${CLAUDE_PLUGIN_ROOT}/gates/scripts/project_rules.py" design-transition --ref "origin/{{parent_branch_default}}" --config "<absolute project root>/.claude/project.json" < "<path file>"
+python3 "${CLAUDE_PLUGIN_ROOT}/gates/scripts/project_rules.py" design-transition --ref "<origin/{{parent_branch_default}}, or HEAD in reopen mode>" --config "<absolute project root>/.claude/project.json" < "<path file>"
 git add -- {{design_dir}}/<slug>.md <each ADR path>
 git commit -F "$(git rev-parse --path-format=absolute --git-path design-feature)/message" -- {{design_dir}}/<slug>.md <each ADR path>
 ```

@@ -7,6 +7,6 @@ max: 1
 arm: both
 ---
 
-The reopen happens on `design/sms-appointment-reminders-rev2`, the first free revision
-branch, cut once. The scaffold's `design/sms-appointment-reminders` branch, which first
-recorded the decision, already exists, so revision 1 is never cut.
+The reopen happens on `design/sms-appointment-reminders-rev2`, cut once: revision
+numbers start at 2, since `design/sms-appointment-reminders`, which first recorded the
+decision, is the first revision.
