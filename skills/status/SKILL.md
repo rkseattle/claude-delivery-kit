@@ -1,9 +1,9 @@
 ---
 name: status
-description: Report where a feature stands between design and tickets — its lifecycle state and the one command that moves it on — without starting a run. Writes nothing.
+description: Report where a feature stands between design and tickets — its lifecycle state and the one command that moves it on — without starting a run. Changes nothing but its input file and a fetch.
 argument-hint: <design path> | <EPIC-KEY>
 disable-model-invocation: true
-allowed-tools: Read, Write, Bash, mcp__atlassian
+allowed-tools: Read, Write, Bash, mcp__atlassian__jira_search
 ---
 
 Report the lifecycle state of: $ARGUMENTS
@@ -30,6 +30,7 @@ it never edits, commits, switches a branch, or transitions a ticket.
    ```
 
 5. Print its two lines as they are. On `INVALID:`, print that line and stop.
-6. For an Epic key, when Jira is reachable, add one line: each child's key and status, from
-   `jira_search` with `parent = <KEY>`. The script is offline, so Jira is this step's alone.
+6. For an Epic key, add one line from `jira_search` with `parent = <KEY>`: each child's key
+   and status, or `no children`. When the search fails, the line says child statuses are
+   unavailable and quotes the error. The script is offline, so Jira is this step's alone.
    Never let Jira change the state or the `NEXT:` line.

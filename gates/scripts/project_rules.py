@@ -85,7 +85,8 @@ repository inherits the caller's git. Each importer's self-test covers the rules
                                    read offline from REF, the parent's remote ref, the
                                    working tree, design branches, design-feature's Step 6
                                    state, and write-tickets' draft; INVALID for a bad path,
-                                   key, or design_dir
+                                   key, design_dir, or ref, or a design that is not UTF-8
+                                   on REF, or naming the Epic key anywhere
     project_rules.py design-review-exception --config FILE
                                    `<Rule>\t<Expiry>` of the unexpired, complete row of
                                    FILE's exceptions_log register waiving rule book Phase 3
@@ -821,9 +822,11 @@ def design_transition(path, ref, config):
 
 # write-tickets' drafts, where lifecycle reads a design's tickets.
 TICKET_DRAFTS = "docs/tickets"
-DESIGN_REWORK = re.compile(r"<!-- design-rework: (.+?) @ ([0-9a-f]{40,64}) -->")
-REVIEW_ROUND = re.compile(r"<!-- review round ([0-9]+) -->")
-TICKETS_CREATED = re.compile(r"^<!-- tickets created -->$", re.M)
+# Each draft marker is a whole line, so one quoted in review output or a fetched description
+# is not read as the draft's own.
+DESIGN_REWORK = re.compile(r"^<!-- design-rework: (.+?) @ ([0-9a-f]{40,64}) -->[ \t]*$", re.M)
+REVIEW_ROUND = re.compile(r"^<!-- review round ([0-9]+) -->[ \t]*$", re.M)
+TICKETS_CREATED = re.compile(r"^<!-- tickets created -->[ \t]*$", re.M)
 LIFECYCLE_STATES = ("no-design", "design-draft", "design-unpushed", "design-in-review",
                     "design-step6-interrupted", "design-rejected", "design-accepted-on-parent",
                     "tickets-draft", "tickets-stalled-needs-design-rework", "tickets-created")
@@ -886,8 +889,10 @@ def checked_design(directory, name):
 def epic_design(root, directory, ref, key):
     """The design path, as design_path checks one, whose `Epic: <key>` line names key: on
     ref first, then in the working tree, then on a local design branch; None when no design
-    names it. A file design_path refuses, a symlink, or text that is not UTF-8 is skipped."""
-    line = re.compile(rf"^Epic: {re.escape(key)}\s*$", re.M)
+    names it. Each file's bytes are searched, so a name design_path refuses or a symlink is
+    skipped, while a file naming key that is not UTF-8 is a ValueError, as a read by path
+    is, never a missed design."""
+    line = re.compile(rb"^Epic: " + re.escape(key.encode()) + rb"[ \t\r]*$", re.M)
     folder = os.path.join(root, directory)
     for source in [ref, None, *run_git(root, "for-each-ref", "--format=%(refname:short)",
                                        "refs/heads/design/").split()]:
@@ -899,15 +904,22 @@ def epic_design(root, directory, ref, key):
                                    capture_output=True, check=False).stdout.split(b"\0")
             names = [os.fsdecode(name) for name in names]
         for path in filter(None, (checked_design(directory, name) for name in names)):
+            full = os.path.join(root, path)
             if source is None:
-                text = scanned_text(os.path.join(root, path))
+                if os.path.realpath(full) != os.path.normpath(full) or \
+                        not os.path.isfile(full):
+                    continue
+                with open(full, "rb") as handle:
+                    raw = handle.read()
             else:
+                blob = blob_at(root, source, path)
+                raw = run_git(root, "cat-file", "blob", blob, text=False) if blob else b""
+            if line.search(raw):
                 try:
-                    found = branch_design(root, source, path)
-                except ValueError:
-                    found = None
-                text = found[1] if found else None
-            if text is not None and line.search(text):
+                    raw.decode("utf8")
+                except UnicodeDecodeError:
+                    raise ValueError(f"{path!r} in {source or 'the working tree'} names "
+                                     f"{key} but is not UTF-8 text")
                 return path
     return None
 
@@ -931,7 +943,14 @@ def tickets_state(root, path, blob):
                    if match.group(2) == blob]
         if stalled:
             return "tickets-stalled-needs-design-rework", f"{where}: {stalled[-1]}"
-        if TICKETS_CREATED.search(draft):
+        jira = re.findall(r"^Jira:[ \t]*(\S*)", draft, re.M)
+        legacy = (not TICKETS_CREATED.search(draft) and jira and all(jira)
+                  and not re.search(r"^Baseline:[ \t]*\S", draft, re.M))
+        if legacy:
+            print(f"DEPRECATED: {where} has every ticket created but no `<!-- tickets "
+                  "created -->` line, as write-tickets wrote drafts before it existed; "
+                  "append it, which a later release will require", file=sys.stderr)
+        if TICKETS_CREATED.search(draft) or legacy:
             handoff = re.search(r"^Handoff:[ \t]*(\S+)", draft, re.M)
             return "tickets-created", handoff.group(1) if handoff else ""
         rounds = list(REVIEW_ROUND.finditer(draft))
@@ -2425,15 +2444,27 @@ def lifecycle_edges_self_test(this):
                  draft.format("AB-1", "Baseline: AB-2\n", "AB-2", "<!-- tickets created -->\n"),
                  "tickets-created"),
                 ("a quoted created line is no marker",
-                 draft.format("AB-1", "", "AB-2", "> <!-- tickets created -->\n"),
+                 draft.format("AB-1", "Baseline: AB-2\n", "AB-2",
+                              "> <!-- tickets created -->\n"),
+                 "tickets-draft docs/tickets/c.md: not yet reviewed"),
+                ("a draft from before the marker, every ticket created, is created",
+                 draft.format("AB-1", "", "AB-2", ""), "tickets-created"),
+                ("a quoted rework line does not stall",
+                 draft.format("", "", "", f"> <!-- design-rework: S1 @ {blob} -->\n"),
                  "tickets-draft docs/tickets/c.md: not yet reviewed"),
                 ("the matching rework line names its tickets",
                  draft.format("", "", "", f"<!-- design-rework: S1 @ {blob} -->\n"
                               f"<!-- design-rework: S9 @ {'0' * 40} -->\n"),
                  "tickets-stalled-needs-design-rework docs/tickets/c.md: S1")]:
             write_scratch(root, content, "docs/tickets/c.md")
-            failures += report("tickets_state", name, result_or_message(
-                lambda: lifecycle("docs/design/c.md", "origin/main", project))[0], expected)
+            warning = io.StringIO()
+            with contextlib.redirect_stderr(warning):
+                got = result_or_message(
+                    lambda: lifecycle("docs/design/c.md", "origin/main", project))[0]
+            failures += report("tickets_state", name, got, expected)
+            failures += report("tickets_state", f"{name}: a warning only for a legacy draft",
+                               warning.getvalue().startswith("DEPRECATED: "),
+                               "before the marker" in name)
         os.symlink("c.md", os.path.join(root, "docs/tickets/l.md"))
         os.remove(os.path.join(root, "docs/tickets/c.md"))
         failures += report("tickets_state", "a symlinked draft is skipped", lifecycle(
@@ -2441,15 +2472,22 @@ def lifecycle_edges_self_test(this):
             "design-accepted-on-parent docs/design/c.md")
         write_scratch(root, b"---\nstatus: accepted\n---\n# L r\xf6b\nEpic: AB-8\n",
                       "docs/design/latin.md")
-        write_scratch(root, front.format("accepted", "Epic: AB-8"), "docs/design/later.md")
         run_git(root, "add", "-A")
         run_git(root, "commit", "--quiet", "-m", "a design that is not UTF-8")
         run_git(root, "update-ref", "refs/remotes/origin/main", "HEAD")
         failures += check("a parent design that is not UTF-8 is invalid", "docs/design/latin.md",
                           "'docs/design/latin.md' in origin/main is not UTF-8 text")
-        failures += check("an Epic scan skips a design that is not UTF-8", "AB-8",
-                          ["design-accepted-on-parent docs/design/later.md",
-                           "NEXT: /delivery-kit:write-tickets docs/design/later.md"], epic=True)
+        failures += check("an Epic naming a design that is not UTF-8 is invalid", "AB-8",
+                          "'docs/design/latin.md' in origin/main names AB-8 but is not UTF-8",
+                          epic=True)
+        run_git(root, "update-index", "--add", "--cacheinfo",
+                f"100644,{blob},docs/design/caf\xe9.md".encode("latin-1").decode(
+                    "utf-8", "surrogateescape"))
+        run_git(root, "commit", "--quiet", "-m", "a tree name that is not UTF-8")
+        run_git(root, "update-ref", "refs/remotes/origin/main", "HEAD")
+        failures += check("a tree name that is not UTF-8 is skipped", "AB-9",
+                          ["no-design no design names AB-9",
+                           "NEXT: /delivery-kit:design-feature AB-9"], epic=True)
         failures += cli_case(this, "design-read names design-feature for a missing design",
                              ["design-read", "--ref", "origin/main", "--config", project],
                              "NEXT: /delivery-kit:design-feature docs/design/gone.md", 1,

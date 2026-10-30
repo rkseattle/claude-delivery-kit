@@ -132,10 +132,10 @@ the cap, bring the remaining findings to Rob. Append each round's output, and be
 `<!--` lines Steps 7 and 8 add, under `<!-- review round N -->`, never sent to Jira.
 
 **Design rework** — a change only the design can make: its `Work plan`, a Goal, an NFR, or
-a premise it states. On one, from any step, stop. Write `<!-- design-rework: <ticket IDs> @
-<blob> -->` at the draft's end, `<blob>` what `git rev-parse
-"origin/{{parent_branch_default}}:<design path>"` prints, so a revised design voids it.
-Before Step 4, first write the draft as its Epic header and `- Design:` line alone.
+a premise it states. On one, from any step, stop. Append the findings, quoted, then
+`<!-- design-rework: <ticket IDs, or design> @ <blob> -->` to the draft — `<blob>` what
+`git rev-parse "origin/{{parent_branch_default}}:<design path>"` prints, so a revised design
+voids it — writing a draft of the Epic header and `- Design:` line only when none exists.
 Bring Rob the findings, then print `NEXT: /delivery-kit:design-feature <Epic key or path>`.
 
 ## Step 7 — Present for approval

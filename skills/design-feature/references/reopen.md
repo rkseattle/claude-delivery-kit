@@ -38,9 +38,9 @@ new design.
    - Set `status: proposed`.
    - Set `## Decision` to `Pending — <tech lead>.`
    - Add `## Revision history` before `## Decision` if it is missing.
-   - Append `- <date from date +%F>: <reason>`. The reason quotes each BLOCKER in the
-     draft's last `<!-- review round N -->` block for the tickets its `design-rework` line
-     names. Without that line, it quotes the reason the person gave.
+   - Append `- <date from date +%F>: <reason>`. The reason quotes the findings
+     `write-tickets` wrote just above the draft's matching `design-rework` line. Without
+     that line, it quotes the reason the person gave.
 
    Leave every ADR as it is. An accepted ADR is never edited here.
 4. **Commit the reopen.** Run `project_rules.py design-transition` as Step 6 does. It must
