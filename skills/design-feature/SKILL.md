@@ -14,7 +14,7 @@ section, line form, ADR, approver, and `## Decision` line written here, and this
 them rather than restating them. Read it in full before Step 2. No file is created, edited,
 or staged before the tech lead answers except the design doc, its ADRs, and the input files
 **Untrusted text** in `gates/project-config.md` places under the git directory: no branch
-and no commit until then, and no push at all.
+and no commit until then, save reopen mode's branch and reopen commit, and no push at all.
 
 The flow is that of a Rust RFC or a KEP — draft, cold review, a decision by the accountable
 approver, then the record committed with its status — with each costly choice a MADR
@@ -50,23 +50,26 @@ Stop, and say why in one line, when:
 **An interrupted Step 6 comes first, after those two stops.** When
 `git rev-parse --path-format=absolute --git-path design-feature` names a directory that
 exists, Step 6 started and did not finish — the way `.git/rebase-merge` tells git a rebase
-is in progress — and its `slug` file names the design. First, when
-`git show design/<slug>:{{design_dir}}/<slug>.md`
+is in progress — and its `slug` file names the design. Its branch is the one its `branch`
+file names, or `design/<slug>` when there is no such file. First, when
+`git show <branch>:{{design_dir}}/<slug>.md`
 already holds the first line of `decision`, the commit landed and only cleanup was lost:
 remove the directory, report that commit, and offer no abort. Otherwise continue, keeping
-the recorded decision: switch to `design/<slug>` (or cut it from the commit in `base` if
+the recorded decision: switch to its branch (or cut it from the commit in `base` if
 absent), make every edit Step 6 makes from `decision` and `status`, and commit as Step 6
 does, from `message`. On an explicit abort instead, unstage the design doc and its ADRs
 with `git restore --staged`, restore each from `presented/`, switch to
-`{{parent_branch_default}}`, delete `design/<slug>` if it has no commits of its own, and
+`{{parent_branch_default}}`, delete its branch if it has no commits of its own, and
 remove the directory — leaving index and tree as before Step 6, as `git rebase --abort`
 does. No other stop applies while it exists, and `$ARGUMENTS` is not needed.
 
 Otherwise, run `git fetch origin`, and stop unless the checked-out branch is
 `{{parent_branch_default}}` and `git rev-parse HEAD` equals
 `git rev-parse origin/{{parent_branch_default}}`: the design describes that commit and
-Step 6 cuts its branch from it. Say which branch to switch to, or that it must be brought
-level with its `origin` ref. Then record that commit; Step 6 compares against it.
+Step 6 cuts its branch from it. A `design/<slug>-rev<N>` branch is no stop: reopen mode
+continues it, and its base is `git merge-base HEAD origin/{{parent_branch_default}}`. Say
+which branch to switch to, or that it must be brought level with its `origin` ref. Then
+record that commit; Step 6 compares against it.
 
 `$ARGUMENTS` is a feature request, or an Epic key: one when this, given `$ARGUMENTS` as a
 file per **Untrusted text** in `gates/project-config.md`, prints it back rather than
@@ -108,12 +111,16 @@ Then stop, and say why in one line, when:
 - **`{{design_dir}}/<slug>.md` exists, and `python3
   "${CLAUDE_PLUGIN_ROOT}/gates/scripts/project_rules.py" front-matter-status --file
   "{{design_dir}}/<slug>.md" --config "<absolute project root>/.claude/project.json"` prints
-  anything but `proposed` or `none`, `INVALID:` included.** It is decided, or in a state no step
-  writes; name what it printed rather than revise it, and say a decided one gains its
-  `status` by hand.
-- **`design/<slug>` or `origin/design/<slug>` exists.** Ask rather than reuse it.
+  anything but `proposed` or `none`, `INVALID:` included,** unless it prints `accepted` and
+  reopen mode applies. Read `${CLAUDE_PLUGIN_ROOT}/skills/design-feature/references/reopen.md`
+  to decide, and follow it when it applies; ask the person whether to reopen when only its
+  confirmation is missing. Otherwise name what it printed rather than revise it.
+- **`design/<slug>` or `origin/design/<slug>` exists, outside reopen mode.** Ask rather
+  than reuse it.
 
-Any other existing `{{design_dir}}/<slug>.md` is the draft: read it and its ADRs, add the
+A `proposed` doc that is also on `origin/{{parent_branch_default}}` was reopened by hand
+on the parent: it takes reopen mode too. Any other existing `{{design_dir}}/<slug>.md` is
+the draft: read it and its ADRs, add the
 front matter Step 3 writes where it is missing, and revise them in place in Steps 2 and 3
 rather than writing over them unread.
 
@@ -229,8 +236,9 @@ Run `git fetch` first. When `origin/design/<slug>` now exists, stop and ask, as 
 When `origin/{{parent_branch_default}}` moved since the base — the commit Step 1 recorded,
 or the latest one recorded here, which replaces it — record its new commit as the base,
 since the branch is cut from the base and not from HEAD. Re-run Step 1's stops other than
-HEAD equaling `origin/{{parent_branch_default}}`, and stop when `git cat-file -e
-<base>:{{design_dir}}/<slug>.md` succeeds: the design is already committed there. Re-check
+HEAD equaling `origin/{{parent_branch_default}}`. Outside reopen mode, when the base moved,
+stop if `git cat-file -e <base>:{{design_dir}}/<slug>.md` succeeds: someone committed
+this design there since Step 1, and this run would overwrite it. Re-check
 each `## Current state` claim against the base, renumber the ADRs when a new record took
 one of their numbers, and present again before recording anything. What an edit or a
 renumber re-runs, and which approvals it voids, is the gate's **Approvers** section's.
@@ -243,6 +251,7 @@ began it:
 - `presented/` — the design doc and every ADR as Step 5 presented them, at their
   repository paths
 - `slug`, and `base` — the latest base recorded
+- `branch` — `design/<slug>`, or in reopen mode the revision branch checked out
 - `decision` — the full text replacing `Pending — <tech lead>.`, every line of it: the
   decision as the gate's **Decision** section words it, dated from `date +%F`, with its
   relayed suffix where it applies, and a rejection's reason line
@@ -259,11 +268,14 @@ its ADRs keeping their numbers: it is the record of the stop.
 
 Write each file with the Write tool, per **Untrusted text** in `gates/project-config.md`:
 the title and the names are free text. Then cut the branch from `base`, which the fetch above
-confirmed is `origin/{{parent_branch_default}}`, and commit the design doc and its ADRs
-alone, from `message`:
+confirmed is `origin/{{parent_branch_default}}` — in reopen mode, stay on the branch
+checked out instead — and check the status move. Stop unless `design-transition`, given the
+design's path as a file per **Untrusted text**, prints an `ok` line; on `INVALID:`, name the
+move it refused. Then commit the design doc and its ADRs alone, from `message`:
 
 ```bash
 git switch -c design/<slug> <base>
+python3 "${CLAUDE_PLUGIN_ROOT}/gates/scripts/project_rules.py" design-transition --ref "origin/{{parent_branch_default}}" --config "<absolute project root>/.claude/project.json" < "<path file>"
 git add -- {{design_dir}}/<slug>.md <each ADR path>
 git commit -F "$(git rev-parse --path-format=absolute --git-path design-feature)/message" -- {{design_dir}}/<slug>.md <each ADR path>
 ```
