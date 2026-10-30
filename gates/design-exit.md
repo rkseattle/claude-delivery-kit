@@ -81,7 +81,8 @@ section:
 19. `Risks`
 20. `Work plan`
 21. `Open questions`
-22. `Decision`
+22. `Revision history` — present only once the design has been reopened; omitted otherwise
+23. `Decision`
 
 A section with nothing to list holds `none — <reason>`, never an empty heading, save where
 a rule below requires content.
@@ -152,6 +153,8 @@ a rule below requires content.
 - **`Open questions`** — each item one line. An approved design keeps an item only in the
   form `- <question> — Spike: <handoff>`, naming the `Work plan` handoff whose spike
   settles it.
+- **`Revision history`** — one `- <YYYY-MM-DD>: <reason>` line per reopen, oldest first,
+  the reason quoting the findings that reopened it.
 - **`Decision`** — per the decision rules below.
 
 ## Work plan
@@ -286,3 +289,11 @@ The design's `status` moves with its ADRs': `accepted` with an approval, `reject
 rejection, `date` the decision's date. A design is approved by its `status` alone, the
 field `${CLAUDE_PLUGIN_ROOT}/gates/scripts/project_rules.py design-read` checks, as kepval
 reads a KEP's `status`; `## Decision` records who approved it.
+
+## Status transitions
+
+A design's `status` moves only as a KEP's does, each move by a pull request kepval checks:
+`proposed → accepted` or `rejected`, and the reopen `accepted → proposed`, made when an
+accepted design needs rework. Each is committed on `design/<slug>`, or for a reopen
+`design/<slug>-rev<N>`, never on `{{parent_branch_default}}` itself; any other move is
+invalid. `${CLAUDE_PLUGIN_ROOT}/gates/scripts/project_rules.py design-transition` checks it.
