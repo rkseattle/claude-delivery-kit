@@ -77,6 +77,14 @@ repository inherits the caller's git. Each importer's self-test covers the rules
                                    symlink, text that is not UTF-8, a record with neither
                                    front matter nor a `# ` title, or front matter that is
                                    unreadable or has no text status
+    project_rules.py lifecycle --ref REF --config FILE [--epic]
+                                   where the feature whose design path, or with --epic whose
+                                   Epic key, is on standard input stands: one line naming one
+                                   of LIFECYCLE_STATES and a detail, then `NEXT: <command>`,
+                                   read offline from REF, the parent's remote ref, the
+                                   working tree, design branches, design-feature's Step 6
+                                   state, and write-tickets' draft; INVALID for a bad path,
+                                   key, or design_dir
     project_rules.py brief-read --config FILE [--path]
                                    the brief that FILE's brief_file names, from the
                                    working tree, when its front matter `status` is
@@ -85,6 +93,8 @@ repository inherits the caller's git. Each importer's self-test covers the rules
                                    as deprecated; with --path, brief_file printed back once
                                    it passes the key's check, the file unread; INVALID
                                    otherwise, naming the reason
+    A design-read or brief-read refusal of a record's status or presence adds a
+    `NEXT: <command>` line after its INVALID line: the skill that moves the record on.
     project_rules.py --self-test   runs the key registry's own cases and those of JIRA_KEY,
                                    slug_of, pr_number, ticket_branch, text_input, run_check,
                                    collected_errors, cli_case, write_scratch, and each
@@ -726,7 +736,10 @@ def design_read(path, ref, config, key="design_dir", path_only=False, status_onl
     if status_only:
         return status_of(text, f"{path!r} in {ref}")
     if key != "adr_dir":
-        approved_text(text, f"{path!r} in {ref}")
+        approved_text(text, f"{path!r} in {ref}", {
+            None: f"/delivery-kit:design-feature {path}",
+            "rejected": "none — a rejected design is the record of a stop; a new request "
+                        "starts a new design"})
     return path if path_only else text
 
 
@@ -791,6 +804,172 @@ def design_transition(path, ref, config):
     return f"ok {shown}"
 
 
+# write-tickets' drafts, where lifecycle reads a design's tickets.
+TICKET_DRAFTS = "docs/tickets"
+DESIGN_REWORK = re.compile(r"<!-- design-rework: (.+?) @ ([0-9a-f]{40,64}) -->")
+REVIEW_ROUND = re.compile(r"<!-- review round ([0-9]+) -->")
+LIFECYCLE_STATES = ("no-design", "design-draft", "design-unpushed", "design-in-review",
+                    "design-step6-interrupted", "design-rejected", "design-accepted-on-parent",
+                    "tickets-draft", "tickets-stalled-needs-design-rework", "tickets-created")
+
+
+def blob_at(root, revision, path):
+    """The blob path names at revision, or "" when revision lacks it."""
+    return subprocess.run(["git", "rev-parse", "--verify", "--quiet", "--end-of-options",
+                           f"{revision}:{path}"], cwd=root, capture_output=True, text=True,
+                          check=False).stdout.strip()
+
+
+def design_blobs(root, ref, path):
+    """Every blob path has held in ref's history, so a branch whose design one of them
+    matches was merged, by merge, squash, or rebase alike."""
+    return {blob_at(root, commit, path)
+            for commit in run_git(root, "rev-list", ref, "--", path).split()} - {""}
+
+
+def branch_design(root, branch, path):
+    """(blob, text) of path at branch, or None when branch lacks it."""
+    blob = blob_at(root, branch, path)
+    return (blob, run_git(root, "cat-file", "blob", blob)) if blob else None
+
+
+def epic_design(root, directory, ref, key):
+    """The design path whose `Epic: <key>` line names key: on ref first, then in the working
+    tree, then on a local design branch; None when no design names it."""
+    line = re.compile(rf"^Epic: {re.escape(key)}\s*$", re.M)
+    for source in [ref, None, *run_git(root, "for-each-ref", "--format=%(refname:short)",
+                                       "refs/heads/design/").split()]:
+        if source is None:
+            folder = os.path.join(root, directory)
+            names = sorted(os.listdir(folder)) if os.path.isdir(folder) else []
+            texts = {f"{directory.rstrip('/')}/{name}": open(os.path.join(folder, name),
+                                                              encoding="utf-8").read()
+                     for name in names if name.endswith(".md")
+                     and os.path.isfile(os.path.join(folder, name))}
+        else:
+            listed = subprocess.run(["git", "ls-tree", "--name-only", f"{source}:{directory}"],
+                                    cwd=root, capture_output=True, text=True, check=False)
+            texts = {f"{directory.rstrip('/')}/{name}":
+                     run_git(root, "cat-file", "blob", f"{source}:{directory.rstrip('/')}/{name}")
+                     for name in listed.stdout.split() if name.endswith(".md")}
+        for path, text in texts.items():
+            if line.search(text):
+                return path
+    return None
+
+
+def tickets_state(root, path, blob):
+    """The tickets lifecycle state of the accepted design at path whose parent blob is blob,
+    from the write-tickets draft whose `- Design:` line names it: (state, detail)."""
+    folder = os.path.join(root, TICKET_DRAFTS)
+    design_line = re.compile(rf"^- Design: `{re.escape(path)}`\s*$", re.M)
+    for name in sorted(os.listdir(folder)) if os.path.isdir(folder) else []:
+        full = os.path.join(folder, name)
+        if name.count(".") != 1 or not name.endswith(".md") or not os.path.isfile(full):
+            continue
+        with open(full, encoding="utf-8") as handle:
+            draft = handle.read()
+        if not design_line.search(draft):
+            continue
+        where = f"{TICKET_DRAFTS}/{name}"
+        if any(match.group(2) == blob for match in DESIGN_REWORK.finditer(draft)):
+            tickets = DESIGN_REWORK.findall(draft)[-1][0]
+            return "tickets-stalled-needs-design-rework", f"{where}: {tickets}"
+        jira = re.findall(r"^Jira:[ \t]*(\S*)", draft, re.M)
+        if jira and all(jira):
+            handoff = re.search(r"^Handoff:[ \t]*(\S+)", draft, re.M)
+            return "tickets-created", handoff.group(1) if handoff else ""
+        rounds = list(REVIEW_ROUND.finditer(draft))
+        if not rounds:
+            return "tickets-draft", f"{where}: not yet reviewed"
+        last = draft[rounds[-1].end():]
+        blockers = sum(len(re.findall(r"^- ", section, re.M)) for section in
+                       re.findall(r"^### BLOCKER\n(.*?)(?=^#|\Z)", last, re.M | re.S))
+        return "tickets-draft", (f"{where}: review round {rounds[-1].group(1)}, "
+                                 f"{blockers} BLOCKER{'' if blockers == 1 else 's'}")
+    return None
+
+
+def lifecycle(text, ref, config, epic=False):
+    """Where one feature stands, as git status names a repository's state: one state of
+    LIFECYCLE_STATES, a detail, and the single command that moves it on, read offline from
+    the design at the path on standard input, or with epic the design whose `Epic:` line
+    names the key there; ref is the parent branch's remote ref. Jira is the skill's to add.
+    ValueError for a bad path, key, or directory."""
+    root = project_root(config)
+    directory = design_dirs(read_config(config))["design_dir"]
+    if directory is None:
+        raise ValueError("design_dir is unset in project.json")
+    key = ticket_key(text) if epic else None
+    path = epic_design(root, directory, ref, key) if epic else design_path(text, directory)
+    if path is None:
+        return [f"no-design no design names {key}", f"NEXT: /delivery-kit:design-feature {key}"]
+    slug = path.rsplit("/", 1)[1][:-len(".md")]
+    design = f"/delivery-kit:design-feature {key or path}"
+    on_ref = branch_design(root, ref, path)
+    if on_ref and not key:
+        epic_line = re.search(r"^Epic: (" + JIRA_KEY + r")\s*$", on_ref[1], re.M)
+        design = f"/delivery-kit:design-feature {epic_line.group(1) if epic_line else path}"
+    state_dir = run_git(root, "rev-parse", "--path-format=absolute", "--git-path",
+                        "design-feature").strip()
+    slug_file = os.path.join(state_dir, "slug")
+    if os.path.isfile(slug_file) and open(slug_file, encoding="utf-8").read().strip() == slug:
+        return [f"design-step6-interrupted {state_dir}", f"NEXT: {design} (continue or abort)"]
+    branch = run_git(root, "branch", "--show-current").strip()
+    merged = design_blobs(root, ref, path)
+    revisions = [name for name in run_git(root, "for-each-ref", "--format=%(refname:short)",
+                                          f"refs/heads/design/{slug}",
+                                          f"refs/heads/design/{slug}-rev*",
+                                          f"refs/remotes/origin/design/{slug}",
+                                          f"refs/remotes/origin/design/{slug}-rev*").split()]
+    if not branch.startswith("design/") and \
+            run_git(root, "rev-list", f"{ref}..HEAD", "--", path).strip():
+        taken = {name.split("/", 1)[1] if name.startswith("origin/") else name
+                 for name in revisions}
+        target = f"design/{slug}" if not on_ref else next(
+            f"design/{slug}-rev{n}" for n in itertools.count(2)
+            if f"design/{slug}-rev{n}" not in taken)
+        parent = ref.split("/", 1)[1] if ref.startswith("origin/") else ref
+        return [f"design-unpushed {branch or 'HEAD'} is ahead of {ref} on {path}",
+                f"NEXT: git switch -c {target} && git branch -f {parent} {ref}"]
+    open_revisions = []
+    for name in revisions:
+        found = branch_design(root, name, path)
+        if found and found[0] not in merged:
+            open_revisions.append((name, record_status(found[1], f"{path!r} in {name}")))
+    for name, status in open_revisions:
+        if status in ("proposed", "none"):
+            return [f"design-draft {path} on {name}", f"NEXT: {design}"]
+    if open_revisions:
+        name = open_revisions[0][0]
+        local = name.split("/", 1)[1] if name.startswith("origin/") else name
+        return [f"design-in-review {path} on {name}",
+                f"NEXT: git push -u origin {local}, then merge its pull request"]
+    status = record_status(on_ref[1], f"{path!r} in {ref}") if on_ref else None
+    if status is None or status == "none":
+        if not os.path.isfile(os.path.join(root, path)):
+            return [f"no-design {path} does not exist", f"NEXT: {design}"]
+        return [f"design-draft {path} in the working tree", f"NEXT: {design}"]
+    if status == "proposed":
+        return [f"design-draft {path} is proposed on {ref}, reopened there by hand",
+                f"NEXT: {design}"]
+    if status == "rejected":
+        return [f"design-rejected {path} on {ref}",
+                "NEXT: none — a rejected design is the record of a stop; a new request "
+                "starts a new design"]
+    if status != "accepted":
+        raise ValueError(f"{path!r} in {ref} has status {status!r}, which no step writes")
+    tickets = tickets_state(root, path, on_ref[0])
+    if tickets is None:
+        return [f"design-accepted-on-parent {path}",
+                f"NEXT: /delivery-kit:write-tickets {path}"]
+    state, detail = tickets
+    command = {"tickets-stalled-needs-design-rework": design,
+               "tickets-created": f"/delivery-kit:plan-work {detail}".rstrip(),
+               "tickets-draft": f"/delivery-kit:write-tickets {path}"}[state]
+    return [f"{state} {detail}".rstrip(), f"NEXT: {command}"]
+
+
 def status_of(text, where):
     """The front matter `status` of text, as text; ValueError naming where when the front
     matter is missing or unreadable or its status is absent or not text. The one read of a
@@ -804,13 +983,27 @@ def status_of(text, where):
     return status
 
 
-def approved_text(text, where):
+class Refusal(ValueError):
+    """A refusal that knows the command moving its record on, which run_check prints as a
+    `NEXT:` line after the `INVALID:` one, as git status prints how to continue."""
+    def __init__(self, message, next_step):
+        super().__init__(message)
+        self.next_step = next_step
+
+
+def approved_text(text, where, next_steps=None):
     """text when its front matter `status` is `accepted`, the MADR status a decided record
-    carries, so a design and a brief share one definition of approved; ValueError naming
-    where and the status otherwise."""
-    status = status_of(text, where)
+    carries, so a design and a brief share one definition of approved; a Refusal naming
+    where and the status otherwise, its next step next_steps' entry for that status, or for
+    None when it has none."""
+    next_steps = next_steps or {}
+    try:
+        status = status_of(text, where)
+    except ValueError as error:
+        raise Refusal(str(error), next_steps.get(None))
     if status != "accepted":
-        raise ValueError(f"{where} has status {status!r}, not 'accepted'")
+        raise Refusal(f"{where} has status {status!r}, not 'accepted'",
+                      next_steps.get(status, next_steps.get(None)))
     return text
 
 
@@ -833,23 +1026,26 @@ def brief_read(config, path_only=False):
     root = os.path.realpath(project_root(config))
     full = os.path.join(root, path)
     if os.path.realpath(full) != os.path.normpath(full) or not os.path.isfile(full):
-        raise ValueError(f"brief_file {path!r} is not a regular file reached through no "
-                         "symlink")
+        raise Refusal(f"brief_file {path!r} is not a regular file reached through no symlink",
+                      "/delivery-kit:plan-project")
     try:
         with open(full, encoding="utf-8") as handle:
             text = handle.read()
     except UnicodeDecodeError:
         raise ValueError(f"brief_file {path!r} is not UTF-8 text")
     where = f"brief_file {path!r}"
+    next_steps = {None: "/delivery-kit:plan-project",
+                  "rejected": "none — the sponsor rejected the project"}
     status = legacy_status(text)
     if status in ("accepted", "rejected"):
         print(f"DEPRECATED: {where} records its decision only in ## Decision, as plan-project "
               "wrote it before 1.3.0; add `status`, `date`, and `decision-makers` front "
               "matter, which 1.4.0 will require", file=sys.stderr)
         if status != "accepted":
-            raise ValueError(f"{where} has status {status!r}, not 'accepted'")
+            raise Refusal(f"{where} has status {status!r}, not 'accepted'",
+                          next_steps["rejected"])
         return text
-    return approved_text(text, where)
+    return approved_text(text, where, next_steps)
 
 
 # The release that drops legacy_status, as the deprecation library's removed_in names one;
@@ -1220,7 +1416,8 @@ def run_check(parser, checks, command):
     - text: printed, nothing when empty, as a check finding no rows returns; exit 0
     - a list: printed one item per line; exit 0
     - an Outcome: its output printed, its errors to stderr; exit its status
-    - a ValueError or OSError raised: `INVALID: <what>` to stderr; exit 1
+    - a ValueError or OSError raised: `INVALID: <what>` to stderr, then `NEXT: <command>`
+      for a Refusal; exit 1
     - no check of that name: usage to stderr; exit 2
     """
     if command not in checks:
@@ -1230,6 +1427,8 @@ def run_check(parser, checks, command):
         result = checks[command]()
     except (ValueError, OSError) as error:
         print(f"INVALID: {error}", file=sys.stderr)
+        if getattr(error, "next_step", None):
+            print(f"NEXT: {error.next_step}", file=sys.stderr)
         return 1
     if isinstance(result, list):
         result = "\n".join(result)
@@ -1459,6 +1658,16 @@ def design_read_self_test(this):
                              ["design-read", "--ref", "main", "--config", project, "--path"],
                              "docs/design/ok.md", 0, input="docs/design//ok.md\n", cwd=root,
                              env=isolated_git_environment(), exact=True)
+        failures += cli_case(this, "design-read names design-feature for a proposed design",
+                             ["design-read", "--ref", "main", "--config", project],
+                             "NEXT: /delivery-kit:design-feature docs/design/pending.md", 1,
+                             line=1, stderr_prefixes=("NEXT",), input="docs/design/pending.md\n",
+                             cwd=root, env=isolated_git_environment(), exact=True)
+        failures += cli_case(this, "design-read names no next step for a rejected design",
+                             ["design-read", "--ref", "main", "--config", project],
+                             "NEXT: none — a rejected design", 1, line=1,
+                             stderr_prefixes=("NEXT",), input="docs/design/rejected.md\n",
+                             cwd=root, env=isolated_git_environment())
         failures += cli_case(this, "design-read --path checks the status first",
                              ["design-read", "--ref", "main", "--config", project, "--path"],
                              "INVALID: 'docs/design/pending.md' in main has status 'proposed'",
@@ -1575,6 +1784,10 @@ def design_read_self_test(this):
         failures += cli_case(this, "brief-read refuses a symlinked brief",
                              ["brief-read", "--config", config_file],
                              "INVALID: brief_file 'docs/brief.md' is not a regular file", 1)
+        failures += cli_case(this, "brief-read names plan-project for a missing brief",
+                             ["brief-read", "--config", config_file],
+                             "NEXT: /delivery-kit:plan-project", 1, line=1,
+                             stderr_prefixes=("NEXT",), exact=True)
         os.remove(os.path.join(project, "docs", "brief.md"))
         with tempfile.TemporaryDirectory() as outside:
             write_scratch(outside, accepted, "brief.md")
@@ -1908,6 +2121,127 @@ def design_transition_self_test(this):
     return failures
 
 
+def lifecycle_self_test(this):
+    """lifecycle over a scratch repository whose `base` branch stands for the parent's
+    origin ref: one fixture per LIFECYCLE_STATES state, and the merged, squash-merged, and
+    stale-marker cases each state's neighbor could swallow."""
+    front = "---\nstatus: {}\n---\n\n# D\n\n## Summary\n\n{}\n"
+    failures = 0
+    with tempfile.TemporaryDirectory() as root, \
+            process_state(isolated_git_environment(), root):
+        project = write_scratch(root, {"design_dir": "docs/design"}, ".claude/project.json")
+        write_scratch(root, front.format("accepted", "Epic: AB-1"), "docs/design/a.md")
+        write_scratch(root, front.format("rejected", "x"), "docs/design/x.md")
+        write_scratch(root, front.format("proposed", "x"), "docs/design/h.md")
+        run_git(root, "init", "--quiet", "--initial-branch=main")
+        run_git(root, "add", "-A")
+        run_git(root, "commit", "--quiet", "-m", "designs")
+        run_git(root, "branch", "design/a")
+        run_git(root, "branch", "base")
+        blob = blob_at(root, "base", "docs/design/a.md")
+
+        def check(name, text, expected, epic=False):
+            got = result_or_message(lambda: lifecycle(text, "base", project, epic))
+            return report("lifecycle", name, got, expected)
+
+        draft = "# [E1] D\nJira: {}\n\n- Design: `docs/design/a.md`\n\n# [S1] T\n" \
+                "Handoff: a-01\nJira: {}\n{}"
+        reviewed = ("<!-- review round 2 -->\n## S1 — NOT PLANNABLE\n### BLOCKER\n- f\n"
+                    "### MAJOR\n- g\n")
+        failures += check("no design names an Epic", "AB-9",
+                          ["no-design no design names AB-9",
+                           "NEXT: /delivery-kit:design-feature AB-9"], epic=True)
+        failures += check("a path with no design", "docs/design/n.md",
+                          ["no-design docs/design/n.md does not exist",
+                           "NEXT: /delivery-kit:design-feature docs/design/n.md"])
+        write_scratch(root, front.format("proposed", "w"), "docs/design/w.md")
+        failures += check("a draft in the working tree", "docs/design/w.md",
+                          ["design-draft docs/design/w.md in the working tree",
+                           "NEXT: /delivery-kit:design-feature docs/design/w.md"])
+        os.remove(os.path.join(root, "docs/design/w.md"))
+        failures += check("an accepted design with no draft", "docs/design/a.md",
+                          ["design-accepted-on-parent docs/design/a.md",
+                           "NEXT: /delivery-kit:write-tickets docs/design/a.md"])
+        failures += check("an Epic key finds its design", "AB-1",
+                          ["design-accepted-on-parent docs/design/a.md",
+                           "NEXT: /delivery-kit:write-tickets docs/design/a.md"], epic=True)
+        failures += check("a rejected design", "docs/design/x.md",
+                          ["design-rejected docs/design/x.md on base",
+                           "NEXT: none — a rejected design is the record of a stop; a new "
+                           "request starts a new design"])
+        failures += check("a design reopened by hand on the parent", "docs/design/h.md",
+                          ["design-draft docs/design/h.md is proposed on base, reopened there "
+                           "by hand", "NEXT: /delivery-kit:design-feature docs/design/h.md"])
+        write_scratch(root, draft.format("", "", ""), "docs/tickets/a.md")
+        failures += check("an unreviewed ticket draft", "docs/design/a.md",
+                          ["tickets-draft docs/tickets/a.md: not yet reviewed",
+                           "NEXT: /delivery-kit:write-tickets docs/design/a.md"])
+        write_scratch(root, draft.format("", "", reviewed), "docs/tickets/a.md")
+        failures += check("a reviewed ticket draft", "docs/design/a.md",
+                          ["tickets-draft docs/tickets/a.md: review round 2, 1 BLOCKER",
+                           "NEXT: /delivery-kit:write-tickets docs/design/a.md"])
+        rework = "<!-- design-rework: S1 @ {} -->\n"
+        write_scratch(root, draft.format("", "", reviewed + rework.format(blob)),
+                      "docs/tickets/a.md")
+        failures += check("a draft stalled on design rework", "docs/design/a.md",
+                          ["tickets-stalled-needs-design-rework docs/tickets/a.md: S1",
+                           "NEXT: /delivery-kit:design-feature AB-1"])
+        write_scratch(root, draft.format("", "", reviewed + rework.format("0" * 40)),
+                      "docs/tickets/a.md")
+        failures += check("a rework line for an older design is stale", "docs/design/a.md",
+                          ["tickets-draft docs/tickets/a.md: review round 2, 1 BLOCKER",
+                           "NEXT: /delivery-kit:write-tickets docs/design/a.md"])
+        write_scratch(root, draft.format("AB-1", "AB-2", reviewed), "docs/tickets/a.md")
+        failures += check("every ticket created", "docs/design/a.md",
+                          ["tickets-created a-01", "NEXT: /delivery-kit:plan-work a-01"])
+        os.remove(os.path.join(root, "docs/tickets/a.md"))
+        run_git(root, "switch", "--quiet", "-c", "design/a-rev2")
+        write_scratch(root, front.format("proposed", "Epic: AB-1"), "docs/design/a.md")
+        run_git(root, "commit", "--quiet", "-am", "reopen")
+        run_git(root, "switch", "--quiet", "main")
+        failures += check("a reopen in progress on its revision branch", "docs/design/a.md",
+                          ["design-draft docs/design/a.md on design/a-rev2",
+                           "NEXT: /delivery-kit:design-feature AB-1"])
+        run_git(root, "switch", "--quiet", "design/a-rev2")
+        write_scratch(root, front.format("accepted", "Epic: AB-1\nRevised."), "docs/design/a.md")
+        run_git(root, "commit", "--quiet", "-am", "decide")
+        run_git(root, "switch", "--quiet", "main")
+        failures += check("a decided revision awaiting its pull request", "docs/design/a.md",
+                          ["design-in-review docs/design/a.md on design/a-rev2",
+                           "NEXT: git push -u origin design/a-rev2, then merge its pull request"])
+        run_git(root, "switch", "--quiet", "base")
+        run_git(root, "checkout", "--quiet", "design/a-rev2", "--", "docs/design/a.md")
+        run_git(root, "commit", "--quiet", "-m", "squash-merge the revision")
+        run_git(root, "switch", "--quiet", "main")
+        run_git(root, "reset", "--quiet", "--hard", "base")
+        failures += check("a squash-merged revision and a merged branch are no review",
+                          "docs/design/a.md", ["design-accepted-on-parent docs/design/a.md",
+                                               "NEXT: /delivery-kit:write-tickets "
+                                               "docs/design/a.md"])
+        write_scratch(root, front.format("proposed", "Epic: AB-1"), "docs/design/a.md")
+        run_git(root, "commit", "--quiet", "-am", "a reopen on main")
+        failures += check("a reopen committed on the parent, unpushed", "docs/design/a.md",
+                          ["design-unpushed main is ahead of base on docs/design/a.md",
+                           "NEXT: git switch -c design/a-rev3 && git branch -f base base"])
+        run_git(root, "reset", "--quiet", "--hard", "base")
+        state = run_git(root, "rev-parse", "--path-format=absolute", "--git-path",
+                        "design-feature").strip()
+        write_scratch(root, "a\n", os.path.join(state, "slug"))
+        failures += check("an interrupted Step 6", "docs/design/a.md",
+                          [f"design-step6-interrupted {state}",
+                           "NEXT: /delivery-kit:design-feature AB-1 (continue or abort)"])
+        failures += cli_case(this, "lifecycle prints its state and NEXT line",
+                             ["lifecycle", "--ref", "base", "--config", project],
+                             "design-rejected docs/design/x.md on base", 0, line=0,
+                             input="docs/design/x.md\n", cwd=root, env=isolated_git_environment(),
+                             exact=True)
+        failures += cli_case(this, "lifecycle refuses a path outside design_dir",
+                             ["lifecycle", "--ref", "base", "--config", project],
+                             "INVALID: path 'src/x.md' is not directly under design_dir", 1,
+                             input="src/x.md\n", cwd=root, env=isolated_git_environment())
+    return failures
+
+
 def self_test():
     """The key registry's cases, over a fixture registry of two plain keys, a template list,
     and a key inside an object, and those of slug_of, JIRA_KEY, pr_number, ticket_branch,
@@ -2205,6 +2539,7 @@ def self_test():
                            error is not None and error.startswith(expected), True)
     failures += design_read_self_test(this)
     failures += design_transition_self_test(this)
+    failures += lifecycle_self_test(this)
     failures += cli_case(this, "no subcommand is usage", [], "", 2)
     return 1 if failures else 0
 
@@ -2232,6 +2567,10 @@ def main():
     transition = commands.add_parser("design-transition")
     transition.add_argument("--ref", required=True)
     transition.add_argument("--config", required=True)
+    stage = commands.add_parser("lifecycle")
+    stage.add_argument("--ref", required=True)
+    stage.add_argument("--config", required=True)
+    stage.add_argument("--epic", action="store_true")
     brief = commands.add_parser("brief-read")
     brief.add_argument("--config", required=True)
     brief.add_argument("--path", action="store_true")
@@ -2251,6 +2590,8 @@ def main():
                                                                  args.path, args.status),
                               "design-transition": lambda: design_transition(
                                   text_input(None), args.ref, args.config),
+                              "lifecycle": lambda: lifecycle(text_input(None), args.ref,
+                                                             args.config, args.epic),
                               "brief-read": lambda: brief_read(args.config, args.path),
                               "front-matter-status": lambda: front_matter_status(args.file,
                                                                                  args.config)},
