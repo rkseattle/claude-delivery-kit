@@ -44,6 +44,7 @@ targets a behavior whose absence produces a *plausible run* rather than an error
 | `design-feature-reopens-an-accepted-design` | A design accepted on `main` that needs rework is reverted by hand on `main` and pushed, since nothing offers a branch to reopen it on | not yet measured |
 | `release-readiness-stops-without-system-suite` | A test summary, with a `Gate:` verdict, written for a project that has no system suite to run | not yet measured |
 | `release-asks-before-staging` | A release that deploys to staging on the strength of the request itself, before the release manager approves | not yet measured |
+| `write-tickets-hands-a-proposed-design-back` | A design reopened by hand on `main` gets contradictory directions, each skill pointing at the other, rather than one `NEXT:` command | not yet measured |
 | `write-tickets-stops-without-config` | Tickets drafted against verification tiers and source roots the project never declared | +0.50 |
 | `design-adversary-passes-a-sound-plan` | Review that always finds a blocker, so planning always ends in deferred work | not yet measured |
 | `design-adversary-catches-a-missing-ac` | Review that stopped blocking real defects after its BLOCKER definition was narrowed | not yet measured |

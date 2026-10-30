@@ -20,7 +20,8 @@ and the design's Epic key, skills/plan-work/SKILL.md for a design's and its ADRs
 reads, and statuses,
 skills/implement-phases/SKILL.md for its branch, skills/ci-green/SKILL.md for its PR number,
 skills/design-feature/SKILL.md for its Epic key, the brief's read, and a design's status
-transition,
+transition, skills/design-feature/SKILL.md and skills/write-tickets/SKILL.md for a
+feature's lifecycle state,
 and skills/release-readiness/SKILL.md for the keys a release covers,
 so no two of them can disagree on a key's shape, what an unset key, a placeholder, a
 discipline, a date, a printed number, a branch slug, a code fence, a Markdown field's value,

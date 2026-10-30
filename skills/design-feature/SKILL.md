@@ -64,7 +64,23 @@ with `git restore --staged`, restore each from `presented/`, switch to
 remove the directory — leaving index and tree as before Step 6, as `git rebase --abort`
 does. No other stop applies while it exists, and `$ARGUMENTS` is not needed.
 
-Otherwise, run `git fetch origin`, and stop unless the checked-out branch is
+Otherwise, run `git fetch origin`. When `$ARGUMENTS` is a design path under
+`{{design_dir}}` or an Epic key, as below, first run this on it, given as a file per
+**Untrusted text**, adding `--epic` for a key, and act on the state it prints:
+
+```bash
+python3 "${CLAUDE_PLUGIN_ROOT}/gates/scripts/project_rules.py" lifecycle --ref "origin/{{parent_branch_default}}" --config "<absolute project root>/.claude/project.json" < "<arguments file>"
+```
+
+| State | Then |
+| ----- | ---- |
+| `no-design`, `design-draft`, `design-step6-interrupted` | Go on. |
+| `tickets-stalled-needs-design-rework` | Go on; reopen mode applies. |
+| `design-accepted-on-parent`, `tickets-draft`, `tickets-created` | Ask whether to reopen; on yes go on in reopen mode, else print its two lines and stop. |
+| `design-unpushed`, `design-in-review`, `design-rejected` | Print its two lines and stop. |
+| `INVALID:` | Print it and stop. |
+
+Then stop unless the checked-out branch is
 `{{parent_branch_default}}` and `git rev-parse HEAD` equals
 `git rev-parse origin/{{parent_branch_default}}`: the design describes that commit and
 Step 6 cuts its branch from it. A `design/<name>-rev<N>` branch is no stop here: reopen
@@ -73,9 +89,10 @@ once `<slug>` is printed below, stop unless `<name>` is `<slug>`. Say
 which branch to switch to, or that it must be brought level with its `origin` ref. Then
 record that commit; Step 6 compares against it.
 
-`$ARGUMENTS` is a feature request, or an Epic key: one when this, given `$ARGUMENTS` as a
-file per **Untrusted text** in `gates/project-config.md`, prints it back rather than
-`INVALID:`. With `$ARGUMENTS` empty, ask what the feature is.
+`$ARGUMENTS` is a feature request, a design path, `{{design_dir}}/<slug>.md`, or an Epic
+key: one when this, given `$ARGUMENTS` as a file per **Untrusted text** in
+`gates/project-config.md`, prints it back rather than `INVALID:`. With `$ARGUMENTS` empty,
+ask what the feature is. A design path's title is its `# <title>` line.
 
 ```bash
 python3 "${CLAUDE_PLUGIN_ROOT}/gates/scripts/project_rules.py" ticket-key --prefix "{{ticket_prefix}}" < "<arguments file>"

@@ -15,23 +15,20 @@ Read `${CLAUDE_PROJECT_DIR}/.claude/project.json` first: `{{ticket_prefix}}`,
 `{{jira_project}}`, `{{registry_file}}`, `{{source_roots}}`, `{{verification_tiers}}`,
 `{{plan_rules_file}}`, `{{build_command}}`, `{{parent_branch_default}}`, `{{brief_file}}`,
 `{{disciplines}}`, `{{design_dir}}`, and `{{roles.*}}` all come from it. Read
-`${CLAUDE_PLUGIN_ROOT}/gates/project-config.md` and follow it exactly: tickets written
-against invented tiers and roots fail at `plan-work` for reasons nobody can see.
+`${CLAUDE_PLUGIN_ROOT}/gates/project-config.md` and follow it exactly.
 
 No ticket is created, edited, or transitioned before Step 7's approval; until then it
 writes only the draft and the input files of the checks it runs.
 
 ## Step 1 — Settle the decisions
 
-State the requested outcome in one sentence. Then list every choice that changes behavior
-and is not yet made: data format, error shape, UI copy, limits, library, which layer owns
-the logic. With a design, read it first, as Step 2 says, and list only the choices it leaves
-open; a choice Rob wants made differently from the design sends the design back to
-`design-feature`. Ask Rob all of them in one message and wait.
+State the requested outcome in one sentence. List every behavior-changing choice not yet
+made: data format, error shape, UI copy, limits, library, owning layer. With a design, read
+it first, as Step 2 says, and list only what it leaves open; Rob wanting a choice made
+otherwise is design rework, for Step 6. Ask Rob all of them in one message and wait.
 
-A choice that needs research to make becomes a spike Task (rubric R6), not a question in a
-ticket. If a choice is cheap to reverse, prefer a stated assumption to a blocking question,
-per `deliver`'s invariants — and put the assumption in the ticket's Context.
+A choice that needs research becomes a spike Task (rubric R6). A choice cheap to reverse
+takes a stated assumption, written in the ticket's Context, rather than a blocking question.
 
 ## Step 2 — Ground in the code
 
@@ -50,18 +47,20 @@ request-derived scope. Establish, by reading the code rather than file names:
 - **the brief's goals**, for `Goal:` lines: the `## Goals` that `python3
   "${CLAUDE_PLUGIN_ROOT}/gates/scripts/project_rules.py" brief-read --config
   "<absolute project root>/.claude/project.json"` prints, or at `{{brief_file}}` `none`, a
-  line saying so. Set, stop unless it prints a goal naming an outcome, never "none", "TBD",
-  or "N/A": send a goalless, `proposed`, missing, or `no front matter` brief to
-  `{{roles.sponsor}}` through `plan-project`; `rejected` stopped the project; name any
-  other. Relay a `DEPRECATED:` line it prints to Rob.
-- **the design** the request names: at `{{design_dir}}` `none`, stop and name the key. Write
-  its path to a file per **Untrusted text**; stop if `git fetch origin {{parent_branch_default}}`
-  fails, or if `python3 "${CLAUDE_PLUGIN_ROOT}/gates/scripts/project_rules.py" design-read
-  --ref "origin/{{parent_branch_default}}" --config "<absolute project root>/.claude/project.json"
-  < "<file>"` exits non-zero. Read the design only from what it prints, and the Epic's
-  `- Design:` path only from what it prints with `--path`. Its `Work plan` is the slice: a
-  Step 3 split, an added ticket, or a review finding changing a handoff's tickets stops the
-  run and sends the design back to `design-feature` for rework.
+  line saying so. On `INVALID:`, print it and its `NEXT:` line and stop. Stop too unless a
+  goal names an outcome, never "none", "TBD", or "N/A": send that brief to
+  `{{roles.sponsor}}` through `plan-project`. Relay a `DEPRECATED:` line to Rob.
+- **the design** the request names by path: at `{{design_dir}}` `none`, stop and name the
+  key. Write the path to a file per **Untrusted text**, and stop if `git fetch origin
+  {{parent_branch_default}}` fails. Run `lifecycle` on it, below. Go on only at
+  `design-accepted-on-parent` or `tickets-draft`; at any other state, print its two lines
+  and stop. Then read the design only from what `design-read` prints, and the Epic's
+  `- Design:` path only from what it prints with `--path`. Its `Work plan` is the slice: a Step 3 split, an added
+  ticket, or a review finding changing a handoff's tickets is design rework, for Step 6.
+
+  ```bash
+  python3 "${CLAUDE_PLUGIN_ROOT}/gates/scripts/project_rules.py" <lifecycle | design-read> --ref "origin/{{parent_branch_default}}" --config "<absolute project root>/.claude/project.json" < "<file>"
+  ```
 
 Then search Jira: `project = {{jira_project}}` with the request's key terms, for tickets
 that overlap or that the new ones depend on. Record each one's key and status.
@@ -105,12 +104,11 @@ python3 "${CLAUDE_PLUGIN_ROOT}/gates/scripts/project_rules.py" draft-slug < "<re
 - **Context**: why, with any linked source summarized. Never a reference to this session.
 - **Design**: a design `## Summary` opening `Epic: <KEY>` names its Epic; stop unless the
   key, fed as Step 2 feeds the path, passes `project_rules.py ticket-key --prefix
-  "{{ticket_prefix}}"` and the issue is an Epic. Fetch it and each not-Done child into the
-  draft as rewrite mode does, stopping, back to `design-feature`, on a not-Done child whose
-  summary no design ticket's equals, or a design ticket whose summary a Done child's equals;
-  draft the rest as new under it. Otherwise draft a new Epic from the design's Goals,
-  Success measures, NFR thresholds, and Non-goals. Either Epic carries templates.md's one
-  `- Design:` line; fetched tickets join here.
+  "{{ticket_prefix}}"` and the issue is an Epic. Fetch it and each not-Done child as Step 8
+  fetches, and draft the rest as new under it. A not-Done child no design ticket's summary
+  equals, or a design ticket a Done child's summary equals, is design rework, for Step 6.
+  Otherwise draft a new Epic from the design's Goals, Success measures, NFR thresholds, and
+  Non-goals. Either Epic carries templates.md's one `- Design:` line.
 
 ## Step 5 — Lint
 
@@ -119,9 +117,8 @@ python3 ${CLAUDE_PLUGIN_ROOT}/skills/write-tickets/scripts/lint_draft.py docs/ti
 ```
 
 Fix every ERROR, and fix each WARN or confirm its text is concrete; re-run until exit 0.
-With a design, stop, naming the handoff, when a group's tickets differ from the handoff's
-list in the design in count, summary, or order.
-Exit 2, for an unreadable draft or project.json, bad `disciplines`, or bad `--repo`, stops.
+Exit 2 stops. With a design, a group whose tickets differ from its handoff's in count,
+summary, or order is design rework, for Step 6.
 
 ## Step 6 — Adversarial ticket review
 
@@ -134,10 +131,16 @@ Stop at no BLOCKERs or three rounds, whichever is first; revert-not-iterate appl
 the cap, bring the remaining findings to Rob. Append each round's output, and below it the
 `<!--` lines Steps 7 and 8 add, under `<!-- review round N -->`, never sent to Jira.
 
+**Design rework** — a change only the design can make: its `Work plan`, a Goal, an NFR, or
+a premise it states. On one, from any step, stop. Write `<!-- design-rework: <ticket IDs> @
+<blob> -->` below the last round, `<blob>` what `git rev-parse
+"origin/{{parent_branch_default}}:<design path>"` prints, so a revised design voids it.
+Bring Rob the findings, then print `NEXT: /delivery-kit:design-feature <Epic key or path>`.
+
 ## Step 7 — Present for approval
 
 In chat, one table — ID, type, summary, priority, severity, handoff, AC clauses, touch
-points, blocked by — followed by:
+points, blocked by — then:
 
 - clauses that need out-of-band verification, called out separately
 - each ticket Step 4 removed for serving no goal of the brief
@@ -146,22 +149,21 @@ points, blocked by — followed by:
 - any sequenced split from Step 3, and every DECISION from the review
 - assumptions stated in place of questions
 
-Ask `{{roles.qa}}` to confirm the ACs of every `Priority: Must` ticket are testable, and fix
-any QA finds untestable. Then stop and wait for `{{roles.product_owner}}`, the gate's one
-accountable role in RACI terms, whose approval counts only once QA has confirmed; one person
-holding both roles gives both in one answer. Print both per `gates/project-config.md`. Any
-edit after Step 6, whoever asks for it, re-runs Step 5 and one Step 6 round outside its
-three-round count; a BLOCKER from it goes to `{{roles.product_owner}}`, and an edit to a
-`Must` ticket's ACs goes back to QA, as a new commit dismisses a stale approval. Approval is
-an explicit "approved", "create them", or equivalent; a clarifying question is not approval.
+Ask `{{roles.qa}}` to confirm every `Priority: Must` ticket's ACs are testable, and fix any
+that are not. Then stop and wait for `{{roles.product_owner}}`, the one accountable role,
+whose approval counts only after QA's. Print each per `gates/project-config.md`. Any edit
+after Step 6 re-runs Step 5 and one Step 6 round outside its count; a BLOCKER from it goes
+to the product owner, and an edit to a `Must` ticket's ACs goes back to QA, as a new commit
+dismisses a stale approval. Approval is an explicit "approved" or "create them"; a
+clarifying question is not approval.
 
 ## Step 8 — Create
 
-Look up issue and link types via the Atlassian MCP first; never guess a name or ID. A
-ticket whose `Jira:` is filled and `Baseline:` empty came from a stopped run: update it as
-items 2–3 write it, add only item 4's missing links, and run item 6, with no Change impact.
-Journal each create in a `<!-- creating: <ID> -->` line that item 5 removes; one a resumed
-run finds is searched for by exact summary first, and a match takes item 5, then the above.
+Look up issue and link types via the Atlassian MCP first; never guess a name or ID.
+Journal each create in a `<!-- creating: <ID> -->` line that item 5 removes. Resuming a
+stopped run, search by exact summary for each journaled ticket; a match takes item 5. A
+ticket with `Jira:` filled and `Baseline:` empty is updated as items 2–3 write it, given
+only item 4's missing links, and item 6, with no Change impact.
 
 1. Epics first, then the rest in draft order.
 2. Summary, parent, and labels: every `Labels:` value, the `Handoff:` label, for a
@@ -193,31 +195,27 @@ run finds is searched for by exact summary first, and a match takes item 5, then
    local ID. Once every ticket exists, update each ticket whose draft text item 5 changed
    after its creation, and give it item 6 again.
 
-For `<TICKET-N ...>` arguments and Step 4's fetched tickets, fetch each into a draft with
-its key as the header ID and on its `Baseline:` and `Jira:` lines, so no local ID stands for
-an issue that already exists, mapping:
+Fetch each `<TICKET-N ...>` argument and Step 4's fetched tickets into the draft, its key as
+header ID and on `Baseline:` and `Jira:`, so no local ID stands for an existing issue:
 
-- its `moscow-*` label to `Priority:` — `moscow-wont` as `Won't`, the rest title-cased; no
-  such label, or more than one, leaves `Priority:` empty for Step 1 to settle
-- on a Bug, its `severity-*` label to `Severity:`, title-cased; no such label, or more
-  than one, leaves `Severity:` empty for Step 1 to settle; on any other type, none
+- its one `moscow-*` label to `Priority:`, title-cased, `moscow-wont` as `Won't`; and on a
+  Bug its one `severity-*` label to `Severity:`, title-cased. None, or more than one, leaves
+  the header empty for Step 1 to settle
 - every other label but a handoff label, as defined below, to `Labels:` — never a
   `moscow-*` or `severity-*` label, which only the two headers above carry
 - a leading `Goal:` description line to the `Goal:` header
 - a code span holding a whole `[verify: … @ …]` or `[children: …]` tag, or the
   `\verify: …\` an older write left, to the bare tag
 
-Run Steps 2–7 for `<TICKET-N ...>` arguments. Each ticket whose `Baseline:` is filled is
-updated instead of created: item 2's labels replace its `moscow-*`, `severity-*`, and
-handoff labels, a handoff label being one equal to a draft `Handoff:` or design `Work plan`
-label, or one a `stale label` line names for that ticket, and every other label stays. Each
-rewritten ticket carries `## Change impact` (rubric R15). After item 7, when item 5 has
-replaced every local ID, post each note once with `jira_add_comment`: a first line
-`Change impact`, then the section's lines, tags in code spans as in item 3. The comment ID
-it returns confirms the post; a post that returns none is never retried, since it may have
-landed. Any stop after the first update — item 6's, a failed post, any other — brings Rob
-every note not yet confirmed. A ticket that must split keeps its key for the ACs it retains;
-say which new key holds the rest.
+Run Steps 2–7 for `<TICKET-N ...>` arguments. A ticket whose `Baseline:` is filled is
+updated, not created. Item 2's labels replace its `moscow-*`, `severity-*`, and handoff
+labels — one equal to a draft `Handoff:` or design `Work plan` label, or one its
+`stale label` line names — and every other label stays. It carries `## Change impact`
+(rubric R15). After item 7, post each note once with `jira_add_comment`: `Change impact`,
+then the section's lines, tags in code spans as in item 3. Only a returned comment ID
+confirms a post; never retry one, since it may have landed. Any stop after the first update
+brings Rob every unconfirmed note. A ticket that must split keeps its key for the ACs it
+retains; say which new key holds the rest.
 
 ## Step 9 — Report
 

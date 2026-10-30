@@ -14,8 +14,9 @@ Every condition holds:
 2. That design is on `origin/{{parent_branch_default}}`. Its status there, as
    `project_rules.py design-read --status` prints it, is `accepted`, or `proposed` from a
    hand edit made on the parent before this mode existed.
-3. The person running the session confirmed the reopen, or a draft under `docs/tickets/`
-   holds a `<!-- design-rework: ... -->` line for the design.
+3. The person running the session confirmed the reopen, or `project_rules.py lifecycle`
+   printed `tickets-stalled-needs-design-rework`: a `write-tickets` draft holds a
+   `<!-- design-rework: ... -->` line for the design as it stands on the parent.
 
 A `rejected` design is never reopened. It is the record of a stop; a new request starts a
 new design.
