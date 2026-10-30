@@ -192,9 +192,11 @@ nothing until he answers. Before a third round, check what the second round's fi
 against. When they are mostly against the first round's fixes, revert those fixes and take
 another approach: two rounds finding defects in each other's output do not converge.
 
-Then the gate's step 8 review. When `{{exceptions_log}}` holds an unexpired row for rule
-book Phase 3 step 8 covering designs, say in one line that it applies, and ask nothing: a
-team with no outside engineer recorded that once. Otherwise ask the person running the
+Then the gate's step 8 review. When `python3
+"${CLAUDE_PLUGIN_ROOT}/gates/scripts/project_rules.py" design-review-exception --config
+"<absolute project root>/.claude/project.json"` prints a row, say in one line that it
+applies, and ask nothing: a team with no outside engineer recorded that once. On
+`INVALID:`, ask the person running the
 session, in one message, for the name of each engineer outside the immediate team who
 reviewed the design against its requirements and non-functional thresholds. A name is
 never defaulted. With none, Step 5 shows criterion 1 open.
@@ -215,13 +217,13 @@ printing each role per `gates/project-config.md`:
 **Ask `{{roles.qa}}` to approve `## Test strategy` and `{{roles.product_owner}}` to approve
 `## Goals` and `## Non-goals`, then wait on `{{roles.tech_lead}}`**, whose approval counts
 only once both have approved; a rejection or a hold counts at any time, since only the
-tech lead decides. A rejection from QA or the product owner is a rework answer for the
-section they reject.
+tech lead decides. One person holding several roles is asked once for all of them and
+answers once. A rejection from QA or the product owner is a rework answer for the section
+they reject.
 
-**When QA, the product owner, and the tech lead are one person** — every one of them
-resolves to the same name, as with no `roles` key — ask one question instead: approve
-`## Test strategy`, `## Goals`, and `## Non-goals`, and decide the design. One answer
-gives all three, and `## Decision` names that person once, as the gate's rule does.
+**When QA, the product owner, and the tech lead are one person**, as with no `roles` key,
+that is one question: approve `## Test strategy`, `## Goals`, and `## Non-goals`, and
+decide the design. `## Decision` names that person once, as the gate's rule does.
 
 The tech lead's answer is one of four:
 

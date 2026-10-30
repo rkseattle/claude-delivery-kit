@@ -86,6 +86,10 @@ repository inherits the caller's git. Each importer's self-test covers the rules
                                    working tree, design branches, design-feature's Step 6
                                    state, and write-tickets' draft; INVALID for a bad path,
                                    key, or design_dir
+    project_rules.py design-review-exception --config FILE
+                                   `<Rule>\t<Expiry>` of the unexpired, complete row of
+                                   FILE's exceptions_log register waiving rule book Phase 3
+                                   step 8 for designs; INVALID when there is none
     project_rules.py brief-read --config FILE [--path]
                                    the brief that FILE's brief_file names, from the
                                    working tree, when its front matter `status` is
@@ -1019,6 +1023,37 @@ def lifecycle(text, ref, config, epic=False):
                "tickets-created": f"/delivery-kit:plan-work {detail}".rstrip(),
                "tickets-draft": f"/delivery-kit:write-tickets {path}"}[state]
     return [f"{state} {detail}".rstrip(), f"NEXT: {command}"]
+
+
+# The rule book step a design's outside review waives, as gates/design-exit.md names it.
+DESIGN_REVIEW_RULE = ("phase 3 step 8", "design")
+
+
+def design_review_exception(config, today=None):
+    """`<Rule>\t<Expiry>` of the first unexpired row of exceptions_log's register that
+    complete_register_row accepts and whose Rule names rule book Phase 3 step 8 and designs,
+    as gates/design-exit.md's criterion 1 requires; today defaults to the local date.
+    ValueError when exceptions_log is unset or invalid, its file unreadable, its first table
+    not the register, or no row qualifies."""
+    value = read_config(config).get("exceptions_log")
+    if is_unset(value):
+        raise ValueError("exceptions_log is unset in project.json")
+    check_repo_path("exceptions_log", value)
+    text = regular_text(os.path.join(os.path.realpath(project_root(config)), value),
+                        f"exceptions_log {value!r}")
+    tables = markdown_tables(markdown_tokens(text))
+    if not tables or not is_register_header(tables[0][0]):
+        raise ValueError(f"exceptions_log {value!r}'s first table is not headed "
+                         + " | ".join(REGISTER_COLUMNS))
+    today = today or datetime.date.today().isoformat()
+    expiry = REGISTER_COLUMNS.index("Expiry")
+    for row in tables[0][1]:
+        rule = words(row[0]).casefold()
+        if complete_register_row(row) and row[expiry] >= today and \
+                all(term in rule for term in DESIGN_REVIEW_RULE):
+            return f"{row[0]}\t{row[expiry]}"
+    raise ValueError(f"exceptions_log {value!r} holds no unexpired, complete row for rule "
+                     "book Phase 3 step 8 covering designs")
 
 
 def status_of(text, where):
@@ -2426,6 +2461,49 @@ def lifecycle_edges_self_test(this):
     return failures
 
 
+def design_review_exception_self_test(this):
+    """design_review_exception over registers holding a qualifying row, an expired one, an
+    incomplete one, one waiving another step, and a table that is not the register."""
+    header = "| Rule | Reason | Risk | Expiry | Remediation |\n| --- | --- | --- | --- | --- |\n"
+    row = "| {} | r | k | {} | m |\n"
+    step8 = "Rule book Phase 3 step 8: outside review, for designs"
+    failures = 0
+    with tempfile.TemporaryDirectory() as root:
+        config = write_scratch(root, {"exceptions_log": "docs/log.md"}, ".claude/project.json")
+        for name, text, expected in [
+                ("an unexpired row is found", header + row.format(step8, "2026-11-01"),
+                 f"{step8}\t2026-11-01"),
+                ("a row expiring today still holds", header + row.format(step8, "2026-10-30"),
+                 f"{step8}\t2026-10-30"),
+                ("an expired row is no exception", header + row.format(step8, "2026-10-29"),
+                 "holds no unexpired"),
+                ("a row missing its risk is no exception",
+                 header + f"| {step8} | r |  | 2026-11-01 | m |\n", "holds no unexpired"),
+                ("a row waiving plans, not designs, is no exception",
+                 header + row.format("Rule book Phase 3 step 8, for plans", "2026-11-01"),
+                 "holds no unexpired"),
+                ("a row waiving another step is no exception",
+                 header + row.format("Rule book Phase 3 step 7, for designs", "2026-11-01"),
+                 "holds no unexpired"),
+                ("a first table that is not the register is refused",
+                 "| A | B |\n| - | - |\n| a | b |\n", "'docs/log.md''s first table")]:
+            write_scratch(root, text, "docs/log.md")
+            got = result_or_message(lambda: design_review_exception(config, "2026-10-30"))
+            found = expected.startswith(step8)
+            failures += report("design_review_exception", name,
+                               got if found else expected in got, expected if found else True)
+        write_scratch(root, {}, ".claude/project.json")
+        failures += report("design_review_exception", "an unset exceptions_log is named",
+                           result_or_message(lambda: design_review_exception(config)),
+                           "exceptions_log is unset in project.json")
+        write_scratch(root, {"exceptions_log": "docs/log.md"}, ".claude/project.json")
+        write_scratch(root, header + row.format(step8, "2999-01-01"), "docs/log.md")
+        failures += cli_case(this, "design-review-exception prints the row",
+                             ["design-review-exception", "--config", config],
+                             f"{step8}\t2999-01-01", 0, exact=True)
+    return failures
+
+
 def self_test():
     """The key registry's cases, over a fixture registry of two plain keys, a template list,
     and a key inside an object, and those of slug_of, JIRA_KEY, pr_number, ticket_branch,
@@ -2725,6 +2803,7 @@ def self_test():
     failures += design_transition_self_test(this)
     failures += lifecycle_self_test(this)
     failures += lifecycle_edges_self_test(this)
+    failures += design_review_exception_self_test(this)
     failures += cli_case(this, "no subcommand is usage", [], "", 2)
     return 1 if failures else 0
 
@@ -2756,6 +2835,7 @@ def main():
     stage.add_argument("--ref", required=True)
     stage.add_argument("--config", required=True)
     stage.add_argument("--epic", action="store_true")
+    commands.add_parser("design-review-exception").add_argument("--config", required=True)
     brief = commands.add_parser("brief-read")
     brief.add_argument("--config", required=True)
     brief.add_argument("--path", action="store_true")
@@ -2777,6 +2857,8 @@ def main():
                                   text_input(None), args.ref, args.config),
                               "lifecycle": lambda: lifecycle(text_input(None), args.ref,
                                                              args.config, args.epic),
+                              "design-review-exception": lambda: design_review_exception(
+                                  args.config),
                               "brief-read": lambda: brief_read(args.config, args.path),
                               "front-matter-status": lambda: front_matter_status(args.file,
                                                                                  args.config)},

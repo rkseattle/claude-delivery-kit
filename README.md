@@ -164,8 +164,10 @@ A project keeps only what is its own:
 so `design-feature` and `write-tickets` each ask one approval question rather than one per
 role. Record a step 8 exception in `exceptions_log` once, and `design-feature` stops asking
 for outside reviewers while it is unexpired. A design's pull request changes only its doc
-and ADRs, so keep expensive CI jobs off it: a `paths-ignore` filter on the `design_dir` and
-`adr_dir` folders in GitHub Actions, or a skip label the jobs check, leaves only the doc checks.
+and ADRs, so skip expensive CI jobs on it with a job-level `if:` on a changed-files output
+or a label. Keep one required aggregate job over them, as this repo's `ci-passed` is: a
+skipped job counts as passed, while a workflow a `paths-ignore` filter skips reports no
+status and leaves its required checks pending.
 
 The kit's rules are measured against
 [reference/software-engineering-rule-book.md](reference/software-engineering-rule-book.md).

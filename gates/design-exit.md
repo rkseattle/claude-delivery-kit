@@ -249,8 +249,9 @@ decision-makers: <tech lead>
 approves, `{{roles.qa}}` approves `## Test strategy` and `{{roles.product_owner}}` approves
 `## Goals` and `## Non-goals`. A rejection from QA or the product owner is a request for
 rework on the section they reject, not a decision; only the tech lead rejects a design.
-The tech lead's answers are approve, reject, rework, or hold. An approval is given in the session and is written down only at Step 6, in `status`
-and, naming its approvers, in `## Decision`, so a session that ends first asks again. An
+The tech lead's answers are approve, reject, rework, or hold. An approval is given in the
+session and is written down only at Step 6, in `status` and, naming its approvers, in
+`## Decision`, so a session that ends first asks again. An
 edit to the design after a review re-runs that review, the cold one and step 8's alike; an
 edit to an approved section voids that approval and goes back to its approver, as a new
 commit dismisses a stale pull-request approval. A renumber under the ADR rules above changes
@@ -258,7 +259,7 @@ no choice, so it re-runs criterion 2's checks but no review, and voids no approv
 
 Each approver's name written below is the handle `roles` holds, or, for a role `roles`
 leaves out, the git `user.name` of the person running the session — asked for when unset —
-never the word "you", as `plan-project` writes its sponsor.
+never the word "you".
 
 ## Decision
 

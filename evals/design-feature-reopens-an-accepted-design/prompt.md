@@ -23,5 +23,5 @@ review cap on this design, and its draft is `docs/tickets/sms-appointment-remind
 Web search and Jira are unavailable in this environment, so do not call either; the
 design's `## Survey` already holds its sources, so treat them as retrieved.
 
-No engineer outside the immediate team will review this design: when you ask for the
-step 8 reviewers, the answer is none.
+No engineer outside the immediate team will review this design; the workspace's exceptions
+log records that.

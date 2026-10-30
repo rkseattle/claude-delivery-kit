@@ -92,7 +92,7 @@ fetch runs on macOS is not yet re-measured; see the sandbox's `git` limit below.
 
 `design-feature-stops-at-approval` scripts each earlier answer the run would otherwise stop
 for. Its prompt reproduces the survey sources, since web search and Jira are unavailable,
-and answers step 8's question for outside reviewers with none; its scaffold's
+and says no outside engineer reviews it; its scaffold's
 `exceptions_log` holds an unexpired step 8 row, so exit criterion 1 can pass, and its
 `.claude/agent-rules/feature-design-adversary.md` tells the dispatched reviewer that a
 source it cannot reach is UNVERIFIABLE. The run then reaches Step 5's approvals. A run
