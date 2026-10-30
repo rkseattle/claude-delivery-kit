@@ -51,12 +51,12 @@ request-derived scope. Establish, by reading the code rather than file names:
   goal names an outcome, never "none", "TBD", or "N/A": send that brief to
   `{{roles.sponsor}}` through `plan-project`. Relay a `DEPRECATED:` line to Rob.
 - **the design** the request names by path: at `{{design_dir}}` `none`, stop and name the
-  key. Write the path to a file per **Untrusted text**, and stop if `git fetch origin
-  {{parent_branch_default}}` fails. Run `lifecycle` on it, below. Go on only at
-  `design-accepted-on-parent` or `tickets-draft`; at any other state, print its two lines
-  and stop. Then read the design only from what `design-read` prints, and the Epic's
-  `- Design:` path only from what it prints with `--path`. Its `Work plan` is the slice: a Step 3 split, an added
-  ticket, or a review finding changing a handoff's tickets is design rework, for Step 6.
+  key. Write the path to a file per **Untrusted text**; stop if `git fetch origin
+  {{parent_branch_default}}` fails. Run `lifecycle` on it, below; at any state but
+  `design-accepted-on-parent` or `tickets-draft`, print its two lines and stop. Read the
+  design and the Epic's `- Design:` path only from what `design-read` prints, the path with
+  `--path`. Its `Work plan` is the slice: a Step 3 split, an added ticket, or a review
+  finding changing a handoff's tickets is design rework, for Step 6.
 
   ```bash
   python3 "${CLAUDE_PLUGIN_ROOT}/gates/scripts/project_rules.py" <lifecycle | design-read> --ref "origin/{{parent_branch_default}}" --config "<absolute project root>/.claude/project.json" < "<file>"
@@ -133,8 +133,9 @@ the cap, bring the remaining findings to Rob. Append each round's output, and be
 
 **Design rework** — a change only the design can make: its `Work plan`, a Goal, an NFR, or
 a premise it states. On one, from any step, stop. Write `<!-- design-rework: <ticket IDs> @
-<blob> -->` below the last round, `<blob>` what `git rev-parse
+<blob> -->` at the draft's end, `<blob>` what `git rev-parse
 "origin/{{parent_branch_default}}:<design path>"` prints, so a revised design voids it.
+Before Step 4, first write the draft as its Epic header and `- Design:` line alone.
 Bring Rob the findings, then print `NEXT: /delivery-kit:design-feature <Epic key or path>`.
 
 ## Step 7 — Present for approval
@@ -215,7 +216,8 @@ labels — one equal to a draft `Handoff:` or design `Work plan` label, or one i
 then the section's lines, tags in code spans as in item 3. Only a returned comment ID
 confirms a post; never retry one, since it may have landed. Any stop after the first update
 brings Rob every unconfirmed note. A ticket that must split keeps its key for the ACs it
-retains; say which new key holds the rest.
+retains; say which new key holds the rest. Every run ends Step 8 by appending
+`<!-- tickets created -->` to the draft, which `lifecycle` reads as Step 8 finished.
 
 ## Step 9 — Report
 

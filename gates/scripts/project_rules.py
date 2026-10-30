@@ -678,14 +678,7 @@ def front_matter_status(path, config):
     path = re.sub(r"/{2,}", "/", path)
     check_repo_path("path", path, REPO_FILE, "letter, digit, '_', or '.'")
     full = os.path.join(os.path.realpath(project_root(config)), path)
-    if os.path.realpath(full) != os.path.normpath(full) or not os.path.isfile(full):
-        raise ValueError(f"{path!r} is not a regular file reached through no symlink")
-    try:
-        with open(full, encoding="utf-8") as handle:
-            text = handle.read()
-    except UnicodeDecodeError:
-        raise ValueError(f"{path!r} is not UTF-8 text")
-    return record_status(text, repr(path))
+    return record_status(regular_text(full, repr(path)), repr(path))
 
 
 def record_status(text, where):
@@ -826,6 +819,7 @@ def design_transition(path, ref, config):
 TICKET_DRAFTS = "docs/tickets"
 DESIGN_REWORK = re.compile(r"<!-- design-rework: (.+?) @ ([0-9a-f]{40,64}) -->")
 REVIEW_ROUND = re.compile(r"<!-- review round ([0-9]+) -->")
+TICKETS_CREATED = re.compile(r"^<!-- tickets created -->$", re.M)
 LIFECYCLE_STATES = ("no-design", "design-draft", "design-unpushed", "design-in-review",
                     "design-step6-interrupted", "design-rejected", "design-accepted-on-parent",
                     "tickets-draft", "tickets-stalled-needs-design-rework", "tickets-created")
@@ -853,18 +847,27 @@ def branch_design(root, branch, path):
     try:
         return blob, run_git(root, "cat-file", "blob", blob, text=False).decode("utf8")
     except UnicodeDecodeError:
-        return None
+        raise ValueError(f"{path!r} in {branch} is not UTF-8 text")
 
 
-def regular_text(full):
-    """The UTF-8 text of the regular file at full, reached through no symlink, or None, so a
-    folder scan skips what front_matter_status would refuse rather than failing on it."""
+def regular_text(full, where):
+    """The UTF-8 text of the regular file at full, reached through no symlink: the one read
+    of a project file front_matter_status, brief_read, and lifecycle share. ValueError
+    naming where otherwise; a folder scan catches it to skip the file."""
     if os.path.realpath(full) != os.path.normpath(full) or not os.path.isfile(full):
-        return None
+        raise ValueError(f"{where} is not a regular file reached through no symlink")
     try:
         with open(full, encoding="utf-8") as handle:
             return handle.read()
     except UnicodeDecodeError:
+        raise ValueError(f"{where} is not UTF-8 text")
+
+
+def scanned_text(full):
+    """regular_text, or None for a file a folder scan skips."""
+    try:
+        return regular_text(full, repr(full))
+    except ValueError:
         return None
 
 
@@ -889,13 +892,16 @@ def epic_design(root, directory, ref, key):
         else:
             names = subprocess.run(["git", "ls-tree", "-z", "--name-only", "--end-of-options",
                                     f"{source}:{directory.rstrip('/')}"], cwd=root,
-                                   capture_output=True, text=True,
-                                   check=False).stdout.split("\0")
+                                   capture_output=True, check=False).stdout.split(b"\0")
+            names = [os.fsdecode(name) for name in names]
         for path in filter(None, (checked_design(directory, name) for name in names)):
             if source is None:
-                text = regular_text(os.path.join(root, path))
+                text = scanned_text(os.path.join(root, path))
             else:
-                found = branch_design(root, source, path)
+                try:
+                    found = branch_design(root, source, path)
+                except ValueError:
+                    found = None
                 text = found[1] if found else None
             if text is not None and line.search(text):
                 return path
@@ -905,14 +911,15 @@ def epic_design(root, directory, ref, key):
 def tickets_state(root, path, blob):
     """The tickets lifecycle state of the accepted design at path whose parent blob is blob,
     from the write-tickets draft whose `- Design:` line names it: (state, detail).
-    `tickets-created` needs every `Jira:` filled and no `Baseline:`, since a ticket fetched
-    for rewrite has both before Step 8 updates it."""
+    `tickets-created` needs the line write-tickets' Step 8 writes once every ticket is
+    created or updated, as git's sequencer marks a finished step, since `Jira:` and
+    `Baseline:` are filled on a fetched ticket before Step 8 touches it."""
     folder = os.path.join(root, TICKET_DRAFTS)
     design_line = re.compile(rf"^- Design: `{re.escape(path)}`\s*$", re.M)
     for name in sorted(os.listdir(folder)) if os.path.isdir(folder) else []:
         if name.count(".") != 1 or not name.endswith(".md"):
             continue
-        draft = regular_text(os.path.join(folder, name))
+        draft = scanned_text(os.path.join(folder, name))
         if draft is None or not design_line.search(draft):
             continue
         where = f"{TICKET_DRAFTS}/{name}"
@@ -920,9 +927,7 @@ def tickets_state(root, path, blob):
                    if match.group(2) == blob]
         if stalled:
             return "tickets-stalled-needs-design-rework", f"{where}: {stalled[-1]}"
-        jira = re.findall(r"^Jira:[ \t]*(\S*)", draft, re.M)
-        baselined = re.findall(r"^Baseline:[ \t]*\S", draft, re.M)
-        if jira and all(jira) and not baselined:
+        if TICKETS_CREATED.search(draft):
             handoff = re.search(r"^Handoff:[ \t]*(\S+)", draft, re.M)
             return "tickets-created", handoff.group(1) if handoff else ""
         rounds = list(REVIEW_ROUND.finditer(draft))
@@ -941,7 +946,7 @@ def lifecycle(text, ref, config, epic=False):
     LIFECYCLE_STATES, a detail, and the single command that moves it on, read offline from
     the design at the path on standard input, or with epic the design whose `Epic:` line
     names the key there; ref is the parent branch's remote ref. Jira is the skill's to add.
-    ValueError for a bad path, key, or directory."""
+    ValueError for a bad path, key, directory, or ref, or a parent design not UTF-8."""
     root = os.path.realpath(project_root(config))
     directory = design_dirs(read_config(config))["design_dir"]
     if directory is None:
@@ -962,7 +967,7 @@ def lifecycle(text, ref, config, epic=False):
         design = f"/delivery-kit:design-feature {epic_line.group(1) if epic_line else path}"
     state_dir = run_git(root, "rev-parse", "--path-format=absolute", "--git-path",
                         "design-feature").strip()
-    recorded = regular_text(os.path.join(state_dir, "slug"))
+    recorded = scanned_text(os.path.join(state_dir, "slug"))
     if recorded is not None and recorded.strip() == slug:
         return [f"design-step6-interrupted {state_dir}", f"NEXT: {design} (continue or abort)"]
     branch = run_git(root, "branch", "--show-current").strip()
@@ -1071,18 +1076,13 @@ def brief_read(config, path_only=False):
         return path
     root = os.path.realpath(project_root(config))
     full = os.path.join(root, path)
-    if os.path.realpath(full) != os.path.normpath(full) or not os.path.isfile(full):
-        if os.path.lexists(full):
-            raise ValueError(f"brief_file {path!r} is not a regular file reached through no "
-                             "symlink")
-        raise Refusal(f"brief_file {path!r} is not a regular file reached through no symlink",
-                      "/delivery-kit:plan-project")
-    try:
-        with open(full, encoding="utf-8") as handle:
-            text = handle.read()
-    except UnicodeDecodeError:
-        raise ValueError(f"brief_file {path!r} is not UTF-8 text")
     where = f"brief_file {path!r}"
+    try:
+        text = regular_text(full, where)
+    except ValueError as error:
+        if os.path.lexists(full):
+            raise
+        raise Refusal(str(error), "/delivery-kit:plan-project")
     next_steps = {None: "/delivery-kit:plan-project",
                   "rejected": "none — the sponsor rejected the project"}
     status = legacy_status(text)
@@ -2243,7 +2243,8 @@ def lifecycle_self_test(this):
         failures += check("a rework line for an older design is stale", "docs/design/a.md",
                           ["tickets-draft docs/tickets/a.md: review round 2, 1 BLOCKER",
                            "NEXT: /delivery-kit:write-tickets docs/design/a.md"])
-        write_scratch(root, draft.format("AB-1", "AB-2", reviewed), "docs/tickets/a.md")
+        write_scratch(root, draft.format("AB-1", "AB-2", reviewed + "<!-- tickets created -->\n"),
+                      "docs/tickets/a.md")
         failures += check("every ticket created", "docs/design/a.md",
                           ["tickets-created a-01", "NEXT: /delivery-kit:plan-work a-01"])
         os.remove(os.path.join(root, "docs/tickets/a.md"))
@@ -2382,8 +2383,15 @@ def lifecycle_edges_self_test(this):
                 ("every ticket fetched for rewrite is no creation",
                  draft.format("AB-1", "Baseline: AB-2\n", "AB-2", ""),
                  "tickets-draft docs/tickets/c.md: not yet reviewed"),
-                ("every ticket created, no handoff", draft.format("AB-1", "", "AB-2", ""),
+                ("every ticket created, no handoff",
+                 draft.format("AB-1", "", "AB-2", "<!-- tickets created -->\n"),
                  "tickets-created"),
+                ("a fetched Epic after Step 8 is created",
+                 draft.format("AB-1", "Baseline: AB-2\n", "AB-2", "<!-- tickets created -->\n"),
+                 "tickets-created"),
+                ("a quoted created line is no marker",
+                 draft.format("AB-1", "", "AB-2", "> <!-- tickets created -->\n"),
+                 "tickets-draft docs/tickets/c.md: not yet reviewed"),
                 ("the matching rework line names its tickets",
                  draft.format("", "", "", f"<!-- design-rework: S1 @ {blob} -->\n"
                               f"<!-- design-rework: S9 @ {'0' * 40} -->\n"),
@@ -2396,6 +2404,17 @@ def lifecycle_edges_self_test(this):
         failures += report("tickets_state", "a symlinked draft is skipped", lifecycle(
             "docs/design/c.md", "origin/main", project)[0],
             "design-accepted-on-parent docs/design/c.md")
+        write_scratch(root, b"---\nstatus: accepted\n---\n# L r\xf6b\nEpic: AB-8\n",
+                      "docs/design/latin.md")
+        write_scratch(root, front.format("accepted", "Epic: AB-8"), "docs/design/later.md")
+        run_git(root, "add", "-A")
+        run_git(root, "commit", "--quiet", "-m", "a design that is not UTF-8")
+        run_git(root, "update-ref", "refs/remotes/origin/main", "HEAD")
+        failures += check("a parent design that is not UTF-8 is invalid", "docs/design/latin.md",
+                          "'docs/design/latin.md' in origin/main is not UTF-8 text")
+        failures += check("an Epic scan skips a design that is not UTF-8", "AB-8",
+                          ["design-accepted-on-parent docs/design/later.md",
+                           "NEXT: /delivery-kit:write-tickets docs/design/later.md"], epic=True)
         failures += cli_case(this, "design-read names design-feature for a missing design",
                              ["design-read", "--ref", "origin/main", "--config", project],
                              "NEXT: /delivery-kit:design-feature docs/design/gone.md", 1,
