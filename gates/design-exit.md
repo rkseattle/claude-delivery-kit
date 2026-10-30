@@ -81,7 +81,8 @@ section:
 19. `Risks`
 20. `Work plan`
 21. `Open questions`
-22. `Decision`
+22. `Revision history` — present only once the design has been reopened; omitted otherwise
+23. `Decision`
 
 A section with nothing to list holds `none — <reason>`, never an empty heading, save where
 a rule below requires content.
@@ -152,6 +153,8 @@ a rule below requires content.
 - **`Open questions`** — each item one line. An approved design keeps an item only in the
   form `- <question> — Spike: <handoff>`, naming the `Work plan` handoff whose spike
   settles it.
+- **`Revision history`** — one `- <YYYY-MM-DD>: <reason>` line per reopen, oldest first,
+  the reason quoting the findings that reopened it.
 - **`Decision`** — per the decision rules below.
 
 ## Work plan
@@ -246,9 +249,9 @@ decision-makers: <tech lead>
 approves, `{{roles.qa}}` approves `## Test strategy` and `{{roles.product_owner}}` approves
 `## Goals` and `## Non-goals`. A rejection from QA or the product owner is a request for
 rework on the section they reject, not a decision; only the tech lead rejects a design.
-The tech lead's answers are those of `plan-project` Step 4: approve, reject, rework, or
-hold. An approval is given in the session and is written down only at Step 6, in `status`
-and, naming its approvers, in `## Decision`, so a session that ends first asks again. An
+The tech lead's answers are approve, reject, rework, or hold. An approval is given in the
+session and is written down only at Step 6, in `status` and, naming its approvers, in
+`## Decision`, so a session that ends first asks again. An
 edit to the design after a review re-runs that review, the cold one and step 8's alike; an
 edit to an approved section voids that approval and goes back to its approver, as a new
 commit dismisses a stale pull-request approval. A renumber under the ADR rules above changes
@@ -256,7 +259,7 @@ no choice, so it re-runs criterion 2's checks but no review, and voids no approv
 
 Each approver's name written below is the handle `roles` holds, or, for a role `roles`
 leaves out, the git `user.name` of the person running the session — asked for when unset —
-never the word "you", as `plan-project` writes its sponsor.
+never the word "you".
 
 ## Decision
 
@@ -286,3 +289,12 @@ The design's `status` moves with its ADRs': `accepted` with an approval, `reject
 rejection, `date` the decision's date. A design is approved by its `status` alone, the
 field `${CLAUDE_PLUGIN_ROOT}/gates/scripts/project_rules.py design-read` checks, as kepval
 reads a KEP's `status`; `## Decision` records who approved it.
+
+## Status transitions
+
+A design's `status` moves only by these, each but the first committed on `design/<slug>`,
+or for a reopen `design/<slug>-rev<N>`, `<N>` from 2, and merged by pull request, as a merged KEP is
+revised: a draft's first `proposed`, in the working tree; a new design's `accepted` or
+`rejected`; `proposed → accepted` or `rejected`; and the reopen `accepted → proposed`. Any
+other move, or a decision or reopen on `{{parent_branch_default}}` itself, is invalid;
+`${CLAUDE_PLUGIN_ROOT}/gates/scripts/project_rules.py design-transition` checks it.

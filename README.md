@@ -73,6 +73,8 @@ Every skill except `readme-docs` runs only when invoked by name.
     Gate: `design-exit.md`.
   - `write-tickets` — turns a request, or an approved design's work plan, into Jira tickets
     that `plan-work` can plan as written. Agent: `ticket-adversary`.
+  - `status` `<design path | EPIC-KEY>` — prints where a feature stands between design and
+    tickets, and the one command that moves it on. Changes nothing.
 - **`deliver`** — runs the five stages below in order and resumes an interrupted run.
   Every stage reads `project-config.md` and reports per `status-report.md`; `deliver`
   records rule-book exceptions in the `exceptions.md` format.
@@ -157,6 +159,15 @@ A project keeps only what is its own:
   accept. A missing file is fine; `gates/agent-rules.md` says what the agent judges against
   instead.
 - `.claude/state/` — run state; keep it gitignored.
+
+**A single maintainer.** With no `roles` key, every role is the person running the session,
+so `design-feature` and `write-tickets` each ask one approval question rather than one per
+role. Record a step 8 exception in `exceptions_log` once, and `design-feature` stops asking
+for outside reviewers while it is unexpired. A design's pull request changes only its doc
+and ADRs, so skip expensive CI jobs on it with a job-level `if:` on a changed-files output
+or a label. Keep one required aggregate job over them, as this repo's `ci-passed` is: a
+skipped job counts as passed, while a workflow a `paths-ignore` filter skips reports no
+status and leaves its required checks pending.
 
 The kit's rules are measured against
 [reference/software-engineering-rule-book.md](reference/software-engineering-rule-book.md).

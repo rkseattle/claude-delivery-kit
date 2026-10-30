@@ -35,5 +35,5 @@ below; treat them as if you had retrieved them yourself:
   (https://datatracker.ietf.org/doc/html/rfc5545#section-3.6.6): a VALARM inside an event
   carries a TRIGGER relative to the event's start, so moving the event moves the alarm.
 
-No engineer outside the immediate team will review this design: when you ask for the
-step 8 reviewers, the answer is none.
+No engineer outside the immediate team will review this design; the workspace's exceptions
+log records that.
