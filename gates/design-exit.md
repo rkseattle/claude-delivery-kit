@@ -249,8 +249,7 @@ decision-makers: <tech lead>
 approves, `{{roles.qa}}` approves `## Test strategy` and `{{roles.product_owner}}` approves
 `## Goals` and `## Non-goals`. A rejection from QA or the product owner is a request for
 rework on the section they reject, not a decision; only the tech lead rejects a design.
-The tech lead's answers are those of `plan-project` Step 4: approve, reject, rework, or
-hold. An approval is given in the session and is written down only at Step 6, in `status`
+The tech lead's answers are approve, reject, rework, or hold. An approval is given in the session and is written down only at Step 6, in `status`
 and, naming its approvers, in `## Decision`, so a session that ends first asks again. An
 edit to the design after a review re-runs that review, the cold one and step 8's alike; an
 edit to an approved section voids that approval and goes back to its approver, as a new

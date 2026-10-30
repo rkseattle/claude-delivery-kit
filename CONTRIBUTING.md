@@ -93,6 +93,20 @@ exists to cut what loads per invocation, not to create room the budget cannot se
 the likeliest to want to grow; the pressure is the cap working as intended, and the place
 for per-dimension detail is `agent-rules/`, not `agents/design-adversary.md`.
 
+## Writing skill text
+
+A model applies a skill step by step, so write each step the way a runbook makes the
+default path obvious:
+
+- **One condition per sentence.** A stop with several conditions is a table: condition,
+  then what to do. A check a script can settle belongs in the script, with one line in the
+  skill that runs it.
+- **Steps in imperative mood**, numbered when their order matters.
+- **No pointers into another skill's steps.** Write the rule itself, or point to a shared
+  file under `gates/`, so each skill reads on its own.
+- **Rare paths in `references/`**, such as resuming an interrupted step, loaded only when
+  they apply. The budget still counts them.
+
 ## Friction and citations
 
 Stages record two lists to `.claude/state/current-plan.json` as they go, printing nothing:

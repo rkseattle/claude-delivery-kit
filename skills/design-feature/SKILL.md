@@ -18,7 +18,7 @@ and no commit until then, save reopen mode's branch and reopen commit, and no pu
 
 The flow is that of a Rust RFC or a KEP — draft, cold review, a decision by the accountable
 approver, then the record committed with its status — with each costly choice a MADR
-decision record, and the decision steps those of `plan-project` Steps 4 and 5. Where a KEP
+decision record. Where a KEP
 or an RFC records approval as reviews on a pull request, this skill records it in its
 `status` and `## Decision` in the session and commits without pushing, as
 `gates/design-exit.md` requires; the design's ordinary pull request is reviewed as code,
@@ -49,20 +49,8 @@ Stop, and say why in one line, when:
 
 **An interrupted Step 6 comes first, after those two stops.** When
 `git rev-parse --path-format=absolute --git-path design-feature` names a directory that
-exists, Step 6 started and did not finish — the way `.git/rebase-merge` tells git a rebase
-is in progress — and its `slug` file names the design. Its branch is the one its `branch`
-file names, or `design/<slug>` when there is no such file. First, when
-`git show <branch>:{{design_dir}}/<slug>.md`
-already holds the first line of `decision`, the commit landed and only cleanup was lost:
-remove the directory, report that commit, and offer no abort. Otherwise continue, keeping
-the recorded decision: switch to its branch (or cut it from the commit in `base` if
-absent and it is `design/<slug>`; a missing revision branch lost its reopen commit, so stop
-and say to abort and reopen again), make every edit Step 6 makes from `decision` and `status`, and commit as Step 6
-does, from `message`. On an explicit abort instead, unstage the design doc and its ADRs
-with `git restore --staged`, restore each from `presented/`, switch to
-`{{parent_branch_default}}`, delete its branch if it has no commits of its own, and
-remove the directory — leaving index and tree as before Step 6, as `git rebase --abort`
-does. No other stop applies while it exists, and `$ARGUMENTS` is not needed.
+exists, read `${CLAUDE_PLUGIN_ROOT}/skills/design-feature/references/resume.md` and follow
+it instead of the rest of this step.
 
 Otherwise, run `git fetch origin`. When `$ARGUMENTS` is a design path under
 `{{design_dir}}` or an Epic key, as below, first run this on it, given as a file per
@@ -123,10 +111,9 @@ Then stop, and say why in one line, when:
 - **`{{brief_file}}` is set and `python3
   "${CLAUDE_PLUGIN_ROOT}/gates/scripts/project_rules.py" brief-read --config
   "<absolute project root>/.claude/project.json"` exits non-zero.** The design restates the
-  brief's goals, which an unapproved brief has not settled; name what it printed, and send
-  a `proposed`, missing, or `no front matter` one to the sponsor through `plan-project`.
-  Relay a `DEPRECATED:` line it prints. With `brief_file` `none`, say in one line that
-  there is no brief to frame the design against, and go on.
+  brief's goals, which an unapproved brief has not settled. Print its `INVALID:` and
+  `NEXT:` lines. Relay a `DEPRECATED:` line it prints. With `brief_file` `none`, say in one
+  line that there is no brief to frame the design against, and go on.
 - **`{{design_dir}}/<slug>.md` exists, and `python3
   "${CLAUDE_PLUGIN_ROOT}/gates/scripts/project_rules.py" front-matter-status --file
   "{{design_dir}}/<slug>.md" --config "<absolute project root>/.claude/project.json"` prints
@@ -201,9 +188,9 @@ disagree with is noted at Step 5, not argued with the reviewer. A round's fixes 
 reviewed by the next round, inside the count. **The review stops at a round with zero
 BLOCKERs that left nothing to fix, or after the third round.** At the cap, bring the
 remaining findings, and any fix no round has reviewed, to Rob as they stand, and present
-nothing until he answers. Before a third round, apply `deliver`'s revert rule: when the
-second round's findings are mostly against the first round's fixes, revert them and take
-another approach.
+nothing until he answers. Before a third round, check what the second round's findings are
+against. When they are mostly against the first round's fixes, revert those fixes and take
+another approach: two rounds finding defects in each other's output do not converge.
 
 Then the gate's step 8 review: ask the person running the session, in one message, for the
 name of each engineer outside the immediate team who reviewed the design against its
@@ -230,7 +217,7 @@ only once both have approved; a rejection or a hold counts at any time, since on
 tech lead decides. One person holding several roles gives them in one answer. A rejection
 from QA or the product owner is a rework answer for the section they reject.
 
-The tech lead's answer is one of `plan-project` Step 4's four:
+The tech lead's answer is one of four:
 
 - **Approve** or **reject** — a decision, and a final one. Go to Step 6. An approval is
   recorded only once every exit criterion other than the approvals passes — the cold
@@ -251,16 +238,17 @@ is printed as relayed.
 
 ## Step 6 — Record the decision and commit
 
-Run `git fetch` first. When `origin/design/<slug>` now exists outside reopen mode, stop
-and ask, as Step 1 does.
-When `origin/{{parent_branch_default}}` moved since the base — the commit Step 1 recorded,
-or the latest one recorded here, which replaces it — record its new commit as the base,
-since the branch is cut from the base and not from HEAD. Re-run Step 1's stops other than
-HEAD equaling `origin/{{parent_branch_default}}`. Outside reopen mode, when the base moved,
-stop if `git cat-file -e <base>:{{design_dir}}/<slug>.md` succeeds: someone committed
-this design there since Step 1, and this run would overwrite it. Re-check
-each `## Current state` claim against the base, renumber the ADRs when a new record took
-one of their numbers, and present again before recording anything. What an edit or a
+Run `git fetch` first. Then take every row that applies, in order:
+
+| Condition | Then |
+| --------- | ---- |
+| `origin/design/<slug>` exists, outside reopen mode | Stop and ask, as Step 1 does. |
+| `origin/{{parent_branch_default}}` moved since the base | Record its new commit as the base: the branch is cut from the base, not from HEAD. |
+| The base moved | Re-run Step 1's stops other than HEAD equaling `origin/{{parent_branch_default}}`. |
+| The base moved, outside reopen mode, and `git cat-file -e <base>:{{design_dir}}/<slug>.md` succeeds | Stop: someone committed this design there since Step 1, and this run would overwrite it. |
+| The base moved | Re-check each `## Current state` claim against it, renumber the ADRs when a new record took one of their numbers, and present again before recording anything. |
+
+The base is the commit Step 1 recorded, or the latest one recorded here. What an edit or a
 renumber re-runs, and which approvals it voids, is the gate's **Approvers** section's.
 
 **Before editing any file**, write everything the commit needs to the directory
@@ -309,5 +297,4 @@ aborts it, as `git rebase --continue` and `--abort` do.
 
 **Do not push.** Report the branch, the commit, and the decision, and leave publishing it to
 the person running the session. The design reaches `{{parent_branch_default}}` by an
-ordinary pull request, as `plan-project`'s brief does: `ship-pr` needs a ticket, and the
-design precedes its tickets.
+ordinary pull request: `ship-pr` needs a ticket, and the design precedes its tickets.
