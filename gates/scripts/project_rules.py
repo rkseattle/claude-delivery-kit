@@ -674,10 +674,16 @@ def front_matter_status(path, config):
             text = handle.read()
     except UnicodeDecodeError:
         raise ValueError(f"{path!r} is not UTF-8 text")
+    return record_status(text, repr(path))
+
+
+def record_status(text, where):
+    """A record's status by one rule wherever it is read: legacy_status for one opening on
+    its `# ` title, as written before front matter, else status_of."""
     first = next((line for line in text.lstrip("\ufeff").splitlines() if line.strip()), "")
     if first.startswith("# "):
         return legacy_status(text)
-    return status_of(text, repr(path))
+    return status_of(text, where)
 
 
 def design_dirs(config):
@@ -693,8 +699,11 @@ def design_dirs(config):
 
 
 class Absent(ValueError):
-    """design_read's error for a path its ref does not hold, so a caller to whom a missing
-    design is a state, not a failure, tells the two apart."""
+    """ref_record's error for a checked path its ref does not hold, so a caller to whom a
+    missing design is a state, not a failure, tells the two apart, and reads the path."""
+    def __init__(self, path, ref):
+        super().__init__(f"{path!r} is absent from {ref}")
+        self.path = path
 
 
 def design_read(path, ref, config, key="design_dir", path_only=False, status_only=False):
@@ -713,6 +722,17 @@ def design_read(path, ref, config, key="design_dir", path_only=False, status_onl
     one checker of a KEP's status for every consumer."""
     if status_only and path_only:
         raise ValueError("design_read prints the path or the status, not both")
+    path, text = ref_record(path, ref, config, key)
+    if status_only:
+        return status_of(text, f"{path!r} in {ref}")
+    if key != "adr_dir":
+        approved_text(text, f"{path!r} in {ref}")
+    return path if path_only else text
+
+
+def ref_record(path, ref, config, key="design_dir"):
+    """(checked path, text) of the record at path in ref, read as design_read describes;
+    Absent when ref lacks it, ValueError for any other failure."""
     root = project_root(config)
     directory = design_dirs(read_config(config))[key]
     if directory is None:
@@ -725,7 +745,7 @@ def design_read(path, ref, config, key="design_dir", path_only=False, status_onl
         raise ValueError(f"ref {ref!r} does not name a commit ({error})")
     entry = run_git(root, "ls-tree", "-z", commit, "--", path).rstrip("\0")
     if not entry:
-        raise Absent(f"{path!r} is absent from {ref}")
+        raise Absent(path, ref)
     mode, kind, blob = entry.split("\t", 1)[0].split()
     if kind != "blob" or mode not in ("100644", "100755"):
         raise ValueError(f"{path!r} in {ref} is not a regular file")
@@ -733,15 +753,11 @@ def design_read(path, ref, config, key="design_dir", path_only=False, status_onl
         text = run_git(root, "cat-file", "blob", blob, text=False).decode("utf8")
     except UnicodeDecodeError:
         raise ValueError(f"{path!r} in {ref} is not UTF-8 text")
-    if status_only:
-        return status_of(text, f"{path!r} in {ref}")
-    if key != "adr_dir":
-        approved_text(text, f"{path!r} in {ref}")
-    return path if path_only else text
+    return path, text
 
 
-# The status moves gates/design-exit.md's Status transitions section allows, as kepval
-# validates a KEP's: each needs a design branch, and a draft's first status needs none.
+# The status moves gates/design-exit.md's Status transitions section allows, each mapped to
+# whether it needs a design branch: a draft's first `proposed` needs none.
 DESIGN_TRANSITIONS = {(None, "proposed"): False, (None, "accepted"): True,
                       (None, "rejected"): True, ("proposed", "accepted"): True,
                       ("proposed", "rejected"): True, ("accepted", "proposed"): True}
@@ -749,34 +765,28 @@ DESIGN_TRANSITIONS = {(None, "proposed"): False, (None, "accepted"): True,
 
 def design_transition(path, ref, config):
     """`ok <old> -> <new>` when the move from the design's status in ref, the parent branch,
-    to its status in the working tree is one DESIGN_TRANSITIONS allows, `none` for a design
-    ref lacks, an unchanged status always allowed; a move that needs a branch is allowed
-    only with `design/<slug>` or `design/<slug>-rev<N>` checked out, so no status changes on
-    the parent branch itself. ValueError naming the move otherwise."""
-    directory = design_dirs(read_config(config))["design_dir"]
-    if directory is None:
-        raise ValueError("design_dir is unset in project.json")
-    path = design_path(path, directory)
+    to its status in the working tree is one DESIGN_TRANSITIONS allows, both read by
+    record_status, `none` for a design ref lacks or a draft not yet given one; an unchanged
+    status is always allowed. A move that needs a branch is allowed only with
+    `design/<slug>` or `design/<slug>-rev<N>` checked out, so no status changes on the
+    parent branch itself. ValueError naming the move otherwise."""
     try:
-        old = design_read(path, ref, config, status_only=True)
-    except Absent:
-        old = None
+        path, text = ref_record(path, ref, config)
+        old = record_status(text, f"{path!r} in {ref}")
+    except Absent as absent:
+        path, old = absent.path, None
     new = front_matter_status(path, config)
-    shown = f"{old or 'none'} -> {new}"
-    if old == new:
+    old, new = (None if status == "none" else status for status in (old, new))
+    shown = f"{old or 'none'} -> {new or 'none'}"
+    if old == new or not DESIGN_TRANSITIONS.get((old, new), True):
         return f"ok {shown}"
     if (old, new) not in DESIGN_TRANSITIONS:
         raise ValueError(f"{path!r} moves {shown}, which gates/design-exit.md does not allow")
-    if not DESIGN_TRANSITIONS[(old, new)]:
-        return f"ok {shown}"
     slug = path.rsplit("/", 1)[1][:-len(".md")]
-    try:
-        branch = run_git(project_root(config), "symbolic-ref", "--quiet", "--short",
-                         "HEAD").strip()
-    except ValueError:
-        branch = "a detached HEAD"
+    branch = run_git(project_root(config), "branch", "--show-current").strip()
     if not re.fullmatch(rf"design/{re.escape(slug)}(-rev[1-9][0-9]*)?", branch):
-        raise ValueError(f"{path!r} moves {shown} on {branch!r}, not on design/{slug} or "
+        shown_branch = repr(branch) if branch else "a detached HEAD"
+        raise ValueError(f"{path!r} moves {shown} on {shown_branch}, not on design/{slug} or "
                          f"design/{slug}-rev<N>")
     return f"ok {shown}"
 
@@ -1787,45 +1797,69 @@ def design_transition_self_test(this):
         run_git(root, "init", "--quiet", "--initial-branch=main")
         run_git(root, "add", "-A")
         run_git(root, "commit", "--quiet", "-m", "designs")
-        refused = "ValueError"
-        for name, design, status, branch, expected in [
+        on_main = "on 'main', not on design/"
+        not_allowed = "which gates/design-exit.md does not allow"
+        legacy = "# L\n\n## Decision\n\n{}\n"
+        write_scratch(root, legacy.format("Approved by rob on 2026-10-30."),
+                      "docs/design/legacy.md")
+        run_git(root, "add", "-A")
+        run_git(root, "commit", "--quiet", "-m", "a legacy design")
+        for name, design, text, branch, expected in [
                 ("an unchanged accepted design passes on main", "accepted", "accepted",
                  "main", "ok accepted -> accepted"),
                 ("a new draft passes on main", "new", "proposed", "main",
                  "ok none -> proposed"),
-                ("a new design decided on main is refused", "new", "accepted", "main", refused),
+                ("a legacy Pending draft passes on main", "new",
+                 legacy.format("Pending — rob."), "main", "ok none -> none"),
+                ("an unchanged legacy design passes on main", "legacy",
+                 legacy.format("Approved by rob on 2026-10-30."), "main",
+                 "ok accepted -> accepted"),
+                ("a new design approved on main is refused", "new", "accepted", "main",
+                 on_main),
+                ("a new design rejected on main is refused", "new", "rejected", "main",
+                 on_main),
                 ("a new design decided on its branch passes", "new", "accepted", "design/new",
                  "ok none -> accepted"),
                 ("an approval on its branch passes", "proposed", "accepted", "design/proposed",
                  "ok proposed -> accepted"),
-                ("an approval on main is refused", "proposed", "accepted", "main", refused),
+                ("an approval on main is refused", "proposed", "accepted", "main", on_main),
                 ("a rejection on a revision branch passes", "proposed", "rejected",
                  "design/proposed-rev2", "ok proposed -> rejected"),
-                ("a reopen on main is refused", "accepted", "proposed", "main", refused),
+                ("a reopen on main is refused", "accepted", "proposed", "main", on_main),
+                ("a reopen on revision 1 passes", "accepted", "proposed",
+                 "design/accepted-rev1", "ok accepted -> proposed"),
                 ("a reopen on its revision branch passes", "accepted", "proposed",
                  "design/accepted-rev2", "ok accepted -> proposed"),
                 ("a reopen on another design's branch is refused", "accepted", "proposed",
-                 "design/proposed-rev2", refused),
+                 "design/proposed-rev2", "on 'design/proposed-rev2', not on design/accepted"),
                 ("a reopen on revision 0 is refused", "accepted", "proposed",
-                 "design/accepted-rev0", refused),
+                 "design/accepted-rev0", "on 'design/accepted-rev0'"),
+                ("a reopen on a zero-padded revision is refused", "accepted", "proposed",
+                 "design/accepted-rev01", "on 'design/accepted-rev01'"),
                 ("a reopen on a branch extending the slug is refused", "accepted", "proposed",
-                 "design/accepted-x", refused),
+                 "design/accepted-x", "on 'design/accepted-x'"),
                 ("accepted to rejected is refused on its branch", "accepted", "rejected",
-                 "design/accepted", refused),
+                 "design/accepted", not_allowed),
                 ("a rejected design reopened is refused", "rejected", "proposed",
-                 "design/rejected-rev2", refused),
+                 "design/rejected-rev2", not_allowed),
                 ("a status no transition names is refused", "proposed", "implemented",
-                 "design/proposed", refused),
+                 "design/proposed", not_allowed),
                 ("a reopen on a detached HEAD is refused", "accepted", "proposed", None,
-                 refused)]:
+                 "on a detached HEAD"),
+                ("a deleted design is refused", "accepted", None, "design/accepted-rev2",
+                 "'docs/design/accepted.md' is not a regular file")]:
             path = f"docs/design/{design}.md"
-            write_scratch(root, front.format(status), path)
+            if text is None:
+                os.remove(os.path.join(root, path))
+            else:
+                write_scratch(root, text if text.startswith("#") else front.format(text), path)
             if branch is None:
                 run_git(root, "checkout", "--quiet", "--detach", "main")
             else:
                 run_git(root, "symbolic-ref", "HEAD", f"refs/heads/{branch}")
-            got = result_of(design_transition, path, "main", project)
-            failures += report("design_transition", name, got, expected)
+            got = result_or_message(lambda: design_transition(path, "main", project))
+            failures += report("design_transition", name, got == expected
+                               if expected.startswith("ok ") else expected in got, True)
             run_git(root, "symbolic-ref", "HEAD", "refs/heads/main")
             run_git(root, "checkout", "--quiet", "--", ".")
             if design == "new":

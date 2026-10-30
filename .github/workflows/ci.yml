@@ -54,7 +54,8 @@ jobs:
       # slug_of's folding, separators and length fit; JIRA_KEY's edges; pr_number and
       # ticket_branch boundaries; text_input's terminal refusal and newline handling; and each
       # subcommand: slug, draft-slug, pr-number, ticket-key, ticket-keys, ticket-branch, and
-      # design-read and brief-read, with one case per known bypass and per refused record.
+      # design-read, design-transition, and brief-read, with one case per known bypass, per
+      # refused record, and per allowed and refused status move.
       - name: Project rules self-test
         run: python3 gates/scripts/project_rules.py --self-test
 

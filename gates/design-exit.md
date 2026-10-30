@@ -292,8 +292,9 @@ reads a KEP's `status`; `## Decision` records who approved it.
 
 ## Status transitions
 
-A design's `status` moves only as a KEP's does, each move by a pull request kepval checks:
-`proposed → accepted` or `rejected`, and the reopen `accepted → proposed`, made when an
-accepted design needs rework. Each is committed on `design/<slug>`, or for a reopen
-`design/<slug>-rev<N>`, never on `{{parent_branch_default}}` itself; any other move is
-invalid. `${CLAUDE_PLUGIN_ROOT}/gates/scripts/project_rules.py design-transition` checks it.
+A design's `status` moves only by these, each but the first committed on `design/<slug>`,
+or for a reopen `design/<slug>-rev<N>`, and merged by pull request, as a merged KEP is
+revised: a draft's first `proposed`, in the working tree; a new design's `accepted` or
+`rejected`; `proposed → accepted` or `rejected`; and the reopen `accepted → proposed`. Any
+other move, or a decision or reopen on `{{parent_branch_default}}` itself, is invalid;
+`${CLAUDE_PLUGIN_ROOT}/gates/scripts/project_rules.py design-transition` checks it.
