@@ -150,13 +150,13 @@ points, blocked by — then:
 - any sequenced split from Step 3, and every DECISION from the review
 - assumptions stated in place of questions
 
-Ask `{{roles.qa}}` to confirm every `Priority: Must` ticket's ACs are testable, and fix any
-that are not. Then stop and wait for `{{roles.product_owner}}`, the one accountable role,
-whose approval counts only after QA's. Print each per `gates/project-config.md`. Any edit
-after Step 6 re-runs Step 5 and one Step 6 round outside its count; a BLOCKER from it goes
+Ask `{{roles.qa}}` to confirm every `Priority: Must` ticket's ACs are testable, fixing any
+that are not, then wait for `{{roles.product_owner}}`, whose approval counts only after
+QA's; one person in both roles gets one question. Print each per `gates/project-config.md`.
+An edit after Step 6 re-runs Step 5 and one Step 6 round outside its count; its BLOCKERs go
 to the product owner, and an edit to a `Must` ticket's ACs goes back to QA, as a new commit
-dismisses a stale approval. Approval is an explicit "approved" or "create them"; a
-clarifying question is not approval.
+dismisses a stale approval. Approval is an explicit "approved" or "create them", never a
+clarifying question.
 
 ## Step 8 — Create
 

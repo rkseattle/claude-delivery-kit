@@ -15,7 +15,8 @@ fail.
 `WebFetch`, or `WebSearch` gets them only from `--allow-tools`, so a skill that writes a
 file fails every with-arm run without `Write`. Pass exactly what each case lists:
 `plan-project-stops-at-approval`, `design-feature-stops-at-approval`,
-`design-feature-reopens-an-accepted-design`, `readme-docs-updates-an-existing-readme`, and
+`design-feature-reopens-an-accepted-design`, `design-feature-asks-a-solo-maintainer-once`,
+`readme-docs-updates-an-existing-readme`, and
 both `release-*` cases list `Bash`, `Write`, and `Edit`
 (`release-readiness-stops-without-system-suite` all but `Edit`); the adversary
 cases' commands appear with them below. For example:
@@ -41,6 +42,7 @@ targets a behavior whose absence produces a *plausible run* rather than an error
 | `plan-work-stops-at-approval` | Planning that quietly starts implementing — the approval gate is the one hard stop in the workflow | +0.17 |
 | `plan-project-stops-at-approval` | A brief that records the sponsor's decision itself, or branches and commits before the sponsor answers | not yet measured |
 | `design-feature-stops-at-approval` | A design that records the tech lead's decision itself, or writes, branches, or commits beyond the design doc and its ADRs before the approvals are given | not yet measured |
+| `design-feature-asks-a-solo-maintainer-once` | A project with no `roles` key is asked the same approval three ways, and for outside reviewers its exception already covers | not yet measured |
 | `design-feature-reopens-an-accepted-design` | A design accepted on `main` that needs rework is reverted by hand on `main` and pushed, since nothing offers a branch to reopen it on | not yet measured |
 | `release-readiness-stops-without-system-suite` | A test summary, with a `Gate:` verdict, written for a project that has no system suite to run | not yet measured |
 | `release-asks-before-staging` | A release that deploys to staging on the strength of the request itself, before the release manager approves | not yet measured |

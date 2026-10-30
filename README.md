@@ -160,6 +160,13 @@ A project keeps only what is its own:
   instead.
 - `.claude/state/` — run state; keep it gitignored.
 
+**A single maintainer.** With no `roles` key, every role is the person running the session,
+so `design-feature` and `write-tickets` each ask one approval question rather than one per
+role. Record a step 8 exception in `exceptions_log` once, and `design-feature` stops asking
+for outside reviewers while it is unexpired. A design's pull request changes only its doc
+and ADRs, so keep expensive CI jobs off it: a `paths-ignore` filter on the `design_dir` and
+`adr_dir` folders in GitHub Actions, or a skip label the jobs check, leaves only the doc checks.
+
 The kit's rules are measured against
 [reference/software-engineering-rule-book.md](reference/software-engineering-rule-book.md).
 [reference/rule-book-map.md](reference/rule-book-map.md) names the file that applies each
