@@ -51,6 +51,7 @@ targets a behavior whose absence produces a *plausible run* rather than an error
 | `write-tickets-hands-a-proposed-design-back` | A design reopened by hand on `main` gets contradictory directions, each skill pointing at the other, rather than one `NEXT:` command | not yet measured |
 | `write-tickets-stops-without-config` | Tickets drafted against verification tiers and source roots the project never declared | +0.50 |
 | `review-tickets-passes-a-sound-epic` | A read-only review that fails sound tickets, invents a design verdict, or writes into the work tree, so its report is ignored | not yet measured |
+| `review-tickets-flags-a-failing-child` | A review that reports a failing child without its rubric ID or with a miscounted linter result, so the `write-tickets` handoff names the wrong tickets | not yet measured |
 | `design-adversary-passes-a-sound-plan` | Review that always finds a blocker, so planning always ends in deferred work | not yet measured |
 | `design-adversary-catches-a-missing-ac` | Review that stopped blocking real defects after its BLOCKER definition was narrowed | not yet measured |
 | `design-adversary-catches-an-unmapped-nfr` | A plan that phases every NFR but never says which design element meets one, or leaves an affected Epic NFR unphased, passes review | not yet measured |
@@ -253,6 +254,13 @@ names, `design_dir`, `adr_dir`, and `brief_file` among them, so the design secti
 `creates-nothing-else` graders allow writes only under `.git/review-tickets/` and
 `.git/review-tickets-input/`, and no Edit or git command that moves a branch or changes the
 index.
+
+`review-tickets-flags-a-failing-child` differs from it by three lines: ABC-3 loses its
+`moscow-*` label and the Epic its SM2, the measure naming ABC-3, so the linter prints
+exactly one `R12` on ABC-3 and one `E3` on ABC-1; and project.json sets `design_dir`, so
+`not-checked-line` asserts the other reason, `the Epic names no design`.
+`counts-the-findings` asserts the exact linter counts in the summary table and FAIL on the
+two tickets; the reviewer's findings vary by run and are graded by `names-the-rules`.
 
 ## What these cases cannot test
 
