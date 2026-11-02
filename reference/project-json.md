@@ -132,7 +132,11 @@ costly-to-reverse choice, the one design the gate would fail, and `plan-work` st
 the key, on a design that names an ADR. `write-tickets` and `plan-work` read a design
 through `gates/scripts/project_rules.py design-read`, passing it this file to take each key
 from; each read needs both keys valid or unset, and never one directory, compared ignoring
-case, as a case-insensitive disk reads them.
+case, as a case-insensitive disk reads them. `review-tickets` reads `design_dir` the same
+way for the design an Epic names and has `feature-design-adversary` review it; with
+`design_dir` `none` it reports the design not checked and reviews the tickets anyway, and
+with `design_dir` or `adr_dir` invalid, it reports the design not checked, quoting
+`design-read`'s reason.
 `ci-green`'s merge step runs `gates/scripts/adr_numbers.py` on `adr_dir`, which under `none`
 passes and says so, unless `design_dir` is invalid, which fails it as `design-read` would.
 
@@ -179,8 +183,11 @@ is now checked as each directory key is, save that it may start with `.`: `plan-
 writes it unquoted into `git add` and `git commit`, where a space, a shell metacharacter, a
 leading `-`, or an empty, `.`, or `..` component never worked, so rename such a path;
 directory keys refuse those components too. The brief is committed, so the path must not be
-gitignored. Default `none`, under which `plan-project` stops, and `write-tickets` and
-`design-feature` read no goals.
+gitignored. `review-tickets` reads the approved brief the same way and fails each ticket
+goal that restates none of its goals; a brief missing, not approved, or naming no goal it
+reports as the reason goals were not traced, and reviews on. Default `none`, under which `plan-project` stops,
+`write-tickets` and `design-feature` read no goals, and `review-tickets` announces the key
+and traces no goal.
 
 `pr_review_limit_lines` serves rule book R9: a pull request reviewable in under an hour. It
 caps one PR's changed lines, insertions plus deletions against the parent branch.
@@ -320,14 +327,14 @@ the key.
 - `disciplines` — a list drawn from `security`, `data-ml`, `mobile`, `embedded`, and
   `sre`. Default `[]`. With `security`, `plan-work` requires a STRIDE `## Threat model`
   in every plan, and `design-adversary` blocks a `High` threat that names no phase.
-  `write-tickets`' linter requires rule book Appendix B's ticket fields: with `data-ml`, a
-  `## Data` section on a Story labeled `data` and a holdout NFR on one labeled `model`; with
-  `embedded`, memory, power and timing NFRs on an Epic; with `sre`, an `over <n> days`
-  window on an availability or latency NFR. With `data-ml`, `plan-work`'s `## Data
-  ownership` names each dataset's schema owner and version location, and `design-adversary`
-  flags a plan without them. `plan-work`, `write-tickets`, `release-readiness`, and `release`
-  stop on any other name, matched with case, since a misspelled discipline would skip its
-  addenda without a word. A named discipline
+  `write-tickets`' linter, which `review-tickets` runs too, requires rule book Appendix B's
+  ticket fields: with `data-ml`, a `## Data` section on a Story labeled `data` and a holdout
+  NFR on one labeled `model`; with `embedded`, memory, power and timing NFRs on an Epic; with
+  `sre`, an `over <n> days` window on an availability or latency NFR. With `data-ml`,
+  `plan-work`'s `## Data ownership` names each dataset's schema owner and version location,
+  and `design-adversary` flags a plan without them. `plan-work`, `write-tickets`,
+  `review-tickets`, `release-readiness`, and `release` stop on any other name, matched with
+  case, since a misspelled discipline would skip its addenda without a word. A named discipline
   adds its sections of `gates/release-readiness.md` and `gates/release.md`, where it has
   them, and a discipline left out skips them silently. The keys a named discipline needs at a gate
   have no default: absent, `none`, a `<placeholder>`, or malformed, they stop that gate's skill.

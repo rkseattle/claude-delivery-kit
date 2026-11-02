@@ -26,8 +26,9 @@ design, a temporary worktree inside the git directory. The design's fetch also o
 Read `${CLAUDE_PROJECT_DIR}/.claude/project.json`: every `{{key}}` below comes from it.
 Read `${CLAUDE_PLUGIN_ROOT}/gates/project-config.md` and follow it exactly; this skill's
 optional keys are `design_dir`, `adr_dir`, `brief_file`, `disciplines`, `registry_file`,
-`plan_rules_file`, and `pr_review_limit_lines`. None of them stops the review: an unset key
-is announced, and the checks that read it judge without it.
+`plan_rules_file`, and `pr_review_limit_lines`. An unset one stops nothing: it is
+announced, and the checks that read it judge without it. A `disciplines` naming an unknown
+discipline stops the review at Step 4, where the linter refuses it.
 
 Read `${CLAUDE_PLUGIN_ROOT}/skills/write-tickets/references/rubric.md` and
 `${CLAUDE_PLUGIN_ROOT}/skills/write-tickets/references/templates.md` in full. The rubric
@@ -112,6 +113,22 @@ than the ticket; Step 8 reports them as unknown instead:
 
 Exit 0 and 1 both go on; exit 2 stops the run, printing its `UNPARSEABLE` line.
 
+The linter's R14 sees a goal's presence, not what it serves; rubric R14 also ties each
+goal to the approved brief. At `{{brief_file}}` `none`, say in one line that goals were
+not traced to a brief. Otherwise run this; on `INVALID:`, print that line, without its
+`NEXT:` line, as the reason goals were not traced, and go on. Relay a `DEPRECATED:` line
+as it is:
+
+```bash
+python3 "${CLAUDE_PLUGIN_ROOT}/gates/scripts/project_rules.py" brief-read --config "<absolute project root>/.claude/project.json"
+```
+
+A brief whose `## Goals` names no outcome, only "none", "TBD", or "N/A", is the defect:
+say so in one line as the reason goals were not traced. Otherwise each ticket's `Goal:`
+header, and an Epic's `## Goal`, that restates none of the brief's goals is an `R14`
+finding tagged `(brief)`, which fails its ticket, quoting the goal and naming the brief's
+goals as the fix.
+
 ## Step 5 — Review it cold
 
 Launch `ticket-adversary` once. **The delegation contains only the absolute path to
@@ -182,7 +199,7 @@ One section per ticket under review, in draft order: `## <KEY> — <summary> —
 `— FAIL`. Under it, one line per finding:
 
 ```
-- <rule ID> — <the ticket text that fails it, quoted> — <the fix, from the finding> (lint | review <severity>)
+- <rule ID> — <the ticket text that fails it, quoted> — <the fix, from the finding> (lint | brief | review <severity>)
 ```
 
 - A lint line keeps the code it printed and its key. A `FORMAT` or `JIRA` line names no
@@ -202,7 +219,7 @@ an Epic-level finding, goes in a `## Across the draft` section after the tickets
 the review rated it, counted against no ticket. That section ends with one line saying the
 linter's handoff-size check did not run, since no `Handoff:` is filled.
 
-A ticket **fails** on any lint `ERROR` or review BLOCKER or MAJOR; a `WARN` or MINOR is
+A ticket **fails** on any lint `ERROR`, `(brief)` finding, or review BLOCKER or MAJOR; a `WARN` or MINOR is
 reported and fails nothing. A ticket with no finding reads `- none`. A ticket whose status
 is past Jira's To Do category is past planning, which the rubric judges readiness for, and
 its code has moved on since: its findings are listed, but its heading reads `— <status>,
@@ -212,7 +229,7 @@ not judged` in place of PASS or FAIL, and it is neither counted nor handed to
 Then the design section, Step 6's. The report ends with the summary, in this order:
 
 ```
-| Ticket | Lint errors | Lint warnings | Review BLOCKER | Review MAJOR | Result |
+| Ticket | Lint errors | Lint warnings | Brief | Review BLOCKER | Review MAJOR | Result |
 ```
 
 one row per ticket, `not judged` in its Result past To Do, then
