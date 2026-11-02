@@ -50,6 +50,7 @@ targets a behavior whose absence produces a *plausible run* rather than an error
 | `release-asks-before-staging` | A release that deploys to staging on the strength of the request itself, before the release manager approves | not yet measured |
 | `write-tickets-hands-a-proposed-design-back` | A design reopened by hand on `main` gets contradictory directions, each skill pointing at the other, rather than one `NEXT:` command | not yet measured |
 | `write-tickets-stops-without-config` | Tickets drafted against verification tiers and source roots the project never declared | +0.50 |
+| `review-tickets-passes-a-sound-epic` | A read-only review that fails sound tickets, invents a design verdict, or writes into the work tree, so its report is ignored | not yet measured |
 | `design-adversary-passes-a-sound-plan` | Review that always finds a blocker, so planning always ends in deferred work | not yet measured |
 | `design-adversary-catches-a-missing-ac` | Review that stopped blocking real defects after its BLOCKER definition was narrowed | not yet measured |
 | `design-adversary-catches-an-unmapped-nfr` | A plan that phases every NFR but never says which design element meets one, or leaves an affected Epic NFR unphased, passes review | not yet measured |
@@ -232,6 +233,27 @@ reads its tickets from Jira, and a run has no Jira to reach: a mock answers only
 server the plugin declares, and this plugin declares none. Their scores measure an
 uninstructed reviewer until that changes.
 
+## The `review-tickets-*` cases
+
+Each scaffold writes `jira/`, what `jira_get_issue` and `jira_search` return for its
+Epic and children, and its prompt tells the run to read those files in place of Jira, as
+`plan-project-stops-at-approval`'s prompt supplies `gh` output. Each also writes
+`.claude/agent-rules/ticket-adversary.md`, since the dispatched reviewer has no Jira
+either. Every case lists Bash and Write; a case that dispatches `feature-design-adversary`
+also lists WebSearch and WebFetch, for its reviewer's survey:
+
+```bash
+claude plugin eval . --scaffold --case 'review-tickets-*' --allow-tools Bash Write WebSearch WebFetch
+```
+
+`review-tickets-passes-a-sound-epic` is the false-positive case: an Epic and two Stories
+that meet the rubric, no design, and a `project.json` without any optional key the skill
+names, `design_dir`, `adr_dir`, and `brief_file` among them, so the design section gives
+`design_dir is unset` as its reason. Its `changes-nothing-*`, `no-shell-writes`, and
+`creates-nothing-else` graders allow writes only under `.git/review-tickets/` and
+`.git/review-tickets-input/`, and no Edit or git command that moves a branch or changes the
+index.
+
 ## What these cases cannot test
 
 `tool_used: Skill` is the natural grader for "did the plugin fire", and it is
@@ -277,6 +299,8 @@ servers, no user settings. That constrains what can be tested here:
   appointment module, empty `docs/design` and `docs/adr`, an exceptions log, and the
   reviewer's rules file. `design-feature-runs-from-a-feature-branch`'s builds the same, then
   checks out a `wip` branch with an unmerged `relay_7q` module and a dirty project.json.
+  The `review-tickets-*` scaffolds build a git repo with a local bare `origin`, a seeded
+  module and test, and `jira/` responses.
   Each scaffold repeats its setup rather than sourcing a shared file: the harness runs it
   alone in its own workspace, and the plugin-evals docs describe no shared fixtures.
 - **`git` may not run inside a run on macOS.** In the 2026-10-23 `ci-failure-adversary-*`
@@ -288,8 +312,8 @@ servers, no user settings. That constrains what can be tested here:
   A scaffold's git runs before the sandbox and is unaffected. Cases whose session or agent
   runs git during the run — `plan-project-stops-at-approval`,
   `design-feature-stops-at-approval`, `design-feature-runs-from-a-feature-branch`, both
-  `release-*` cases, and
-  the `ci-failure-adversary-*` and `feature-design-adversary-*` cases — are not yet
+  `release-*` cases, and the `ci-failure-adversary-*`, `feature-design-adversary-*`, and
+  `review-tickets-*` cases — are not yet
   re-measured against this. `results/` is not tracked, so re-run to check it.
 - **Not testable without more scaffolding**: anything needing Jira, GitHub itself, or a
   populated `.claude/state/`. The citation contract end-to-end — the highest-value case —
