@@ -16,6 +16,7 @@ fail.
 file fails every with-arm run without `Write`. Pass exactly what each case lists:
 `plan-project-stops-at-approval`, `design-feature-stops-at-approval`,
 `design-feature-reopens-an-accepted-design`, `design-feature-asks-a-solo-maintainer-once`,
+`design-feature-runs-from-a-feature-branch`,
 `readme-docs-updates-an-existing-readme`, and
 both `release-*` cases list `Bash`, `Write`, and `Edit`
 (`release-readiness-stops-without-system-suite` all but `Edit`); the adversary
@@ -43,6 +44,7 @@ targets a behavior whose absence produces a *plausible run* rather than an error
 | `plan-project-stops-at-approval` | A brief that records the sponsor's decision itself, or branches and commits before the sponsor answers | not yet measured |
 | `design-feature-stops-at-approval` | A design that records the tech lead's decision itself, or writes, branches, or commits beyond the design doc and its ADRs before the approvals are given | not yet measured |
 | `design-feature-asks-a-solo-maintainer-once` | A project with no `roles` key is asked the same approval three ways, and for outside reviewers its exception already covers | not yet measured |
+| `design-feature-runs-from-a-feature-branch` | A design started from a dirty feature branch either stops on the checkout or cites the branch's unmerged code as if it were on `main`, or never calls `base-tree remove` (the tree's removal itself is `design_check.py --self-test`'s) | not yet measured |
 | `design-feature-reopens-an-accepted-design` | A design accepted on `main` that needs rework is reverted by hand on `main` and pushed, since nothing offers a branch to reopen it on | not yet measured |
 | `release-readiness-stops-without-system-suite` | A test summary, with a `Gate:` verdict, written for a project that has no system suite to run | not yet measured |
 | `release-asks-before-staging` | A release that deploys to staging on the strength of the request itself, before the release manager approves | not yet measured |
@@ -68,7 +70,8 @@ Each case should pair a check on the *result* with a check on *how Claude got th
 the official guidance: a `regex` or `llm` grader on the reply, and a `tool_used` grader on
 the transcript. The two missing-key cases, `readme-docs-updates-an-existing-readme`,
 `plan-project-stops-at-approval`, `design-feature-stops-at-approval`,
-`design-feature-reopens-an-accepted-design`, `release-asks-before-staging`,
+`design-feature-reopens-an-accepted-design`, `design-feature-runs-from-a-feature-branch`,
+`release-asks-before-staging`,
 `release-readiness-stops-without-system-suite`, all three `ci-failure-adversary-*`
 cases, and both `feature-design-adversary-*` cases do.
 `write-tickets-stops-without-config` has a `tool_used` grader that cannot fail, since Write
@@ -101,8 +104,9 @@ run's reply before scoring it as a gate failure, as for one that runs out of its
 during review. The skill writes the design doc and its input files with Write and revises
 them with Edit, and the session and the dispatched `feature-design-adversary` run git
 through Bash, so grant all three. Whether the transcript records the
-reviewer's calls is unconfirmed, as for the `ci-failure-adversary-*` cases below; the one
-command the reviewer prescribes, its `git fetch` and `adr_numbers.py` check, matches neither
+reviewer's calls is unconfirmed, as for the `ci-failure-adversary-*` cases below; the
+commands the reviewer prescribes, its `git fetch`, `adr_numbers.py` check, and `git show
+<Base>:<path>` reads, match neither
 `no-shell-writes` nor `no-branch-or-commit`. `creates-the-design` and `creates-nothing-else`
 read the paths the run created, so they catch a write the transcript graders cannot see:
 
@@ -271,7 +275,10 @@ servers, no user settings. That constrains what can be tested here:
   Jira, or GitHub call.
   `design-feature-stops-at-approval`'s builds a git repo with a local bare `origin`, a small
   appointment module, empty `docs/design` and `docs/adr`, an exceptions log, and the
-  reviewer's rules file.
+  reviewer's rules file. `design-feature-runs-from-a-feature-branch`'s builds the same, then
+  checks out a `wip` branch with an unmerged `relay_7q` module and a dirty project.json.
+  Each scaffold repeats its setup rather than sourcing a shared file: the harness runs it
+  alone in its own workspace, and the plugin-evals docs describe no shared fixtures.
 - **`git` may not run inside a run on macOS.** In the 2026-10-23 `ci-failure-adversary-*`
   run, on Claude Code 2.1.309, every with-arm agent reported that `git` failed through the
   `/usr/bin/git` shim and rebuilt both commits by decoding `.git/objects` with Python, so
@@ -280,7 +287,8 @@ servers, no user settings. That constrains what can be tested here:
   is not writable, and the `xcrun` shim needs a cache file there. That cause is unconfirmed.
   A scaffold's git runs before the sandbox and is unaffected. Cases whose session or agent
   runs git during the run — `plan-project-stops-at-approval`,
-  `design-feature-stops-at-approval`, both `release-*` cases, and
+  `design-feature-stops-at-approval`, `design-feature-runs-from-a-feature-branch`, both
+  `release-*` cases, and
   the `ci-failure-adversary-*` and `feature-design-adversary-*` cases — are not yet
   re-measured against this. `results/` is not tracked, so re-run to check it.
 - **Not testable without more scaffolding**: anything needing Jira, GitHub itself, or a
