@@ -59,13 +59,14 @@ repository inherits the caller's git. Each importer's self-test covers the rules
                                    --status, its front matter `status`, unjudged;
                                    INVALID otherwise: KEY unset, design_dir or adr_dir
                                    invalid, or the two naming one directory
-    project_rules.py design-transition --ref REF --config FILE
+    project_rules.py design-transition --ref REF --config FILE [--worktree DIR]
                                    `ok <old> -> <new>` when the design at the path on standard
                                    input, checked as design-read checks it, moves from its
                                    status in REF, `none` when REF lacks it, to its
-                                   working-tree status by a move gates/design-exit.md
+                                   working-tree status, read in DIR when given, else the
+                                   project's, by a move gates/design-exit.md
                                    allows: unchanged, a draft's first `proposed`, or, with
-                                   design/<slug> or design/<slug>-rev<N> checked out, a
+                                   design/<slug> or design/<slug>-rev<N> checked out there, a
                                    decision or the reopen `accepted -> proposed`; INVALID
                                    otherwise, naming the move and the branch
     project_rules.py front-matter-status --file PATH --config FILE
@@ -672,17 +673,16 @@ def front_matter(text):
     return mapping
 
 
-def front_matter_status(path, config):
-    """The status of the working-tree record at path, relative to project_root(config) and
-    built by the caller from checked values, so a skill reads whether a draft is decided
-    from this script, not by eye: its front matter
+def front_matter_status(path, config, root=None):
+    """The status of the working-tree record at path, relative to root, or to
+    project_root(config) when root is None, and built by the caller from checked values, so
+    a skill reads whether a draft is decided from this script, not by eye: its front matter
     `status`, or for a record written before front matter, what legacy_status reads from its
-    `## Decision`. ValueError for front matter that is
-    unreadable or has no text status, or a path that is no regular file reached through no
-    symlink, as brief_read requires."""
+    `## Decision`. ValueError for front matter that is unreadable or has no text status, or a
+    path that is no regular file reached through no symlink, as brief_read requires."""
     path = re.sub(r"/{2,}", "/", path)
     check_repo_path("path", path, REPO_FILE, "letter, digit, '_', or '.'")
-    full = os.path.join(os.path.realpath(project_root(config)), path)
+    full = os.path.join(os.path.realpath(root or project_root(config)), path)
     return record_status(regular_text(full, repr(path)), repr(path))
 
 
@@ -792,9 +792,10 @@ DESIGN_TRANSITIONS = {(None, "proposed"): False, (None, "accepted"): True,
                       ("proposed", "rejected"): True, ("accepted", "proposed"): True}
 
 
-def design_transition(path, ref, config):
+def design_transition(path, ref, config, worktree=None):
     """`ok <old> -> <new>` when the move from the design's status in ref, the parent branch,
-    to its status in the working tree is one DESIGN_TRANSITIONS allows, both read by
+    to its status in the working tree, worktree's when given, the tree the commit is made
+    in, else the project's, is one DESIGN_TRANSITIONS allows, both read by
     record_status, `none` for a design ref lacks or a draft not yet given one; an unchanged
     status is always allowed. A move that needs a branch is allowed only with
     `design/<slug>` or `design/<slug>-rev<N>` checked out, so no status changes on the
@@ -804,7 +805,7 @@ def design_transition(path, ref, config):
         old = record_status(text, f"{path!r} in {ref}")
     except Absent as absent:
         path, old = absent.path, None
-    new = front_matter_status(path, config)
+    new = front_matter_status(path, config, worktree)
     old, new = (None if status == "none" else status for status in (old, new))
     shown = f"{old or 'none'} -> {new or 'none'}"
     if old == new or not DESIGN_TRANSITIONS.get((old, new), True):
@@ -812,7 +813,7 @@ def design_transition(path, ref, config):
     if (old, new) not in DESIGN_TRANSITIONS:
         raise ValueError(f"{path!r} moves {shown}, which gates/design-exit.md does not allow")
     slug = path.rsplit("/", 1)[1][:-len(".md")]
-    branch = run_git(project_root(config), "branch", "--show-current").strip()
+    branch = run_git(worktree or project_root(config), "branch", "--show-current").strip()
     if not design_branch(slug).fullmatch(branch):
         shown_branch = repr(branch) if branch else "a detached HEAD"
         raise ValueError(f"{path!r} moves {shown} on {shown_branch}, not on design/{slug} or "
@@ -2219,6 +2220,21 @@ def design_transition_self_test(this):
                              ["design-transition", "--ref", "main", "--config", project],
                              "ok accepted -> proposed", 0, input="docs/design/accepted.md\n",
                              cwd=root, env=isolated_git_environment(), exact=True)
+        run_git(root, "symbolic-ref", "HEAD", "refs/heads/main")
+        tree = os.path.join(root, ".git", "decision-tree")
+        run_git(root, "worktree", "add", "--quiet", "-b", "design/accepted-rev3", tree, "main")
+        write_scratch(tree, front.format("proposed"), "docs/design/accepted.md")
+        failures += cli_case(this, "design-transition reads the branch and file of --worktree",
+                             ["design-transition", "--ref", "main", "--config", project,
+                              "--worktree", tree],
+                             "ok accepted -> proposed", 0, input="docs/design/accepted.md\n",
+                             cwd=root, env=isolated_git_environment(), exact=True)
+        write_scratch(root, front.format("accepted"), "docs/design/accepted.md")
+        failures += report("design_transition", "--worktree ignores the checkout's own file",
+                           result_or_message(lambda: design_transition(
+                               "docs/design/accepted.md", "main", project, tree)),
+                           "ok accepted -> proposed")
+        run_git(root, "worktree", "remove", "--force", tree)
         write_scratch(root, {}, ".claude/project.json")
         failures += report("design_transition", "an unset design_dir is named",
                            result_or_message(lambda: design_transition(
@@ -2869,6 +2885,7 @@ def main():
     transition = commands.add_parser("design-transition")
     transition.add_argument("--ref", required=True)
     transition.add_argument("--config", required=True)
+    transition.add_argument("--worktree")
     stage = commands.add_parser("lifecycle")
     stage.add_argument("--ref", required=True)
     stage.add_argument("--config", required=True)
@@ -2892,7 +2909,7 @@ def main():
                                                                  args.config, args.key,
                                                                  args.path, args.status),
                               "design-transition": lambda: design_transition(
-                                  text_input(None), args.ref, args.config),
+                                  text_input(None), args.ref, args.config, args.worktree),
                               "lifecycle": lambda: lifecycle(text_input(None), args.ref,
                                                              args.config, args.epic),
                               "design-review-exception": lambda: design_review_exception(

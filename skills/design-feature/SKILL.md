@@ -12,8 +12,9 @@ This skill is the rule book's Phase 3 at feature scale, before any of the featur
 are written. `${CLAUDE_PLUGIN_ROOT}/gates/design-exit.md` is its gate: it defines every
 section, line form, ADR, approver, and `## Decision` line written here, and this file names
 them rather than restating them. Read it in full before Step 2. No file is created, edited,
-or staged before the tech lead answers except the design doc, its ADRs, and the input files
-**Untrusted text** in `gates/project-config.md` places under the git directory: no branch
+or staged before the tech lead answers except the design doc, its ADRs, the input files
+**Untrusted text** in `gates/project-config.md` places under the git directory, and the
+base tree `design_check.py base-tree` adds and removes there: no branch
 and no commit until then, save reopen mode's branch and reopen commit, and no push at all.
 
 The flow is that of a Rust RFC or a KEP — draft, cold review, a decision by the accountable
@@ -35,7 +36,7 @@ Stop, and say why in one line, when:
 
 - **`.claude/state/current-plan.json` exists without `"paused": true`.** A delivery run is
   in flight, and the branch guard moves HEAD back to its branch after any command that
-  leaves it, which would undo Step 6's switch. A file that does not parse stops too.
+  leaves it. A file that does not parse stops too.
 - **This exits non-zero**, naming each key its `INVALID:` line names. `design_dir` unset is
   one: the design has nowhere to live.
 
@@ -52,7 +53,14 @@ Stop, and say why in one line, when:
 exists, read `${CLAUDE_PLUGIN_ROOT}/skills/design-feature/references/resume.md` and follow
 it instead of the rest of this step.
 
-Otherwise, run `git fetch origin`. When `$ARGUMENTS` is a design path under
+Otherwise, clear any base tree a killed run of this checkout left, then run `git fetch
+origin`:
+
+```bash
+python3 "${CLAUDE_PLUGIN_ROOT}/skills/design-feature/scripts/design_check.py" base-tree remove --config "<absolute project root>/.claude/project.json"
+```
+
+When `$ARGUMENTS` is a design path under
 `{{design_dir}}` or an Epic key, as below, first run this on it, given as a file per
 **Untrusted text**, adding `--epic` for a key, and act on the state it prints:
 
@@ -68,14 +76,26 @@ python3 "${CLAUDE_PLUGIN_ROOT}/gates/scripts/project_rules.py" lifecycle --ref "
 | `design-unpushed`, `design-in-review`, `design-rejected` | Print its two lines and stop. |
 | `INVALID:` | Print it and stop. |
 
-Then stop unless the checked-out branch is
-`{{parent_branch_default}}` and `git rev-parse HEAD` equals
-`git rev-parse origin/{{parent_branch_default}}`: the design describes that commit and
-Step 6 cuts its branch from it. A `design/<name>-rev<N>` branch is no stop here: reopen
-mode continues it, its base `git merge-base HEAD origin/{{parent_branch_default}}`, and
-once `<slug>` is printed below, stop unless `<name>` is `<slug>`. Say
-which branch to switch to, or that it must be brought level with its `origin` ref. Then
-record that commit; Step 6 compares against it.
+Then record the base, the commit the design describes and Step 6 cuts its branch from:
+`git rev-parse origin/{{parent_branch_default}}`, or, with a `design/<name>-rev<N>` branch
+checked out, `git merge-base HEAD origin/{{parent_branch_default}}`, since reopen mode
+continues it; once `<slug>` is printed below, stop unless `<name>` is `<slug>`. Any other
+branch, and any uncommitted change, is no stop: the design describes the base, never the
+working tree. Then check the base out as the base tree, and keep the path it prints:
+
+```bash
+python3 "${CLAUDE_PLUGIN_ROOT}/skills/design-feature/scripts/design_check.py" base-tree add <base> --config "<absolute project root>/.claude/project.json"
+```
+
+**Every read of the project's code and recorded designs is at the base, under the base
+tree**, never the working tree, which may hold a branch's unmerged work: each `Explore`
+agent's scope and each file read on its word, ignore rules (`git -C "<tree>"
+check-ignore`), and the designs already recorded. Every `--config` takes the checkout's
+`project.json`, `base-tree`'s included, so `brief-read`, `design-review-exception`, and the
+gate's ADR numbering read the checkout as before. The design doc, its ADRs, and anything
+else under `{{design_dir}}` or `{{adr_dir}}` this run writes stay in the working tree. Run
+`design_check.py base-tree remove` before every stop below and in Steps 2–4, and before
+Step 5 presents; a later step that reads code adds it again first.
 
 `$ARGUMENTS` is a feature request, a design path, `{{design_dir}}/<slug>.md`, or an Epic
 key: one when this, given `$ARGUMENTS` as a file per **Untrusted text** in
@@ -89,10 +109,11 @@ python3 "${CLAUDE_PLUGIN_ROOT}/gates/scripts/project_rules.py" ticket-key --pref
 Given an Epic key, fetch the Epic and read its goal,
 success measures, NFR lines, and children: **the design's title is the Epic's summary**,
 as written. Given a request, first read the `# <title>` line of every design doc under
-`{{design_dir}}`, whatever its decision: when one already designs this feature, its title
-is the title, so a re-run finds its draft. A design committed only on a `design/*` branch
-is caught by the branch stop below when its title comes out the same. Otherwise the title is a short noun phrase
-naming the feature, stated in the first report.
+`{{design_dir}}`, in the working tree and under the base tree, whatever its decision: when
+one already designs this feature, its title is the title, so a re-run finds its draft. A
+design committed only on a `design/*` branch is caught by the branch stop below when its
+title comes out the same. Otherwise the title is a short noun phrase naming the feature,
+stated in the first report.
 
 `<slug>` is what this prints for the title, handed over as a file per **Untrusted text** in
 `gates/project-config.md`; an `INVALID:` line stops the run, naming the title:
@@ -105,9 +126,9 @@ Then stop, and say why in one line, when:
 
 - **`{{design_dir}}/<slug>.md` is ignored, or, with `adr_dir` set,
   `{{adr_dir}}/0000-<slug>.md` is**, as **Ignored paths** in `gates/project-config.md`
-  decides. Both are committed in Step 6, and an ignored path fails there, after the tech
-  lead has decided; name the key and the rule. Step 3 checks each ADR's own path again once
-  it is named.
+  decides, run in the base tree, whose ignore rules Step 6's commit meets. Both are
+  committed in Step 6, and an ignored path fails there, after the tech lead has decided;
+  name the key and the rule. Step 3 checks each ADR's own path again once it is named.
 - **`{{brief_file}}` is set and `python3
   "${CLAUDE_PLUGIN_ROOT}/gates/scripts/project_rules.py" brief-read --config
   "<absolute project root>/.claude/project.json"` exits non-zero.** The design restates the
@@ -123,12 +144,16 @@ Then stop, and say why in one line, when:
   confirmation is missing. Otherwise name what it printed rather than revise it.
 - **`design/<slug>` or `origin/design/<slug>` exists, outside reopen mode.** Ask rather
   than reuse it.
+- **`git cat-file -e <base>:{{design_dir}}/<slug>.md` succeeds**, outside reopen mode, even
+  where the working tree lacks the file, as on a branch cut before the design merged: the
+  design is on the parent, and this run would overwrite it. Decide as for an `accepted` doc
+  above, reading it at `<base>`.
 
 A `proposed` doc that is also on `origin/{{parent_branch_default}}` was reopened by hand
-on the parent: it takes reopen mode under the same conditions, or stops as above. Any other existing `{{design_dir}}/<slug>.md` is
-the draft: read it and its ADRs, add the
-front matter Step 3 writes where it is missing, and revise them in place in Steps 2 and 3
-rather than writing over them unread.
+on the parent: it takes reopen mode under the same conditions, or stops as above. Any other
+existing `{{design_dir}}/<slug>.md` is the draft: read it and its ADRs, add the front matter
+Step 3 writes where it is missing, and revise them in place in Steps 2 and 3 rather than
+writing over them unread.
 
 ## Step 2 — Frame the feature and survey it
 
@@ -151,13 +176,15 @@ the code reads starts from what the code already does.
 ## Step 3 — Inventory the current state, then write the design
 
 Delegate breadth to `Explore` agents, several in parallel across distinct questions, each
-scoped by the request and the Epic: where each existing feature the new one overlaps or
-depends on lives, its callers and configuration, and its tests. Search Jira too —
+given the base tree's path as the only code to read and scoped by the request and the Epic:
+where each existing feature the new one overlaps or depends on lives, its callers and
+configuration, and its tests. Search Jira too —
 `project = {{jira_project}} AND text ~ "<distinctive term>"` — for epics and stories in the
 same area. Read the code the agents point to; do not design from file names.
 
-`## Current state` names, for each such feature, the `file:line` or Jira key behind it. A
-feature with neither is not yet found: look again rather than write it unsourced.
+`## Current state` opens with `Base: <base>`, the full commit, and names, for each such
+feature, the `file:line` at that commit or Jira key behind it. A feature with neither is not
+yet found: look again rather than write it unsourced.
 
 Then write every other section the gate's **Sections** list names, in its order, under its
 **Section rules** and **Work plan** rules — `## Threat model` only with `security` in
@@ -206,8 +233,8 @@ An edit after a review re-runs that review, the cold one and step 8's alike, as 
 
 ## Step 5 — Present, then stop
 
-Check every exit criterion of the gate against the doc, its ADRs, and Step 4. Then present,
-printing each role per `gates/project-config.md`:
+Run `design_check.py base-tree remove`. Check every exit criterion of the gate against the
+doc, its ADRs, and Step 4. Then present, printing each role per `gates/project-config.md`:
 
 - the design doc's path and line count, and each ADR's path
 - every `(proposed)` value, one line each
@@ -236,7 +263,7 @@ The tech lead's answer is one of four:
   three-round count; its BLOCKERs go to the tech lead. Ask again for step 8's reviewers, as
   in Step 4. An edit to an approved section voids that approval and goes back to its
   approver. Then `git fetch`, re-check against a moved parent as Step 6 does, and present
-  again.
+  again. Add the base tree again before revising, and remove it before presenting.
 - **Hold** — the tech lead defers. **Record nothing and commit nothing**: the doc stays
   `Pending`, and it and its ADRs `proposed`, in the working tree, and a later run presents
   them again.
@@ -252,9 +279,9 @@ Run `git fetch` first. Then take every row that applies, in order:
 | --------- | ---- |
 | `origin/design/<slug>` exists, outside reopen mode | Stop and ask, as Step 1 does. |
 | `origin/{{parent_branch_default}}` moved since the base | Record its new commit as the base: the branch is cut from the base, not from HEAD. |
-| The base moved | Re-run Step 1's stops other than HEAD equaling `origin/{{parent_branch_default}}`. |
-| The base moved, outside reopen mode, and `git cat-file -e <base>:{{design_dir}}/<slug>.md` succeeds | Stop: someone committed this design there since Step 1, and this run would overwrite it. |
-| The base moved | Re-check each `## Current state` claim against it, renumber the ADRs when a new record took one of their numbers, and present again before recording anything. |
+| The base moved | Re-run Step 1's stops. |
+| Outside reopen mode, `git cat-file -e <base>:{{design_dir}}/<slug>.md` succeeds | Stop: someone committed this design there since Step 1, and this run would overwrite it. |
+| The base moved | Add the base tree at it, re-check each `## Current state` claim and its `Base:` line against it, remove the tree, renumber the ADRs when a new record took one of their numbers, and present again before recording anything. |
 
 The base is the commit Step 1 recorded, or the latest one recorded here. What an edit or a
 renumber re-runs, and which approvals it voids, is the gate's **Approvers** section's.
@@ -284,24 +311,38 @@ it; a rejection keeps them, since nothing was confirmed. A rejected design is co
 its ADRs keeping their numbers: it is the record of the stop.
 
 Write each file with the Write tool, per **Untrusted text** in `gates/project-config.md`:
-the title and the names are free text. Then cut the branch from `base`, which the fetch above
-confirmed is `origin/{{parent_branch_default}}` — in reopen mode, stay on the branch
-checked out instead — and check the status move. Stop unless `design-transition`, given the
-design's path as a file per **Untrusted text**, prints an `ok` line; on `INVALID:`, name the
-move it refused. Then commit the design doc and its ADRs alone, from `message`:
+the title and the names are free text.
+
+**Outside reopen mode, commit in a base tree, never in the checkout**, as `git worktree`
+exists to let a branch be worked on without disturbing the checked-out one
+(git-worktree(1)): the checkout's branch, index, and uncommitted changes, its `project.json`
+among them, stay as they are. Add the tree on a new `design/<slug>` cut from `base`, and
+copy the design doc and each ADR from the checkout to the same paths under the path it
+prints, creating their directories. Stop unless `design-transition`, given the design's
+path as a file per **Untrusted text**, prints an `ok` line; on `INVALID:`, name the move it
+refused. Then commit them alone, from `message`, and remove the tree, which keeps the
+branch:
 
 ```bash
-git switch -c design/<slug> <base>
-python3 "${CLAUDE_PLUGIN_ROOT}/gates/scripts/project_rules.py" design-transition --ref "<origin/{{parent_branch_default}}, or HEAD in reopen mode>" --config "<absolute project root>/.claude/project.json" < "<path file>"
-git add -- {{design_dir}}/<slug>.md <each ADR path>
-git commit -F "$(git rev-parse --path-format=absolute --git-path design-feature)/message" -- {{design_dir}}/<slug>.md <each ADR path>
+python3 "${CLAUDE_PLUGIN_ROOT}/skills/design-feature/scripts/design_check.py" base-tree add <base> --new-branch design/<slug> --config "<absolute project root>/.claude/project.json"
+python3 "${CLAUDE_PLUGIN_ROOT}/gates/scripts/project_rules.py" design-transition --ref "origin/{{parent_branch_default}}" --config "<absolute project root>/.claude/project.json" --worktree "<tree>" < "<path file>"
+git -C "<tree>" add -- {{design_dir}}/<slug>.md <each ADR path>
+git -C "<tree>" commit -F "$(git -C "<absolute project root>" rev-parse --path-format=absolute --git-path design-feature)/message" -- {{design_dir}}/<slug>.md <each ADR path>
+python3 "${CLAUDE_PLUGIN_ROOT}/skills/design-feature/scripts/design_check.py" base-tree remove --config "<absolute project root>/.claude/project.json"
 ```
 
-Remove the state directory once the commit succeeds. When the switch or the commit fails — a
-tracked file the base changes is dirty, or a hook rejects the commit, say — fix what it
-names and run it again; the tech lead's answer stands. If that cannot
-be done in this run, stop with the directory in place and say so: the next run continues or
-aborts it, as `git rebase --continue` and `--abort` do.
+In reopen mode the revision branch is checked out: run `design-transition` with `--ref
+HEAD` and no `--worktree`, and the `git add` and `git commit` lines without `-C`.
+
+Once the commit succeeds, remove the state directory. Outside reopen mode, then delete each
+copy left in the checkout that is untracked there and whose `git hash-object` equals `git
+rev-parse design/<slug>:<path>`: the branch holds it now. When the commit fails — a hook
+rejects it, say — fix what it names and run it again; the tech lead's answer stands. If that
+cannot be done in this run, stop with the directory in place and say so: the next run
+continues or aborts it, as `git rebase --continue` and `--abort` do. Run
+`design_check.py base-tree remove` before any stop in this step, the branch kept. A fix a
+hook asks for is made to the checkout's copy, then copied to the tree again, so the cleanup
+above still finds them equal.
 
 **Do not push.** Report the branch, the commit, and the decision, and leave publishing it to
 the person running the session. The design reaches `{{parent_branch_default}}` by an

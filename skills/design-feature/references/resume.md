@@ -10,27 +10,34 @@ tells git a rebase is in progress.
 - **Branch:** the one its `branch` file names, or `design/<slug>` when there is no such
   file.
 
-Take the first row that applies:
+First run `design_check.py base-tree remove --config "<absolute project
+root>/.claude/project.json"`, as Step 1 does, so no base tree outlives the run whichever way
+it ends. Then take the first row that applies:
 
 | Condition | Then |
 | --------- | ---- |
-| `git show <branch>:{{design_dir}}/<slug>.md` holds the first line of `decision` | The commit landed and only cleanup was lost. Remove the directory, report that commit, and offer no abort. |
+| `git show <branch>:{{design_dir}}/<slug>.md` holds the first line of `decision` | The commit landed and only cleanup was lost. Remove the directory, delete the checkout's copies as Step 6 does once its commit succeeds, report that commit, and offer no abort. |
 | The person asks to abort | Abort, below. |
 | The branch is a missing `design/<slug>-rev<N>` | Its reopen commit is lost. Stop, and say to abort and reopen again. |
 | Otherwise | Continue, below. |
 
 **Continue.** Keep the recorded decision.
 
-1. Switch to the branch. Cut it from the commit in `base` when it is a missing
-   `design/<slug>`.
+1. In reopen mode, or with the branch checked out as a run of an earlier release left it,
+   switch to the branch and commit there in step 3. Otherwise delete `design/<slug>` when
+   it holds no commit `base` lacks, and cut it again in a new base tree, as Step 6 does.
 2. Make every edit Step 6 makes from `decision` and `status`.
 3. Commit as Step 6 does, from `message`.
 
 **Abort.** Leave index and tree as they were before Step 6, as `git rebase --abort` does.
 
-1. Unstage the design doc and its ADRs with `git restore --staged`.
+1. With the branch checked out — reopen mode, or a run of an earlier release — unstage the
+   design doc and its ADRs with `git restore --staged`.
 2. Restore each from `presented/`.
-3. Switch to `{{parent_branch_default}}`.
+3. In reopen mode, stay on the revision branch, where Step 6 began, as `git rebase --abort`
+   returns to where the rebase began. With `design/<slug>` checked out, as a run of an
+   earlier release left it, switch to `{{parent_branch_default}}`, where that run began.
+   Otherwise the checkout never left its own branch.
 4. Delete the branch if it has no commits of its own.
 5. Remove the directory.
 

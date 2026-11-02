@@ -26,9 +26,9 @@ mkdir -p .claude/agent-rules
 cat > .claude/agent-rules/feature-design-adversary.md <<'RULES'
 # feature-design-adversary rules
 
-- The repository this design describes is not in this workspace: there is no git history
-  and none of the files `Current state` cites. A claim about that code cannot be checked,
-  so it is UNVERIFIABLE, never a BLOCKER.
+- The repository this design describes is not in this workspace: there is no git history,
+  no `Base:` commit, and none of the files `Current state` cites. A claim about that code
+  cannot be checked, so it is UNVERIFIABLE, never a BLOCKER.
 RULES
 cat > docs/design/per-endpoint-webhook-rate-limits.md <<'MD'
 ---
@@ -70,6 +70,8 @@ today is pausing the endpoint, which delays every event sent to it.
 - SM2: Share of deliveries to capped endpoints answered with HTTP 429: < 1% by 30 days after general availability
 
 ## Current state
+
+Base: 3f9c2a7e5b1d4c8f0a6e2b9d7c5a3f1e8b4d6c02
 
 - `worker/dispatcher.py:42` sends each delivery as soon as it is dequeued, with no pacing.
 - `worker/dispatcher.py:77` re-enqueues a failed delivery with exponential backoff, up to

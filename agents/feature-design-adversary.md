@@ -42,15 +42,18 @@ reads.
 6. Before reading any code, look for prior art outside the repo: name two or three real
    systems that solve the design's whole problem, to compare its `Survey`, `Options`, and
    `Proposal` against. This is your survey, not a check of theirs.
-7. Then read the code, the git history, and the Jira keys the design cites, verifying every
-   claim `## Current state` makes. In one command, run `git fetch --refmap= origin
+7. Then verify every claim `## Current state` makes against the code and history at the
+   commit its `Base:` line names, read with `git show <Base>:<path>` and `git log <Base>`,
+   never the working tree, which may hold another branch; and against the Jira keys it
+   cites. Without one, that is a finding under the gate's `Current state` rule, and claims
+   are read at `FETCH_HEAD` once the fetch below sets it. In one command, run `git fetch --refmap= origin
    {{parent_branch_default}} && python3 "${CLAUDE_PLUGIN_ROOT}/gates/scripts/adr_numbers.py"
    --config "<absolute project root>/.claude/project.json" --against "$(git rev-parse
    FETCH_HEAD)"`, the fetched commit standing for `origin/{{parent_branch_default}}`:
    on exit 1, each `<number> <path>...` line naming one of this design's ADRs is a MAJOR
    under criterion 2, and each naming only other records is copied under the output's
    header lines, not charged to this design. Its summary and `already on` lines are not
-   findings. A failed fetch or exit 2 is UNVERIFIABLE.
+   findings. A failed fetch, exit 2, or a `Base:` commit the repository lacks is UNVERIFIABLE.
 8. Only then judge.
 
 ## Approval state
