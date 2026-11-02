@@ -11,10 +11,10 @@ Written for the design-feature skill to run before it writes a design.
     design_check.py slug [--title TITLE]
         the design's <slug> for the title, or standard input: project_rules.slug_of fitted
         to SLUG_MAX; INVALID when no letter or digit is left
-    design_check.py base-tree add COMMIT
+    design_check.py base-tree add COMMIT [--new-branch NAME]
         once COMMIT resolves, removes this checkout's earlier base tree, then checks COMMIT
-        out as a detached worktree in a new temporary directory, locked with this
-        checkout's BASE_TREE_REASON, and prints its path
+        out as a worktree in a new directory inside the git directory, detached or on NAME,
+        created there, locked with this checkout's BASE_TREE_REASON, and prints its path
     design_check.py base-tree remove
         removes every worktree locked with this checkout's BASE_TREE_REASON, `ok` whether
         or not there was one; another checkout's base tree is left alone. It runs no
@@ -121,6 +121,16 @@ def base_trees():
     return [path for path, reason in worktrees() if reason == owned]
 
 
+def run_git_status(root, *arguments):
+    """git's exit status, run in root, its output discarded; ValueError when git cannot
+    run, as run_git gives."""
+    try:
+        return subprocess.run(["git", *arguments], cwd=root, capture_output=True,
+                              check=False).returncode
+    except OSError as error:
+        raise ValueError(f"git {arguments[0]} failed: {error.strerror}")
+
+
 def base_tree_remove():
     """"ok" once git lists no base tree of this checkout: each is removed, its directory with
     it. `--force` twice removes a locked tree and one holding changes; no other worktree is
@@ -130,20 +140,33 @@ def base_tree_remove():
     return "ok"
 
 
-def base_tree_add(commit):
-    """The path of a new detached worktree at commit, in a new temporary directory, once
-    commit resolves and this checkout's earlier tree is removed. git records it locked with
-    base_tree_reason, so a later remove finds it from `git worktree list` alone, even after a
-    killed run, and `git worktree prune` leaves its entry for that remove."""
+def base_tree_add(commit, new_branch=None):
+    """The path of a new worktree at commit, detached, or with new_branch created there and
+    checked out, once commit resolves, new_branch is a branch name no branch holds yet, and
+    this checkout's earlier tree is removed. It is a new directory inside this checkout's git
+    directory, so the session reads it without leaving the project, and git status never
+    shows it. git records it locked with base_tree_reason, so a later remove finds it from
+    `git worktree list` alone, even after a killed run, and `git worktree prune` leaves its
+    entry for that remove. Removing the tree leaves new_branch and its commits."""
     try:
         sha = run_git(".", "rev-parse", "--verify", "--end-of-options",
                       f"{commit}^{{commit}}").strip()
     except ValueError as error:
         raise ValueError(f"{commit!r} is not a commit: {error}") from error
+    if new_branch is not None:
+        try:
+            run_git(".", "check-ref-format", "--branch", new_branch)
+        except ValueError as error:
+            raise ValueError(f"{new_branch!r} is not a branch name: {error}") from error
+        if run_git_status(".", "rev-parse", "--verify", "--quiet", "--end-of-options",
+                          f"refs/heads/{new_branch}") == 0:
+            raise ValueError(f"branch {new_branch!r} already exists")
     base_tree_remove()
-    tree = os.path.realpath(tempfile.mkdtemp(prefix="design-feature-base-"))
+    git_dir = run_git(".", "rev-parse", "--absolute-git-dir").strip()
+    tree = os.path.realpath(tempfile.mkdtemp(prefix="design-feature-base-", dir=git_dir))
+    checkout = ["--detach"] if new_branch is None else ["-b", new_branch]
     try:
-        run_git(".", "worktree", "add", "--detach", "--lock", "--reason", base_tree_reason(),
+        run_git(".", "worktree", "add", *checkout, "--lock", "--reason", base_tree_reason(),
                 tree, sha)
     except ValueError:
         shutil.rmtree(tree, ignore_errors=True)
@@ -236,6 +259,27 @@ def base_tree_cases(script, directory):
     failures += report("base-tree", "remove leaves the user's locked worktree alone",
                        (run("remove").stdout.strip(), listed() == users, os.path.isdir(own)),
                        ("ok", True, True))
+    git_dir = os.path.join(repo, ".git")
+    branched = run("add", "HEAD", "--new-branch", "design/x").stdout.strip()
+    failures += report("base-tree", "add --new-branch cuts the branch there, inside the git dir",
+                       (git_in(branched, "branch", "--show-current"),
+                        git_in(repo, "rev-parse", "design/x"),
+                        os.path.dirname(branched) == git_dir, lock_of(branched)),
+                       ("design/x", commit, True, base_tree_reason_of(repo)))
+    git_in(branched, "commit", "-q", "--allow-empty", "-m", "design")
+    tip = git_in(repo, "rev-parse", "design/x")
+    failures += report("base-tree", "remove keeps the branch and its commit",
+                       (run("remove").stdout.strip(), listed() == users,
+                        git_in(repo, "rev-parse", "design/x"), tip != commit,
+                        git_in(repo, "status", "--porcelain")), ("ok", True, tip, True, ""))
+    taken = run("add", "HEAD", "--new-branch", "design/x")
+    failures += report("base-tree", "an existing branch is INVALID and adds nothing",
+                       (taken.stderr.strip(), taken.returncode, listed() == users),
+                       ("INVALID: branch 'design/x' already exists", 1, True))
+    malformed = run("add", "HEAD", "--new-branch", "a..b")
+    failures += report("base-tree", "a malformed branch name is INVALID",
+                       (malformed.stderr.strip()[:41], malformed.returncode),
+                       ("INVALID: 'a..b' is not a branch name: git", 1))
     failures += cli_case(script, "base-tree without a subcommand is usage", ["base-tree"], "", 2,
                          **options)
     return failures
@@ -327,14 +371,17 @@ def main():
     commands.add_parser("dirs").add_argument("--config", required=True)
     commands.add_parser("slug").add_argument("--title")
     base_tree = commands.add_parser("base-tree").add_subparsers(dest="action", required=True)
-    base_tree.add_parser("add").add_argument("commit")
+    add = base_tree.add_parser("add")
+    add.add_argument("commit")
+    add.add_argument("--new-branch")
     base_tree.add_parser("remove")
     args = parser.parse_args()
     if args.self_test:
         return self_test()
     return run_check(parser, {"dirs": lambda: check_dirs(read_config(args.config)),
                               "slug": lambda: slug_of(text_input(args.title), SLUG_MAX),
-                              "base-tree": lambda: (base_tree_add(args.commit)
+                              "base-tree": lambda: (base_tree_add(args.commit,
+                                                                  args.new_branch)
                                                     if args.action == "add"
                                                     else base_tree_remove())},
                      args.command)
