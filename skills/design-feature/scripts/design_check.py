@@ -11,12 +11,13 @@ Written for the design-feature skill to run before it writes a design.
     design_check.py slug [--title TITLE]
         the design's <slug> for the title, or standard input: project_rules.slug_of fitted
         to SLUG_MAX; INVALID when no letter or digit is left
-    design_check.py base-tree add COMMIT [--new-branch NAME]
-        once COMMIT resolves, removes this checkout's earlier base tree, then checks COMMIT
-        out as a worktree in a new directory inside the git directory, detached or on NAME,
-        created there, locked with this checkout's BASE_TREE_REASON, and prints its path
-    design_check.py base-tree remove
-        removes every worktree locked with this checkout's BASE_TREE_REASON, `ok` whether
+    design_check.py base-tree add COMMIT --config PATH [--new-branch NAME]
+        once COMMIT resolves, removes the earlier base tree of the checkout PATH belongs
+        to, then checks COMMIT out as a worktree in a new directory inside its git directory,
+        detached or on NAME, created there, locked with that checkout's BASE_TREE_REASON,
+        and prints the tree's path
+    design_check.py base-tree remove --config PATH
+        removes every worktree locked with that checkout's BASE_TREE_REASON, `ok` whether
         or not there was one; another checkout's base tree is left alone. It runs no
         `git worktree prune`, which would clear the stale entries of every other worktree
     design_check.py --self-test     runs every case below; exit 0 only if each one matches
@@ -38,7 +39,8 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)),
                                 "..", "..", "..", "gates", "scripts"))
 from project_rules import (FILE_NAME_MAX, NO_LETTER, OptionalKey, RequiredKey,  # noqa: E402
                            check_repo_path, cli_case, design_dirs, error_message,
-                           isolated_git_environment, read_config, read_keys, report,
+                           isolated_git_environment, project_root, read_config, read_keys,
+                           report,
                            result_or_message, run_check, run_git, slug_of, text_input,
                            unset_keys, write_scratch)
 
@@ -85,13 +87,14 @@ def expected_message(config, keys):
 BASE_TREE_REASON = "design-feature base tree {}"
 
 
-def base_tree_reason():
-    """The lock reason naming the checkout this command runs in by a digest of its own git
-    directory, as the skill's Step 6 state directory is per checkout: each checkout runs one
-    design at a time, so a tree with its reason is its own, live or left by a killed run, and
-    a tree another checkout's run is reading is never its to remove. A digest, not the path,
-    so the reason is plain ASCII however the path is spelled."""
-    git_dir = run_git(".", "rev-parse", "--absolute-git-dir").strip()
+def base_tree_reason(root):
+    """The lock reason naming the checkout at root, the project folder, by a digest of its
+    git directory, as the skill's Step 6 state directory is per checkout: each checkout runs
+    one design at a time, so a tree with its reason is its own, live or left by a killed run,
+    and a tree another checkout's run is reading is never its to remove. Read from root, not
+    the shell's directory, so a command run from inside the tree still names its checkout. A
+    digest, not the path, so the reason is plain ASCII however the path is spelled."""
+    git_dir = run_git(root, "rev-parse", "--absolute-git-dir").strip()
     return BASE_TREE_REASON.format(hashlib.sha256(git_dir.encode("utf8", "surrogateescape"))
                                    .hexdigest()[:16])
 
@@ -114,60 +117,53 @@ def worktrees(root=".", environment=None):
     return records
 
 
-def base_trees():
-    """The path of every worktree git lists as locked with this checkout's reason, whether
-    or not its directory is still there."""
-    owned = base_tree_reason()
-    return [path for path, reason in worktrees() if reason == owned]
+def base_trees(root):
+    """The path of every worktree git lists as locked with root's reason, whether or not its
+    directory is still there."""
+    owned = base_tree_reason(root)
+    return [path for path, reason in worktrees(root) if reason == owned]
 
 
-def run_git_status(root, *arguments):
-    """git's exit status, run in root, its output discarded; ValueError when git cannot
-    run, as run_git gives."""
-    try:
-        return subprocess.run(["git", *arguments], cwd=root, capture_output=True,
-                              check=False).returncode
-    except OSError as error:
-        raise ValueError(f"git {arguments[0]} failed: {error.strerror}")
-
-
-def base_tree_remove():
-    """"ok" once git lists no base tree of this checkout: each is removed, its directory with
-    it. `--force` twice removes a locked tree and one holding changes; no other worktree is
-    touched."""
-    for tree in base_trees():
-        run_git(".", "worktree", "remove", "--force", "--force", tree)
+def base_tree_remove(config):
+    """"ok" once git lists no base tree of the checkout config belongs to: each is removed,
+    its directory with it. `--force` twice removes a locked tree and one holding changes; no
+    other worktree is touched."""
+    root = project_root(config)
+    for tree in base_trees(root):
+        run_git(root, "worktree", "remove", "--force", "--force", tree)
     return "ok"
 
 
-def base_tree_add(commit, new_branch=None):
+def base_tree_add(commit, config, new_branch=None):
     """The path of a new worktree at commit, detached, or with new_branch created there and
     checked out, once commit resolves, new_branch is a branch name no branch holds yet, and
-    this checkout's earlier tree is removed. It is a new directory inside this checkout's git
-    directory, so the session reads it without leaving the project, and git status never
-    shows it. git records it locked with base_tree_reason, so a later remove finds it from
-    `git worktree list` alone, even after a killed run, and `git worktree prune` leaves its
-    entry for that remove. Removing the tree leaves new_branch and its commits."""
+    the earlier tree of the checkout config belongs to is removed. It is a new directory in
+    that checkout's git directory, so the session reads it without leaving the project, and
+    git status never shows it. The tree is the base exactly: nothing is written into it here.
+    git records the tree locked with base_tree_reason, so a later
+    remove finds it from `git worktree list` alone, even after a killed run, and `git
+    worktree prune` leaves its entry for that remove. Removing the tree leaves new_branch and
+    its commits."""
+    root = project_root(config)
     try:
-        sha = run_git(".", "rev-parse", "--verify", "--end-of-options",
+        sha = run_git(root, "rev-parse", "--verify", "--end-of-options",
                       f"{commit}^{{commit}}").strip()
     except ValueError as error:
         raise ValueError(f"{commit!r} is not a commit: {error}") from error
     if new_branch is not None:
         try:
-            run_git(".", "check-ref-format", "--branch", new_branch)
+            run_git(root, "check-ref-format", "--branch", new_branch)
         except ValueError as error:
             raise ValueError(f"{new_branch!r} is not a branch name: {error}") from error
-        if run_git_status(".", "rev-parse", "--verify", "--quiet", "--end-of-options",
-                          f"refs/heads/{new_branch}") == 0:
+        if run_git(root, "for-each-ref", "--format=%(refname)", f"refs/heads/{new_branch}"):
             raise ValueError(f"branch {new_branch!r} already exists")
-    base_tree_remove()
-    git_dir = run_git(".", "rev-parse", "--absolute-git-dir").strip()
+    base_tree_remove(config)
+    git_dir = run_git(root, "rev-parse", "--absolute-git-dir").strip()
     tree = os.path.realpath(tempfile.mkdtemp(prefix="design-feature-base-", dir=git_dir))
     checkout = ["--detach"] if new_branch is None else ["-b", new_branch]
     try:
-        run_git(".", "worktree", "add", *checkout, "--lock", "--reason", base_tree_reason(),
-                tree, sha)
+        run_git(root, "worktree", "add", *checkout, "--lock", "--reason",
+                base_tree_reason(root), tree, sha)
     except ValueError:
         shutil.rmtree(tree, ignore_errors=True)
         raise
@@ -187,7 +183,9 @@ def base_tree_cases(script, directory):
     repo = os.path.realpath(os.path.join(directory, "repo"))
     os.makedirs(repo)
     git_in(repo, "init", "-q", "--template=")
-    git_in(repo, "commit", "-q", "--allow-empty", "-m", "base")
+    write_scratch(repo, {"design_dir": "docs/design"}, ".claude/project.json")
+    git_in(repo, "add", ".claude/project.json")
+    git_in(repo, "commit", "-q", "-m", "base")
     commit = git_in(repo, "rev-parse", "HEAD")
     own, stale = (os.path.realpath(os.path.join(directory, name)) for name in ("own", "stale"))
     git_in(repo, "worktree", "add", "-q", "--detach", own)
@@ -199,10 +197,11 @@ def base_tree_cases(script, directory):
         digest = hashlib.sha256(os.path.join(checkout, ".git").encode("utf8")).hexdigest()
         return BASE_TREE_REASON.format(digest[:16])
 
-    def run(*arguments, checkout=repo):
-        return subprocess.run([sys.executable, script, "base-tree", *arguments],
-                              capture_output=True, text=True, check=False,
-                              **{**options, "cwd": checkout})
+    def run(*arguments, checkout=repo, cwd=None):
+        config = os.path.join(checkout, ".claude", "project.json")
+        return subprocess.run([sys.executable, script, "base-tree", *arguments,
+                               "--config", config], capture_output=True, text=True,
+                              check=False, **{**options, "cwd": cwd or checkout})
 
     def lock_of(tree):
         return next((reason for path, reason in worktrees(repo, isolated_git_environment())
@@ -225,6 +224,11 @@ def base_tree_cases(script, directory):
                         second != first), (True, False, True))
     failures += report("base-tree", "remove leaves only the user's worktrees",
                        (run("remove").stdout.strip(), listed() == users, os.path.exists(second)),
+                       ("ok", True, False))
+    elsewhere = run("add", "HEAD", cwd=directory).stdout.strip()
+    inside = run("remove", cwd=elsewhere)
+    failures += report("base-tree", "remove run from inside the tree removes it",
+                       (inside.stdout.strip(), listed() == users, os.path.exists(elsewhere)),
                        ("ok", True, False))
     failures += report("base-tree", "remove with no tree is ok",
                        (run("remove").stdout.strip(), listed() == users), ("ok", True))
@@ -280,6 +284,14 @@ def base_tree_cases(script, directory):
     failures += report("base-tree", "a malformed branch name is INVALID",
                        (malformed.stderr.strip()[:41], malformed.returncode),
                        ("INVALID: 'a..b' is not a branch name: git", 1))
+    missing = subprocess.run([sys.executable, script, "base-tree", "add", "HEAD", "--config",
+                              os.path.join(directory, "nowhere", ".claude", "project.json")],
+                             capture_output=True, text=True, check=False, **options)
+    failures += report("base-tree", "an unreadable --config is INVALID and adds nothing",
+                       (missing.stderr.strip()[:8], missing.returncode, listed() == users),
+                       ("INVALID:", 1, True))
+    failures += cli_case(script, "base-tree without --config is usage",
+                         ["base-tree", "remove"], "", 2, **options)
     failures += cli_case(script, "base-tree without a subcommand is usage", ["base-tree"], "", 2,
                          **options)
     return failures
@@ -374,16 +386,17 @@ def main():
     add = base_tree.add_parser("add")
     add.add_argument("commit")
     add.add_argument("--new-branch")
-    base_tree.add_parser("remove")
+    add.add_argument("--config", required=True)
+    base_tree.add_parser("remove").add_argument("--config", required=True)
     args = parser.parse_args()
     if args.self_test:
         return self_test()
     return run_check(parser, {"dirs": lambda: check_dirs(read_config(args.config)),
                               "slug": lambda: slug_of(text_input(args.title), SLUG_MAX),
-                              "base-tree": lambda: (base_tree_add(args.commit,
+                              "base-tree": lambda: (base_tree_add(args.commit, args.config,
                                                                   args.new_branch)
                                                     if args.action == "add"
-                                                    else base_tree_remove())},
+                                                    else base_tree_remove(args.config))},
                      args.command)
 
 

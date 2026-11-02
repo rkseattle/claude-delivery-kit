@@ -69,8 +69,11 @@ Every skill except `readme-docs` runs only when invoked by name.
   - `plan-project` — writes the project brief and waits for the sponsor's decision.
     Gate: `planning-exit.md`.
   - `design-feature` — writes a feature's design doc and its ADRs, has them reviewed cold,
-    and commits them once the tech lead decides. Agent: `feature-design-adversary`.
-    Gate: `design-exit.md`.
+    and commits them once the tech lead decides. Runs from any branch, dirty or not: it
+    reads code from a temporary worktree of `origin/<parent>` under `.git/`, and commits on
+    `design/<slug>` in a worktree, leaving your checkout alone. Reopening an accepted design
+    switches to its revision branch instead. Agent:
+    `feature-design-adversary`. Gate: `design-exit.md`.
   - `write-tickets` — turns a request, or an approved design's work plan, into Jira tickets
     that `plan-work` can plan as written. Agent: `ticket-adversary`.
   - `status` `<design path | EPIC-KEY>` — prints where a feature stands between design and

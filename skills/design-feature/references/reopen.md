@@ -26,8 +26,9 @@ new design.
 1. **Continue an open revision.** A local `design/<slug>-rev<N>` is open when
    `project_rules.py design-read --ref design/<slug>-rev<N> --status`, given the design's
    path, prints `proposed`: its reopen commit is there and no decision is. Switch to the
-   highest open `N`, record `git merge-base HEAD origin/{{parent_branch_default}}` as the
-   base, add the base tree at it as Step 1 does, and skip to step 5. A revision whose tip
+   highest open `N`, stopping as step 2 does when git refuses the switch, record
+   `git merge-base HEAD origin/{{parent_branch_default}}` as the base, add the base tree at
+   it as Step 1 does, and skip to step 5. A revision whose tip
    is decided but whose design differs from the parent's
    (`git diff --quiet origin/{{parent_branch_default}} design/<slug>-rev<N> -- <path>`
    exits 1) is awaiting its pull request: stop and say to merge it first.
