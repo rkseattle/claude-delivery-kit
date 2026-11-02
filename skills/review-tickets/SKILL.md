@@ -1,6 +1,6 @@
 ---
 name: review-tickets
-description: Review an epic and its children, or named tickets, against the write-tickets rubric — lint, then a cold ticket-adversary review — and report every failed rule per ticket with the write-tickets command that would fix them. Changes nothing in Jira or the repository.
+description: Review an epic and its children, or named tickets, against the write-tickets rubric — lint, then a cold ticket-adversary review — and report every failed rule per ticket with the write-tickets command that would fix them, and the Epic's recorded design through feature-design-adversary. Changes nothing in Jira or the repository; its scratch files and a temporary worktree live under the git directory and are removed.
 argument-hint: <EPIC-KEY> | <KEY ...>
 disable-model-invocation: true
 allowed-tools: Read, Write, Bash, Task, mcp__atlassian__jira_get_issue, mcp__atlassian__jira_search
@@ -14,10 +14,12 @@ tools it calls only `jira_get_issue` and `jira_search`, never `jira_update_issue
 `jira_add_comment`, `jira_transition_issue`, `jira_create_issue_link`,
 `jira_remove_issue_link`, or any other that writes; the agents it dispatches follow
 `gates/read-only-agent.md`. In the repository it never edits, stages, commits, stashes,
-switches, or creates a branch. It writes two files, each outside the work tree, so
-`git status` never shows them, and each removed once read: its input file, in the
-directory Step 2 names, and its draft, in `<dir>`, the directory
-`git rev-parse --path-format=absolute --git-path review-tickets` prints.
+switches, or creates a branch. Everything it writes is outside the work tree, so
+`git status` never shows it, and is removed once read: its input files, in the directory
+Step 2 names; its draft, in `<dir>`, the directory
+`git rev-parse --path-format=absolute --git-path review-tickets` prints; and, for a
+design, a temporary worktree inside the git directory. The design's fetch also overwrites
+`FETCH_HEAD`, which is left as git leaves it.
 
 ## Step 1 — Read the configuration and the rubric
 
@@ -32,6 +34,12 @@ Read `${CLAUDE_PLUGIN_ROOT}/skills/write-tickets/references/rubric.md` and
 is the one source of every rule ID and rule this report names; this file restates none.
 
 ## Step 2 — Resolve the arguments
+
+One review runs per checkout, as git takes `index.lock`: create `<dir>` with `mkdir`,
+never `mkdir -p`, so the one command both checks and claims it. When it fails because
+`<dir>` exists, stop, naming it: another review is running there, or one was killed, and
+once none is running the person removes `<dir>` and runs the review again. Every stop
+after the `mkdir` succeeds removes `<dir>`, as Step 7 says.
 
 With `$ARGUMENTS` empty, ask for an Epic key or ticket keys, and stop. Otherwise write it
 to a file per **Untrusted text** in `gates/project-config.md`, in the directory
@@ -112,14 +120,61 @@ will. There is no second round, since nothing is fixed between rounds.
 
 ## Step 6 — The design
 
-The design section reads `Design — not checked: <reason>`, one line, and is neither a pass
-nor a fail. In key mode the reason is `given ticket keys, not an Epic`; in Epic mode, `the
-design check is not part of this skill yet`.
+The design section opens `## Design`, in one of two forms. **Not checked** is the heading
+`## Design — not checked: <reason>` and nothing under it, neither a pass nor a fail; the
+first reason that applies, in this order, is the one given:
+
+1. Key mode: `given ticket keys, not an Epic`.
+2. `{{design_dir}}` unset or `none`: `design_dir is <unset | none>`.
+3. The Epic's `## In scope` holds no `- Design:` line, templates.md's form: `the Epic
+   names no design`; or more than one: `the Epic names <n> designs`.
+4. A command below, up to the reviewer's launch, exits non-zero: its `INVALID:` line, or
+   its error, quoted. A `NEXT:` line it prints is left out, since the report names
+   `design-feature` only for a design finding.
+
+Write the `- Design:` path, backticks dropped, to a file per **Untrusted text**, in Step
+2's input directory, and remove it with that directory once `design-read` has run or a
+command before it has failed. Fetch the parent into `FETCH_HEAD` alone, so no
+remote-tracking ref moves and `git status` reports the same ahead or behind as before,
+then ask `design-read` for the checked path at that commit:
+
+```bash
+git fetch --refmap= origin "{{parent_branch_default}}" && git rev-parse FETCH_HEAD
+python3 "${CLAUDE_PLUGIN_ROOT}/gates/scripts/project_rules.py" design-read --path --ref "<the commit printed>" --config "<absolute project root>/.claude/project.json" < "<path file>"
+```
+
+`design-read` reads only an accepted design; the path it prints is the one reviewed. Check
+that commit out as this skill's own base tree, so the reviewer reads the text `design-read`
+judged, whatever the checkout holds, and keep the path it prints. `review-tickets` is its
+owner, so the tree is never `design-feature`'s, and adding it first removes one a killed
+run of this skill left:
+
+```bash
+python3 "${CLAUDE_PLUGIN_ROOT}/skills/design-feature/scripts/design_check.py" base-tree add "<the commit printed>" --owner review-tickets --config "<absolute project root>/.claude/project.json"
+```
+
+Launch `feature-design-adversary`. **The delegation contains only
+`<tree>/<prefix><checked path>`**, the design doc's absolute path in that tree, `<prefix>`
+what `git rev-parse --show-prefix` prints run from the project root, empty when the
+project is the repository's top level. Once it returns, and before any stop after the
+`add`, run this; a failure here is one line after the four headings and before any
+`NEXT:` line, never in place of the findings:
+
+```bash
+python3 "${CLAUDE_PLUGIN_ROOT}/skills/design-feature/scripts/design_check.py" base-tree remove --owner review-tickets --config "<absolute project root>/.claude/project.json"
+```
+
+**Checked** is the heading `## Design — <checked path>`, then the reviewer's `BLOCKER`,
+`MAJOR`, `MINOR`, and `UNVERIFIABLE` findings under those four headings, as it returned
+them, `none` under an empty one, and nothing from the ticket findings. With at least one
+BLOCKER or MAJOR, the section ends with `NEXT: /delivery-kit:design-feature <EPIC-KEY>`,
+then each BLOCKER and MAJOR quoted verbatim, for its reopen's `## Revision history`. With
+none, it prints no `design-feature` command.
 
 ## Step 7 — Clean up
 
 Remove `<dir>/draft.md` by that path, then the empty `<dir>` with `rmdir`. Do the same
-before any stop once the draft exists.
+before any stop after Step 2 created `<dir>`.
 
 ## Step 8 — Report
 

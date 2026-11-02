@@ -22,6 +22,7 @@ skills/implement-phases/SKILL.md for its branch, skills/ci-green/SKILL.md for it
 skills/design-feature/SKILL.md for its Epic key, the brief's read, and a design's status
 transition, skills/design-feature/SKILL.md, skills/write-tickets/SKILL.md, and
 skills/status/SKILL.md for a feature's lifecycle state,
+skills/review-tickets/SKILL.md for its ticket keys and a design's checked path,
 and skills/release-readiness/SKILL.md for the keys a release covers,
 so no two of them can disagree on a key's shape, what an unset key, a placeholder, a
 discipline, a date, a printed number, a branch slug, a code fence, a Markdown field's value,
@@ -727,8 +728,8 @@ def design_read(path, ref, config, key="design_dir", path_only=False, status_onl
     as text, unjudged, so a caller asks this reader whether an ADR is accepted rather than
     reading it by eye. With path_only, the checked path instead of
     the text, printed back as git check-ref-format --normalize prints a ref, so a caller
-    uses only the checked value. One reader for write-tickets and plan-work, as kepval is
-    one checker of a KEP's status for every consumer."""
+    uses only the checked value. One reader for write-tickets, plan-work, and review-tickets,
+    as kepval is one checker of a KEP's status for every consumer."""
     if status_only and path_only:
         raise ValueError("design_read prints the path or the status, not both")
     try:
