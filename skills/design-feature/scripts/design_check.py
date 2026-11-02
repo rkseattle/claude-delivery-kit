@@ -11,6 +11,14 @@ Written for the design-feature skill to run before it writes a design.
     design_check.py slug [--title TITLE]
         the design's <slug> for the title, or standard input: project_rules.slug_of fitted
         to SLUG_MAX; INVALID when no letter or digit is left
+    design_check.py base-tree add COMMIT
+        once COMMIT resolves, removes this checkout's earlier base tree, then checks COMMIT
+        out as a detached worktree in a new temporary directory, locked with this
+        checkout's BASE_TREE_REASON, and prints its path
+    design_check.py base-tree remove
+        removes every worktree locked with this checkout's BASE_TREE_REASON, `ok` whether
+        or not there was one; another checkout's base tree is left alone. It runs no
+        `git worktree prune`, which would clear the stale entries of every other worktree
     design_check.py --self-test     runs every case below; exit 0 only if each one matches
 
 A failed check prints `INVALID: <what>` to standard error, naming every key that fails or
@@ -18,7 +26,10 @@ the title, and exits 1; exit 2 is usage. Whether either path is gitignored is th
 check, not this script's.
 """
 import argparse
+import hashlib
 import os
+import shutil
+import subprocess
 import sys
 import tempfile
 
@@ -26,10 +37,10 @@ sys.dont_write_bytecode = True
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)),
                                 "..", "..", "..", "gates", "scripts"))
 from project_rules import (FILE_NAME_MAX, NO_LETTER, OptionalKey, RequiredKey,  # noqa: E402
-                           check_repo_path, cli_case, design_dirs, error_message, read_config,
-                           read_keys,
-                           report, result_or_message, run_check, slug_of, text_input, unset_keys,
-                           write_scratch)
+                           check_repo_path, cli_case, design_dirs, error_message,
+                           isolated_git_environment, read_config, read_keys, report,
+                           result_or_message, run_check, run_git, slug_of, text_input,
+                           unset_keys, write_scratch)
 
 # adr_dir may be left unset: gates/design-exit.md fails an unset adr_dir only for a design with
 # a costly-to-reverse choice, which the gate, not this check, can see.
@@ -69,6 +80,165 @@ def expected_message(config, keys):
     return "; ".join(DESIGN_DIR_UNSET if key == "design_dir unset" else
                      str(error_message(lambda key=key: check_repo_path(key, config.get(key))))
                      for key in ("design_dir unset", "design_dir", "adr_dir") if key in keys)
+
+
+BASE_TREE_REASON = "design-feature base tree {}"
+
+
+def base_tree_reason():
+    """The lock reason naming the checkout this command runs in by a digest of its own git
+    directory, as the skill's Step 6 state directory is per checkout: each checkout runs one
+    design at a time, so a tree with its reason is its own, live or left by a killed run, and
+    a tree another checkout's run is reading is never its to remove. A digest, not the path,
+    so the reason is plain ASCII however the path is spelled."""
+    git_dir = run_git(".", "rev-parse", "--absolute-git-dir").strip()
+    return BASE_TREE_REASON.format(hashlib.sha256(git_dir.encode("utf8", "surrogateescape"))
+                                   .hexdigest()[:16])
+
+
+def worktrees(root=".", environment=None):
+    """(path, lock reason or None) for every worktree git lists, the main one first, read
+    from `--porcelain -z`, whose fields git never quotes: without -z a path or reason holding
+    a non-ASCII character, a quote, or a backslash is C-quoted and matches nothing."""
+    records, path, reason = [], None, None
+    fields = run_git(root, "worktree", "list", "--porcelain", "-z",
+                     environment=environment).split("\0")
+    for field in fields + [""]:
+        if field.startswith("worktree "):
+            path, reason = field[len("worktree "):], None
+        elif field == "locked" or field.startswith("locked "):
+            reason = field[len("locked "):]
+        elif field == "" and path is not None:
+            records.append((path, reason))
+            path = None
+    return records
+
+
+def base_trees():
+    """The path of every worktree git lists as locked with this checkout's reason, whether
+    or not its directory is still there."""
+    owned = base_tree_reason()
+    return [path for path, reason in worktrees() if reason == owned]
+
+
+def base_tree_remove():
+    """"ok" once git lists no base tree of this checkout: each is removed, its directory with
+    it. `--force` twice removes a locked tree and one holding changes; no other worktree is
+    touched."""
+    for tree in base_trees():
+        run_git(".", "worktree", "remove", "--force", "--force", tree)
+    return "ok"
+
+
+def base_tree_add(commit):
+    """The path of a new detached worktree at commit, in a new temporary directory, once
+    commit resolves and this checkout's earlier tree is removed. git records it locked with
+    base_tree_reason, so a later remove finds it from `git worktree list` alone, even after a
+    killed run, and `git worktree prune` leaves its entry for that remove."""
+    try:
+        sha = run_git(".", "rev-parse", "--verify", "--end-of-options",
+                      f"{commit}^{{commit}}").strip()
+    except ValueError as error:
+        raise ValueError(f"{commit!r} is not a commit: {error}") from error
+    base_tree_remove()
+    tree = os.path.realpath(tempfile.mkdtemp(prefix="design-feature-base-"))
+    try:
+        run_git(".", "worktree", "add", "--detach", "--lock", "--reason", base_tree_reason(),
+                tree, sha)
+    except ValueError:
+        shutil.rmtree(tree, ignore_errors=True)
+        raise
+    return tree
+
+
+def git_in(repo, *arguments):
+    """git's stdout in a self-test's scratch repository, with an isolated environment."""
+    return run_git(repo, *arguments, environment=isolated_git_environment()).strip()
+
+
+def base_tree_cases(script, directory):
+    """base-tree run as the skill runs it, in a scratch repository with one commit and two
+    worktrees of the user's own, one live and one whose directory is gone."""
+    # A quote and a non-ASCII letter in every path, which git C-quotes outside -z.
+    directory = os.path.join(directory, 'jos\u00e9 "q"')
+    repo = os.path.realpath(os.path.join(directory, "repo"))
+    os.makedirs(repo)
+    git_in(repo, "init", "-q", "--template=")
+    git_in(repo, "commit", "-q", "--allow-empty", "-m", "base")
+    commit = git_in(repo, "rev-parse", "HEAD")
+    own, stale = (os.path.realpath(os.path.join(directory, name)) for name in ("own", "stale"))
+    git_in(repo, "worktree", "add", "-q", "--detach", own)
+    git_in(repo, "worktree", "add", "-q", "--detach", stale)
+    shutil.rmtree(stale)
+    options = {"cwd": repo, "env": isolated_git_environment()}
+
+    def base_tree_reason_of(checkout):
+        digest = hashlib.sha256(os.path.join(checkout, ".git").encode("utf8")).hexdigest()
+        return BASE_TREE_REASON.format(digest[:16])
+
+    def run(*arguments, checkout=repo):
+        return subprocess.run([sys.executable, script, "base-tree", *arguments],
+                              capture_output=True, text=True, check=False,
+                              **{**options, "cwd": checkout})
+
+    def lock_of(tree):
+        return next((reason for path, reason in worktrees(repo, isolated_git_environment())
+                     if os.path.realpath(path) == tree), None)
+
+    def listed():
+        return sorted(os.path.realpath(path)
+                      for path, _ in worktrees(repo, isolated_git_environment()))
+
+    users = sorted([repo, own, stale])
+    failures = 0
+    first = run("add", "HEAD").stdout.strip()
+    failures += report("base-tree", "add checks the commit out, detached and locked",
+                       (listed() == sorted(users + [first]), git_in(first, "rev-parse", "HEAD"),
+                        git_in(first, "branch", "--show-current"), lock_of(first)),
+                       (True, commit, "", base_tree_reason_of(repo)))
+    second = run("add", commit).stdout.strip()
+    failures += report("base-tree", "add over a leftover removes the earlier tree first",
+                       (listed() == sorted(users + [second]), os.path.exists(first),
+                        second != first), (True, False, True))
+    failures += report("base-tree", "remove leaves only the user's worktrees",
+                       (run("remove").stdout.strip(), listed() == users, os.path.exists(second)),
+                       ("ok", True, False))
+    failures += report("base-tree", "remove with no tree is ok",
+                       (run("remove").stdout.strip(), listed() == users), ("ok", True))
+    gone = run("add", "HEAD").stdout.strip()
+    shutil.rmtree(gone or os.path.join(directory, "missing"), ignore_errors=True)
+    git_in(repo, "worktree", "prune")
+    failures += report("base-tree", "remove after its directory was deleted and a prune ran",
+                       (run("remove").returncode, listed()), (0, sorted([repo, own])))
+    users = sorted([repo, own])
+    held = run("add", "HEAD").stdout.strip()
+    with open(os.path.join(held, "dirty"), "w", encoding="utf8") as handle:
+        handle.write("untracked\n")
+    failures += report("base-tree", "remove clears a tree holding an untracked file",
+                       (run("remove").returncode, listed() == users, os.path.exists(held)),
+                       (0, True, False))
+    kept = run("add", "HEAD").stdout.strip()
+    bad = run("add", "no-such-commit")
+    failures += report("base-tree", "a bad commit is INVALID and removes nothing",
+                       (bad.stderr.strip()[:42], bad.returncode,
+                        listed() == sorted(users + [kept])),
+                       ("INVALID: 'no-such-commit' is not a commit:", 1, True))
+    theirs = run("add", "HEAD", checkout=own).stdout.strip()
+    failures += report("base-tree", "a run in another checkout leaves this one's tree",
+                       (listed() == sorted(users + [kept, theirs]), os.path.isdir(kept)),
+                       (True, True))
+    failures += report("base-tree", "remove in one checkout leaves the other's tree",
+                       (run("remove").stdout.strip(), listed() == sorted(users + [theirs])),
+                       ("ok", True))
+    run("remove", checkout=own)
+    git_in(repo, "worktree", "lock", "--reason", "the user's own", own)
+    run("add", "HEAD")
+    failures += report("base-tree", "remove leaves the user's locked worktree alone",
+                       (run("remove").stdout.strip(), listed() == users, os.path.isdir(own)),
+                       ("ok", True, True))
+    failures += cli_case(script, "base-tree without a subcommand is usage", ["base-tree"], "", 2,
+                         **options)
+    return failures
 
 
 VALID = {"design_dir": "docs/design", "adr_dir": "docs/adr"}
@@ -146,6 +316,7 @@ def self_test():
                              "add-a-design-feature-skill", 0, exact=True)
         failures += cli_case(script, "slug reads the title from stdin", ["slug"], "rob-s-design",
                              0, input="Rob's design\n", exact=True)
+        failures += base_tree_cases(script, directory)
     return 1 if failures else 0
 
 
@@ -155,11 +326,17 @@ def main():
     commands = parser.add_subparsers(dest="command")
     commands.add_parser("dirs").add_argument("--config", required=True)
     commands.add_parser("slug").add_argument("--title")
+    base_tree = commands.add_parser("base-tree").add_subparsers(dest="action", required=True)
+    base_tree.add_parser("add").add_argument("commit")
+    base_tree.add_parser("remove")
     args = parser.parse_args()
     if args.self_test:
         return self_test()
     return run_check(parser, {"dirs": lambda: check_dirs(read_config(args.config)),
-                              "slug": lambda: slug_of(text_input(args.title), SLUG_MAX)},
+                              "slug": lambda: slug_of(text_input(args.title), SLUG_MAX),
+                              "base-tree": lambda: (base_tree_add(args.commit)
+                                                    if args.action == "add"
+                                                    else base_tree_remove())},
                      args.command)
 
 
