@@ -36,7 +36,7 @@ Jira:
   behavior a goal already justified.
 - **Labels** — comma-separated; never a `moscow-*` or `severity-*` label, which Step 8
   derives from `Priority:` and `Severity:`.
-- **Baseline** — empty, or a fetched ticket's key, below: write-tickets' Step 8 updates it.
+- **Baseline** — empty, or a fetched ticket's key, below, so write-tickets updates it.
 - **Jira** — empty; filled on creation, or with a fetched ticket's key.
   **Open questions** — must be empty before review.
 
@@ -79,9 +79,9 @@ and links. Its key is the header ID, `Jira:`, and `Baseline:`; `Type:` its issue
 `Parent:` its parent's key; `Blocked by:` the `inward_issue` key of each blocking-type
 link, or `None`; `Priority:` its one `moscow-*` label, title-cased, `moscow-wont` as
 `Won't`; a Bug's `Severity:` its one `severity-*` label, title-cased; none or several leave
-either header empty. Labels but a handoff label (write-tickets' Step 8) go to `Labels:`; a
-leading `Goal:` line to `Goal:`; each `##` section as written, each code span holding a
-whole `[verify: … @ …]` or `[children: …]` tag, or older `\verify: …\`, as the bare tag.
+either header empty. Other labels but a handoff label (write-tickets' Step 8) go to
+`Labels:`; a leading `Goal:` line to `Goal:`; each `##` section as written, each code span
+holding a whole `[verify: … @ …]` or `[children: …]` tag, or older `\verify: …\`, as that tag.
 
 ## Sections by type
 

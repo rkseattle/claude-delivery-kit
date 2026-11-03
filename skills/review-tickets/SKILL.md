@@ -94,12 +94,12 @@ python3 "${CLAUDE_PLUGIN_ROOT}/skills/write-tickets/scripts/lint_draft.py" "<dir
 Keep every `ERROR` and `WARN` line, except those below, which describe the draft rather
 than the ticket; Step 8 reports them as unknown instead:
 
-- `[R2] missing Handoff label`, which every Story, Task, and Bug draws, since `Handoff:`
-  is empty by design
+- `[R2] missing Handoff label`, since `Handoff:` is empty by design
 - in key mode, an `E2` line naming an unknown child that `jira_search` for `parent = <Epic
   key>` returns: the child exists, and only the review left it out
-- an `R3` line on a ticket whose `Blocked by:` names a key not in the draft: that blocker
-  may create the file, and the linter sees only the draft's tickets
+- an `R3` `no Blocked-by ticket creates it` line on a ticket whose blockers, followed
+  through the draft's `Blocked by:` lines, reach a key not in the draft, since the linter
+  sees only the draft's tickets
 
 Exit 0 and 1 both go on; exit 2 stops the run, printing its `UNPARSEABLE` line.
 
@@ -180,8 +180,8 @@ none, it prints no `design-feature` command.
 
 ## Step 7 — Clean up
 
-Remove `<dir>/draft.md` by that path, then the empty `<dir>` with `rmdir`. Do the same
-before any stop after Step 2 created `<dir>`.
+Remove `<dir>/draft.md` by that path, once Step 3 has written it, then the empty `<dir>`
+with `rmdir`. Do the same before any stop after Step 2 created `<dir>`.
 
 ## Step 8 — Report
 
@@ -202,19 +202,21 @@ One section per ticket under review, in draft order: `## <KEY> — <summary> —
   nothing.
 - Each line Step 4 set aside reads `- <code> — unknown: <why> — <the labels or the key>`
   and counts for nothing; so does a review finding that rests only on a ticket's
-  `Handoff:` being empty, or in key mode on a child being absent from the draft.
+  `Handoff:` being empty, in key mode on a child being absent from the draft, or on overlap
+  with the ticket's own Jira issue, the same key.
 
-An `Across the draft` finding naming no ticket, and in key mode with no Epic among the keys
-an Epic-level finding, goes in a `## Across the draft` section after the tickets, rated as
-the review rated it, counted against no ticket. That section ends with one line saying the
-linter's handoff-size check did not run, since no `Handoff:` is filled.
+A `## Across the draft` section always follows the tickets. It holds, or `- none`, each
+`Across the draft` finding naming no ticket, and in key mode with no Epic among the keys
+each Epic-level finding, rated as the review rated it and counted against no ticket. It
+ends with one line saying the linter's handoff-size check did not run, since no `Handoff:`
+is filled.
 
 A ticket **fails** on any lint `ERROR`, `(brief)` finding, or review BLOCKER or MAJOR; a `WARN` or MINOR is
-reported and fails nothing. A ticket with no finding reads `- none`. A ticket whose status
-is past Jira's To Do category is past planning, which the rubric judges readiness for, and
-its code has moved on since: its findings are listed, but its heading reads `— <status>,
-not judged` in place of PASS or FAIL, and it is neither counted nor handed to
-`write-tickets`.
+reported and fails nothing. A ticket with no finding reads `- none`. A ticket past Jira's
+To Do category has been planned, and its code has moved on since: its findings are listed,
+but its heading reads `— <status>, not judged` in place of PASS or FAIL, and it is neither
+counted nor handed to `write-tickets`. An Epic is the exception until Jira's Done category:
+its rules check its children, some of which may not have started.
 
 Then the design section, Step 6's. The report ends with the summary, in this order:
 
@@ -222,7 +224,7 @@ Then the design section, Step 6's. The report ends with the summary, in this ord
 | Ticket | Lint errors | Lint warnings | Brief | Review BLOCKER | Review MAJOR | Result |
 ```
 
-one row per ticket, `not judged` in its Result past To Do, then
+one row per ticket, `not judged` in its Result where its heading reads it, then
 `PASS: <n>  FAIL: <n>  NOT JUDGED: <n>`, then the last line:
 `NEXT: /delivery-kit:write-tickets <each failing key, in draft order>`, or, when none
 fails, `NEXT: none — every ticket passes`.
