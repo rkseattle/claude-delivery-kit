@@ -828,9 +828,11 @@ LIFECYCLE_STATES = ("no-design", "design-draft", "design-unpushed", "design-in-r
 
 
 def blob_at(root, revision, path):
-    """The blob path names at revision, or "" when revision lacks it."""
+    """The blob path names at revision, or "" when revision lacks it. `./` reads path from
+    root, the project folder, as a pathspec is, where `<rev>:<path>` alone reads it from the
+    repository's top level."""
     return subprocess.run(["git", "rev-parse", "--verify", "--quiet", "--end-of-options",
-                           f"{revision}:{path}"], cwd=root, capture_output=True, text=True,
+                           f"{revision}:./{path}"], cwd=root, capture_output=True, text=True,
                           check=False).stdout.strip()
 
 
@@ -895,7 +897,7 @@ def epic_design(root, directory, ref, key):
             names = sorted(os.listdir(folder)) if os.path.isdir(folder) else []
         else:
             names = subprocess.run(["git", "ls-tree", "-z", "--name-only", "--end-of-options",
-                                    f"{source}:{directory.rstrip('/')}"], cwd=root,
+                                    f"{source}:./{directory.rstrip('/')}"], cwd=root,
                                    capture_output=True, check=False).stdout.split(b"\0")
             names = [os.fsdecode(name) for name in names]
         for path in filter(None, (checked_design(directory, name) for name in names)):
@@ -2275,6 +2277,30 @@ def lifecycle_self_test(this):
     return failures
 
 
+def lifecycle_nested_self_test(this):
+    """lifecycle for a project below the repository's top level, whose design paths are
+    relative to its folder, as git resolves a pathspec, not to the repository's root."""
+    front = "---\nstatus: accepted\n---\n\n# D\n\n## Summary\n\nEpic: AB-1\n"
+    failures = 0
+    with tempfile.TemporaryDirectory() as top, \
+            process_state(isolated_git_environment(), top):
+        root = os.path.join(top, "sub")
+        project = write_scratch(root, {"design_dir": "docs/design"}, ".claude/project.json")
+        write_scratch(root, front, "docs/design/a.md")
+        run_git(top, "init", "--quiet", "--initial-branch=main")
+        run_git(top, "add", "-A")
+        run_git(top, "commit", "--quiet", "-m", "designs")
+        run_git(top, "update-ref", "refs/remotes/origin/main", "HEAD")
+        failures += report("blob_at", "a nested project's path at a revision",
+                           bool(blob_at(root, "origin/main", "docs/design/a.md")), True)
+        for name, text, epic in [("a nested project's committed design", "docs/design/a.md",
+                                  False), ("a nested project's design by its Epic", "AB-1", True)]:
+            got = result_or_message(lambda: lifecycle(text, "origin/main", project, epic))
+            failures += report("lifecycle", name, got[0].split()[:2] if isinstance(got, list)
+                               else got, ["design-accepted-on-parent", "docs/design/a.md"])
+    return failures
+
+
 def lifecycle_edges_self_test(this):
     """lifecycle's lookups and refusals: an Epic found in the working tree or on a design
     branch, unsafe and spaced file names, a branch sharing a slug's prefix, a remote design
@@ -2762,6 +2788,7 @@ def self_test():
     failures += design_transition_self_test(this)
     failures += lifecycle_self_test(this)
     failures += lifecycle_edges_self_test(this)
+    failures += lifecycle_nested_self_test(this)
     failures += design_review_exception_self_test(this)
     failures += cli_case(this, "no subcommand is usage", [], "", 2)
     return 1 if failures else 0

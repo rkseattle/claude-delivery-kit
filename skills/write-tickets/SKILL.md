@@ -134,7 +134,7 @@ the cap, bring the remaining findings to Rob. Append each round's output, and be
 **Design rework** — a change only the design can make: its `Work plan`, a Goal, an NFR, or
 a premise it states. On one, from any step, stop. Append the findings, quoted, then
 `<!-- design-rework: <ticket IDs, or design> @ <blob> -->` to the draft — `<blob>` what
-`git rev-parse "origin/{{parent_branch_default}}:<design path>"` prints, so a revised design
+`git rev-parse "origin/{{parent_branch_default}}:./<design path>"` prints, so a revised design
 voids it — writing a draft of the Epic header and `- Design:` line only when none exists.
 Bring Rob the findings, then print `NEXT: /delivery-kit:design-feature <Epic key or path>`.
 
