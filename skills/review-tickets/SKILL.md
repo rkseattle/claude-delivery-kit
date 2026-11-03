@@ -83,7 +83,7 @@ fetched ticket, except:
   draft names none rather than guess, and Step 8 reports it unknown. Every label but a
   `moscow-*` or `severity-*` one, `enabling` included, goes to `Labels:`
 
-Copy every line as Jira returned it. A section the ticket lacks stays absent: the lint
+Copy every other line as Jira returned it. A section the ticket lacks stays absent: the lint
 reports it, and filling it in would review a ticket that does not exist.
 
 ## Step 4 — Lint
