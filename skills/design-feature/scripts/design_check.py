@@ -17,11 +17,13 @@ its base-tree too, as its own owner, to review a recorded design.
         to, then checks COMMIT out as a worktree in a new directory inside its git directory,
         detached or on NAME, created there, locked with that checkout's BASE_TREE_REASON for
         OWNER and the time it was added, and prints the tree's path
-    design_check.py base-tree remove --config PATH [--owner OWNER] [--tree TREE]
+    design_check.py base-tree remove --config PATH [--owner OWNER]
+            [--tree TREE | --branch NAME] [--if-stale]
         with TREE, removes that tree, the path add printed, `ok` too once git lists it no
         more; INVALID for a worktree that is not OWNER's base tree of this checkout. Without
         TREE, removes only OWNER's stale trees: those whose directory is gone, older than
-        STALE_AFTER, or locked by a release that recorded none, timed by its lock file. With
+        STALE_AFTER, or locked by a release that recorded none, timed by its lock file. --branch
+        NAME names TREE as the base tree with NAME checked out, `ok` when there is none. With
         --if-stale, TREE is removed only once stale, INVALID while another session may hold
         it. A session holding a tree past STALE_AFTER can lose it to another session. A live tree of another
         session, another checkout's, or another owner's is left alone. It runs no `git
@@ -127,22 +129,30 @@ def base_tree_reason(root, owner=OWNERS[0]):
     return BASE_TREE_REASON.format(owner, digest[:16])
 
 
-def worktrees(root=".", environment=None):
-    """(path, lock reason or None) for every worktree git lists, the main one first, read
-    from `--porcelain -z`, whose fields git never quotes: without -z a path or reason holding
-    a non-ASCII character, a quote, or a backslash is C-quoted and matches nothing."""
-    records, path, reason = [], None, None
+def worktree_records(root=".", environment=None):
+    """(path, lock reason or None, branch or None) for every worktree git lists, the main one
+    first, read from `--porcelain -z`, whose fields git never quotes: without -z a path or
+    reason holding a non-ASCII character, a quote, or a backslash is C-quoted and matches
+    nothing."""
+    records, path, reason, branch = [], None, None, None
     fields = run_git(root, "worktree", "list", "--porcelain", "-z",
                      environment=environment).split("\0")
     for field in fields + [""]:
         if field.startswith("worktree "):
-            path, reason = field[len("worktree "):], None
+            path, reason, branch = field[len("worktree "):], None, None
         elif field == "locked" or field.startswith("locked "):
             reason = field[len("locked "):]
+        elif field.startswith("branch refs/heads/"):
+            branch = field[len("branch refs/heads/"):]
         elif field == "" and path is not None:
-            records.append((path, reason))
+            records.append((path, reason, branch))
             path = None
     return records
+
+
+def worktrees(root=".", environment=None):
+    """(path, lock reason or None) for every worktree worktree_records lists."""
+    return [(path, reason) for path, reason, _ in worktree_records(root, environment)]
 
 
 def base_trees(root, owner=OWNERS[0]):
@@ -178,15 +188,27 @@ def stale_tree(path, since, now):
     return since is None or not os.path.isdir(path) or now - since >= STALE_AFTER
 
 
-def base_tree_remove(config, owner=OWNERS[0], tree=None, if_stale=False):
+def branch_tree(root, branch):
+    """The path of the worktree git lists with branch checked out, or None."""
+    return next((path for path, _, held in worktree_records(root) if held == branch), None)
+
+
+def base_tree_remove(config, owner=OWNERS[0], tree=None, if_stale=False, branch=None):
     """"ok" once git lists neither tree nor, without tree, any stale base tree of owner's in
     the checkout config belongs to: each is removed, its directory with it. `--force` twice
     removes a locked tree and one holding changes. ValueError for a tree git lists that is
     not owner's base tree of this checkout, so no other worktree, a live one of another
     session or another owner's included, is touched, and with if_stale for a tree that is not
-    stale, which another session may still be using."""
+    stale, which another session may still be using. branch names the tree by the branch it
+    has checked out, for a run killed before it recorded the path; "ok" when no base tree
+    of owner's has, as in reopen mode, where the checkout itself holds the branch."""
     root = project_root(config)
     owned = base_trees(root, owner)
+    if branch is not None:
+        tree = branch_tree(root, branch)
+        if tree is None or os.path.realpath(tree) not in {os.path.realpath(path)
+                                                          for path, _ in owned}:
+            return "ok"
     now = time.time()
     if tree is None:
         targets = [path for path, since in owned if stale_tree(path, since, now)]
@@ -394,6 +416,25 @@ def base_tree_cases(script, directory):
                        (run("remove", "--tree", branched).stdout.strip(), listed() == users,
                         git_in(repo, "rev-parse", "design/x"), tip != commit,
                         git_in(repo, "status", "--porcelain")), ("ok", True, tip, True, ""))
+    killed = run("add", "HEAD", "--new-branch", "design/y").stdout.strip()
+    live = run("remove", "--branch", "design/y", "--if-stale")
+    failures += report("base-tree", "remove --branch --if-stale keeps a live run's tree",
+                       (live.returncode, os.path.isdir(killed)), (1, True))
+    age(killed)
+    failures += report("base-tree", "remove --branch takes a killed run's tree by its branch",
+                       (run("remove", "--branch", "design/y", "--if-stale").stdout.strip(),
+                        os.path.exists(killed), listed() == users,
+                        git_in(repo, "rev-parse", "design/y")), ("ok", False, True, commit))
+    failures += report("base-tree", "remove --branch with no tree on it is ok",
+                       run("remove", "--branch", "design/y").stdout.strip(), "ok")
+    git_in(repo, "branch", "-D", "design/y")
+    git_in(repo, "branch", "design/z")
+    git_in(own, "switch", "-q", "design/z")
+    failures += report("base-tree", "remove --branch leaves a user's worktree on that branch",
+                       (run("remove", "--branch", "design/z").stdout.strip(), os.path.isdir(own)),
+                       ("ok", True))
+    git_in(own, "switch", "-q", "--detach")
+    git_in(repo, "branch", "-D", "design/z")
     taken = run("add", "HEAD", "--new-branch", "design/x")
     failures += report("base-tree", "an existing branch is INVALID and adds nothing",
                        (taken.stderr.strip(), taken.returncode, listed() == users),
@@ -548,7 +589,9 @@ def main():
     remove = base_tree.add_parser("remove")
     remove.add_argument("--config", required=True)
     remove.add_argument("--owner", choices=OWNERS, default=OWNERS[0])
-    remove.add_argument("--tree")
+    which = remove.add_mutually_exclusive_group()
+    which.add_argument("--tree")
+    which.add_argument("--branch")
     remove.add_argument("--if-stale", action="store_true")
     args = parser.parse_args()
     if args.self_test:
@@ -561,7 +604,8 @@ def main():
                                                     else base_tree_remove(args.config,
                                                                           args.owner,
                                                                           args.tree,
-                                                                          args.if_stale))},
+                                                                          args.if_stale,
+                                                                          args.branch))},
                      args.command)
 
 
