@@ -1,6 +1,6 @@
 ---
 name: review-tickets
-description: Review an epic and its children, or named tickets, against the write-tickets rubric — lint, then a cold ticket-adversary review — and report every failed rule per ticket with the write-tickets command that would fix them, and the Epic's recorded design through feature-design-adversary. Changes nothing in Jira or the repository; its scratch files and a temporary worktree live under the git directory and are removed.
+description: Review an epic and its children, or named tickets, against the write-tickets rubric — lint, then a cold ticket-adversary review — and report every failed rule per ticket with the write-tickets command that would fix them, and the Epic's recorded design through feature-design-adversary. Makes no Jira write of its own and changes nothing in the repository; its scratch files and a temporary worktree live under the git directory and are removed.
 argument-hint: <EPIC-KEY> | <KEY ...>
 disable-model-invocation: true
 allowed-tools: Read, Write, Bash, Task, mcp__atlassian__jira_get_issue, mcp__atlassian__jira_search
@@ -9,16 +9,17 @@ allowed-tools: Read, Write, Bash, Task, mcp__atlassian__jira_get_issue, mcp__atl
 Review the tickets: $ARGUMENTS
 
 This skill is the check half of a check-and-fix pair, as `ruff check` is to `ruff check
---fix`: it reports, and `write-tickets` fixes. **It changes nothing.** Of the Atlassian
-tools it calls only `jira_get_issue` and `jira_search`, never `jira_update_issue`,
-`jira_add_comment`, `jira_transition_issue`, `jira_create_issue_link`,
-`jira_remove_issue_link`, or any other that writes; the agents it dispatches follow
-`gates/read-only-agent.md`. In the repository it never edits, stages, commits, stashes,
-switches, or creates a branch. Everything it writes is outside the work tree, so
-`git status` never shows it, and is removed once read: its input files, in the directory
-Step 2 names; its draft, in `<dir>`, the directory
-`git rev-parse --path-format=absolute --git-path review-tickets` prints; and, for a
-design, a temporary worktree inside the git directory. The design's fetch also overwrites
+--fix`: it reports, and `write-tickets` fixes. **It changes nothing itself.** Of the
+Atlassian tools it calls only `jira_get_issue` and `jira_search`, never
+`jira_update_issue`, `jira_add_comment`, `jira_transition_issue`, `jira_create_issue_link`,
+`jira_remove_issue_link`, or any other that writes. The agents it dispatches follow
+`gates/read-only-agent.md`, which covers the repository only; they hold the Atlassian
+tools, writes included, and this skill cannot narrow them. In the repository it never
+edits, stages, commits, stashes, switches, or creates a branch. Everything it writes is
+outside the work tree, so `git status` never shows it, and is removed once read: its input
+files, in the directory Step 2 names; its draft, in `<dir>`, the directory
+`git rev-parse --path-format=absolute --git-path review-tickets` prints; and, for a design,
+a temporary worktree inside the git directory. The design's fetch also overwrites
 `FETCH_HEAD`, which is left as git leaves it.
 
 ## Step 1 — Read the configuration and the rubric

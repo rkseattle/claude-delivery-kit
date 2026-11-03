@@ -78,8 +78,9 @@ Every skill except `readme-docs` runs only when invoked by name.
     that `plan-work` can plan as written. Agent: `ticket-adversary`.
   - `review-tickets` `<EPIC-KEY | KEY ...>` — reports every rubric rule an epic's tickets,
     or the named ones, fail, and its design's findings when one is recorded, with the
-    `write-tickets` and `design-feature` commands that fix them. Changes nothing in Jira or
-    the work tree. Agents: `ticket-adversary`, `feature-design-adversary`.
+    `write-tickets` and `design-feature` commands that fix them. Makes no Jira write of its
+    own and changes nothing in the work tree. Agents: `ticket-adversary`,
+    `feature-design-adversary`.
   - `status` `<design path | EPIC-KEY>` — prints where a feature stands between design and
     tickets, and the one command that moves it on. Changes nothing.
 - **`deliver`** — runs the five stages below in order and resumes an interrupted run.

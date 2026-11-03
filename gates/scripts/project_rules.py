@@ -22,7 +22,8 @@ skills/implement-phases/SKILL.md for its branch, skills/ci-green/SKILL.md for it
 skills/design-feature/SKILL.md for its Epic key, the brief's read, and a design's status
 transition, skills/design-feature/SKILL.md, skills/write-tickets/SKILL.md, and
 skills/status/SKILL.md for a feature's lifecycle state,
-skills/review-tickets/SKILL.md for its ticket keys and a design's checked path,
+skills/review-tickets/SKILL.md for its ticket keys, the brief's read, and a design's
+checked path,
 and skills/release-readiness/SKILL.md for the keys a release covers,
 so no two of them can disagree on a key's shape, what an unset key, a placeholder, a
 discipline, a date, a printed number, a branch slug, a code fence, a Markdown field's value,
