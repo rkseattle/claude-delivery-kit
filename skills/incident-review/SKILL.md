@@ -67,12 +67,12 @@ Stop, and say why in one line, when:
   `gates/project-config.md` decides. The review is committed in Step 5; name the rule.
 - **After `git fetch origin`, `incident/<date>-<slug>` or `origin/incident/<date>-<slug>`
   exists**, other than the interrupted commit below. Ask rather than reuse it.
-- **`git cat-file -e HEAD:{{incident_reviews_dir}}/<date>-<slug>.md` or the same against
+- **`git cat-file -e HEAD:./{{incident_reviews_dir}}/<date>-<slug>.md` or the same against
   `origin/{{parent_branch_default}}` succeeds.** The review is already committed; ask rather
   than write over the record and its follow-up answers.
 
 An existing `{{incident_reviews_dir}}/<date>-<slug>.md` that HEAD does not hold
-(`git cat-file -e HEAD:{{incident_reviews_dir}}/<date>-<slug>.md` fails) is an earlier,
+(`git cat-file -e HEAD:./{{incident_reviews_dir}}/<date>-<slug>.md` fails) is an earlier,
 uncommitted run, stopped at Step 4 or 5: read it and continue from it, keeping its header
 and every follow-up key and answer it records, rather than writing over it. When the local
 branch `incident/<date>-<slug>` also exists and

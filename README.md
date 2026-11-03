@@ -69,10 +69,18 @@ Every skill except `readme-docs` runs only when invoked by name.
   - `plan-project` — writes the project brief and waits for the sponsor's decision.
     Gate: `planning-exit.md`.
   - `design-feature` — writes a feature's design doc and its ADRs, has them reviewed cold,
-    and commits them once the tech lead decides. Agent: `feature-design-adversary`.
-    Gate: `design-exit.md`.
+    and commits them once the tech lead decides. Runs from any branch, dirty or not: it
+    reads code from a temporary worktree of `origin/<parent>` under `.git/`, and commits on
+    `design/<slug>` in a worktree, leaving your checkout alone. Reopening an accepted design
+    switches to its revision branch instead. Agent:
+    `feature-design-adversary`. Gate: `design-exit.md`.
   - `write-tickets` — turns a request, or an approved design's work plan, into Jira tickets
     that `plan-work` can plan as written. Agent: `ticket-adversary`.
+  - `review-tickets` `<EPIC-KEY | KEY ...>` — reports every rubric rule an epic's tickets,
+    or the named ones, fail, and its design's findings when one is recorded, with the
+    `write-tickets` and `design-feature` commands that fix them. Makes no Jira write of its
+    own and changes nothing in the work tree. Agents: `ticket-adversary`,
+    `feature-design-adversary`.
   - `status` `<design path | EPIC-KEY>` — prints where a feature stands between design and
     tickets, and the one command that moves it on. Changes nothing.
 - **`deliver`** — runs the five stages below in order and resumes an interrupted run.
@@ -112,7 +120,7 @@ Agents (each reads `read-only-agent.md` and never changes the repo):
 
 - `design-adversary` — attacks a plan before approval.
 - `feature-design-adversary` — attacks a feature design doc against `design-exit.md` before
-  approval.
+  approval, or, from `review-tickets`, an accepted one.
 - `commit-adversary` — attacks a diff before it is committed, or, from any stage, a claim
   that a defect is safe to defer.
 - `greptile-reviewer` — reviews a whole branch cold before the PR.

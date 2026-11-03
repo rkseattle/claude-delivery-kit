@@ -46,7 +46,7 @@ Stop, and say why in one line, when:
 **An interrupted Step 5 comes first, after the first two stops.** When
 `git rev-parse --path-format=absolute --git-path plan-project` names a directory that
 exists, Step 5 started and did not finish — the way `.git/rebase-merge` tells git a rebase
-is in progress. First, when `git show brief/<slug>:{{brief_file}}` already holds the
+is in progress. First, when `git show brief/<slug>:./{{brief_file}}` already holds the
 `decision` line, the commit landed and only cleanup was lost: remove the directory, report
 that commit, and offer no abort. Otherwise continue, keeping the recorded decision: switch
 to `brief/<slug>`, or, if it is absent, cut it from the commit in `base` — from

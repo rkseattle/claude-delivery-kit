@@ -26,14 +26,18 @@ new design.
 1. **Continue an open revision.** A local `design/<slug>-rev<N>` is open when
    `project_rules.py design-read --ref design/<slug>-rev<N> --status`, given the design's
    path, prints `proposed`: its reopen commit is there and no decision is. Switch to the
-   highest open `N` and skip to step 5. A revision whose tip is decided but whose design
-   differs from the parent's (`git diff --quiet origin/{{parent_branch_default}}
-   design/<slug>-rev<N> -- <path>` exits 1) is awaiting its pull request: stop and say to
-   merge it first.
+   highest open `N`, stopping as step 2 does when git refuses the switch, record
+   `git merge-base HEAD origin/{{parent_branch_default}}` as the base, add the base tree at
+   it as Step 1 does, and skip to step 5. A revision whose tip
+   is decided but whose design differs from the parent's
+   (`git diff --quiet origin/{{parent_branch_default}} design/<slug>-rev<N> -- <path>`
+   exits 1) is awaiting its pull request: stop and say to merge it first.
 2. **Cut the branch.** `N` is the lowest number from 2 up — `design/<slug>` is the first
-   revision — for which neither
-   `design/<slug>-rev<N>` nor `origin/design/<slug>-rev<N>` exists. Run
-   `git switch -c design/<slug>-rev<N> <base>`, with `<base>` the commit Step 1 recorded.
+   revision — for which neither `design/<slug>-rev<N>` nor `origin/design/<slug>-rev<N>`
+   exists. Run `git switch -c design/<slug>-rev<N> <base>`, with `<base>` the commit Step 1
+   recorded: a revision is worked on its own branch, as `gh pr checkout` revises a pull
+   request's. When git refuses the switch over local changes, stop and name the files it
+   lists; the person commits or stashes them, never this run.
 3. **Reopen on the branch.** Edit the design doc only:
    - Set `status: proposed`.
    - Set `## Decision` to `Pending — <tech lead>.`
@@ -43,23 +47,25 @@ new design.
      that line, it quotes the reason the person gave.
 
    Leave every ADR as it is. An accepted ADR is never edited here.
-4. **Commit the reopen.** Run `project_rules.py design-transition` as Step 6 does. It must
-   print `ok accepted -> proposed`, or `ok proposed -> proposed` for a hand-edited parent.
-   Write the message — `Reopen the <title> design`, a blank line, and the reason — to a
-   file with the Write tool, per **Untrusted text** in `gates/project-config.md`, since
-   the reason is free text. Commit the design doc alone with `git commit -F <file>`.
+4. **Commit the reopen.** Run `project_rules.py design-transition` as Step 6 does, with
+   `--ref origin/{{parent_branch_default}}` and no `--worktree`. It must print
+   `ok accepted -> proposed`, or `ok proposed -> proposed` for a hand-edited parent. Write
+   the message — `Reopen the <title> design`, a blank line, and the reason — to a file with
+   the Write tool, per **Untrusted text** in `gates/project-config.md`, since the reason is
+   free text. Commit the design doc alone with `git commit -F <file> -- <design path>`, so
+   a change staged on the branch the run started from stays out of it.
 5. **Revise.** Run Steps 2–5 on the reopened doc as on any draft. A change that would
    reverse an accepted ADR's choice is superseding, which `gates/design-exit.md` puts out
    of scope: stop and bring it to Rob. A new `- Costly to reverse:` line gets a new ADR,
    numbered by the gate's rule.
 6. **Record and commit.** Step 6 runs as written, with these differences:
    - Its `branch` file names `design/<slug>-rev<N>`.
-   - It commits on that branch rather than cutting one.
+   - It commits on that branch, checked out, rather than cutting one in a base tree.
    - It skips the already-committed stop, which a reopened design always meets, and stops
      on `origin/design/<slug>-rev<N>` existing rather than `origin/design/<slug>`.
    - It sets `status` on the design and on ADRs this revision added only.
-   - It runs `design-transition` with `--ref HEAD`, the reopen commit, so the move it
-     checks is `proposed → accepted` or `rejected` on the revision branch.
+   - It runs `design-transition` with `--ref HEAD`, the reopen commit, and no `--worktree`,
+     so the move it checks is `proposed → accepted` or `rejected` on the revision branch.
 
 The branch reaches `{{parent_branch_default}}` by an ordinary pull request. Once it merges,
 `write-tickets` reads the revised design, and the draft's `design-rework` line no longer

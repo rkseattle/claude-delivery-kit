@@ -49,7 +49,7 @@ request-derived scope. Establish, by reading the code rather than file names:
   "<absolute project root>/.claude/project.json"` prints, or at `{{brief_file}}` `none`, a
   line saying so. On `INVALID:`, print it and its `NEXT:` line and stop. Stop too unless a
   goal names an outcome, never "none", "TBD", or "N/A": send that brief to
-  `{{roles.sponsor}}` through `plan-project`. Relay a `DEPRECATED:` line to Rob.
+  `{{roles.sponsor}}` through `plan-project`.
 - **the design** the request names by path: at `{{design_dir}}` `none`, stop and name the
   key. Write the path to a file per **Untrusted text**; stop if `git fetch origin
   {{parent_branch_default}}` fails. Run `lifecycle` on it, below; at any state but
@@ -104,8 +104,8 @@ python3 "${CLAUDE_PLUGIN_ROOT}/gates/scripts/project_rules.py" draft-slug < "<re
 - **Context**: why, with any linked source summarized. Never a reference to this session.
 - **Design**: a design `## Summary` opening `Epic: <KEY>` names its Epic; stop unless the
   key, fed as Step 2 feeds the path, passes `project_rules.py ticket-key --prefix
-  "{{ticket_prefix}}"` and the issue is an Epic. Fetch it and each not-Done child as Step 8
-  fetches, and draft the rest as new under it. A not-Done child no design ticket's summary
+  "{{ticket_prefix}}"` and the issue is an Epic. Fetch it and each not-Done child as
+  templates.md's fetched ticket, and draft the rest as new under it. A not-Done child no design ticket's summary
   equals, or a design ticket a Done child's summary equals, is design rework, for Step 6.
   Otherwise draft a new Epic from the design's Goals, Success measures, NFR thresholds, and
   Non-goals. Either Epic carries templates.md's one `- Design:` line.
@@ -134,7 +134,7 @@ the cap, bring the remaining findings to Rob. Append each round's output, and be
 **Design rework** — a change only the design can make: its `Work plan`, a Goal, an NFR, or
 a premise it states. On one, from any step, stop. Append the findings, quoted, then
 `<!-- design-rework: <ticket IDs, or design> @ <blob> -->` to the draft — `<blob>` what
-`git rev-parse "origin/{{parent_branch_default}}:<design path>"` prints, so a revised design
+`git rev-parse "origin/{{parent_branch_default}}:./<design path>"` prints, so a revised design
 voids it — writing a draft of the Epic header and `- Design:` line only when none exists.
 Bring Rob the findings, then print `NEXT: /delivery-kit:design-feature <Epic key or path>`.
 
@@ -174,7 +174,7 @@ only item 4's missing links, and item 6, with no Change impact.
    except Open questions, Change impact, review output, and comments, with each
    `[verify: …]` and `[children: …]` tag inside a code span, which the connector's read
    conversion keeps.
-4. For each Blocked-by entry, a link of the blocking type with the blocker as outward.
+4. For each Blocked-by entry, a blocking-type link with the blocker as `inward_issue_key`.
 5. After each creation, write the key into its `Jira:` line and replace its local ID with
    the key everywhere in the draft — as a whole ID, never the `S1` in `S10` — before
    creating the next ticket.
@@ -196,17 +196,8 @@ only item 4's missing links, and item 6, with no Change impact.
    local ID. Once every ticket exists, update each ticket whose draft text item 5 changed
    after its creation, and give it item 6 again.
 
-Fetch each `<TICKET-N ...>` argument and Step 4's fetched tickets into the draft, its key as
-header ID and on `Baseline:` and `Jira:`, so no local ID stands for an existing issue:
-
-- its one `moscow-*` label to `Priority:`, title-cased, `moscow-wont` as `Won't`; and on a
-  Bug its one `severity-*` label to `Severity:`, title-cased. None, or more than one, leaves
-  the header empty for Step 1 to settle
-- every other label but a handoff label, as defined below, to `Labels:` — never a
-  `moscow-*` or `severity-*` label, which only the two headers above carry
-- a leading `Goal:` description line to the `Goal:` header
-- a code span holding a whole `[verify: … @ …]` or `[children: …]` tag, or the
-  `\verify: …\` an older write left, to the bare tag
+Fetch each `<TICKET-N ...>` argument and Step 4's fetched tickets into the draft as
+templates.md's fetched ticket; Step 1 settles a header that leaves empty.
 
 Run Steps 2–7 for `<TICKET-N ...>` arguments. A ticket whose `Baseline:` is filled is
 updated, not created. Item 2's labels replace its `moscow-*`, `severity-*`, and handoff

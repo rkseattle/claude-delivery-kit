@@ -36,9 +36,8 @@ Jira:
   behavior a goal already justified.
 - **Labels** — comma-separated; never a `moscow-*` or `severity-*` label, which Step 8
   derives from `Priority:` and `Severity:`.
-- **Baseline** — empty; filled only by rewrite mode, with the key of the issue it fetched,
-  which the header ID and `Jira:` hold too.
-- **Jira** — empty; filled on creation, or by rewrite mode with the key being rewritten.
+- **Baseline** — empty, or a fetched ticket's key, below, so write-tickets updates it.
+- **Jira** — empty; filled on creation, or with a fetched ticket's key.
   **Open questions** — must be empty before review.
 
 ## Line formats
@@ -73,6 +72,16 @@ JSON body's fields instead, or quote it in a ``` fenced block (a ~~~ fence is pl
 
 Touch points are production files only; tests appear as AC evidence. Dependencies with
 none: `- None`.
+
+**A fetched ticket** is read with `jira_get_issue`, `fields`
+`summary,issuetype,status,labels,parent,issuelinks,description`, as defaults omit parent
+and links. Its key is the header ID, `Jira:`, and `Baseline:`; `Type:` its issue type;
+`Parent:` its parent's key; `Blocked by:` the `inward_issue` key of each blocking-type
+link, or `None`; `Priority:` its one `moscow-*` label, title-cased, `moscow-wont` as
+`Won't`; a Bug's `Severity:` its one `severity-*` label, title-cased; none or several leave
+either header empty. Other labels but a handoff label (write-tickets' Step 8) go to
+`Labels:`; a leading `Goal:` line to `Goal:`; each `##` section as written, each code span
+holding a whole `[verify: … @ …]` or `[children: …]` tag, or older `\verify: …\`, as that tag.
 
 ## Sections by type
 

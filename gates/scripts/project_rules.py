@@ -22,6 +22,8 @@ skills/implement-phases/SKILL.md for its branch, skills/ci-green/SKILL.md for it
 skills/design-feature/SKILL.md for its Epic key, the brief's read, and a design's status
 transition, skills/design-feature/SKILL.md, skills/write-tickets/SKILL.md, and
 skills/status/SKILL.md for a feature's lifecycle state,
+skills/review-tickets/SKILL.md for its ticket keys, the brief's read, and a design's
+checked path,
 and skills/release-readiness/SKILL.md for the keys a release covers,
 so no two of them can disagree on a key's shape, what an unset key, a placeholder, a
 discipline, a date, a printed number, a branch slug, a code fence, a Markdown field's value,
@@ -59,25 +61,23 @@ repository inherits the caller's git. Each importer's self-test covers the rules
                                    --status, its front matter `status`, unjudged;
                                    INVALID otherwise: KEY unset, design_dir or adr_dir
                                    invalid, or the two naming one directory
-    project_rules.py design-transition --ref REF --config FILE
+    project_rules.py design-transition --ref REF --config FILE [--worktree DIR]
                                    `ok <old> -> <new>` when the design at the path on standard
                                    input, checked as design-read checks it, moves from its
                                    status in REF, `none` when REF lacks it, to its
-                                   working-tree status by a move gates/design-exit.md
+                                   working-tree status, read in DIR when given, else the
+                                   project's, by a move gates/design-exit.md
                                    allows: unchanged, a draft's first `proposed`, or, with
-                                   design/<slug> or design/<slug>-rev<N> checked out, a
+                                   design/<slug> or design/<slug>-rev<N> checked out there, a
                                    decision or the reopen `accepted -> proposed`; INVALID
                                    otherwise, naming the move and the branch
     project_rules.py front-matter-status --file PATH --config FILE
                                    the status of the working-tree record at PATH, relative
-                                   to FILE's project: its front matter `status`, or, written
-                                   before front matter, its `## Decision` read as
-                                   legacy_status reads it: `none` for a draft, `undecided`
-                                   for a Decision it cannot read; INVALID for a PATH failing
-                                   the path check or no regular file reached through no
-                                   symlink, text that is not UTF-8, a record with neither
-                                   front matter nor a `# ` title, or front matter that is
-                                   unreadable or has no text status
+                                   to FILE's project: its front matter `status`; INVALID
+                                   for a PATH failing the path check or no regular file
+                                   reached through no symlink, text that is not UTF-8, or
+                                   front matter that is missing, unreadable, or has no text
+                                   status
     project_rules.py lifecycle --ref REF --config FILE [--epic]
                                    where the feature whose design path, or with --epic whose
                                    Epic key, is on standard input stands: one line naming one
@@ -94,9 +94,7 @@ repository inherits the caller's git. Each importer's self-test covers the rules
     project_rules.py brief-read --config FILE [--path]
                                    the brief that FILE's brief_file names, from the
                                    working tree, when its front matter `status` is
-                                   `accepted`, or, written before 1.3.0 with no front
-                                   matter, its `## Decision` opens `Approved by`, warned
-                                   as deprecated; with --path, brief_file printed back once
+                                   `accepted`; with --path, brief_file printed back once
                                    it passes the key's check, the file unread; INVALID
                                    otherwise, naming the reason
     A design-read or brief-read refusal of a record's status or presence adds a
@@ -672,26 +670,22 @@ def front_matter(text):
     return mapping
 
 
-def front_matter_status(path, config):
-    """The status of the working-tree record at path, relative to project_root(config) and
-    built by the caller from checked values, so a skill reads whether a draft is decided
-    from this script, not by eye: its front matter
-    `status`, or for a record written before front matter, what legacy_status reads from its
-    `## Decision`. ValueError for front matter that is
-    unreadable or has no text status, or a path that is no regular file reached through no
-    symlink, as brief_read requires."""
+def front_matter_status(path, config, root=None):
+    """The status of the working-tree record at path, relative to root, or to
+    project_root(config) when root is None, and built by the caller from checked values, so
+    a skill reads whether a draft is decided from this script, not by eye: its front matter
+    `status`. ValueError for front matter that is missing, unreadable, or has no text status,
+    or a path that is no regular file reached through no symlink, as brief_read requires."""
     path = re.sub(r"/{2,}", "/", path)
     check_repo_path("path", path, REPO_FILE, "letter, digit, '_', or '.'")
-    full = os.path.join(os.path.realpath(project_root(config)), path)
+    full = os.path.join(os.path.realpath(root or project_root(config)), path)
     return record_status(regular_text(full, repr(path)), repr(path))
 
 
 def record_status(text, where):
-    """A record's status by one rule wherever it is read: legacy_status for one opening on
-    its `# ` title, as written before front matter, else status_of."""
-    first = next((line for line in text.lstrip("\ufeff").splitlines() if line.strip()), "")
-    if first.startswith("# "):
-        return legacy_status(text)
+    """A record's status by one rule wherever it is read: status_of, its front matter
+    `status`, since 1.4.0 dropped the `## Decision` read of a record written before front
+    matter."""
     return status_of(text, where)
 
 
@@ -727,8 +721,8 @@ def design_read(path, ref, config, key="design_dir", path_only=False, status_onl
     as text, unjudged, so a caller asks this reader whether an ADR is accepted rather than
     reading it by eye. With path_only, the checked path instead of
     the text, printed back as git check-ref-format --normalize prints a ref, so a caller
-    uses only the checked value. One reader for write-tickets and plan-work, as kepval is
-    one checker of a KEP's status for every consumer."""
+    uses only the checked value. One reader for write-tickets, plan-work, and review-tickets,
+    as kepval is one checker of a KEP's status for every consumer."""
     if status_only and path_only:
         raise ValueError("design_read prints the path or the status, not both")
     try:
@@ -792,9 +786,10 @@ DESIGN_TRANSITIONS = {(None, "proposed"): False, (None, "accepted"): True,
                       ("proposed", "rejected"): True, ("accepted", "proposed"): True}
 
 
-def design_transition(path, ref, config):
+def design_transition(path, ref, config, worktree=None):
     """`ok <old> -> <new>` when the move from the design's status in ref, the parent branch,
-    to its status in the working tree is one DESIGN_TRANSITIONS allows, both read by
+    to its status in the working tree, worktree's when given, the tree the commit is made
+    in, else the project's, is one DESIGN_TRANSITIONS allows, both read by
     record_status, `none` for a design ref lacks or a draft not yet given one; an unchanged
     status is always allowed. A move that needs a branch is allowed only with
     `design/<slug>` or `design/<slug>-rev<N>` checked out, so no status changes on the
@@ -804,7 +799,7 @@ def design_transition(path, ref, config):
         old = record_status(text, f"{path!r} in {ref}")
     except Absent as absent:
         path, old = absent.path, None
-    new = front_matter_status(path, config)
+    new = front_matter_status(path, config, worktree)
     old, new = (None if status == "none" else status for status in (old, new))
     shown = f"{old or 'none'} -> {new or 'none'}"
     if old == new or not DESIGN_TRANSITIONS.get((old, new), True):
@@ -812,7 +807,7 @@ def design_transition(path, ref, config):
     if (old, new) not in DESIGN_TRANSITIONS:
         raise ValueError(f"{path!r} moves {shown}, which gates/design-exit.md does not allow")
     slug = path.rsplit("/", 1)[1][:-len(".md")]
-    branch = run_git(project_root(config), "branch", "--show-current").strip()
+    branch = run_git(worktree or project_root(config), "branch", "--show-current").strip()
     if not design_branch(slug).fullmatch(branch):
         shown_branch = repr(branch) if branch else "a detached HEAD"
         raise ValueError(f"{path!r} moves {shown} on {shown_branch}, not on design/{slug} or "
@@ -833,9 +828,11 @@ LIFECYCLE_STATES = ("no-design", "design-draft", "design-unpushed", "design-in-r
 
 
 def blob_at(root, revision, path):
-    """The blob path names at revision, or "" when revision lacks it."""
+    """The blob path names at revision, or "" when revision lacks it. `./` reads path from
+    root, the project folder, as a pathspec is, where `<rev>:<path>` alone reads it from the
+    repository's top level."""
     return subprocess.run(["git", "rev-parse", "--verify", "--quiet", "--end-of-options",
-                           f"{revision}:{path}"], cwd=root, capture_output=True, text=True,
+                           f"{revision}:./{path}"], cwd=root, capture_output=True, text=True,
                           check=False).stdout.strip()
 
 
@@ -899,10 +896,13 @@ def epic_design(root, directory, ref, key):
         if source is None:
             names = sorted(os.listdir(folder)) if os.path.isdir(folder) else []
         else:
-            names = subprocess.run(["git", "ls-tree", "-z", "--name-only", "--end-of-options",
-                                    f"{source}:{directory.rstrip('/')}"], cwd=root,
-                                   capture_output=True, check=False).stdout.split(b"\0")
-            names = [os.fsdecode(name) for name in names]
+            folder_at = f"{source}:./{directory.rstrip('/')}"
+            if not blob_at(root, source, directory.rstrip("/")):
+                names = []
+            else:
+                names = [os.fsdecode(name) for name in run_git(
+                    root, "ls-tree", "-z", "--name-only", "--end-of-options", folder_at,
+                    text=False).split(b"\0")]
         for path in filter(None, (checked_design(directory, name) for name in names)):
             full = os.path.join(root, path)
             if source is None:
@@ -1115,8 +1115,7 @@ def approved_text(text, where, next_steps=None):
 def brief_read(config, path_only=False):
     """The project brief brief_file names in config, read from the project's working tree,
     where plan-project writes it, as a regular file reached through no symlink, when
-    approved_text accepts it, the status gates/planning-exit.md's first criterion reads,
-    or, for a brief with no front matter, legacy_status does, warned as deprecated. With
+    approved_text accepts it, the status gates/planning-exit.md's first criterion reads. With
     path_only, brief_file printed back once the key registry accepts it and it names no
     folder, the file unread, so plan-project writes only where every reader will look.
     ValueError naming brief_file when it is unset, invalid, or a folder, the file is
@@ -1139,51 +1138,7 @@ def brief_read(config, path_only=False):
         raise Refusal(str(error), "/delivery-kit:plan-project")
     next_steps = {None: "/delivery-kit:plan-project",
                   "rejected": "none — the sponsor rejected the project"}
-    status = legacy_status(text)
-    if status in ("accepted", "rejected"):
-        print(f"DEPRECATED: {where} records its decision only in ## Decision, as plan-project "
-              "wrote it before 1.3.0; add `status`, `date`, and `decision-makers` front "
-              "matter, which 1.4.0 will require", file=sys.stderr)
-        if status != "accepted":
-            raise Refusal(f"{where} has status {status!r}, not 'accepted'",
-                          next_steps["rejected"])
-        return text
     return approved_text(text, where, next_steps)
-
-
-# The release that drops legacy_status, as the deprecation library's removed_in names one;
-# the self-test fails once plugin.json reaches it with legacy_status still here.
-LEGACY_STATUS_REMOVED_IN = (1, 4, 0)
-
-
-def legacy_status(text):
-    """The decision of a brief written before front matter carried its status, as
-    plan-project 1.2.0 wrote one: opening on its `# ` title, with no `---` line before its
-    one `## Decision` section, read as CommonMark so a fenced, quoted, or listed decoy does
-    not count, whose first paragraph opens `Approved by `, `Rejected by `, or `Pending`:
-    `accepted`, `rejected`, or `none`, and `none` too with no `## Decision` yet, the draft a
-    skill resumes; `undecided` for any other Decision, two of them, one not opening on a
-    paragraph, or a `---` line before it; None for a record not opening on its title. Read for one release, as a format is dropped over two."""
-    lines = text.lstrip("\ufeff").splitlines()
-    first = next((line for line in lines if line.strip()), "")
-    if not first.startswith("# "):
-        return None
-    before = list(itertools.takewhile(lambda line: line.rstrip() != "## Decision", lines))
-    if any(line.rstrip() == "---" for line in before):
-        return "undecided"
-    tokens = markdown_tokens(text)
-    decisions = [index for index, token in enumerate(tokens)
-                 if (token.type, token.tag, token.level) == ("heading_open", "h2", 0)
-                 and tokens[index + 1].content.strip() == "Decision"]
-    if not decisions:
-        return "none"
-    opening = tokens[decisions[0] + 3:decisions[0] + 5] if len(decisions) == 1 else []
-    if len(opening) != 2 or opening[0].type != "paragraph_open":
-        return "undecided"
-    decision = words(opening[1].content)
-    return "accepted" if decision.startswith("Approved by ") else \
-        "rejected" if decision.startswith("Rejected by ") else \
-        "none" if decision.startswith("Pending") else "undecided"
 
 
 def ticket_branch(text, prefix=None):
@@ -1828,12 +1783,12 @@ def design_read_self_test(this):
                  "brief_file 'docs/brief.md' has status 'proposed', not 'accepted'"),
                 ("a rejected brief is refused", None, "---\nstatus: rejected\n---\n# B\n",
                  "brief_file 'docs/brief.md' has status 'rejected', not 'accepted'"),
-                ("a pre-1.3.0 brief approved in ## Decision is read", None,
+                ("a pre-1.3.0 brief approved in ## Decision is refused", None,
                  "# B\n\n## Decision\nApproved by s on 2026-10-26.\n",
-                 "# B\n\n## Decision\nApproved by s on 2026-10-26.\n"),
-                ("a pre-1.3.0 brief rejected in ## Decision is rejected", None,
+                 "brief_file 'docs/brief.md': no front matter"),
+                ("a pre-1.3.0 brief rejected in ## Decision is refused", None,
                  "# B\n\n## Decision\nRejected by s on 2026-10-26.\nOut of budget.\n",
-                 "brief_file 'docs/brief.md' has status 'rejected', not 'accepted'"),
+                 "brief_file 'docs/brief.md': no front matter"),
                 ("a pre-1.3.0 brief still Pending is refused", None,
                  "# B\n\n## Decision\nPending — s.\n",
                  "brief_file 'docs/brief.md': no front matter"),
@@ -1870,10 +1825,8 @@ def design_read_self_test(this):
             with contextlib.redirect_stderr(warning):
                 got = result_or_message(lambda: brief_read(config_file))
             read = expected in (accepted, content)
-            failures += report("brief_read", f"{name}: a warning only on a legacy read",
-                               warning.getvalue().startswith("DEPRECATED: "),
-                               content is not None
-                               and legacy_status(content) in ("accepted", "rejected"))
+            failures += report("brief_read", f"{name}: no deprecation warning",
+                               warning.getvalue(), "")
             failures += report("brief_read", name, got == expected if read
                                else got.startswith(expected), True)
         write_scratch(project, {"brief_file": "docs/brief.md"}, ".claude/project.json")
@@ -1938,11 +1891,6 @@ def design_read_self_test(this):
         failures += cli_case(this, "brief-read prints an accepted brief",
                              ["brief-read", "--config", config_file], accepted.strip(), 0,
                              exact=True)
-        legacy = "# B\n\n## Decision\nApproved by s on 2026-10-26.\n"
-        write_scratch(project, legacy, "docs/brief.md")
-        failures += cli_case(this, "brief-read prints a pre-1.3.0 approved brief",
-                             ["brief-read", "--config", config_file], legacy.strip(), 0,
-                             exact=True)
     for name, config, expected in [
             ("two directories are kept", {"design_dir": "d", "adr_dir": "a"},
              {"design_dir": "d", "adr_dir": "a"}),
@@ -1962,36 +1910,6 @@ def design_read_self_test(this):
         failures += report("design_dirs", name, got.startswith(expected)
                            if isinstance(expected, str) and isinstance(got, str) else got,
                            True if isinstance(expected, str) else expected)
-    approved = "# B\n\n## Decision\n\nApproved by s on 2026-10-26.\n"
-    for name, text, expected in [
-            ("an Approved by Decision is accepted", approved, "accepted"),
-            ("a Rejected by Decision is rejected", "# B\n\n## Decision\n\nRejected by s.\n",
-             "rejected"),
-            ("a Pending Decision is none", "# B\n\n## Decision\n\nPending — s.\n", "none"),
-            ("two Decision sections are undecided", approved + "\n## Decision\n\nPending.\n",
-             "undecided"),
-            ("an h3 Decision is no Decision yet", "# B\n\n### Decision\n\nApproved by s.\n",
-             "none"),
-            ("a quoted Approved by is undecided", "# B\n\n## Decision\n\n> Approved by s.\n",
-             "undecided"),
-            ("a listed Approved by is undecided", "# B\n\n## Decision\n\n- Approved by s.\n",
-             "undecided"),
-            ("Approved by in a second paragraph is none",
-             "# B\n\n## Decision\n\nPending.\n\nApproved by s.\n", "none"),
-            ("a hand-edited Decision is undecided", "# B\n\n## Decision\n\nApproved.\n",
-             "undecided"),
-            ("no Decision yet is none, a draft", "# B\n\nApproved by s.\n", "none"),
-            ("front matter under the title is undecided",
-             "# B\n---\nstatus: rejected\n---\n## Decision\nApproved by s.\n", "undecided"),
-            ("a thematic break before the Decision is undecided",
-             "# B\n\nIntro\n\n---\n\n## Decision\n\nRejected by s.\n", "undecided"),
-            ("no title first is none", "\n---\nstatus: rejected\n---\n" + approved, None)]:
-        failures += report("legacy_status", name, legacy_status(text), expected)
-    with open(os.path.join(GATES_SCRIPTS, "..", "..", ".claude-plugin", "plugin.json"),
-              encoding="utf-8") as handle:
-        version = tuple(int(part) for part in json.load(handle)["version"].split("."))
-    failures += report("legacy_status", "removed by its removed_in release",
-                       version < LEGACY_STATUS_REMOVED_IN, True)
     with tempfile.TemporaryDirectory() as deep:
         failures += report("read_config", "project.json nested past the recursion limit",
                            result_or_message(lambda: read_config(write_scratch(
@@ -2002,22 +1920,16 @@ def design_read_self_test(this):
         drafts_config = write_scratch(drafts, {}, ".claude/project.json")
         for name, text, expected in [
                 ("a proposed draft's status", "---\nstatus: proposed\n---\n# D\n", "proposed"),
-                ("a draft with no front matter is none", "# D\n\n## Decision\nPending.\n",
-                 "none"),
+                ("a draft with no front matter is refused", "# D\n\n## Decision\nPending.\n",
+                 "no front matter"),
                 ("a status that is not text is refused", "---\nstatus: [a]\n---\n",
                  "has no text status"),
                 ("unreadable front matter is refused", "---\nstatus: [a\n---\n",
                  "front matter is not YAML"),
                 ("front matter with no status is refused", "---\ndate: 2026-10-26\n---\n",
                  "has no text status (None)"),
-                ("a pre-front-matter approved record reads accepted",
-                 "# D\n\n## Decision\n\nApproved by s on 2026-10-26.\n", "accepted"),
-                ("a pre-front-matter rejected record reads rejected",
-                 "# D\n\n## Decision\n\nRejected by s on 2026-10-26.\n", "rejected"),
-                ("a pre-front-matter hand-edited Decision reads undecided",
-                 "# D\n\n## Decision\n\nApproved.\n", "undecided"),
-                ("a BOM before the title reads as pre-front-matter",
-                 "\ufeff# D\n\n## Decision\n\nPending.\n", "none"),
+                ("a pre-front-matter approved record is refused",
+                 "# D\n\n## Decision\n\nApproved by s on 2026-10-26.\n", "no front matter"),
                 ("neither front matter nor a title is refused", "Notes\n", "no front matter")]:
             write_scratch(drafts, text, "d.md")
             got = result_or_message(lambda: front_matter_status("d.md", drafts_config))
@@ -2128,11 +2040,10 @@ def design_transition_self_test(this):
                  "main", "ok accepted -> accepted"),
                 ("a new draft passes on main", "new", "proposed", "main",
                  "ok none -> proposed"),
-                ("a legacy Pending draft passes on main", "new",
-                 legacy.format("Pending — rob."), "main", "ok none -> none"),
-                ("an unchanged legacy design passes on main", "legacy",
-                 legacy.format("Approved by rob on 2026-10-30."), "main",
-                 "ok accepted -> accepted"),
+                ("a draft with no front matter is refused", "new",
+                 legacy.format("Pending — rob."), "main", "no front matter"),
+                ("a design with no front matter is refused", "legacy",
+                 legacy.format("Approved by rob on 2026-10-30."), "main", "no front matter"),
                 ("a new design approved on main is refused", "new", "accepted", "main",
                  on_main),
                 ("a new design rejected on main is refused", "new", "rejected", "main",
@@ -2219,6 +2130,21 @@ def design_transition_self_test(this):
                              ["design-transition", "--ref", "main", "--config", project],
                              "ok accepted -> proposed", 0, input="docs/design/accepted.md\n",
                              cwd=root, env=isolated_git_environment(), exact=True)
+        run_git(root, "symbolic-ref", "HEAD", "refs/heads/main")
+        tree = os.path.join(root, ".git", "decision-tree")
+        run_git(root, "worktree", "add", "--quiet", "-b", "design/accepted-rev3", tree, "main")
+        write_scratch(tree, front.format("proposed"), "docs/design/accepted.md")
+        failures += cli_case(this, "design-transition reads the branch and file of --worktree",
+                             ["design-transition", "--ref", "main", "--config", project,
+                              "--worktree", tree],
+                             "ok accepted -> proposed", 0, input="docs/design/accepted.md\n",
+                             cwd=root, env=isolated_git_environment(), exact=True)
+        write_scratch(root, front.format("accepted"), "docs/design/accepted.md")
+        failures += report("design_transition", "--worktree ignores the checkout's own file",
+                           result_or_message(lambda: design_transition(
+                               "docs/design/accepted.md", "main", project, tree)),
+                           "ok accepted -> proposed")
+        run_git(root, "worktree", "remove", "--force", tree)
         write_scratch(root, {}, ".claude/project.json")
         failures += report("design_transition", "an unset design_dir is named",
                            result_or_message(lambda: design_transition(
@@ -2351,6 +2277,30 @@ def lifecycle_self_test(this):
                              ["lifecycle", "--ref", "origin/main", "--config", project],
                              "INVALID: path 'src/x.md' is not directly under design_dir", 1,
                              input="src/x.md\n", cwd=root, env=isolated_git_environment())
+    return failures
+
+
+def lifecycle_nested_self_test(this):
+    """lifecycle for a project below the repository's top level, whose design paths are
+    relative to its folder, as git resolves a pathspec, not to the repository's root."""
+    front = "---\nstatus: accepted\n---\n\n# D\n\n## Summary\n\nEpic: AB-1\n"
+    failures = 0
+    with tempfile.TemporaryDirectory() as top, \
+            process_state(isolated_git_environment(), top):
+        root = os.path.join(top, "sub")
+        project = write_scratch(root, {"design_dir": "docs/design"}, ".claude/project.json")
+        write_scratch(root, front, "docs/design/a.md")
+        run_git(top, "init", "--quiet", "--initial-branch=main")
+        run_git(top, "add", "-A")
+        run_git(top, "commit", "--quiet", "-m", "designs")
+        run_git(top, "update-ref", "refs/remotes/origin/main", "HEAD")
+        failures += report("blob_at", "a nested project's path at a revision",
+                           bool(blob_at(root, "origin/main", "docs/design/a.md")), True)
+        for name, text, epic in [("a nested project's committed design", "docs/design/a.md",
+                                  False), ("a nested project's design by its Epic", "AB-1", True)]:
+            got = result_or_message(lambda: lifecycle(text, "origin/main", project, epic))
+            failures += report("lifecycle", name, got[0].split()[:2] if isinstance(got, list)
+                               else got, ["design-accepted-on-parent", "docs/design/a.md"])
     return failures
 
 
@@ -2841,6 +2791,7 @@ def self_test():
     failures += design_transition_self_test(this)
     failures += lifecycle_self_test(this)
     failures += lifecycle_edges_self_test(this)
+    failures += lifecycle_nested_self_test(this)
     failures += design_review_exception_self_test(this)
     failures += cli_case(this, "no subcommand is usage", [], "", 2)
     return 1 if failures else 0
@@ -2869,6 +2820,7 @@ def main():
     transition = commands.add_parser("design-transition")
     transition.add_argument("--ref", required=True)
     transition.add_argument("--config", required=True)
+    transition.add_argument("--worktree")
     stage = commands.add_parser("lifecycle")
     stage.add_argument("--ref", required=True)
     stage.add_argument("--config", required=True)
@@ -2892,7 +2844,7 @@ def main():
                                                                  args.config, args.key,
                                                                  args.path, args.status),
                               "design-transition": lambda: design_transition(
-                                  text_input(None), args.ref, args.config),
+                                  text_input(None), args.ref, args.config, args.worktree),
                               "lifecycle": lambda: lifecycle(text_input(None), args.ref,
                                                              args.config, args.epic),
                               "design-review-exception": lambda: design_review_exception(

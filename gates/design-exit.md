@@ -99,8 +99,8 @@ a rule below requires content.
   of `${CLAUDE_PLUGIN_ROOT}/skills/plan-project/SKILL.md` Step 2 applies to the
   text after `SM<n>: `: a line whose target holds no number is rejected, and a milestone
   stands where rule 2 names a date.
-- **`Current state`** — the existing features and code the new one overlaps or depends on,
-  each with the `file:line` or Jira key behind it.
+- **`Current state`** — opens `Base: <full commit>`; then the existing features and code the
+  new one overlaps or depends on, each with the `file:line` at that commit, or Jira key.
 - **`Survey`** — two or three real systems that solve the whole problem, each with a
   source: a URL, a standard's name and section, or a repository path.
 - **`Options`** — at least two options besides doing nothing, plus doing nothing. Each

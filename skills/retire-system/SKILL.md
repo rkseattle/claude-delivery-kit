@@ -56,7 +56,7 @@ Stop, and say why in one line, when:
   `gates/project-config.md` decides. The record is committed in Step 5; name the rule.
 - **After `git fetch origin`, `retire/<name>` or `origin/retire/<name>` exists**, other than
   the interrupted commit below. Ask rather than reuse it.
-- **`git cat-file -e HEAD:{{retirements_dir}}/<name>.md` or the same against
+- **`git cat-file -e HEAD:./{{retirements_dir}}/<name>.md` or the same against
   `origin/{{parent_branch_default}}` succeeds.** The record is already committed; ask rather
   than write over it.
 
@@ -183,7 +183,7 @@ sections still pending.
 
 Only when the check prints `done`. Since Step 4's wait may have been long, repeat Step 1's
 first stop, then run `git fetch origin` again; if `origin/retire/<name>` now exists, or
-`git cat-file -e origin/{{parent_branch_default}}:{{retirements_dir}}/<name>.md` succeeds,
+`git cat-file -e origin/{{parent_branch_default}}:./{{retirements_dir}}/<name>.md` succeeds,
 stop and ask, as Step 1 does. Then cut the branch from the freshly fetched parent and commit the
 record alone:
 
