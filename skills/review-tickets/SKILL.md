@@ -107,8 +107,7 @@ Exit 0 and 1 both go on; exit 2 stops the run, printing its `UNPARSEABLE` line.
 The linter's R14 sees a goal's presence, not what it serves; rubric R14 also ties each
 goal to the approved brief. At `{{brief_file}}` `none`, say in one line that goals were
 not traced to a brief. Otherwise run this; on `INVALID:`, print that line, without its
-`NEXT:` line, as the reason goals were not traced, and go on. Relay a `DEPRECATED:` line
-as it is:
+`NEXT:` line, as the reason goals were not traced, and go on:
 
 ```bash
 python3 "${CLAUDE_PLUGIN_ROOT}/gates/scripts/project_rules.py" brief-read --config "<absolute project root>/.claude/project.json"

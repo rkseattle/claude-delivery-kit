@@ -49,7 +49,7 @@ request-derived scope. Establish, by reading the code rather than file names:
   "<absolute project root>/.claude/project.json"` prints, or at `{{brief_file}}` `none`, a
   line saying so. On `INVALID:`, print it and its `NEXT:` line and stop. Stop too unless a
   goal names an outcome, never "none", "TBD", or "N/A": send that brief to
-  `{{roles.sponsor}}` through `plan-project`. Relay a `DEPRECATED:` line to Rob.
+  `{{roles.sponsor}}` through `plan-project`.
 - **the design** the request names by path: at `{{design_dir}}` `none`, stop and name the
   key. Write the path to a file per **Untrusted text**; stop if `git fetch origin
   {{parent_branch_default}}` fails. Run `lifecycle` on it, below; at any state but

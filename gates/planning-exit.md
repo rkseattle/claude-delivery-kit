@@ -18,8 +18,8 @@ what was written. With `{{brief_file}}` `none` there is no brief, and the gate c
 1. **Brief approved by sponsor** — the brief's front matter `status` is `accepted`, the MADR
    status `${CLAUDE_PLUGIN_ROOT}/gates/scripts/project_rules.py brief-read` checks, and its
    `## Decision` section names the sponsor and the date. It reads `proposed` and `Pending`
-   until the sponsor answers; a brief with no front matter fails, save one `plan-project`
-   recorded before 1.3.0 as `Approved by`, read with a deprecation warning until 1.4.0.
+   until the sponsor answers; a brief with no front matter fails, one `plan-project`
+   recorded before 1.3.0 included.
    `rejected` closes the gate for good: revision is asked for as rework, before a decision,
    never after one.
 2. **Non-goals stated** — `## Non-goals` holds at least one item that names something. An

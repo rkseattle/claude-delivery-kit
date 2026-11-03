@@ -73,14 +73,11 @@ repository inherits the caller's git. Each importer's self-test covers the rules
                                    otherwise, naming the move and the branch
     project_rules.py front-matter-status --file PATH --config FILE
                                    the status of the working-tree record at PATH, relative
-                                   to FILE's project: its front matter `status`, or, written
-                                   before front matter, its `## Decision` read as
-                                   legacy_status reads it: `none` for a draft, `undecided`
-                                   for a Decision it cannot read; INVALID for a PATH failing
-                                   the path check or no regular file reached through no
-                                   symlink, text that is not UTF-8, a record with neither
-                                   front matter nor a `# ` title, or front matter that is
-                                   unreadable or has no text status
+                                   to FILE's project: its front matter `status`; INVALID
+                                   for a PATH failing the path check or no regular file
+                                   reached through no symlink, text that is not UTF-8, or
+                                   front matter that is missing, unreadable, or has no text
+                                   status
     project_rules.py lifecycle --ref REF --config FILE [--epic]
                                    where the feature whose design path, or with --epic whose
                                    Epic key, is on standard input stands: one line naming one
@@ -97,9 +94,7 @@ repository inherits the caller's git. Each importer's self-test covers the rules
     project_rules.py brief-read --config FILE [--path]
                                    the brief that FILE's brief_file names, from the
                                    working tree, when its front matter `status` is
-                                   `accepted`, or, written before 1.3.0 with no front
-                                   matter, its `## Decision` opens `Approved by`, warned
-                                   as deprecated; with --path, brief_file printed back once
+                                   `accepted`; with --path, brief_file printed back once
                                    it passes the key's check, the file unread; INVALID
                                    otherwise, naming the reason
     A design-read or brief-read refusal of a record's status or presence adds a
@@ -679,9 +674,8 @@ def front_matter_status(path, config, root=None):
     """The status of the working-tree record at path, relative to root, or to
     project_root(config) when root is None, and built by the caller from checked values, so
     a skill reads whether a draft is decided from this script, not by eye: its front matter
-    `status`, or for a record written before front matter, what legacy_status reads from its
-    `## Decision`. ValueError for front matter that is unreadable or has no text status, or a
-    path that is no regular file reached through no symlink, as brief_read requires."""
+    `status`. ValueError for front matter that is missing, unreadable, or has no text status,
+    or a path that is no regular file reached through no symlink, as brief_read requires."""
     path = re.sub(r"/{2,}", "/", path)
     check_repo_path("path", path, REPO_FILE, "letter, digit, '_', or '.'")
     full = os.path.join(os.path.realpath(root or project_root(config)), path)
@@ -689,11 +683,9 @@ def front_matter_status(path, config, root=None):
 
 
 def record_status(text, where):
-    """A record's status by one rule wherever it is read: legacy_status for one opening on
-    its `# ` title, as written before front matter, else status_of."""
-    first = next((line for line in text.lstrip("\ufeff").splitlines() if line.strip()), "")
-    if first.startswith("# "):
-        return legacy_status(text)
+    """A record's status by one rule wherever it is read: status_of, its front matter
+    `status`, since 1.4.0 dropped the `## Decision` read of a record written before front
+    matter."""
     return status_of(text, where)
 
 
@@ -1118,8 +1110,7 @@ def approved_text(text, where, next_steps=None):
 def brief_read(config, path_only=False):
     """The project brief brief_file names in config, read from the project's working tree,
     where plan-project writes it, as a regular file reached through no symlink, when
-    approved_text accepts it, the status gates/planning-exit.md's first criterion reads,
-    or, for a brief with no front matter, legacy_status does, warned as deprecated. With
+    approved_text accepts it, the status gates/planning-exit.md's first criterion reads. With
     path_only, brief_file printed back once the key registry accepts it and it names no
     folder, the file unread, so plan-project writes only where every reader will look.
     ValueError naming brief_file when it is unset, invalid, or a folder, the file is
@@ -1142,51 +1133,7 @@ def brief_read(config, path_only=False):
         raise Refusal(str(error), "/delivery-kit:plan-project")
     next_steps = {None: "/delivery-kit:plan-project",
                   "rejected": "none — the sponsor rejected the project"}
-    status = legacy_status(text)
-    if status in ("accepted", "rejected"):
-        print(f"DEPRECATED: {where} records its decision only in ## Decision, as plan-project "
-              "wrote it before 1.3.0; add `status`, `date`, and `decision-makers` front "
-              "matter, which 1.4.0 will require", file=sys.stderr)
-        if status != "accepted":
-            raise Refusal(f"{where} has status {status!r}, not 'accepted'",
-                          next_steps["rejected"])
-        return text
     return approved_text(text, where, next_steps)
-
-
-# The release that drops legacy_status, as the deprecation library's removed_in names one;
-# the self-test fails once plugin.json reaches it with legacy_status still here.
-LEGACY_STATUS_REMOVED_IN = (1, 4, 0)
-
-
-def legacy_status(text):
-    """The decision of a brief written before front matter carried its status, as
-    plan-project 1.2.0 wrote one: opening on its `# ` title, with no `---` line before its
-    one `## Decision` section, read as CommonMark so a fenced, quoted, or listed decoy does
-    not count, whose first paragraph opens `Approved by `, `Rejected by `, or `Pending`:
-    `accepted`, `rejected`, or `none`, and `none` too with no `## Decision` yet, the draft a
-    skill resumes; `undecided` for any other Decision, two of them, one not opening on a
-    paragraph, or a `---` line before it; None for a record not opening on its title. Read for one release, as a format is dropped over two."""
-    lines = text.lstrip("\ufeff").splitlines()
-    first = next((line for line in lines if line.strip()), "")
-    if not first.startswith("# "):
-        return None
-    before = list(itertools.takewhile(lambda line: line.rstrip() != "## Decision", lines))
-    if any(line.rstrip() == "---" for line in before):
-        return "undecided"
-    tokens = markdown_tokens(text)
-    decisions = [index for index, token in enumerate(tokens)
-                 if (token.type, token.tag, token.level) == ("heading_open", "h2", 0)
-                 and tokens[index + 1].content.strip() == "Decision"]
-    if not decisions:
-        return "none"
-    opening = tokens[decisions[0] + 3:decisions[0] + 5] if len(decisions) == 1 else []
-    if len(opening) != 2 or opening[0].type != "paragraph_open":
-        return "undecided"
-    decision = words(opening[1].content)
-    return "accepted" if decision.startswith("Approved by ") else \
-        "rejected" if decision.startswith("Rejected by ") else \
-        "none" if decision.startswith("Pending") else "undecided"
 
 
 def ticket_branch(text, prefix=None):
@@ -1831,12 +1778,12 @@ def design_read_self_test(this):
                  "brief_file 'docs/brief.md' has status 'proposed', not 'accepted'"),
                 ("a rejected brief is refused", None, "---\nstatus: rejected\n---\n# B\n",
                  "brief_file 'docs/brief.md' has status 'rejected', not 'accepted'"),
-                ("a pre-1.3.0 brief approved in ## Decision is read", None,
+                ("a pre-1.3.0 brief approved in ## Decision is refused", None,
                  "# B\n\n## Decision\nApproved by s on 2026-10-26.\n",
-                 "# B\n\n## Decision\nApproved by s on 2026-10-26.\n"),
-                ("a pre-1.3.0 brief rejected in ## Decision is rejected", None,
+                 "brief_file 'docs/brief.md': no front matter"),
+                ("a pre-1.3.0 brief rejected in ## Decision is refused", None,
                  "# B\n\n## Decision\nRejected by s on 2026-10-26.\nOut of budget.\n",
-                 "brief_file 'docs/brief.md' has status 'rejected', not 'accepted'"),
+                 "brief_file 'docs/brief.md': no front matter"),
                 ("a pre-1.3.0 brief still Pending is refused", None,
                  "# B\n\n## Decision\nPending — s.\n",
                  "brief_file 'docs/brief.md': no front matter"),
@@ -1873,10 +1820,8 @@ def design_read_self_test(this):
             with contextlib.redirect_stderr(warning):
                 got = result_or_message(lambda: brief_read(config_file))
             read = expected in (accepted, content)
-            failures += report("brief_read", f"{name}: a warning only on a legacy read",
-                               warning.getvalue().startswith("DEPRECATED: "),
-                               content is not None
-                               and legacy_status(content) in ("accepted", "rejected"))
+            failures += report("brief_read", f"{name}: no deprecation warning",
+                               warning.getvalue(), "")
             failures += report("brief_read", name, got == expected if read
                                else got.startswith(expected), True)
         write_scratch(project, {"brief_file": "docs/brief.md"}, ".claude/project.json")
@@ -1941,11 +1886,6 @@ def design_read_self_test(this):
         failures += cli_case(this, "brief-read prints an accepted brief",
                              ["brief-read", "--config", config_file], accepted.strip(), 0,
                              exact=True)
-        legacy = "# B\n\n## Decision\nApproved by s on 2026-10-26.\n"
-        write_scratch(project, legacy, "docs/brief.md")
-        failures += cli_case(this, "brief-read prints a pre-1.3.0 approved brief",
-                             ["brief-read", "--config", config_file], legacy.strip(), 0,
-                             exact=True)
     for name, config, expected in [
             ("two directories are kept", {"design_dir": "d", "adr_dir": "a"},
              {"design_dir": "d", "adr_dir": "a"}),
@@ -1965,36 +1905,6 @@ def design_read_self_test(this):
         failures += report("design_dirs", name, got.startswith(expected)
                            if isinstance(expected, str) and isinstance(got, str) else got,
                            True if isinstance(expected, str) else expected)
-    approved = "# B\n\n## Decision\n\nApproved by s on 2026-10-26.\n"
-    for name, text, expected in [
-            ("an Approved by Decision is accepted", approved, "accepted"),
-            ("a Rejected by Decision is rejected", "# B\n\n## Decision\n\nRejected by s.\n",
-             "rejected"),
-            ("a Pending Decision is none", "# B\n\n## Decision\n\nPending — s.\n", "none"),
-            ("two Decision sections are undecided", approved + "\n## Decision\n\nPending.\n",
-             "undecided"),
-            ("an h3 Decision is no Decision yet", "# B\n\n### Decision\n\nApproved by s.\n",
-             "none"),
-            ("a quoted Approved by is undecided", "# B\n\n## Decision\n\n> Approved by s.\n",
-             "undecided"),
-            ("a listed Approved by is undecided", "# B\n\n## Decision\n\n- Approved by s.\n",
-             "undecided"),
-            ("Approved by in a second paragraph is none",
-             "# B\n\n## Decision\n\nPending.\n\nApproved by s.\n", "none"),
-            ("a hand-edited Decision is undecided", "# B\n\n## Decision\n\nApproved.\n",
-             "undecided"),
-            ("no Decision yet is none, a draft", "# B\n\nApproved by s.\n", "none"),
-            ("front matter under the title is undecided",
-             "# B\n---\nstatus: rejected\n---\n## Decision\nApproved by s.\n", "undecided"),
-            ("a thematic break before the Decision is undecided",
-             "# B\n\nIntro\n\n---\n\n## Decision\n\nRejected by s.\n", "undecided"),
-            ("no title first is none", "\n---\nstatus: rejected\n---\n" + approved, None)]:
-        failures += report("legacy_status", name, legacy_status(text), expected)
-    with open(os.path.join(GATES_SCRIPTS, "..", "..", ".claude-plugin", "plugin.json"),
-              encoding="utf-8") as handle:
-        version = tuple(int(part) for part in json.load(handle)["version"].split("."))
-    failures += report("legacy_status", "removed by its removed_in release",
-                       version < LEGACY_STATUS_REMOVED_IN, True)
     with tempfile.TemporaryDirectory() as deep:
         failures += report("read_config", "project.json nested past the recursion limit",
                            result_or_message(lambda: read_config(write_scratch(
@@ -2005,22 +1915,16 @@ def design_read_self_test(this):
         drafts_config = write_scratch(drafts, {}, ".claude/project.json")
         for name, text, expected in [
                 ("a proposed draft's status", "---\nstatus: proposed\n---\n# D\n", "proposed"),
-                ("a draft with no front matter is none", "# D\n\n## Decision\nPending.\n",
-                 "none"),
+                ("a draft with no front matter is refused", "# D\n\n## Decision\nPending.\n",
+                 "no front matter"),
                 ("a status that is not text is refused", "---\nstatus: [a]\n---\n",
                  "has no text status"),
                 ("unreadable front matter is refused", "---\nstatus: [a\n---\n",
                  "front matter is not YAML"),
                 ("front matter with no status is refused", "---\ndate: 2026-10-26\n---\n",
                  "has no text status (None)"),
-                ("a pre-front-matter approved record reads accepted",
-                 "# D\n\n## Decision\n\nApproved by s on 2026-10-26.\n", "accepted"),
-                ("a pre-front-matter rejected record reads rejected",
-                 "# D\n\n## Decision\n\nRejected by s on 2026-10-26.\n", "rejected"),
-                ("a pre-front-matter hand-edited Decision reads undecided",
-                 "# D\n\n## Decision\n\nApproved.\n", "undecided"),
-                ("a BOM before the title reads as pre-front-matter",
-                 "\ufeff# D\n\n## Decision\n\nPending.\n", "none"),
+                ("a pre-front-matter approved record is refused",
+                 "# D\n\n## Decision\n\nApproved by s on 2026-10-26.\n", "no front matter"),
                 ("neither front matter nor a title is refused", "Notes\n", "no front matter")]:
             write_scratch(drafts, text, "d.md")
             got = result_or_message(lambda: front_matter_status("d.md", drafts_config))
@@ -2131,11 +2035,10 @@ def design_transition_self_test(this):
                  "main", "ok accepted -> accepted"),
                 ("a new draft passes on main", "new", "proposed", "main",
                  "ok none -> proposed"),
-                ("a legacy Pending draft passes on main", "new",
-                 legacy.format("Pending — rob."), "main", "ok none -> none"),
-                ("an unchanged legacy design passes on main", "legacy",
-                 legacy.format("Approved by rob on 2026-10-30."), "main",
-                 "ok accepted -> accepted"),
+                ("a draft with no front matter is refused", "new",
+                 legacy.format("Pending — rob."), "main", "no front matter"),
+                ("a design with no front matter is refused", "legacy",
+                 legacy.format("Approved by rob on 2026-10-30."), "main", "no front matter"),
                 ("a new design approved on main is refused", "new", "accepted", "main",
                  on_main),
                 ("a new design rejected on main is refused", "new", "rejected", "main",

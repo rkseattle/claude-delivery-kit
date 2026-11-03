@@ -133,7 +133,7 @@ Then stop, and say why in one line, when:
   "${CLAUDE_PLUGIN_ROOT}/gates/scripts/project_rules.py" brief-read --config
   "<absolute project root>/.claude/project.json"` exits non-zero.** The design restates the
   brief's goals, which an unapproved brief has not settled. Print its `INVALID:` and
-  `NEXT:` lines. Relay a `DEPRECATED:` line it prints. With `brief_file` `none`, say in one
+  `NEXT:` lines. With `brief_file` `none`, say in one
   line that there is no brief to frame the design against, and go on.
 - **`{{design_dir}}/<slug>.md` exists, and `python3
   "${CLAUDE_PLUGIN_ROOT}/gates/scripts/project_rules.py" front-matter-status --file

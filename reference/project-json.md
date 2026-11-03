@@ -176,9 +176,9 @@ brief not approved or naming no goal, sending a pending one to the sponsor throu
 stopping on a brief missing or not approved. Both judge the brief approved by its front
 matter `status: accepted`, through `gates/scripts/project_rules.py brief-read`, as
 `plan-project` records it, and `plan-project` checks the path the same way before writing.
-Upgrading from 1.2.0: a brief approved then has no front matter and is still read, from its
-`## Decision`, with a deprecation warning; add `status: accepted`, `date`, and
-`decision-makers` front matter before 1.4.0, which reads only the front matter. `brief_file`
+Upgrading from 1.2.0: a brief or design approved then has no front matter, and 1.4.0 reads
+only the front matter, so it is refused until you add `status: accepted`, `date`, and
+`decision-makers` front matter above its title. `brief_file`
 is now checked as each directory key is, save that it may start with `.`: `plan-project`
 writes it unquoted into `git add` and `git commit`, where a space, a shell metacharacter, a
 leading `-`, or an empty, `.`, or `..` component never worked, so rename such a path;
