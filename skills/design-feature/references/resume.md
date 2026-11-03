@@ -11,12 +11,16 @@ tells git a rebase is in progress.
   file.
 
 First, when the directory holds `tree`, run `design_check.py base-tree remove --tree "<the
-path it names>" --config "<absolute project root>/.claude/project.json"`, so the branch is
-checked out nowhere; then the bare `remove` Step 1 runs, clearing a stale tree. Then take the first row that applies:
+path it names>" --if-stale --config "<absolute project root>/.claude/project.json"`, so the
+branch is checked out nowhere. Its `INVALID:` means the tree is live and another session's
+Step 6 may be in progress: stop and say so, as git refuses a rebase while
+`.git/rebase-merge` exists; the person who knows that session is gone removes the tree with
+`--tree` alone and runs again. Then run the bare `remove` Step 1 runs, clearing a stale
+tree. Then take the first row that applies:
 
 | Condition | Then |
 | --------- | ---- |
-| `git show <branch>:{{design_dir}}/<slug>.md` holds the first line of `decision` | The commit landed and only cleanup was lost. Remove the directory, delete the checkout's copies as Step 6 does once its commit succeeds, report that commit, and offer no abort. |
+| `git show <branch>:./{{design_dir}}/<slug>.md` holds the first line of `decision` | The commit landed and only cleanup was lost. Remove the directory, delete the checkout's copies as Step 6 does once its commit succeeds, report that commit, and offer no abort. |
 | The person asks to abort | Abort, below. |
 | The branch is a missing `design/<slug>-rev<N>` | Its reopen commit is lost. Stop, and say to abort and reopen again. |
 | Otherwise | Continue, below. |

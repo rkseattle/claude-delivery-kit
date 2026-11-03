@@ -21,7 +21,9 @@ its base-tree too, as its own owner, to review a recorded design.
         with TREE, removes that tree, the path add printed, `ok` too once git lists it no
         more; INVALID for a worktree that is not OWNER's base tree of this checkout. Without
         TREE, removes only OWNER's stale trees: those whose directory is gone, older than
-        STALE_AFTER, or locked by a release that recorded no time. A live tree of another
+        STALE_AFTER, or locked by a release that recorded none, timed by its lock file. With
+        --if-stale, TREE is removed only once stale, INVALID while another session may hold
+        it. A session holding a tree past STALE_AFTER can lose it to another session. A live tree of another
         session, another checkout's, or another owner's is left alone. It runs no `git
         worktree prune`, which would clear the stale entries of every other worktree. OWNER
         is one of OWNERS, the skill whose tree it is, design-feature by default
@@ -93,6 +95,7 @@ def expected_message(config, keys):
 BASE_TREE_REASON = "{} base tree {}"
 # A tree is another session's, live, until this old, as git gc takes over a gc.pid lock
 # whose process it cannot see after 12 hours; a design run removes its tree before each stop.
+# The known limit: a session holding one tree longer than this can lose it to another's run.
 STALE_AFTER = 12 * 60 * 60
 # What add appends to base_tree_reason: the epoch seconds it added the tree at.
 SINCE = " since {}"
@@ -147,31 +150,52 @@ def base_trees(root, owner=OWNERS[0]):
     with root's reason for owner, whether or not its directory is still there; None for a
     tree locked by a release that recorded no time."""
     owned = base_tree_reason(root, owner)
-    return [(path, since) for path, reason in worktrees(root)
+    return [(path, lock_time(root, path) if since is None else since)
+            for path, reason in worktrees(root)
             for since in [added_at(reason, owned)] if since is not False]
+
+
+def lock_time(root, path):
+    """When git locked the worktree at path, from the mtime of the `locked` file `git
+    worktree lock` writes in its administrative directory, for a lock an earlier release
+    wrote with no time; None when no such directory names path."""
+    common = run_git(root, "rev-parse", "--path-format=absolute", "--git-common-dir").strip()
+    admin = os.path.join(common, "worktrees")
+    for entry in sorted(os.listdir(admin)) if os.path.isdir(admin) else []:
+        try:
+            with open(os.path.join(admin, entry, "gitdir"), encoding="utf8") as handle:
+                listed = os.path.dirname(handle.read().strip())
+            if os.path.realpath(listed) == os.path.realpath(path):
+                return int(os.path.getmtime(os.path.join(admin, entry, "locked")))
+        except OSError:
+            continue
+    return None
 
 
 def stale_tree(path, since, now):
     """Whether no live session can be reading the tree: its directory is gone, it was added
-    STALE_AFTER ago or more, or its lock records no time, as a killed run's of an earlier
-    release does."""
+    STALE_AFTER ago or more, or no time is known for its lock."""
     return since is None or not os.path.isdir(path) or now - since >= STALE_AFTER
 
 
-def base_tree_remove(config, owner=OWNERS[0], tree=None):
+def base_tree_remove(config, owner=OWNERS[0], tree=None, if_stale=False):
     """"ok" once git lists neither tree nor, without tree, any stale base tree of owner's in
     the checkout config belongs to: each is removed, its directory with it. `--force` twice
     removes a locked tree and one holding changes. ValueError for a tree git lists that is
     not owner's base tree of this checkout, so no other worktree, a live one of another
-    session or another owner's included, is touched."""
+    session or another owner's included, is touched, and with if_stale for a tree that is not
+    stale, which another session may still be using."""
     root = project_root(config)
     owned = base_trees(root, owner)
+    now = time.time()
     if tree is None:
-        now = time.time()
         targets = [path for path, since in owned if stale_tree(path, since, now)]
     else:
         real = os.path.realpath(tree)
-        if real in {os.path.realpath(path) for path, _ in owned}:
+        mine = {os.path.realpath(path): since for path, since in owned}
+        if real in mine:
+            if if_stale and not stale_tree(real, mine[real], now):
+                raise ValueError(f"{tree!r} is live: another session may still be using it")
             targets = [real]
         elif real in {os.path.realpath(path) for path, _ in worktrees(root)}:
             raise ValueError(f"{tree!r} is not a {owner} base tree of this checkout")
@@ -251,15 +275,20 @@ def base_tree_cases(script, directory):
                                "--config", config], capture_output=True, text=True,
                               check=False, **{**options, "cwd": cwd or checkout})
 
-    def lock_of(tree):
+    def lock_of(tree, owner=OWNERS[0]):
         reason = next((reason for path, reason in worktrees(repo, isolated_git_environment())
                        if os.path.realpath(path) == tree), None)
-        prefix, _, since = (reason or "").rpartition(SINCE.format(""))
-        return prefix if since.isdigit() else reason
+        owned = base_tree_reason_of(repo, owner)
+        return owned if added_at(reason, owned) not in (None, False) else reason
 
     def relock(tree, reason):
         git_in(repo, "worktree", "unlock", tree)
         git_in(repo, "worktree", "lock", "--reason", reason, tree)
+
+    def age(tree):
+        reason = next(reason for path, reason in worktrees(repo, isolated_git_environment())
+                      if os.path.realpath(path) == tree)
+        relock(tree, reason.rpartition(SINCE.format(""))[0] + SINCE.format(0))
 
     def listed():
         return sorted(os.path.realpath(path)
@@ -282,15 +311,26 @@ def base_tree_cases(script, directory):
     failures += report("base-tree", "remove with no tree keeps live trees",
                        (run("remove").stdout.strip(), listed() == sorted(users + [first, second])),
                        ("ok", True))
-    relock(first, base_tree_reason_of(repo) + SINCE.format(0))
+    age(first)
     third = run("add", "HEAD").stdout.strip()
     failures += report("base-tree", "add removes a tree older than STALE_AFTER",
                        (os.path.exists(first), listed() == sorted(users + [second, third])),
                        (False, True))
     relock(third, base_tree_reason_of(repo))
-    failures += report("base-tree", "remove clears a tree locked with no time, as 1.3 did",
+    failures += report("base-tree", "remove keeps a fresh tree locked with no time, as 1.3 did",
+                       (run("remove").stdout.strip(), os.path.isdir(third)), ("ok", True))
+    admin = os.path.join(repo, ".git", "worktrees")
+    for entry in os.listdir(admin):
+        with open(os.path.join(admin, entry, "gitdir"), encoding="utf8") as handle:
+            if os.path.realpath(os.path.dirname(handle.read().strip())) == third:
+                os.utime(os.path.join(admin, entry, "locked"), (0, 0))
+    failures += report("base-tree", "remove clears an old tree locked with no time",
                        (run("remove").stdout.strip(), listed() == sorted(users + [second])),
                        ("ok", True))
+    live = run("remove", "--tree", second, "--if-stale")
+    failures += report("base-tree", "remove --if-stale keeps a live tree another session holds",
+                       (live.returncode, live.stderr.startswith("INVALID: "),
+                        os.path.isdir(second)), (1, True, True))
     failures += report("base-tree", "remove --tree leaves only the user's worktrees",
                        (run("remove", "--tree", second).stdout.strip(), listed() == users,
                         os.path.exists(second)), ("ok", True, False))
@@ -373,15 +413,15 @@ def base_tree_cases(script, directory):
     failures += cli_case(script, "base-tree without a subcommand is usage", ["base-tree"], "", 2,
                          **options)
     ours = run("add", "HEAD").stdout.strip()
-    relock(ours, base_tree_reason_of(repo) + SINCE.format(0))
+    age(ours)
     left = run("add", "HEAD", "--owner", "review-tickets").stdout.strip()
-    relock(left, base_tree_reason_of(repo, "review-tickets") + SINCE.format(0))
+    age(left)
     review = run("add", "HEAD", "--owner", "review-tickets").stdout.strip()
     failures += report("base-tree", "an owner's add over its stale tree keeps another's",
                        (os.path.exists(left), os.path.isdir(ours), review != left),
                        (False, True, True))
     failures += report("base-tree", "another owner's add leaves the default owner's tree",
-                       (listed() == sorted(users + [ours, review]), lock_of(review),
+                       (listed() == sorted(users + [ours, review]), lock_of(review, "review-tickets"),
                         os.path.basename(review).startswith("review-tickets-base-")),
                        (True, base_tree_reason_of(repo, "review-tickets"), True))
     failures += report("base-tree", "the default owner's add and remove leave another owner's",
@@ -397,7 +437,13 @@ def base_tree_cases(script, directory):
                        ("ok", True, False))
     run("remove", "--tree", again)
     elsewhere_review = run("add", "HEAD", "--owner", "review-tickets", checkout=own).stdout.strip()
-    relock(elsewhere_review, base_tree_reason_of(own, "review-tickets") + SINCE.format(0))
+    age(elsewhere_review)
+    failures += report("base-tree", "remove --if-stale takes a stale tree",
+                       (run("remove", "--owner", "review-tickets", "--tree", elsewhere_review,
+                            "--if-stale", checkout=own).returncode,
+                        os.path.isdir(elsewhere_review)), (0, False))
+    elsewhere_review = run("add", "HEAD", "--owner", "review-tickets", checkout=own).stdout.strip()
+    age(elsewhere_review)
     failures += report("base-tree", "an owner's remove leaves its tree in another checkout",
                        (run("remove", "--owner", "review-tickets").stdout.strip(),
                         os.path.isdir(elsewhere_review)), ("ok", True))
@@ -503,6 +549,7 @@ def main():
     remove.add_argument("--config", required=True)
     remove.add_argument("--owner", choices=OWNERS, default=OWNERS[0])
     remove.add_argument("--tree")
+    remove.add_argument("--if-stale", action="store_true")
     args = parser.parse_args()
     if args.self_test:
         return self_test()
@@ -513,7 +560,8 @@ def main():
                                                     if args.action == "add"
                                                     else base_tree_remove(args.config,
                                                                           args.owner,
-                                                                          args.tree))},
+                                                                          args.tree,
+                                                                          args.if_stale))},
                      args.command)
 
 

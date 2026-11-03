@@ -896,10 +896,13 @@ def epic_design(root, directory, ref, key):
         if source is None:
             names = sorted(os.listdir(folder)) if os.path.isdir(folder) else []
         else:
-            names = subprocess.run(["git", "ls-tree", "-z", "--name-only", "--end-of-options",
-                                    f"{source}:./{directory.rstrip('/')}"], cwd=root,
-                                   capture_output=True, check=False).stdout.split(b"\0")
-            names = [os.fsdecode(name) for name in names]
+            folder_at = f"{source}:./{directory.rstrip('/')}"
+            if not blob_at(root, source, directory.rstrip("/")):
+                names = []
+            else:
+                names = [os.fsdecode(name) for name in run_git(
+                    root, "ls-tree", "-z", "--name-only", "--end-of-options", folder_at,
+                    text=False).split(b"\0")]
         for path in filter(None, (checked_design(directory, name) for name in names)):
             full = os.path.join(root, path)
             if source is None:

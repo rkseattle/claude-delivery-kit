@@ -98,7 +98,7 @@ check-ignore`), and the designs already recorded. Every `--config` takes the che
 `project.json`, `base-tree`'s included, so `brief-read`, `design-review-exception`, and the
 gate's ADR numbering read the checkout as before. The design doc, its ADRs, and anything
 else under `{{design_dir}}` or `{{adr_dir}}` this run writes stay in the working tree. Run
-`design_check.py base-tree remove` before every stop below and in Steps 2–4, and before
+`design_check.py base-tree remove --tree "<tree>"` before every stop below and in Steps 2–4, and before
 Step 5 presents; a later step that reads code adds it again first.
 
 `$ARGUMENTS` is a feature request, a design path, `{{design_dir}}/<slug>.md`, or an Epic
@@ -148,7 +148,7 @@ Then stop, and say why in one line, when:
   confirmation is missing. Otherwise name what it printed rather than revise it.
 - **`design/<slug>` or `origin/design/<slug>` exists, outside reopen mode.** Ask rather
   than reuse it.
-- **`git cat-file -e <base>:{{design_dir}}/<slug>.md` succeeds**, outside reopen mode, even
+- **`git cat-file -e <base>:./{{design_dir}}/<slug>.md` succeeds**, outside reopen mode, even
   where the working tree lacks the file, as on a branch cut before the design merged: the
   design is on the parent, and this run would overwrite it. Decide as for an `accepted` doc
   above, reading it at `<base>`.
@@ -237,7 +237,7 @@ An edit after a review re-runs that review, the cold one and step 8's alike, as 
 
 ## Step 5 — Present, then stop
 
-Run `design_check.py base-tree remove`. Check every exit criterion of the gate against the
+Run `design_check.py base-tree remove --tree "<tree>"`. Check every exit criterion of the gate against the
 doc, its ADRs, and Step 4. Then present, printing each role per `gates/project-config.md`:
 
 - the design doc's path and line count, and each ADR's path
@@ -284,7 +284,7 @@ Run `git fetch` first. Then take every row that applies, in order:
 | `origin/design/<slug>` exists, outside reopen mode | Stop and ask, as Step 1 does. |
 | `origin/{{parent_branch_default}}` moved since the base | Record its new commit as the base: the branch is cut from the base, not from HEAD. |
 | The base moved | Re-run Step 1's stops. |
-| Outside reopen mode, `git cat-file -e <base>:{{design_dir}}/<slug>.md` succeeds | Stop: someone committed this design there since Step 1, and this run would overwrite it. |
+| Outside reopen mode, `git cat-file -e <base>:./{{design_dir}}/<slug>.md` succeeds | Stop: someone committed this design there since Step 1, and this run would overwrite it. |
 | The base moved | Add the base tree at it, re-check each `## Current state` claim and its `Base:` line against it, remove the tree, renumber the ADRs when a new record took one of their numbers, and present again before recording anything. |
 
 The base is the commit Step 1 recorded, or the latest one recorded here. What an edit or a
@@ -298,7 +298,7 @@ everything the commit needs there, as git's sequencer keeps a commit's `message`
 `author-script` where it can finish without the session that began it:
 
 - `presented/` — the design doc and every ADR as Step 5 presented them, at their
-  repository paths
+  project-relative paths
 - `slug`, and `base` — the latest base recorded
 - `branch` — `design/<slug>`, or in reopen mode the revision branch checked out
 - `tree` — once the `add` below prints it, `<tree>`, so a resumed run removes it
@@ -348,7 +348,7 @@ there: the branch holds it now. When the commit fails — a hook
 rejects it, say — fix what it names and run it again; the tech lead's answer stands. If that
 cannot be done in this run, stop with the directory in place and say so: the next run
 continues or aborts it, as `git rebase --continue` and `--abort` do. Run
-`design_check.py base-tree remove` before any stop in this step, the branch kept. A fix a
+`design_check.py base-tree remove --tree "<tree>"` before any stop in this step, the branch kept. A fix a
 hook asks for is made to the checkout's copy, then copied to the tree again, so the cleanup
 above still finds them equal.
 
