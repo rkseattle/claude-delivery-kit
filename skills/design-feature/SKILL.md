@@ -81,7 +81,10 @@ Then record the base, the commit the design describes and Step 6 cuts its branch
 checked out, `git merge-base HEAD origin/{{parent_branch_default}}`, since reopen mode
 continues it; once `<slug>` is printed below, stop unless `<name>` is `<slug>`. Any other
 branch, and any uncommitted change, is no stop: the design describes the base, never the
-working tree. Then check the base out as the base tree, and keep the path it prints:
+working tree. Then check the base out as the base tree, and keep the path it prints,
+`<tree>`. A project-relative path, each `{{design_dir}}` and `{{adr_dir}}` one included, is
+under `<project tree>`, `<tree>/<prefix>`, `<prefix>` what `git rev-parse --show-prefix`
+prints run from the project root, empty at the repository's top level:
 
 ```bash
 python3 "${CLAUDE_PLUGIN_ROOT}/skills/design-feature/scripts/design_check.py" base-tree add <base> --config "<absolute project root>/.claude/project.json"
@@ -89,7 +92,7 @@ python3 "${CLAUDE_PLUGIN_ROOT}/skills/design-feature/scripts/design_check.py" ba
 
 **Every read of the project's code and recorded designs is at the base, under the base
 tree**, never the working tree, which may hold a branch's unmerged work: each `Explore`
-agent's scope and each file read on its word, ignore rules (`git -C "<tree>"
+agent's scope and each file read on its word, ignore rules (`git -C "<project tree>"
 check-ignore`), and the designs already recorded. Every `--config` takes the checkout's
 `project.json`, `base-tree`'s included, so `brief-read`, `design-review-exception`, and the
 gate's ADR numbering read the checkout as before. The design doc, its ADRs, and anything
@@ -317,17 +320,17 @@ the title and the names are free text.
 exists to let a branch be worked on without disturbing the checked-out one
 (git-worktree(1)): the checkout's branch, index, and uncommitted changes, its `project.json`
 among them, stay as they are. Add the tree on a new `design/<slug>` cut from `base`, and
-copy the design doc and each ADR from the checkout to the same paths under the path it
-prints, creating their directories. Stop unless `design-transition`, given the design's
+copy the design doc and each ADR from the checkout to the same paths under `<project
+tree>`, creating their directories. Stop unless `design-transition`, given the design's
 path as a file per **Untrusted text**, prints an `ok` line; on `INVALID:`, name the move it
 refused. Then commit them alone, from `message`, and remove the tree, which keeps the
 branch:
 
 ```bash
 python3 "${CLAUDE_PLUGIN_ROOT}/skills/design-feature/scripts/design_check.py" base-tree add <base> --new-branch design/<slug> --config "<absolute project root>/.claude/project.json"
-python3 "${CLAUDE_PLUGIN_ROOT}/gates/scripts/project_rules.py" design-transition --ref "origin/{{parent_branch_default}}" --config "<absolute project root>/.claude/project.json" --worktree "<tree>" < "<path file>"
-git -C "<tree>" add -- {{design_dir}}/<slug>.md <each ADR path>
-git -C "<tree>" commit -F "$(git -C "<absolute project root>" rev-parse --path-format=absolute --git-path design-feature)/message" -- {{design_dir}}/<slug>.md <each ADR path>
+python3 "${CLAUDE_PLUGIN_ROOT}/gates/scripts/project_rules.py" design-transition --ref "origin/{{parent_branch_default}}" --config "<absolute project root>/.claude/project.json" --worktree "<project tree>" < "<path file>"
+git -C "<project tree>" add -- {{design_dir}}/<slug>.md <each ADR path>
+git -C "<project tree>" commit -F "$(git -C "<absolute project root>" rev-parse --path-format=absolute --git-path design-feature)/message" -- {{design_dir}}/<slug>.md <each ADR path>
 python3 "${CLAUDE_PLUGIN_ROOT}/skills/design-feature/scripts/design_check.py" base-tree remove --config "<absolute project root>/.claude/project.json"
 ```
 
@@ -336,7 +339,8 @@ HEAD` and no `--worktree`, and the `git add` and `git commit` lines without `-C`
 
 Once the commit succeeds, remove the state directory. Outside reopen mode, then delete each
 copy left in the checkout that is untracked there and whose `git hash-object` equals `git
-rev-parse design/<slug>:<path>`: the branch holds it now. When the commit fails — a hook
+rev-parse design/<slug>:./<path>`, run from the project root, `./` reading the path from
+there: the branch holds it now. When the commit fails — a hook
 rejects it, say — fix what it names and run it again; the tech lead's answer stands. If that
 cannot be done in this run, stop with the directory in place and say so: the next run
 continues or aborts it, as `git rebase --continue` and `--abort` do. Run
