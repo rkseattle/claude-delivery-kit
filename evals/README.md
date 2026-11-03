@@ -76,7 +76,7 @@ the transcript. The two missing-key cases, `readme-docs-updates-an-existing-read
 `design-feature-reopens-an-accepted-design`, `design-feature-runs-from-a-feature-branch`,
 `release-asks-before-staging`,
 `release-readiness-stops-without-system-suite`, all three `ci-failure-adversary-*`
-cases, and both `feature-design-adversary-*` cases do.
+cases, both `feature-design-adversary-*` cases, and all three `review-tickets-*` cases do.
 `write-tickets-stops-without-config` has a `tool_used` grader that cannot fail, since Write
 is not in its allowlist, and `refuses-without-project-json` and all seven `design-adversary-*`
 cases grade the reply only.
@@ -241,7 +241,12 @@ Each scaffold writes `jira/`, what `jira_get_issue` and `jira_search` return for
 Epic and children, and its prompt tells the run to read those files in place of Jira, as
 `plan-project-stops-at-approval`'s prompt supplies `gh` output. Each also writes
 `.claude/agent-rules/ticket-adversary.md`, since the dispatched reviewer has no Jira
-either. Every case lists Bash and Write; a case that dispatches `feature-design-adversary`
+either. Each case's `runs-the-linter` grader requires a `lint_draft.py` call on the
+git-dir draft with `--repo`, so a run that leaves the lint to `ticket-adversary` fails.
+Its `resolves-the-keys` grader requires `ticket-keys` on the arguments, and the design
+case's `reads-the-design` requires `design-read` at a commit, so neither check is skipped,
+and its `dispatches-ticket-adversary` requires the cold review of the draft's path.
+Every case lists Bash and Write; a case that dispatches `feature-design-adversary`
 also lists WebSearch and WebFetch, for its reviewer's survey:
 
 ```bash

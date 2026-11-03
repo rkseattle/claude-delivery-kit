@@ -1,7 +1,7 @@
 ---
 type: tool_used
 tool: Bash
-input_match: '"command"\s*:\s*"(?=(?:[^"\\]|\\.)*?design_check\.py\\?"?\s+base-tree\s+add\b)(?=(?:[^"\\]|\\.)*?--owner\s+review-tickets\b)'
+input_match: '"command"\s*:\s*"(?=(?:[^"\\]|\\.)*?design_check\.py\\?["'']?\s+base-tree\s+add\b)(?=(?:[^"\\]|\\.)*?--owner\s+review-tickets\b)'
 min: 1
 arm: with
 ---

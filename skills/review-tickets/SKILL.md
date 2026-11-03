@@ -227,5 +227,7 @@ Then the design section, Step 6's. The report ends with the summary, in this ord
 
 one row per ticket, `not judged` in its Result where its heading reads it, then
 `PASS: <n>  FAIL: <n>  NOT JUDGED: <n>`, then the last line:
-`NEXT: /delivery-kit:write-tickets <each failing key, in draft order>`, or, when none
-fails, `NEXT: none — every ticket passes`.
+`NEXT: /delivery-kit:write-tickets <each failing key, in draft order>`. When none fails it
+reads, as pytest's "no tests ran" stands apart from a pass, `NEXT: none — no ticket was
+judged` when PASS is 0 too, else `NEXT: none — no failing ticket to rewrite`; and after a
+design section that ended in a `design-feature` command, `NEXT: see the design section`.
