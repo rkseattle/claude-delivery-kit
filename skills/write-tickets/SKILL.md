@@ -104,8 +104,8 @@ python3 "${CLAUDE_PLUGIN_ROOT}/gates/scripts/project_rules.py" draft-slug < "<re
 - **Context**: why, with any linked source summarized. Never a reference to this session.
 - **Design**: a design `## Summary` opening `Epic: <KEY>` names its Epic; stop unless the
   key, fed as Step 2 feeds the path, passes `project_rules.py ticket-key --prefix
-  "{{ticket_prefix}}"` and the issue is an Epic. Fetch it and each not-Done child as Step 8
-  fetches, and draft the rest as new under it. A not-Done child no design ticket's summary
+  "{{ticket_prefix}}"` and the issue is an Epic. Fetch it and each not-Done child as
+  templates.md's fetched ticket, and draft the rest as new under it. A not-Done child no design ticket's summary
   equals, or a design ticket a Done child's summary equals, is design rework, for Step 6.
   Otherwise draft a new Epic from the design's Goals, Success measures, NFR thresholds, and
   Non-goals. Either Epic carries templates.md's one `- Design:` line.
@@ -196,17 +196,8 @@ only item 4's missing links, and item 6, with no Change impact.
    local ID. Once every ticket exists, update each ticket whose draft text item 5 changed
    after its creation, and give it item 6 again.
 
-Fetch each `<TICKET-N ...>` argument and Step 4's fetched tickets into the draft, its key as
-header ID and on `Baseline:` and `Jira:`, so no local ID stands for an existing issue:
-
-- its one `moscow-*` label to `Priority:`, title-cased, `moscow-wont` as `Won't`; and on a
-  Bug its one `severity-*` label to `Severity:`, title-cased. None, or more than one, leaves
-  the header empty for Step 1 to settle
-- every other label but a handoff label, as defined below, to `Labels:` — never a
-  `moscow-*` or `severity-*` label, which only the two headers above carry
-- a leading `Goal:` description line to the `Goal:` header
-- a code span holding a whole `[verify: … @ …]` or `[children: …]` tag, or the
-  `\verify: …\` an older write left, to the bare tag
+Fetch each `<TICKET-N ...>` argument and Step 4's fetched tickets into the draft as
+templates.md's fetched ticket; Step 1 settles a header that leaves empty.
 
 Run Steps 2–7 for `<TICKET-N ...>` arguments. A ticket whose `Baseline:` is filled is
 updated, not created. Item 2's labels replace its `moscow-*`, `severity-*`, and handoff

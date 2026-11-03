@@ -56,8 +56,8 @@ order `$ARGUMENTS` first names them, and name, in one line, each word of `$ARGUM
 became no key, such as a key under another prefix or in lowercase, as skipped. With none
 printed, say so, ask for keys, and stop.
 
-Every `jira_get_issue` call names its fields, since the defaults leave out the parent
-and the links: `fields` is `summary,issuetype,status,labels,parent,issuelinks,description`.
+Every `jira_get_issue` call names the `fields` templates.md's fetched ticket lists, since
+the defaults leave out the parent and the links.
 
 - **Epic mode** — exactly one key, and `jira_get_issue` returns it as an Epic. Its
   children are every issue `jira_search` returns for `parent = <KEY> ORDER BY created ASC`,
@@ -73,24 +73,14 @@ the run, naming the key and quoting the error.
 ## Step 3 — Fetch into a draft
 
 Write every ticket under review to `<dir>/draft.md` in templates.md's format, the Epic
-first, then the rest in the order Step 2 resolved them. Each is converted from what
-`jira_get_issue` returns, as `write-tickets` converts a fetched ticket:
+first, then the rest in the order Step 2 resolved them, each drafted as templates.md's
+fetched ticket, except:
 
 - the header ID and `Jira:` are the key; `Baseline:` stays empty, since a review rewrites
   nothing and a filled `Baseline:` marks a rewrite
-- `Type:` is the issue type; `Parent:` the parent's key, on a ticket that has one;
-  `Blocked by:` the key of each issue linked as blocking it, or `None`
-- its one `moscow-*` label goes to `Priority:`, title-cased, `moscow-wont` as `Won't`; on
-  a Bug, its one `severity-*` label to `Severity:`, title-cased. None, or more than one,
-  leaves the header empty
 - `Handoff:` stays empty: Jira does not mark which label is a ticket's handoff, so the
-  draft names none rather than guess, and Step 8 reports it unknown
-- every other label, `enabling` included, goes to `Labels:`, never a `moscow-*` or
-  `severity-*` label, which only the two headers above carry
-- a leading `Goal:` description line goes to the `Goal:` header
-- each `##` section of the description, as written; a code span holding a whole
-  `[verify: … @ …]` or `[children: …]` tag, or a `\verify: …\` an older write left,
-  becomes the bare tag
+  draft names none rather than guess, and Step 8 reports it unknown. Every label but a
+  `moscow-*` or `severity-*` one, `enabling` included, goes to `Labels:`
 
 Copy every line as Jira returned it. A section the ticket lacks stays absent: the lint
 reports it, and filling it in would review a ticket that does not exist.
