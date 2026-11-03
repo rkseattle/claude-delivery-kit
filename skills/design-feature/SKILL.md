@@ -53,8 +53,8 @@ Stop, and say why in one line, when:
 exists, read `${CLAUDE_PLUGIN_ROOT}/skills/design-feature/references/resume.md` and follow
 it instead of the rest of this step.
 
-Otherwise, clear any base tree a killed run of this checkout left, then run `git fetch
-origin`:
+Otherwise, clear the stale base trees a killed run of this checkout left, which leaves a
+live one of another session alone, then run `git fetch origin`:
 
 ```bash
 python3 "${CLAUDE_PLUGIN_ROOT}/skills/design-feature/scripts/design_check.py" base-tree remove --config "<absolute project root>/.claude/project.json"
@@ -82,7 +82,8 @@ checked out, `git merge-base HEAD origin/{{parent_branch_default}}`, since reope
 continues it; once `<slug>` is printed below, stop unless `<name>` is `<slug>`. Any other
 branch, and any uncommitted change, is no stop: the design describes the base, never the
 working tree. Then check the base out as the base tree, and keep the path it prints,
-`<tree>`. A project-relative path, each `{{design_dir}}` and `{{adr_dir}}` one included, is
+`<tree>`; every `base-tree remove` below names it with `--tree "<tree>"`, so only this
+run's tree goes, and each later `add` prints a new `<tree>` for the next `remove`. A project-relative path, each `{{design_dir}}` and `{{adr_dir}}` one included, is
 under `<project tree>`, `<tree>/<prefix>`, `<prefix>` what `git rev-parse --show-prefix`
 prints run from the project root, empty at the repository's top level:
 
@@ -289,15 +290,18 @@ Run `git fetch` first. Then take every row that applies, in order:
 The base is the commit Step 1 recorded, or the latest one recorded here. What an edit or a
 renumber re-runs, and which approvals it voids, is the gate's **Approvers** section's.
 
-**Before editing any file**, write everything the commit needs to the directory
-`git rev-parse --path-format=absolute --git-path design-feature` names, as git's sequencer
-keeps a commit's `message` and `author-script` where it can finish without the session that
-began it:
+**Before editing any file**, create the directory
+`git rev-parse --path-format=absolute --git-path design-feature` names with `mkdir`, never
+`mkdir -p`: when it exists, another run's Step 6 is in progress or was interrupted, so stop
+and say so, as git refuses a second rebase while `.git/rebase-merge` exists. Then write
+everything the commit needs there, as git's sequencer keeps a commit's `message` and
+`author-script` where it can finish without the session that began it:
 
 - `presented/` — the design doc and every ADR as Step 5 presented them, at their
   repository paths
 - `slug`, and `base` — the latest base recorded
 - `branch` — `design/<slug>`, or in reopen mode the revision branch checked out
+- `tree` — once the `add` below prints it, `<tree>`, so a resumed run removes it
 - `decision` — the full text replacing `Pending — <tech lead>.`, every line of it: the
   decision as the gate's **Decision** section words it, dated from `date +%F`, with its
   relayed suffix where it applies, and a rejection's reason line
@@ -331,7 +335,7 @@ python3 "${CLAUDE_PLUGIN_ROOT}/skills/design-feature/scripts/design_check.py" ba
 python3 "${CLAUDE_PLUGIN_ROOT}/gates/scripts/project_rules.py" design-transition --ref "origin/{{parent_branch_default}}" --config "<absolute project root>/.claude/project.json" --worktree "<project tree>" < "<path file>"
 git -C "<project tree>" add -- {{design_dir}}/<slug>.md <each ADR path>
 git -C "<project tree>" commit -F "$(git -C "<absolute project root>" rev-parse --path-format=absolute --git-path design-feature)/message" -- {{design_dir}}/<slug>.md <each ADR path>
-python3 "${CLAUDE_PLUGIN_ROOT}/skills/design-feature/scripts/design_check.py" base-tree remove --config "<absolute project root>/.claude/project.json"
+python3 "${CLAUDE_PLUGIN_ROOT}/skills/design-feature/scripts/design_check.py" base-tree remove --tree "<tree>" --config "<absolute project root>/.claude/project.json"
 ```
 
 In reopen mode the revision branch is checked out: run `design-transition` with `--ref

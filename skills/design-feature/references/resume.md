@@ -10,9 +10,9 @@ tells git a rebase is in progress.
 - **Branch:** the one its `branch` file names, or `design/<slug>` when there is no such
   file.
 
-First run `design_check.py base-tree remove --config "<absolute project
-root>/.claude/project.json"`, as Step 1 does, so no base tree outlives the run whichever way
-it ends. Then take the first row that applies:
+First, when the directory holds `tree`, run `design_check.py base-tree remove --tree "<the
+path it names>" --config "<absolute project root>/.claude/project.json"`, so the branch is
+checked out nowhere; then the bare `remove` Step 1 runs, clearing a stale tree. Then take the first row that applies:
 
 | Condition | Then |
 | --------- | ---- |

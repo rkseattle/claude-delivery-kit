@@ -152,9 +152,9 @@ python3 "${CLAUDE_PLUGIN_ROOT}/gates/scripts/project_rules.py" design-read --pat
 
 `design-read` reads only an accepted design; the path it prints is the one reviewed. Check
 that commit out as this skill's own base tree, so the reviewer reads the text `design-read`
-judged, whatever the checkout holds, and keep the path it prints. `review-tickets` is its
-owner, so the tree is never `design-feature`'s, and adding it first removes one a killed
-run of this skill left:
+judged, whatever the checkout holds, and keep the path it prints, `<tree>`. `review-tickets` is its
+owner, so the tree is never `design-feature`'s, and adding it first removes only a stale
+one a killed run of this skill left, never a live one of another run:
 
 ```bash
 python3 "${CLAUDE_PLUGIN_ROOT}/skills/design-feature/scripts/design_check.py" base-tree add "<the commit printed>" --owner review-tickets --config "<absolute project root>/.claude/project.json"
@@ -168,7 +168,7 @@ project is the repository's top level. Once it returns, and before any stop afte
 `NEXT:` line, never in place of the findings:
 
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/skills/design-feature/scripts/design_check.py" base-tree remove --owner review-tickets --config "<absolute project root>/.claude/project.json"
+python3 "${CLAUDE_PLUGIN_ROOT}/skills/design-feature/scripts/design_check.py" base-tree remove --owner review-tickets --tree "<tree>" --config "<absolute project root>/.claude/project.json"
 ```
 
 **Checked** is the heading `## Design — <checked path>`, then the reviewer's `BLOCKER`,
