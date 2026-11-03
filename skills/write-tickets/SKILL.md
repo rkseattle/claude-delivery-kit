@@ -174,7 +174,7 @@ only item 4's missing links, and item 6, with no Change impact.
    except Open questions, Change impact, review output, and comments, with each
    `[verify: …]` and `[children: …]` tag inside a code span, which the connector's read
    conversion keeps.
-4. For each Blocked-by entry, a link of the blocking type with the blocker as outward.
+4. For each Blocked-by entry, a blocking-type link with the blocker as `inward_issue_key`.
 5. After each creation, write the key into its `Jira:` line and replace its local ID with
    the key everywhere in the draft — as a whole ID, never the `S1` in `S10` — before
    creating the next ticket.
