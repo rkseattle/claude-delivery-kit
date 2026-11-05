@@ -82,7 +82,8 @@ repository inherits the caller's git. Each importer's self-test covers the rules
                                    where the feature whose design path, or with --epic whose
                                    Epic key, is on standard input stands: one line naming one
                                    of LIFECYCLE_STATES and a detail, then `NEXT: <command>`,
-                                   read offline from REF, the parent's remote ref, the
+                                   read offline from REF, the parent's remote ref or the
+                                   commit design-ref prints, `on-parent` meaning at REF, the
                                    working tree, design branches, design-feature's Step 6
                                    state, and write-tickets' draft; INVALID for a bad path,
                                    key, design_dir, or ref, or a design that is not UTF-8
@@ -995,7 +996,8 @@ def lifecycle(text, ref, config, epic=False):
     """Where one feature stands, as git status names a repository's state: one state of
     LIFECYCLE_STATES, a detail, and the single command that moves it on, read offline from
     the design at the path on standard input, or with epic the design whose `Epic:` line
-    names the key there; ref is the parent branch's remote ref. Jira is the skill's to add.
+    names the key there; ref is the parent branch's remote ref or the commit design_ref
+    prints, a state's `on-parent` meaning at ref. Jira is the skill's to add.
     ValueError for a bad path, key, directory, or ref, or a parent design not UTF-8."""
     root = os.path.realpath(project_root(config))
     directory = key_directory(config)

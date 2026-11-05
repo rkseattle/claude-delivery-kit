@@ -50,16 +50,16 @@ request-derived scope. Establish, by reading the code rather than file names:
   line saying so. On `INVALID:`, print it and its `NEXT:` line and stop. Stop too unless a
   goal names an outcome, never "none", "TBD", or "N/A": send that brief to
   `{{roles.sponsor}}` through `plan-project`.
-- **the design** the request names by path: at `{{design_dir}}` `none`, stop and name the
-  key. Write the path to a file per **Untrusted text**; stop if `git fetch origin
-  {{parent_branch_default}}` fails. Run `lifecycle` on it, below; at any state but
-  `design-accepted-on-parent` or `tickets-draft`, print its two lines and stop. Read the
-  design and the Epic's `- Design:` path only from what `design-read` prints, the path with
-  `--path`. Its `Work plan` is the slice: a Step 3 split, an added ticket, or a review
-  finding changing a handoff's tickets is design rework, for Step 6.
+- **the design** the request names by path: at `{{design_dir}}` `none`, stop and name the key.
+  Pass the path in a file per **Untrusted text**; stop if `git fetch origin
+  {{parent_branch_default}}` fails, on `INVALID:`, or at a `lifecycle` state but
+  `design-accepted-on-parent` or `tickets-draft`, printing its two lines. Read the design,
+  and the Epic's `- Design:` path with `--path`, only from `design-read` at `design-ref`'s
+  `<design ref>`. Its `Work plan` is the slice; changing a handoff is design rework.
 
   ```bash
-  python3 "${CLAUDE_PLUGIN_ROOT}/gates/scripts/project_rules.py" <lifecycle | design-read> --ref "origin/{{parent_branch_default}}" --config "<absolute project root>/.claude/project.json" < "<file>"
+  python3 "${CLAUDE_PLUGIN_ROOT}/gates/scripts/project_rules.py" design-ref --ref "origin/{{parent_branch_default}}" --config "<absolute project root>/.claude/project.json" < "<file>"
+  python3 "${CLAUDE_PLUGIN_ROOT}/gates/scripts/project_rules.py" <lifecycle | design-read> --ref "<design ref>" --config "<absolute project root>/.claude/project.json" < "<file>"
   ```
 
 Then search Jira: `project = {{jira_project}}` with the request's key terms, for tickets
@@ -133,10 +133,10 @@ the cap, bring the remaining findings to Rob. Append each round's output, and be
 
 **Design rework** — a change only the design can make: its `Work plan`, a Goal, an NFR, or
 a premise it states. On one, from any step, stop. Append the findings, quoted, then
-`<!-- design-rework: <ticket IDs, or design> @ <blob> -->` to the draft — `<blob>` what
-`git rev-parse "origin/{{parent_branch_default}}:./<design path>"` prints, so a revised design
-voids it — writing a draft of the Epic header and `- Design:` line only when none exists.
-Bring Rob the findings, then print `NEXT: /delivery-kit:design-feature <Epic key or path>`.
+`<!-- design-rework: <ticket IDs, or design> @ <blob> -->` to the draft, `<blob>` what
+`git rev-parse "<design ref>:./<design path>"` prints, voided by a revised design; draft the
+Epic header and `- Design:` line only when none exists. Bring Rob the findings, then print
+`NEXT: /delivery-kit:design-feature <Epic key or path>`.
 
 ## Step 7 — Present for approval
 

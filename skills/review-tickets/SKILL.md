@@ -143,11 +143,13 @@ Write the `- Design:` path, backticks dropped, to a file per **Untrusted text**,
 2's input directory, and remove it with that directory once `design-read` has run or a
 command before it has failed. Fetch the parent into `FETCH_HEAD` alone, so no
 remote-tracking ref moves and `git status` reports the same ahead or behind as before,
-then ask `design-read` for the checked path at that commit:
+then ask `design-ref` which commit to read, `<design ref>`, this branch's when it carries
+its own design or ADR, and `design-read` for the checked path at that commit:
 
 ```bash
 git fetch --refmap= origin "{{parent_branch_default}}" && git rev-parse FETCH_HEAD
-python3 "${CLAUDE_PLUGIN_ROOT}/gates/scripts/project_rules.py" design-read --path --ref "<the commit printed>" --config "<absolute project root>/.claude/project.json" < "<path file>"
+python3 "${CLAUDE_PLUGIN_ROOT}/gates/scripts/project_rules.py" design-ref --ref "<the commit fetched>" --parent "{{parent_branch_default}}" --config "<absolute project root>/.claude/project.json" < "<path file>"
+python3 "${CLAUDE_PLUGIN_ROOT}/gates/scripts/project_rules.py" design-read --path --ref "<design ref>" --config "<absolute project root>/.claude/project.json" < "<path file>"
 ```
 
 `design-read` reads only an accepted design; the path it prints is the one reviewed. Check
@@ -157,7 +159,7 @@ owner, so the tree is never `design-feature`'s, and adding it first removes only
 one a killed run of this skill left, never a live one of another run:
 
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/skills/design-feature/scripts/design_check.py" base-tree add "<the commit printed>" --owner review-tickets --config "<absolute project root>/.claude/project.json"
+python3 "${CLAUDE_PLUGIN_ROOT}/skills/design-feature/scripts/design_check.py" base-tree add "<design ref>" --owner review-tickets --config "<absolute project root>/.claude/project.json"
 ```
 
 Launch `feature-design-adversary`. **The delegation contains only
