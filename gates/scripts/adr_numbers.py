@@ -31,7 +31,7 @@ sys.dont_write_bytecode = True
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from project_rules import (ADR_RECORD, cli_case, design_dirs, error_message,  # noqa: E402
                            git_subcommand, isolated_git_environment, project_root,
-                           read_config, report, run_git, write_scratch)
+                           read_config, ref_commit, report, run_git, write_scratch)
 
 GIT_ENVIRONMENT = None  # the self-test's isolated environment; None is the caller's
 
@@ -53,7 +53,7 @@ def merged_records(root, adr_dir, against, head_ref="HEAD"):
     for ref in (head_ref, against) if against else (head_ref,):
         if ref.startswith("-"):
             raise ValueError(f"{ref!r} is not a ref")
-        git(root, "rev-parse", "--verify", "--quiet", f"{ref}^{{commit}}")
+        ref_commit(root, ref, GIT_ENVIRONMENT)
     head = records(root, head_ref, adr_dir)
     if against is None:
         return head, None

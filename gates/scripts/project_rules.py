@@ -759,11 +759,12 @@ def key_directory(config, key="design_dir"):
     return directory
 
 
-def ref_commit(root, ref):
-    """The commit ref names in root's repository; ValueError naming ref otherwise."""
+def ref_commit(root, ref, environment=None):
+    """The commit ref names in root's repository, git run in environment as run_git runs
+    it; ValueError naming ref otherwise."""
     try:
-        return run_git(root, "rev-parse", "--verify", "--end-of-options",
-                       f"{ref}^{{commit}}").strip()
+        return run_git(root, "rev-parse", "--verify", "--end-of-options", f"{ref}^{{commit}}",
+                       environment=environment).strip()
     except ValueError as error:
         raise ValueError(f"ref {ref!r} does not name a commit ({error})")
 
