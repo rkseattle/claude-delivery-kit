@@ -37,13 +37,17 @@ new design.
    revision — for which neither `design/<slug>-rev<N>` nor `origin/design/<slug>-rev<N>`
    exists. Run `git switch -c design/<slug>-rev<N> <base>`, with `<base>` the commit Step 1
    recorded. When `<design ref>` is a commit, first stop unless `git symbolic-ref -q HEAD`
-   exits 0, since a detached HEAD names no branch to merge back into; after the switch, run
-   `git config "branch.design/<slug>-rev<N>.gh-merge-base" "$(git rev-parse --abbrev-ref
-   @{-1})"`, git naming the branch switched from, so its name never passes through this
-   text: `gh pr create` opens the revision's pull request against it, as Git Town's `set-parent` records a branch's parent
-   apart from its push upstream. A revision is worked on its own branch, as `gh pr
-   checkout` revises a pull request's. When git refuses the switch over local changes, stop and name the files it
-   lists; the person commits or stashes them, never this run.
+   exits 0, since a detached HEAD names no branch to merge back into; after the switch, set
+   `<key>`, `branch.design/<slug>-rev<N>.gh-merge-base`, to the branch switched from, git
+   naming it so it never passes through this text —
+   `git config "<key>" "$(git rev-parse --abbrev-ref @{-1})"` — or, when Step 1 found this
+   design's own `design/<slug>` or a revision of it checked out, to that branch's target,
+   carried forward:
+   `target=$(git config --get "branch.$(git rev-parse --abbrev-ref @{-1}).gh-merge-base") && git config "<key>" "$target"`,
+   stopping when it fails: `gh pr create` opens the revision's pull request against it, as
+   Git Town's `set-parent` records a branch's parent apart from its push upstream. When git
+   refuses the switch over local changes, stop and name the files it lists; the person
+   commits or stashes them, never this run.
 3. **Reopen on the branch.** Edit the design doc only:
    - Set `status: proposed`.
    - Set `## Decision` to `Pending — <tech lead>.`
