@@ -77,11 +77,10 @@ Next, the design: only a covered ticket's parent Epic names one, by the `- Desig
 read, backticks dropped. With none, plan without one; stop on two paths, in one Epic or
 across them, and on `{{design_dir}}` `none`, naming the key. Write the path to a file per
 **Untrusted text**; stop if `git fetch origin {{parent_branch_default}}` fails, or if
-either of these exits non-zero. `design-ref` prints `<design ref>`, a commit on this branch
-when it carries its own design or ADR, else `origin/{{parent_branch_default}}`:
+`design-read` exits non-zero at the `<design ref>` `${CLAUDE_PLUGIN_ROOT}/gates/design-ref.md`
+gives:
 
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/gates/scripts/project_rules.py" design-ref --ref "origin/{{parent_branch_default}}" --config "<absolute project root>/.claude/project.json" < "<file>"
 python3 "${CLAUDE_PLUGIN_ROOT}/gates/scripts/project_rules.py" design-read --ref "<design ref>" --config "<absolute project root>/.claude/project.json" < "<file>"
 ```
 

@@ -54,12 +54,11 @@ request-derived scope. Establish, by reading the code rather than file names:
   Pass the path in a file per **Untrusted text**; stop if `git fetch origin
   {{parent_branch_default}}` fails, on `INVALID:`, or at a `lifecycle` state but
   `design-accepted-on-parent` or `tickets-draft`, printing its two lines. Read the design,
-  and the Epic's `- Design:` path with `--path`, only from `design-read` at `design-ref`'s
-  `<design ref>`. Its `Work plan` is the slice: a Step 3 split, an added ticket, or a review
+  and the Epic's `- Design:` path with `--path`, only from `design-read` at the `<design
+  ref>` `${CLAUDE_PLUGIN_ROOT}/gates/design-ref.md` gives. Its `Work plan` is the slice: a Step 3 split, an added ticket, or a review
   finding changing a handoff's tickets is design rework, for Step 6.
 
   ```bash
-  python3 "${CLAUDE_PLUGIN_ROOT}/gates/scripts/project_rules.py" design-ref --ref "origin/{{parent_branch_default}}" --config "<absolute project root>/.claude/project.json" < "<file>"
   python3 "${CLAUDE_PLUGIN_ROOT}/gates/scripts/project_rules.py" <lifecycle | design-read> --ref "<design ref>" --config "<absolute project root>/.claude/project.json" < "<file>"
   ```
 

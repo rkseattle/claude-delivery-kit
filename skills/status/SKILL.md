@@ -23,12 +23,10 @@ it never edits, commits, switches a branch, or transitions a ticket.
 
 3. Run `git fetch origin {{parent_branch_default}}`. If it fails, say the state is read
    from the last fetch.
-4. Run these, adding `--epic` to both for an Epic key. `design-ref` prints `<design ref>`,
-   the commit the design is read at: a commit on this branch when it carries its own design or ADR, else
-   `origin/{{parent_branch_default}}`. On `INVALID:` from it, print that line and stop:
+4. Get `<design ref>` per `${CLAUDE_PLUGIN_ROOT}/gates/design-ref.md`, then run this,
+   adding `--epic` to both commands for an Epic key:
 
    ```bash
-   python3 "${CLAUDE_PLUGIN_ROOT}/gates/scripts/project_rules.py" design-ref --ref "origin/{{parent_branch_default}}" --config "<absolute project root>/.claude/project.json" < "<arguments file>"
    python3 "${CLAUDE_PLUGIN_ROOT}/gates/scripts/project_rules.py" lifecycle --ref "<design ref>" --config "<absolute project root>/.claude/project.json" < "<arguments file>"
    ```
 
