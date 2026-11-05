@@ -55,7 +55,8 @@ request-derived scope. Establish, by reading the code rather than file names:
   {{parent_branch_default}}` fails, on `INVALID:`, or at a `lifecycle` state but
   `design-accepted-on-parent` or `tickets-draft`, printing its two lines. Read the design,
   and the Epic's `- Design:` path with `--path`, only from `design-read` at `design-ref`'s
-  `<design ref>`. Its `Work plan` is the slice; changing a handoff is design rework.
+  `<design ref>`. Its `Work plan` is the slice: a Step 3 split, an added ticket, or a review
+  finding changing a handoff's tickets is design rework, for Step 6.
 
   ```bash
   python3 "${CLAUDE_PLUGIN_ROOT}/gates/scripts/project_rules.py" design-ref --ref "origin/{{parent_branch_default}}" --config "<absolute project root>/.claude/project.json" < "<file>"
@@ -70,8 +71,7 @@ that overlap or that the new ones depend on. Record each one's key and status.
 In order:
 
 1. One ticket, one behavior change that can merge alone without breaking the build.
-2. Sketch each ticket's phases the way `plan-work` would. Any ticket whose sketch exceeds
-   `plan-work`'s phase limit is split now, not after review.
+2. Sketch each ticket's phases as `plan-work` would; split one past its phase limit now.
 3. Registry consumers from Step 2 are part of the ticket that edits the registry. When they
    push it past the limit, the split follows the consumers, not the layers.
 4. Every live instance of a root cause is covered or excluded as benign in context; when
