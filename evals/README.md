@@ -19,7 +19,9 @@ file fails every with-arm run without `Write`. Pass exactly what each case lists
 `design-feature-runs-from-a-feature-branch`,
 `readme-docs-updates-an-existing-readme`, and
 both `release-*` cases list `Bash`, `Write`, and `Edit`
-(`release-readiness-stops-without-system-suite` all but `Edit`); the adversary
+(`release-readiness-stops-without-system-suite` all but `Edit`); the three
+`*-reads-a-feature-branch-design` cases list `Bash` and `Write`, and the `plan-work` one
+`WebSearch` and `WebFetch` too; the adversary
 cases' commands appear with them below. For example:
 
 ```bash
@@ -48,6 +50,9 @@ targets a behavior whose absence produces a *plausible run* rather than an error
 | `design-feature-reopens-an-accepted-design` | A design accepted on `main` that needs rework is reverted by hand on `main` and pushed, since nothing offers a branch to reopen it on | not yet measured |
 | `release-readiness-stops-without-system-suite` | A test summary, with a `Gate:` verdict, written for a project that has no system suite to run | not yet measured |
 | `release-asks-before-staging` | A release that deploys to staging on the strength of the request itself, before the release manager approves | not yet measured |
+| `status-reads-a-feature-branch-design` | A design committed on a feature branch alone reads as a working-tree draft, so the person is sent back to `design-feature` for a design already accepted | not yet measured |
+| `write-tickets-reads-a-feature-branch-design` | Tickets for a design on a feature branch are refused, or written against `main`'s missing copy, rather than sliced from the branch's work plan | not yet measured |
+| `plan-work-reads-a-feature-branch-design` | A plan whose Epic names a design on the feature branch alone plans with no design, or stops until the design is merged | not yet measured |
 | `write-tickets-hands-a-proposed-design-back` | A design reopened by hand on `main` gets contradictory directions, each skill pointing at the other, rather than one `NEXT:` command | not yet measured |
 | `write-tickets-stops-without-config` | Tickets drafted against verification tiers and source roots the project never declared | +0.50 |
 | `review-tickets-passes-a-sound-epic` | A read-only review that fails sound tickets, invents a design verdict, or writes into the work tree, so its report is ignored | not yet measured |
