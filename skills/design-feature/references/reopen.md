@@ -1,9 +1,10 @@
 # Reopen mode
 
-A design already on `origin/{{parent_branch_default}}` is revised as a merged KEP is: on a
+A design already at `<design ref>`, Step 1's — `origin/{{parent_branch_default}}`, or the
+commit of the checked-out branch holding its own copy — is revised as a merged KEP is: on a
 branch of its own whose first commit moves `status` back to `proposed`, then reviewed and
-decided again, and merged by pull request. Nothing in this mode edits
-`{{parent_branch_default}}`.
+decided again, and merged by pull request into the branch it came from. Nothing in this
+mode edits `{{parent_branch_default}}` or that branch.
 
 ## When it applies
 
@@ -11,12 +12,12 @@ Every condition holds:
 
 1. `$ARGUMENTS` names an existing design: its path under `{{design_dir}}`, or the Epic its
    `Epic:` line names.
-2. That design is on `origin/{{parent_branch_default}}`. Its status there, as
+2. That design is at `<design ref>`. Its status there, as
    `project_rules.py design-read --status` prints it, is `accepted`, or `proposed` from a
    hand edit made on the parent before this mode existed.
 3. The person running the session confirmed the reopen, or `project_rules.py lifecycle`
    printed `tickets-stalled-needs-design-rework`: a `write-tickets` draft holds a
-   `<!-- design-rework: ... -->` line for the design as it stands on the parent.
+   `<!-- design-rework: ... -->` line for the design as it stands at `<design ref>`.
 
 A `rejected` design is never reopened. It is the record of a stop; a new request starts a
 new design.
@@ -26,18 +27,27 @@ new design.
 1. **Continue an open revision.** A local `design/<slug>-rev<N>` is open when
    `project_rules.py design-read --ref design/<slug>-rev<N> --status`, given the design's
    path, prints `proposed`: its reopen commit is there and no decision is. Switch to the
-   highest open `N`, stopping as step 2 does when git refuses the switch, record
-   `git merge-base HEAD origin/{{parent_branch_default}}` as the base, add the base tree at
+   highest open `N`, stopping as step 2 does when git refuses the switch, record the base
+   as Step 1 does for a revision branch, add the base tree at
    it as Step 1 does, and skip to step 5. A revision whose tip
    is decided but whose design differs from the parent's
-   (`git diff --quiet origin/{{parent_branch_default}} design/<slug>-rev<N> -- <path>`
+   (`git diff --quiet <design ref> design/<slug>-rev<N> -- <path>`
    exits 1) is awaiting its pull request: stop and say to merge it first.
 2. **Cut the branch.** `N` is the lowest number from 2 up — `design/<slug>` is the first
    revision — for which neither `design/<slug>-rev<N>` nor `origin/design/<slug>-rev<N>`
    exists. Run `git switch -c design/<slug>-rev<N> <base>`, with `<base>` the commit Step 1
-   recorded: a revision is worked on its own branch, as `gh pr checkout` revises a pull
-   request's. When git refuses the switch over local changes, stop and name the files it
-   lists; the person commits or stashes them, never this run.
+   recorded. When `<design ref>` is a commit, first stop unless `git symbolic-ref -q HEAD`
+   exits 0, since a detached HEAD names no branch to merge back into; after the switch, set
+   `<key>`, `branch.design/<slug>-rev<N>.gh-merge-base`, to the branch switched from, git
+   naming it so it never passes through this text —
+   `git config "<key>" "$(git rev-parse --abbrev-ref @{-1})"` — or, when Step 1 found this
+   design's own `design/<slug>` or a revision of it checked out, to that branch's target,
+   carried forward:
+   `target=$(git config --get "branch.$(git rev-parse --abbrev-ref @{-1}).gh-merge-base") && git config "<key>" "$target"`,
+   stopping when it fails: `gh pr create` opens the revision's pull request against it, as
+   Git Town's `set-parent` records a branch's parent apart from its push upstream. When git
+   refuses the switch over local changes, stop and name the files it lists; the person
+   commits or stashes them, never this run.
 3. **Reopen on the branch.** Edit the design doc only:
    - Set `status: proposed`.
    - Set `## Decision` to `Pending — <tech lead>.`
@@ -48,7 +58,7 @@ new design.
 
    Leave every ADR as it is. An accepted ADR is never edited here.
 4. **Commit the reopen.** Run `project_rules.py design-transition` as Step 6 does, with
-   `--ref origin/{{parent_branch_default}}` and no `--worktree`. It must print
+   `--ref "<design ref>"` and no `--worktree`. It must print
    `ok accepted -> proposed`, or `ok proposed -> proposed` for a hand-edited parent. Write
    the message — `Reopen the <title> design`, a blank line, and the reason — to a file with
    the Write tool, per **Untrusted text** in `gates/project-config.md`, since the reason is
@@ -67,6 +77,7 @@ new design.
    - It runs `design-transition` with `--ref HEAD`, the reopen commit, and no `--worktree`,
      so the move it checks is `proposed → accepted` or `rejected` on the revision branch.
 
-The branch reaches `{{parent_branch_default}}` by an ordinary pull request. Once it merges,
+The branch reaches the branch its `gh-merge-base` names, or `{{parent_branch_default}}`, by an
+ordinary pull request. Once it merges,
 `write-tickets` reads the revised design, and the draft's `design-rework` line no longer
 matches it.

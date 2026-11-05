@@ -23,13 +23,14 @@ it never edits, commits, switches a branch, or transitions a ticket.
 
 3. Run `git fetch origin {{parent_branch_default}}`. If it fails, say the state is read
    from the last fetch.
-4. Run this, adding `--epic` for an Epic key:
+4. Get `<design ref>` per `${CLAUDE_PLUGIN_ROOT}/gates/design-ref.md`, then run this,
+   adding `--epic` to both commands for an Epic key:
 
    ```bash
-   python3 "${CLAUDE_PLUGIN_ROOT}/gates/scripts/project_rules.py" lifecycle --ref "origin/{{parent_branch_default}}" --config "<absolute project root>/.claude/project.json" < "<arguments file>"
+   python3 "${CLAUDE_PLUGIN_ROOT}/gates/scripts/project_rules.py" lifecycle --ref "<design ref>" --config "<absolute project root>/.claude/project.json" < "<arguments file>"
    ```
 
-5. Print its two lines as they are. On `INVALID:`, print that line and stop.
+5. Print `lifecycle`'s two lines as they are. On `INVALID:`, print that line and stop.
 6. For an Epic key, add one line from `jira_search` with `parent = <KEY>`: each child's key
    and status, or `no children`. When the search fails, the line says child statuses are
    unavailable and quotes the error. The script is offline, so Jira is this step's alone.

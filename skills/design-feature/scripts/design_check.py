@@ -50,7 +50,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)),
 from project_rules import (FILE_NAME_MAX, NO_LETTER, OptionalKey, RequiredKey,  # noqa: E402
                            check_repo_path, cli_case, design_dirs, error_message,
                            isolated_git_environment, project_root, read_config, read_keys,
-                           report,
+                           ref_commit, report,
                            result_or_message, run_check, run_git, slug_of, text_input,
                            unset_keys, write_scratch)
 
@@ -239,11 +239,7 @@ def base_tree_add(commit, config, new_branch=None, owner=OWNERS[0]):
     worktree prune` leaves its entry for that remove. Removing the tree leaves new_branch and
     its commits."""
     root = project_root(config)
-    try:
-        sha = run_git(root, "rev-parse", "--verify", "--end-of-options",
-                      f"{commit}^{{commit}}").strip()
-    except ValueError as error:
-        raise ValueError(f"{commit!r} is not a commit: {error}") from error
+    sha = ref_commit(root, commit)
     if new_branch is not None:
         try:
             run_git(root, "check-ref-format", "--branch", new_branch)
@@ -386,7 +382,7 @@ def base_tree_cases(script, directory):
     failures += report("base-tree", "a bad commit is INVALID and removes nothing",
                        (bad.stderr.strip()[:42], bad.returncode,
                         listed() == sorted(users + [kept])),
-                       ("INVALID: 'no-such-commit' is not a commit:", 1, True))
+                       ("INVALID: ref 'no-such-commit' does not nam", 1, True))
     theirs = run("add", "HEAD", checkout=own).stdout.strip()
     failures += report("base-tree", "a run in another checkout leaves this one's tree",
                        (listed() == sorted(users + [kept, theirs]), os.path.isdir(kept)),

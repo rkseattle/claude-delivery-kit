@@ -72,7 +72,8 @@ Every skill except `readme-docs` runs only when invoked by name.
     and commits them once the tech lead decides. Runs from any branch, dirty or not: it
     reads code from a temporary worktree of `origin/<parent>` under `.git/`, and commits on
     `design/<slug>` in a worktree, leaving your checkout alone. Reopening an accepted design
-    switches to its revision branch instead. Agent:
+    switches to its revision branch instead; one held only on your branch is revised on a
+    branch cut from yours, which merges back into it. Agent:
     `feature-design-adversary`. Gate: `design-exit.md`.
   - `write-tickets` — turns a request, or an approved design's work plan, into Jira tickets
     that `plan-work` can plan as written. Agent: `ticket-adversary`.
@@ -83,6 +84,10 @@ Every skill except `readme-docs` runs only when invoked by name.
     `feature-design-adversary`.
   - `status` `<design path | EPIC-KEY>` — prints where a feature stands between design and
     tickets, and the one command that moves it on. Changes nothing.
+  - `write-tickets`, `review-tickets`, `status`, `plan-work`, and `design-feature` read a
+    decided design from the branch you are on when that branch changed it, or an ADR it
+    names, since its merge base with `origin/<parent>`, and from `origin/<parent>`
+    otherwise, so a design need not be merged first. Gate: `design-ref.md`.
 - **`deliver`** — runs the five stages below in order and resumes an interrupted run.
   Every stage reads `project-config.md` and reports per `status-report.md`; `deliver`
   records rule-book exceptions in the `exceptions.md` format.
@@ -142,6 +147,7 @@ Gates:
   is approved.
 - `design-exit.md` — the rule book's Phase 3 gate at feature scale: the design doc's
   sections, its ADRs, and who approves it.
+- `design-ref.md` — the one commit every skill reads a design and its ADRs at.
 - `release-readiness.md` — the rule book's Phase 5 gate a version must pass to release.
 - `release.md` — the rule book's Phase 6 gate: tag, staged rollout, and rollback.
 

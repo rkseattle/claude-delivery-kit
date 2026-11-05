@@ -82,11 +82,28 @@ repository inherits the caller's git. Each importer's self-test covers the rules
                                    where the feature whose design path, or with --epic whose
                                    Epic key, is on standard input stands: one line naming one
                                    of LIFECYCLE_STATES and a detail, then `NEXT: <command>`,
-                                   read offline from REF, the parent's remote ref, the
+                                   read offline from REF, the parent's remote ref or the
+                                   commit design-ref prints, `on-parent` meaning at REF, the
                                    working tree, design branches, design-feature's Step 6
                                    state, and write-tickets' draft; INVALID for a bad path,
                                    key, design_dir, or ref, or a design that is not UTF-8
                                    on REF, or naming the Epic key anywhere
+    project_rules.py design-ref --ref REF --config FILE [--parent NAME] [--epic]
+                                   the commit a planning skill reads the design at the path
+                                   on standard input, or with --epic the Epic key's design,
+                                   and its ADRs, those its `## Proposal` names on a
+                                   `- Costly to reverse:` line outside a code block: on the
+                                   design's own design branch, the commit of the branch its
+                                   `gh-merge-base` git config names, else REF; elsewhere,
+                                   REF on NAME, by default REF less `origin/`, for a design
+                                   not decided at HEAD, or when HEAD holds the design and
+                                   those ADRs as REF does; else HEAD's
+                                   full hash when HEAD changed one of them since its merge
+                                   base with REF, warning when REF changed it too, else
+                                   REF. An ADR path the gate refuses is skipped with a
+                                   warning on standard error. INVALID for a
+                                   bad path, key, design_dir, ref, or gh-merge-base, or no
+                                   merge base where one is needed
     project_rules.py design-review-exception --config FILE
                                    `<Rule>\t<Expiry>` of the unexpired, complete row of
                                    FILE's exceptions_log register waiving rule book Phase 3
@@ -741,19 +758,36 @@ def design_read(path, ref, config, key="design_dir", path_only=False, status_onl
     return path if path_only else text
 
 
+def key_directory(config, key="design_dir"):
+    """The directory key holds in config, design_dir or adr_dir; ValueError when unset."""
+    directory = design_dirs(read_config(config))[key]
+    if directory is None:
+        raise ValueError(f"{key} is unset in project.json")
+    return directory
+
+
+def ref_commit(root, ref, environment=None):
+    """The commit ref names in root's repository, git run in environment as run_git runs
+    it; ValueError naming ref otherwise."""
+    try:
+        return run_git(root, "rev-parse", "--verify", "--end-of-options", f"{ref}^{{commit}}",
+                       environment=environment).strip()
+    except ValueError as error:
+        raise ValueError(f"ref {ref!r} does not name a commit ({error})")
+
+
+def design_slug(path):
+    """The slug of a checked design path, `<directory>/<slug>.md`."""
+    return path.rsplit("/", 1)[1][:-len(".md")]
+
+
 def ref_record(path, ref, config, key="design_dir"):
     """(checked path, text) of the record at path in ref, read as design_read describes;
     Absent when ref lacks it, ValueError for any other failure."""
     root = project_root(config)
-    directory = design_dirs(read_config(config))[key]
-    if directory is None:
-        raise ValueError(f"{key} is unset in project.json")
+    directory = key_directory(config, key)
     path = design_path(path, directory, key)
-    try:
-        commit = run_git(root, "rev-parse", "--verify", "--end-of-options",
-                         f"{ref}^{{commit}}").strip()
-    except ValueError as error:
-        raise ValueError(f"ref {ref!r} does not name a commit ({error})")
+    commit = ref_commit(root, ref)
     entry = run_git(root, "ls-tree", "-z", commit, "--", path).rstrip("\0")
     if not entry:
         raise Absent(path, ref)
@@ -806,7 +840,7 @@ def design_transition(path, ref, config, worktree=None):
         return f"ok {shown}"
     if (old, new) not in DESIGN_TRANSITIONS:
         raise ValueError(f"{path!r} moves {shown}, which gates/design-exit.md does not allow")
-    slug = path.rsplit("/", 1)[1][:-len(".md")]
+    slug = design_slug(path)
     branch = run_git(worktree or project_root(config), "branch", "--show-current").strip()
     if not design_branch(slug).fullmatch(branch):
         shown_branch = repr(branch) if branch else "a detached HEAD"
@@ -968,21 +1002,17 @@ def lifecycle(text, ref, config, epic=False):
     """Where one feature stands, as git status names a repository's state: one state of
     LIFECYCLE_STATES, a detail, and the single command that moves it on, read offline from
     the design at the path on standard input, or with epic the design whose `Epic:` line
-    names the key there; ref is the parent branch's remote ref. Jira is the skill's to add.
+    names the key there; ref is the parent branch's remote ref or the commit design_ref
+    prints, a state's `on-parent` meaning at ref. Jira is the skill's to add.
     ValueError for a bad path, key, directory, or ref, or a parent design not UTF-8."""
     root = os.path.realpath(project_root(config))
-    directory = design_dirs(read_config(config))["design_dir"]
-    if directory is None:
-        raise ValueError("design_dir is unset in project.json")
-    try:
-        run_git(root, "rev-parse", "--verify", "--end-of-options", f"{ref}^{{commit}}")
-    except ValueError as error:
-        raise ValueError(f"ref {ref!r} does not name a commit ({error})")
+    directory = key_directory(config)
+    ref_commit(root, ref)
     key = ticket_key(text) if epic else None
     path = epic_design(root, directory, ref, key) if epic else design_path(text, directory)
     if path is None:
         return [f"no-design no design names {key}", f"NEXT: /delivery-kit:design-feature {key}"]
-    slug = path.rsplit("/", 1)[1][:-len(".md")]
+    slug = design_slug(path)
     design = f"/delivery-kit:design-feature {key or path}"
     on_ref = branch_design(root, ref, path)
     if on_ref and not key:
@@ -1042,6 +1072,94 @@ def lifecycle(text, ref, config, epic=False):
                "tickets-created": f"/delivery-kit:plan-work {detail}".rstrip(),
                "tickets-draft": f"/delivery-kit:write-tickets {path}"}[state]
     return [f"{state} {detail}".rstrip(), f"NEXT: {command}"]
+
+
+# A design's `- Costly to reverse:` line, as gates/design-exit.md's Proposal section writes
+# it, capturing the ADR path.
+COSTLY_ADR = re.compile(r"^- Costly to reverse: .+ — ADR: `?([^`\s]+)`?[ \t]*$")
+
+
+def costly_adrs(text):
+    """The ADR path of each COSTLY_ADR line in the design's `## Proposal` section, where
+    gates/design-exit.md puts them, never one in a code block, as a quoted template is."""
+    found, proposal = [], False
+    for line, fenced in fence_split(text)[0]:
+        if fenced:
+            continue
+        if line.startswith("## "):
+            proposal = line.rstrip() == "## Proposal"
+        elif proposal and COSTLY_ADR.match(line):
+            found.append(COSTLY_ADR.match(line).group(1))
+    return found
+
+
+# The decided statuses gates/design-exit.md's Status transitions section records on a design
+# branch: a design holding one on a feature branch is read there, a draft from the working tree.
+DECIDED_STATUSES = ("accepted", "rejected")
+
+
+def design_ref(text, ref, config, parent=None, epic=False):
+    """The commit a planning skill reads a design and its ADRs at, as Nx's `affected` and a
+    pull request's diff judge a branch against the merge base with its parent: on the
+    design's own design_branch, the commit of the branch its `gh-merge-base` git config
+    names, as `gh pr create` reads that key for a base, else ref; elsewhere, ref when the
+    checkout is on parent, by default ref less `origin/`, when HEAD's design is undecided, a
+    draft the working tree holds, or when HEAD's design and each ADR costly_adrs names match
+    ref's, which needs no merge base, as a shallow clone has none; otherwise HEAD's full
+    hash when the design or one of those ADRs differs from the merge base, so the branch
+    changed a planning file, with a line on standard error when ref changed it too, else
+    ref. An ADR path design_path refuses is skipped with a line on standard error.
+    ValueError for a bad path, key, directory, ref, or gh-merge-base, a failed git read, or
+    no merge base where one is needed."""
+    root = os.path.realpath(project_root(config))
+    dirs = design_dirs(read_config(config))
+    if dirs["design_dir"] is None:
+        raise ValueError("design_dir is unset in project.json")
+    parent_commit = ref_commit(root, ref)
+    parent_branch = parent or local_branch(ref)
+    path = epic_design(root, dirs["design_dir"], "HEAD", ticket_key(text)) if epic \
+        else design_path(text, dirs["design_dir"])
+    branch = run_git(root, "branch", "--show-current").strip()
+    if path is not None and design_branch(design_slug(path)).fullmatch(branch):
+        key = f"branch.{branch}.gh-merge-base"
+        merge_base = run_git(root, "config", "--default", "", "--get", key).strip()
+        if not merge_base or merge_base == parent_branch:
+            return ref
+        try:
+            return ref_commit(root, merge_base)
+        except ValueError as error:
+            raise ValueError(f"{key} names {merge_base!r}, no commit; set it to the branch "
+                             f"this revision merges into, or unset it ({error})")
+    if path is None or branch == parent_branch:
+        return ref
+    head = ref_commit(root, "HEAD")
+    found = branch_design(root, head, path)
+    if found is None or record_status(found[1], f"{path!r} in HEAD") not in DECIDED_STATUSES:
+        return ref
+    files = [path]
+    for adr in costly_adrs(found[1]) if dirs["adr_dir"] is not None else []:
+        try:
+            files.append(design_path(adr, dirs["adr_dir"], "adr_dir"))
+        except ValueError as error:
+            print(f"design-ref: skipping ADR {adr!r} in {path}: {error}", file=sys.stderr)
+    if all(blob_at(root, head, name) == blob_at(root, parent_commit, name) for name in files):
+        return ref
+    try:
+        base = run_git(root, "merge-base", head, parent_commit).strip()
+    except ValueError as error:
+        if str(error).endswith(" failed: 1"):
+            raise ValueError(f"HEAD and {ref!r} share no merge base; fetch the full history "
+                             "of both, as a shallow clone lacks it")
+        raise
+    changed = [name for name in files
+               if blob_at(root, head, name) not in ("", blob_at(root, base, name))]
+    if not changed:
+        return ref
+    for name in changed:
+        if blob_at(root, parent_commit, name) != blob_at(root, base, name):
+            print(f"design-ref: {name} changed on both this branch and {ref}; reading this "
+                  f"branch's copy, so merge {ref} in to read its revision", file=sys.stderr)
+    return head
 
 
 # The rule book step a design's outside review waives, as gates/design-exit.md names it.
@@ -2449,6 +2567,233 @@ def lifecycle_edges_self_test(this):
     return failures
 
 
+def design_ref_self_test(this):
+    """design_ref over a scratch repository whose main stands for the parent, with origin/main
+    its remote ref: each outcome of its rule, and lifecycle reading at the hash it prints."""
+    front = "---\nstatus: accepted\n---\n\n# D\n\n## Summary\n\nEpic: AB-{}\n{}"
+    costly = "\n## Proposal\n\n- Costly to reverse: storage — ADR: docs/adr/0001-storage.md\n"
+    failures = 0
+    with tempfile.TemporaryDirectory() as root, \
+            process_state(isolated_git_environment(), root):
+        project = write_scratch(root, {"design_dir": "docs/design", "adr_dir": "docs/adr"},
+                                ".claude/project.json")
+        write_scratch(root, front.format(1, ""), "docs/design/a.md")
+        write_scratch(root, front.format(2, costly), "docs/design/c.md")
+        write_scratch(root, "# ADR\n", "docs/adr/0001-storage.md")
+        run_git(root, "init", "--quiet", "--initial-branch=main")
+        run_git(root, "add", "-A")
+        run_git(root, "commit", "--quiet", "-m", "designs")
+        run_git(root, "update-ref", "refs/remotes/origin/main", "HEAD")
+        parent_commit = run_git(root, "rev-parse", "HEAD").strip()
+
+        def check(name, text, expected, **options):
+            got = result_or_message(lambda: design_ref(text, "origin/main", project, **options))
+            head = run_git(root, "rev-parse", "HEAD").strip()
+            return report("design_ref", name, got, head if expected == "HEAD" else expected)
+
+        def commit(branch, files):
+            run_git(root, "switch", "--quiet", "-c", branch, "main")
+            for name, content in files.items():
+                write_scratch(root, content, name)
+            run_git(root, "add", "-A")
+            run_git(root, "commit", "--quiet", "-m", branch)
+
+        failures += check("a design on the parent", "docs/design/a.md", "origin/main")
+        commit("feature/own", {"docs/design/b.md": front.format(3, "")})
+        run_git(root, "switch", "--quiet", "main")
+        run_git(root, "merge", "--quiet", "--ff-only", "feature/own")
+        failures += check("a branch-only design checked out on the parent", "docs/design/b.md",
+                          "origin/main")
+        run_git(root, "reset", "--quiet", "--hard", parent_commit)
+        run_git(root, "switch", "--quiet", "feature/own")
+        failures += check("a branch-only design on a feature branch", "docs/design/b.md",
+                          "HEAD")
+        failures += check("a design the parent holds, on a feature branch",
+                          "docs/design/a.md", "origin/main")
+        failures += check("a design HEAD lacks", "docs/design/n.md", "origin/main")
+        failures += check("an Epic key's branch-only design", "AB-3", "HEAD", epic=True)
+        failures += check("an Epic key no design names", "AB-9", "origin/main", epic=True)
+        lines = result_or_message(lambda: lifecycle(
+            "docs/design/b.md", design_ref("docs/design/b.md", "origin/main", project),
+            project))
+        failures += report("design_ref", "lifecycle reads the branch design at its hash",
+                           lines[0] if isinstance(lines, list) else lines,
+                           "design-accepted-on-parent docs/design/b.md")
+        held = design_ref("docs/design/b.md", "origin/main", project)
+        draft = os.path.join(root, TICKET_DRAFTS, "b.md")
+        write_scratch(root, "# [E1] D\n\n- Design: `docs/design/b.md`\n\n<!-- design-rework: "
+                      f"S1 @ {blob_at(root, 'HEAD', 'docs/design/b.md')} -->\n",
+                      f"{TICKET_DRAFTS}/b.md")
+        lines = result_or_message(lambda: lifecycle("docs/design/b.md", held, project))
+        failures += report("design_ref", "the rework handoff of a branch-held design",
+                           lines[0].split()[0] if isinstance(lines, list) else lines,
+                           "tickets-stalled-needs-design-rework")
+        os.remove(draft)
+        run_git(root, "switch", "--quiet", "-c", "design/b-rev7", "feature/own")
+        write_scratch(root, front.format(3, "").replace("accepted", "proposed"),
+                      "docs/design/b.md")
+        failures += report("design_ref", "a branch-held design's reopen moves accepted -> "
+                           "proposed at its hash", result_or_message(lambda: design_transition(
+                               "docs/design/b.md", held, project)), "ok accepted -> proposed")
+        run_git(root, "commit", "--quiet", "-am", "Reopen b")
+        run_git(root, "config", "branch.design/b-rev7.gh-merge-base", "feature/own")
+        failures += report("design_ref", "a revision branch reads at its gh-merge-base branch",
+                           design_ref("docs/design/b.md", "origin/main", project), held)
+        lines = result_or_message(lambda: lifecycle("docs/design/b.md", held, project))
+        run_git(root, "config", "branch.design/b-rev7.gh-merge-base", "feature/gone")
+        failures += report("design_ref", "a gh-merge-base naming a deleted branch",
+                           result_or_message(lambda: design_ref(
+                               "docs/design/b.md", "origin/main", project))[:30],
+                           "branch.design/b-rev7.gh-merge-")
+        run_git(root, "config", "branch.design/b-rev7.gh-merge-base", "main")
+        failures += report("design_ref", "a gh-merge-base naming the parent reads REF",
+                           design_ref("docs/design/b.md", "origin/main", project),
+                           "origin/main")
+        run_git(root, "config", "branch.design/b-rev7.gh-merge-base", "feature/own")
+        failures += report("design_ref", "a revision of a branch-held design is its open draft",
+                           lines[0] if isinstance(lines, list) else lines,
+                           "design-draft docs/design/b.md on design/b-rev7")
+        run_git(root, "switch", "--quiet", "--detach", "feature/own")
+        failures += check("a branch-only design on a detached HEAD", "docs/design/b.md",
+                          "HEAD")
+        commit("feature/draft", {"docs/design/p.md": front.format(9, "").replace(
+            "accepted", "proposed")})
+        failures += check("a proposed design committed on a feature branch", "docs/design/p.md",
+                          "origin/main")
+        run_git(root, "switch", "--quiet", "-c", "feature/stale", "main")
+        run_git(root, "switch", "--quiet", "main")
+        write_scratch(root, front.format(1, "revised\n"), "docs/design/a.md")
+        run_git(root, "commit", "--quiet", "-am", "revise a")
+        run_git(root, "update-ref", "refs/remotes/origin/main", "HEAD")
+        run_git(root, "switch", "--quiet", "feature/stale")
+        failures += check("a stale copy of a parent blob", "docs/design/a.md", "origin/main")
+        write_scratch(root, front.format(1, "the branch's revision\n"), "docs/design/a.md")
+        run_git(root, "commit", "--quiet", "-am", "revise a on the branch")
+        warned = io.StringIO()
+        with contextlib.redirect_stderr(warned):
+            failures += check("a design both the branch and the parent changed",
+                              "docs/design/a.md", "HEAD")
+        failures += report("design_ref", "a design changed on both sides is named on standard "
+                           "error", "changed on both this branch and" in warned.getvalue(), True)
+        run_git(root, "reset", "--quiet", "--hard", "HEAD~1")
+        commit("feature/revert", {"docs/design/a.md": front.format(1, "")})
+        failures += check("a branch reverting the parent's revision", "docs/design/a.md",
+                          "HEAD")
+        commit("feature/bad-adr", {"docs/design/d.md": front.format(
+            4, "\n## Proposal\n\n- Costly to reverse: x — ADR: docs/adr/storage.md\n")})
+        failures += check("a branch-only design naming a refused ADR path", "docs/design/d.md",
+                          "HEAD")
+        commit("feature/quoted-adr", {"docs/design/e.md": front.format(
+            5, "\n## Proposal\n\n- Costly to reverse: y — ADR: `docs/adr/0002-queue.md`\n"),
+            "docs/adr/0002-queue.md": "# ADR\n"})
+        run_git(root, "switch", "--quiet", "main")
+        run_git(root, "merge", "--quiet", "--ff-only", "feature/quoted-adr")
+        run_git(root, "update-ref", "refs/remotes/origin/main", "HEAD")
+        commit("feature/quoted-adr-2", {"docs/adr/0002-queue.md": "# ADR, revised\n"})
+        failures += check("a backticked ADR path the branch changed", "docs/design/e.md",
+                          "HEAD")
+        template = ("\n## Gate\n\n```markdown\n- Costly to reverse: x — ADR: "
+                    "docs/adr/0001-storage.md\n```\n\n- Costly to reverse: y — ADR: "
+                    "docs/adr/0001-storage.md\n\n## Proposal\n\nNothing is costly.\n")
+        run_git(root, "switch", "--quiet", "main")
+        write_scratch(root, front.format(7, template), "docs/design/g.md")
+        run_git(root, "add", "docs/design/g.md")
+        run_git(root, "commit", "--quiet", "-m", "a design quoting the ADR line")
+        run_git(root, "update-ref", "refs/remotes/origin/main", "HEAD")
+        commit("feature/fenced", {"docs/adr/0001-storage.md": "# ADR, changed\n"})
+        failures += check("an ADR named only outside Proposal or in a code block",
+                          "docs/design/g.md", "origin/main")
+        failures += check("the same branch changing an ADR the Proposal names",
+                          "docs/design/c.md", "HEAD")
+        no_adr_dir = write_scratch(root, {"design_dir": "docs/design"}, ".claude/no-adr-2.json")
+        failures += report("design_ref", "ADR lines unread with adr_dir unset",
+                           design_ref("docs/design/c.md", "origin/main", no_adr_dir),
+                           "origin/main")
+        os.remove(no_adr_dir)
+        run_git(root, "switch", "--quiet", "-c", "feature/drop-adr", "main")
+        run_git(root, "rm", "--quiet", "docs/adr/0001-storage.md")
+        run_git(root, "commit", "--quiet", "-m", "drop the ADR")
+        failures += check("an ADR the branch deleted, the design unchanged", "docs/design/c.md",
+                          "origin/main")
+        run_git(root, "switch", "--quiet", "--orphan", "feature/unrelated")
+        write_scratch(root, front.format(6, ""), "docs/design/f.md")
+        run_git(root, "add", "docs/design/f.md")
+        run_git(root, "commit", "--quiet", "-m", "unrelated")
+        orphan = write_scratch(root, {"design_dir": "docs/design", "adr_dir": "docs/adr"},
+                               ".claude/orphan.json")
+        write_scratch(root, run_git(root, "show", "origin/main:docs/design/a.md"),
+                      "docs/design/a.md")
+        run_git(root, "add", "docs/design/a.md")
+        run_git(root, "commit", "--quiet", "-m", "the parent's design, unchanged")
+        failures += report("design_ref", "a design the parent holds, with no merge base",
+                           result_or_message(lambda: design_ref("docs/design/a.md",
+                                                                "origin/main", orphan)),
+                           "origin/main")
+        failures += report("design_ref", "no merge base", result_or_message(
+            lambda: design_ref("docs/design/f.md", "origin/main", orphan))[:30],
+                           "HEAD and 'origin/main' share n")
+        os.remove(orphan)
+        run_git(root, "switch", "--quiet", "feature/bad-adr")
+        run_git(root, "switch", "--quiet", "main")
+        write_scratch(root, front.format(8, "\n## Proposal\n\n- Costly to reverse: z — ADR: "
+                                            "decisions/0001-z.md\n"), "docs/design/h.md")
+        run_git(root, "add", "docs/design/h.md")
+        run_git(root, "commit", "--quiet", "-m", "a design naming a refused ADR path")
+        run_git(root, "update-ref", "refs/remotes/origin/main", "HEAD")
+        run_git(root, "switch", "--quiet", "-c", "feature/same", "main")
+        failures += check("a parent-held design naming a refused ADR path", "docs/design/h.md",
+                          "origin/main")
+        warned = io.StringIO()
+        with contextlib.redirect_stderr(warned):
+            design_ref("docs/design/h.md", "origin/main", project)
+        failures += report("design_ref", "a refused ADR path is named on standard error",
+                           warned.getvalue().startswith("design-ref: skipping ADR "
+                                                        "'decisions/0001-z.md'"), True)
+        failures += check("a design and its ADR the branch left unchanged",
+                          "docs/design/c.md", "origin/main")
+        commit("feature/adr", {"docs/adr/0001-storage.md": "# ADR, revised\n"})
+        failures += check("a branch-only ADR the design names", "docs/design/c.md", "HEAD")
+        failures += check("--parent names the parent for a fetched commit",
+                          "docs/design/c.md", "HEAD", parent="main")
+        run_git(root, "switch", "--quiet", "main")
+        failures += report("design_ref", "--ref a commit with --parent, on the parent",
+                           design_ref("docs/design/c.md", parent_commit, project, "main"),
+                           parent_commit)
+        for branch in ("design/b", "design/b-rev2"):
+            commit(branch, {"docs/design/b.md": front.format(3, "")})
+            failures += check(f"a branch-only design on {branch}", "docs/design/b.md",
+                              "origin/main")
+        failures += report("design_ref", "a bad path", result_or_message(
+            lambda: design_ref("../b.md", "origin/main", project))[:35],
+                           "path '../b.md' is not a relative pa")
+        failures += check("a bad key", "AB 1", "'AB 1' is not a Jira key", epic=True)
+        failures += report("design_ref", "a ref naming no commit", result_or_message(
+            lambda: design_ref("docs/design/a.md", "origin/none", project))[:30],
+                           "ref 'origin/none' does not nam")
+        script = os.path.abspath(this)
+        for name, arguments, given, expected, code in [
+                ("design-ref prints the parent ref on the parent", [], "docs/design/a.md",
+                 "origin/main", 0),
+                ("design-ref --epic prints HEAD's hash for a branch-only design", ["--epic"],
+                 "AB-3", "HEAD", 0),
+                ("design-ref --parent reads a fetched commit", ["--parent", "main"],
+                 "docs/design/b.md", "HEAD", 0),
+                ("design-ref refuses a bad path", [], "../b.md", "INVALID: path '../b.md'", 1)]:
+            run_git(root, "switch", "--quiet", "main" if not arguments and code == 0
+                    else "feature/own")
+            ref = parent_commit if arguments == ["--parent", "main"] else "origin/main"
+            shown = run_git(root, "rev-parse", "HEAD").strip() if expected == "HEAD" \
+                else expected
+            failures += cli_case(script, name, ["design-ref", "--ref", ref, "--config",
+                                                project, *arguments], shown, code,
+                                 input=given + "\n", cwd=root)
+        unset = write_scratch(root, {}, ".claude/unset.json")
+        failures += report("design_ref", "design_dir unset", result_or_message(
+            lambda: design_ref("docs/design/a.md", "origin/main", unset)),
+                           "design_dir is unset in project.json")
+    return failures
+
+
 def design_review_exception_self_test(this):
     """design_review_exception over registers holding a qualifying row, an expired one, an
     incomplete one, one waiving another step, and a table that is not the register."""
@@ -2792,6 +3137,7 @@ def self_test():
     failures += lifecycle_self_test(this)
     failures += lifecycle_edges_self_test(this)
     failures += lifecycle_nested_self_test(this)
+    failures += design_ref_self_test(this)
     failures += design_review_exception_self_test(this)
     failures += cli_case(this, "no subcommand is usage", [], "", 2)
     return 1 if failures else 0
@@ -2825,6 +3171,11 @@ def main():
     stage.add_argument("--ref", required=True)
     stage.add_argument("--config", required=True)
     stage.add_argument("--epic", action="store_true")
+    resolving = commands.add_parser("design-ref")
+    resolving.add_argument("--ref", required=True)
+    resolving.add_argument("--config", required=True)
+    resolving.add_argument("--parent")
+    resolving.add_argument("--epic", action="store_true")
     commands.add_parser("design-review-exception").add_argument("--config", required=True)
     brief = commands.add_parser("brief-read")
     brief.add_argument("--config", required=True)
@@ -2847,6 +3198,9 @@ def main():
                                   text_input(None), args.ref, args.config, args.worktree),
                               "lifecycle": lambda: lifecycle(text_input(None), args.ref,
                                                              args.config, args.epic),
+                              "design-ref": lambda: design_ref(text_input(None), args.ref,
+                                                               args.config, args.parent,
+                                                               args.epic),
                               "design-review-exception": lambda: design_review_exception(
                                   args.config),
                               "brief-read": lambda: brief_read(args.config, args.path),

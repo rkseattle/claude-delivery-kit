@@ -61,11 +61,12 @@ python3 "${CLAUDE_PLUGIN_ROOT}/skills/design-feature/scripts/design_check.py" ba
 ```
 
 When `$ARGUMENTS` is a design path under
-`{{design_dir}}` or an Epic key, as below, first run this on it, given as a file per
-**Untrusted text**, adding `--epic` for a key, and act on the state it prints:
+`{{design_dir}}` or an Epic key, as below, first run these on it, given as a file per
+**Untrusted text**, adding `--epic` to both for a key, after getting `<design ref>` per
+`${CLAUDE_PLUGIN_ROOT}/gates/design-ref.md`, and act on the state `lifecycle` prints:
 
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/gates/scripts/project_rules.py" lifecycle --ref "origin/{{parent_branch_default}}" --config "<absolute project root>/.claude/project.json" < "<arguments file>"
+python3 "${CLAUDE_PLUGIN_ROOT}/gates/scripts/project_rules.py" lifecycle --ref "<design ref>" --config "<absolute project root>/.claude/project.json" < "<arguments file>"
 ```
 
 | State | Then |
@@ -77,15 +78,18 @@ python3 "${CLAUDE_PLUGIN_ROOT}/gates/scripts/project_rules.py" lifecycle --ref "
 | `INVALID:` | Print it and stop. |
 
 Then record the base, the commit the design describes and Step 6 cuts its branch from:
-`git rev-parse origin/{{parent_branch_default}}`, or, with a `design/<name>-rev<N>` branch
-checked out, `git merge-base HEAD origin/{{parent_branch_default}}`, since reopen mode
-continues it; once `<slug>` is printed below, stop unless `<name>` is `<slug>`. Any other
-branch, and any uncommitted change, is no stop: the design describes the base, never the
-working tree. Then check the base out as the base tree, and keep the path it prints,
-`<tree>`; every `base-tree remove` below names it with `--tree "<tree>"`, so only this
-run's tree goes, and each later `add` prints a new `<tree>` for the next `remove`. A project-relative path, each `{{design_dir}}` and `{{adr_dir}}` one included, is
-under `<project tree>`, `<tree>/<prefix>`, `<prefix>` what `git rev-parse --show-prefix`
-prints run from the project root, empty at the repository's top level:
+`git rev-parse origin/{{parent_branch_default}}`, or `<design ref>` when it is a commit and
+reopen mode applies; with a `design/<name>-rev<N>` branch checked out, in any mode,
+`git merge-base HEAD "<design ref>"`, since reopen mode continues it, `<design ref>` there
+being the branch its `gh-merge-base` git config names, else the parent; once `<slug>` is
+printed below, stop unless `<name>` is `<slug>`. Any other branch, and any uncommitted
+change, is no stop: the design describes the base, never the working tree. Then check the
+base out as the base tree, and keep the path it prints, `<tree>`; every `base-tree remove`
+below names it with `--tree "<tree>"`, so only this run's tree goes, and each later `add`
+prints a new `<tree>` for the next `remove`. A project-relative path, each `{{design_dir}}`
+and `{{adr_dir}}` one included, is under `<project tree>`, `<tree>/<prefix>`, `<prefix>`
+what `git rev-parse --show-prefix` prints run from the project root, empty at the
+repository's top level:
 
 ```bash
 python3 "${CLAUDE_PLUGIN_ROOT}/skills/design-feature/scripts/design_check.py" base-tree add <base> --config "<absolute project root>/.claude/project.json"
@@ -153,8 +157,9 @@ Then stop, and say why in one line, when:
   design is on the parent, and this run would overwrite it. Decide as for an `accepted` doc
   above, reading it at `<base>`.
 
-A `proposed` doc that is also on `origin/{{parent_branch_default}}` was reopened by hand
-on the parent: it takes reopen mode under the same conditions, or stops as above. Any other
+A `proposed` doc that is also at `<design ref>` was reopened by hand there, on
+`origin/{{parent_branch_default}}`, since `design-ref` reads a branch's design only once
+decided: it takes reopen mode under the same conditions, or stops as above. Any other
 existing `{{design_dir}}/<slug>.md` is the draft: read it and its ADRs, add the front matter
 Step 3 writes where it is missing, and revise them in place in Steps 2 and 3 rather than
 writing over them unread.
@@ -282,7 +287,7 @@ Run `git fetch` first. Then take every row that applies, in order:
 | Condition | Then |
 | --------- | ---- |
 | `origin/design/<slug>` exists, outside reopen mode | Stop and ask, as Step 1 does. |
-| `origin/{{parent_branch_default}}` moved since the base | Record its new commit as the base: the branch is cut from the base, not from HEAD. |
+| `origin/{{parent_branch_default}}` moved since a base read from it | Record its new commit as the base: the branch is cut from the base, not from HEAD. |
 | The base moved | Re-run Step 1's stops. |
 | Outside reopen mode, `git cat-file -e <base>:./{{design_dir}}/<slug>.md` succeeds | Stop: someone committed this design there since Step 1, and this run would overwrite it. |
 | The base moved | Add the base tree at it, re-check each `## Current state` claim and its `Base:` line against it, remove the tree, renumber the ADRs when a new record took one of their numbers, and present again before recording anything. |
@@ -353,5 +358,6 @@ hook asks for is made to the checkout's copy, then copied to the tree again, so 
 above still finds them equal.
 
 **Do not push.** Report the branch, the commit, and the decision, and leave publishing it to
-the person running the session. The design reaches `{{parent_branch_default}}` by an
-ordinary pull request: `ship-pr` needs a ticket, and the design precedes its tickets.
+the person running the session. The design reaches `{{parent_branch_default}}`, or the
+branch its `gh-merge-base` names, which `gh pr create` takes as its base, by an ordinary
+pull request: `ship-pr` needs a ticket, and the design precedes its tickets.

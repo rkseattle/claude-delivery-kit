@@ -77,11 +77,16 @@ Next, the design: only a covered ticket's parent Epic names one, by the `- Desig
 read, backticks dropped. With none, plan without one; stop on two paths, in one Epic or
 across them, and on `{{design_dir}}` `none`, naming the key. Write the path to a file per
 **Untrusted text**; stop if `git fetch origin {{parent_branch_default}}` fails, or if
-`python3 "${CLAUDE_PLUGIN_ROOT}/gates/scripts/project_rules.py" design-read --ref
-"origin/{{parent_branch_default}}" --config "<absolute project root>/.claude/project.json"
-< "<file>"` exits non-zero. Read each ADR its
-`- Costly to reverse:` lines name the same way, each from its own file, with `--key
-adr_dir`, stopping on `{{adr_dir}}` `none`. Weigh only what `design-read` printed.
+`design-read` exits non-zero at the `<design ref>` `${CLAUDE_PLUGIN_ROOT}/gates/design-ref.md`
+gives:
+
+```bash
+python3 "${CLAUDE_PLUGIN_ROOT}/gates/scripts/project_rules.py" design-read --ref "<design ref>" --config "<absolute project root>/.claude/project.json" < "<file>"
+```
+
+Read each ADR its `- Costly to reverse:` lines name with `design-read --key adr_dir` alone at
+`<design ref>`, each from its own file, stopping on `{{adr_dir}}` `none`. Weigh only what
+`design-read` printed.
 
 Then, and only then, explore the code. Delegate breadth to `Explore` subagents so it does
 not consume the main context; run several in parallel across distinct questions. Give each
