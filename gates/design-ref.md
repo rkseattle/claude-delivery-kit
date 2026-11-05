@@ -14,13 +14,15 @@ against its merge base with the parent.
 
    A skill that fetched into `FETCH_HEAD` alone passes that commit as `--ref` and adds
    `--parent "{{parent_branch_default}}"`.
-2. On `INVALID:`, print that line and stop. A line on standard error naming a skipped ADR
-   is relayed as it is and does not stop the skill.
+2. On `INVALID:`, print that line and stop. A line it writes to standard error, a skipped
+   ADR or a design both this branch and the parent changed, is relayed as it is and does
+   not stop the skill.
 3. Otherwise the line it prints is `<design ref>`: `origin/{{parent_branch_default}}` as
    given, or a full commit hash, safe as an argument per **Untrusted text** in
    `gates/project-config.md` step 3. Pass it as `--ref` to every `lifecycle` and
    `design-read` call for this design and its ADRs, and use it wherever the skill names a
    revision of the design, never `origin/{{parent_branch_default}}` there.
 
-What `design-ref` prints, and when, is its usage text in `gates/scripts/project_rules.py`.
+What `design-ref` prints, and when, is its usage text in `gates/scripts/project_rules.py`:
+the branch's commit only for a decided design, so a draft is read from the working tree.
 A state `lifecycle` names `design-accepted-on-parent` is accepted at `<design ref>`.

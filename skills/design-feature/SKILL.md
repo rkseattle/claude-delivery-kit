@@ -157,8 +157,9 @@ Then stop, and say why in one line, when:
   design is on the parent, and this run would overwrite it. Decide as for an `accepted` doc
   above, reading it at `<base>`.
 
-A `proposed` doc that is also on `origin/{{parent_branch_default}}` was reopened by hand
-on the parent: it takes reopen mode under the same conditions, or stops as above. Any other
+A `proposed` doc that is also at `<design ref>` was reopened by hand there, on
+`origin/{{parent_branch_default}}`, since `design-ref` reads a branch's design only once
+decided: it takes reopen mode under the same conditions, or stops as above. Any other
 existing `{{design_dir}}/<slug>.md` is the draft: read it and its ADRs, add the front matter
 Step 3 writes where it is missing, and revise them in place in Steps 2 and 3 rather than
 writing over them unread.
@@ -287,7 +288,6 @@ Run `git fetch` first. Then take every row that applies, in order:
 | --------- | ---- |
 | `origin/design/<slug>` exists, outside reopen mode | Stop and ask, as Step 1 does. |
 | `origin/{{parent_branch_default}}` moved since a base read from it | Record its new commit as the base: the branch is cut from the base, not from HEAD. |
-| Outside a revision branch, re-run `design-ref` prints a commit other than a base it gave | Record that commit as the base. |
 | The base moved | Re-run Step 1's stops. |
 | Outside reopen mode, `git cat-file -e <base>:./{{design_dir}}/<slug>.md` succeeds | Stop: someone committed this design there since Step 1, and this run would overwrite it. |
 | The base moved | Add the base tree at it, re-check each `## Current state` claim and its `Base:` line against it, remove the tree, renumber the ADRs when a new record took one of their numbers, and present again before recording anything. |
