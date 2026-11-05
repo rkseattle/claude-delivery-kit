@@ -91,15 +91,17 @@ repository inherits the caller's git. Each importer's self-test covers the rules
     project_rules.py design-ref --ref REF --config FILE [--parent NAME] [--epic]
                                    the commit a planning skill reads the design at the path
                                    on standard input, or with --epic the Epic key's design,
-                                   and its ADRs: on the design's own design branch, the
-                                   commit of the branch its `gh-merge-base` git config
-                                   names, else REF; elsewhere, HEAD's full hash when the
-                                   checkout is not on NAME, by default REF less `origin/`,
-                                   and HEAD holds the design or an ADR its `- Costly to
-                                   reverse:` lines name with a blob other than at the merge
-                                   base of HEAD and REF; REF otherwise; INVALID for a bad
-                                   path, key, design_dir, ref, ADR path, or gh-merge-base,
-                                   or no merge base
+                                   and its ADRs, those its `## Proposal` names on a
+                                   `- Costly to reverse:` line outside a code block: on the
+                                   design's own design branch, the commit of the branch its
+                                   `gh-merge-base` git config names, else REF; elsewhere,
+                                   REF on NAME, by default REF less `origin/`, or when HEAD
+                                   holds the design and those ADRs as REF does; else HEAD's
+                                   full hash when HEAD changed one of them since its merge
+                                   base with REF, else REF. An ADR path the gate refuses is
+                                   skipped with a warning on standard error. INVALID for a
+                                   bad path, key, design_dir, ref, or gh-merge-base, or no
+                                   merge base where one is needed
     project_rules.py design-review-exception --config FILE
                                    `<Rule>\t<Expiry>` of the unexpired, complete row of
                                    FILE's exceptions_log register waiving rule book Phase 3
@@ -1093,13 +1095,13 @@ def design_ref(text, ref, config, parent=None, epic=False):
     """The commit a planning skill reads a design and its ADRs at, as Nx's `affected` and a
     pull request's diff judge a branch against the merge base with its parent: on the
     design's own design_branch, the commit of the branch its `gh-merge-base` git config
-    names, as `gh pr create` reads that key for a base, else ref; elsewhere, HEAD's full
-    hash when the checkout is not on parent, by default ref less `origin/`, and HEAD holds
-    the design with a blob other than the merge base's, or the design unchanged and an ADR
-    costly_adrs names changed, so the branch changed a planning file; ref otherwise, as
-    every consumer read before. An ADR path design_path refuses in a design the branch left
-    unchanged is the parent's, skipped as the parent's readers skip it. ValueError for a bad
-    path, key, directory, ref, or gh-merge-base, a failed git config read, or no merge base."""
+    names, as `gh pr create` reads that key for a base, else ref; elsewhere, ref when the
+    checkout is on parent, by default ref less `origin/`, or when HEAD's design and each ADR
+    costly_adrs names match ref's, which needs no merge base, as a shallow clone has none;
+    otherwise HEAD's full hash when the design or one of those ADRs differs from the merge
+    base, so the branch changed a planning file, else ref. An ADR path design_path refuses
+    is skipped with a line on standard error. ValueError for a bad path, key, directory,
+    ref, or gh-merge-base, a failed git config read, or no merge base where one is needed."""
     root = os.path.realpath(project_root(config))
     directory = key_directory(config)
     parent_commit = ref_commit(root, ref)
@@ -1108,21 +1110,36 @@ def design_ref(text, ref, config, parent=None, epic=False):
         else design_path(text, directory)
     branch = run_git(root, "branch", "--show-current").strip()
     if path is not None and design_branch(design_slug(path)).fullmatch(branch):
-        found = subprocess.run(["git", "config", "--get", f"branch.{branch}.gh-merge-base"],
-                               cwd=root, capture_output=True, text=True, check=False)
+        key = f"branch.{branch}.gh-merge-base"
+        found = subprocess.run(["git", "config", "--get", key], cwd=root,
+                               capture_output=True, text=True, check=False)
         if found.returncode not in (0, 1):
-            raise ValueError(f"git config --get branch.{branch}.gh-merge-base failed: "
+            raise ValueError(f"git config --get {key} failed: "
                              f"{found.stderr.strip() or found.returncode}")
         merge_base = found.stdout.strip()
         if not merge_base or merge_base == parent_branch:
             return ref
-        return ref_commit(root, merge_base)
+        try:
+            return ref_commit(root, merge_base)
+        except ValueError as error:
+            raise ValueError(f"{key} names {merge_base!r}, no commit; set it to the branch "
+                             f"this revision merges into, or unset it ({error})")
     if path is None or branch == parent_branch:
         return ref
-    found = branch_design(root, "HEAD", path)
+    head = ref_commit(root, "HEAD")
+    found = branch_design(root, head, path)
     if found is None:
         return ref
-    shared = subprocess.run(["git", "merge-base", "HEAD", parent_commit], cwd=root,
+    adr_dir = design_dirs(read_config(config))["adr_dir"]
+    files = [path]
+    for adr in costly_adrs(found[1]) if adr_dir is not None else []:
+        try:
+            files.append(design_path(adr, adr_dir, "adr_dir"))
+        except ValueError as error:
+            print(f"design-ref: skipping ADR {adr!r} in {path}: {error}", file=sys.stderr)
+    if all(blob_at(root, head, name) == blob_at(root, parent_commit, name) for name in files):
+        return ref
+    shared = subprocess.run(["git", "merge-base", head, parent_commit], cwd=root,
                             capture_output=True, text=True, check=False)
     if shared.returncode == 1 and not shared.stderr.strip():
         raise ValueError(f"HEAD and {ref!r} share no merge base; fetch the full history of "
@@ -1130,16 +1147,8 @@ def design_ref(text, ref, config, parent=None, epic=False):
     if shared.returncode != 0:
         raise ValueError(f"git merge-base failed: {shared.stderr.strip() or shared.returncode}")
     base = shared.stdout.strip()
-    if found[0] != blob_at(root, base, path):
-        return ref_commit(root, "HEAD")
-    adr_dir = design_dirs(read_config(config))["adr_dir"]
-    for adr in costly_adrs(found[1]) if adr_dir is not None else []:
-        try:
-            name = design_path(adr, adr_dir, "adr_dir")
-        except ValueError:
-            continue
-        if blob_at(root, "HEAD", name) not in ("", blob_at(root, base, name)):
-            return ref_commit(root, "HEAD")
+    if any(blob_at(root, head, name) not in ("", blob_at(root, base, name)) for name in files):
+        return head
     return ref
 
 
@@ -2625,7 +2634,7 @@ def design_ref_self_test(this):
         failures += report("design_ref", "a gh-merge-base naming a deleted branch",
                            result_or_message(lambda: design_ref(
                                "docs/design/b.md", "origin/main", project))[:30],
-                           "ref 'feature/gone' does not na")
+                           "branch.design/b-rev7.gh-merge-")
         run_git(root, "config", "branch.design/b-rev7.gh-merge-base", "main")
         failures += report("design_ref", "a gh-merge-base naming the parent reads REF",
                            design_ref("docs/design/b.md", "origin/main", project),
@@ -2660,11 +2669,24 @@ def design_ref_self_test(this):
         commit("feature/quoted-adr-2", {"docs/adr/0002-queue.md": "# ADR, revised\n"})
         failures += check("a backticked ADR path the branch changed", "docs/design/e.md",
                           "HEAD")
-        template = ("\n## Gate\n\n```markdown\n- Costly to reverse: <choice> — ADR: <path>\n"
-                    "```\n\n## Proposal\n\nNo choice is costly to reverse.\n")
-        commit("feature/fenced", {"docs/design/g.md": front.format(7, template)})
-        failures += check("a fenced template line outside Proposal", "docs/design/g.md",
-                          "HEAD")
+        template = ("\n## Gate\n\n```markdown\n- Costly to reverse: x — ADR: "
+                    "docs/adr/0001-storage.md\n```\n\n- Costly to reverse: y — ADR: "
+                    "docs/adr/0001-storage.md\n\n## Proposal\n\nNothing is costly.\n")
+        run_git(root, "switch", "--quiet", "main")
+        write_scratch(root, front.format(7, template), "docs/design/g.md")
+        run_git(root, "add", "docs/design/g.md")
+        run_git(root, "commit", "--quiet", "-m", "a design quoting the ADR line")
+        run_git(root, "update-ref", "refs/remotes/origin/main", "HEAD")
+        commit("feature/fenced", {"docs/adr/0001-storage.md": "# ADR, changed\n"})
+        failures += check("an ADR named only outside Proposal or in a code block",
+                          "docs/design/g.md", "origin/main")
+        failures += check("the same branch changing an ADR the Proposal names",
+                          "docs/design/c.md", "HEAD")
+        no_adr_dir = write_scratch(root, {"design_dir": "docs/design"}, ".claude/no-adr-2.json")
+        failures += report("design_ref", "ADR lines unread with adr_dir unset",
+                           design_ref("docs/design/c.md", "origin/main", no_adr_dir),
+                           "origin/main")
+        os.remove(no_adr_dir)
         run_git(root, "switch", "--quiet", "-c", "feature/drop-adr", "main")
         run_git(root, "rm", "--quiet", "docs/adr/0001-storage.md")
         run_git(root, "commit", "--quiet", "-m", "drop the ADR")
@@ -2676,15 +2698,19 @@ def design_ref_self_test(this):
         run_git(root, "commit", "--quiet", "-m", "unrelated")
         orphan = write_scratch(root, {"design_dir": "docs/design", "adr_dir": "docs/adr"},
                                ".claude/orphan.json")
+        write_scratch(root, run_git(root, "show", "origin/main:docs/design/a.md"),
+                      "docs/design/a.md")
+        run_git(root, "add", "docs/design/a.md")
+        run_git(root, "commit", "--quiet", "-m", "the parent's design, unchanged")
+        failures += report("design_ref", "a design the parent holds, with no merge base",
+                           result_or_message(lambda: design_ref("docs/design/a.md",
+                                                                "origin/main", orphan)),
+                           "origin/main")
         failures += report("design_ref", "no merge base", result_or_message(
             lambda: design_ref("docs/design/f.md", "origin/main", orphan))[:30],
                            "HEAD and 'origin/main' share n")
         os.remove(orphan)
         run_git(root, "switch", "--quiet", "feature/bad-adr")
-        no_adr = write_scratch(root, {"design_dir": "docs/design"}, ".claude/no-adr.json")
-        failures += report("design_ref", "COSTLY_ADR lines unread with adr_dir unset",
-                           design_ref("docs/design/d.md", "origin/main", no_adr),
-                           run_git(root, "rev-parse", "HEAD").strip())
         run_git(root, "switch", "--quiet", "main")
         write_scratch(root, front.format(8, "\n## Proposal\n\n- Costly to reverse: z — ADR: "
                                             "decisions/0001-z.md\n"), "docs/design/h.md")
