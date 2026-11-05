@@ -91,13 +91,15 @@ repository inherits the caller's git. Each importer's self-test covers the rules
     project_rules.py design-ref --ref REF --config FILE [--parent NAME] [--epic]
                                    the commit a planning skill reads the design at the path
                                    on standard input, or with --epic the Epic key's design,
-                                   and its ADRs: HEAD's full hash when the checkout is not
-                                   on NAME, by default REF less `origin/`, nor on the
-                                   design's own design branch, and HEAD holds the design or
-                                   an ADR its `- Costly to reverse:` lines name with a blob
-                                   other than at the merge base of HEAD and REF; REF
-                                   otherwise; INVALID for a bad path, key, design_dir, ref,
-                                   or ADR path, or no merge base
+                                   and its ADRs: on the design's own design branch, the
+                                   commit of the branch its `gh-merge-base` git config
+                                   names, else REF; elsewhere, HEAD's full hash when the
+                                   checkout is not on NAME, by default REF less `origin/`,
+                                   and HEAD holds the design or an ADR its `- Costly to
+                                   reverse:` lines name with a blob other than at the merge
+                                   base of HEAD and REF; REF otherwise; INVALID for a bad
+                                   path, key, design_dir, ref, ADR path, or gh-merge-base,
+                                   or no merge base
     project_rules.py design-review-exception --config FILE
                                    `<Rule>\t<Expiry>` of the unexpired, complete row of
                                    FILE's exceptions_log register waiving rule book Phase 3
@@ -1089,9 +1091,11 @@ def costly_adrs(text):
 
 def design_ref(text, ref, config, parent=None, epic=False):
     """The commit a planning skill reads a design and its ADRs at, as Nx's `affected` and a
-    pull request's diff judge a branch against the merge base with its parent: HEAD's full
-    hash when the checkout is on neither parent, by default ref less `origin/`, nor the
-    design's own design_branch, and HEAD holds the design, or an ADR costly_adrs names, with a blob other than the merge base's, so the branch changed a planning
+    pull request's diff judge a branch against the merge base with its parent: on the
+    design's own design_branch, the commit of the branch its `gh-merge-base` git config
+    names, as `gh pr create` reads that key for a base, else ref; HEAD's full hash when the
+    checkout is not on parent, by default ref less `origin/`, and HEAD holds the design, or
+    an ADR costly_adrs names, with a blob other than the merge base's, so the branch changed a planning
     file; ref otherwise, as every consumer read before. ValueError for a bad path, key,
     directory, ref, or ADR path."""
     root = os.path.realpath(project_root(config))
@@ -1100,8 +1104,17 @@ def design_ref(text, ref, config, parent=None, epic=False):
     path = epic_design(root, directory, "HEAD", ticket_key(text)) if epic \
         else design_path(text, directory)
     branch = run_git(root, "branch", "--show-current").strip()
-    if path is None or branch == (parent or local_branch(ref)) or \
-            design_branch(design_slug(path)).fullmatch(branch):
+    if path is not None and design_branch(design_slug(path)).fullmatch(branch):
+        found = subprocess.run(["git", "config", "--get", f"branch.{branch}.gh-merge-base"],
+                               cwd=root, capture_output=True, text=True, check=False)
+        if found.returncode not in (0, 1):
+            raise ValueError(f"git config --get branch.{branch}.gh-merge-base failed: "
+                             f"{found.stderr.strip() or found.returncode}")
+        merge_base = found.stdout.strip()
+        if not merge_base or merge_base == (parent or local_branch(ref)):
+            return ref
+        return ref_commit(root, merge_base)
+    if path is None or branch == (parent or local_branch(ref)):
         return ref
     found = branch_design(root, "HEAD", path)
     if found is None:
@@ -2577,6 +2590,35 @@ def design_ref_self_test(this):
         failures += report("design_ref", "lifecycle reads the branch design at its hash",
                            lines[0] if isinstance(lines, list) else lines,
                            "design-accepted-on-parent docs/design/b.md")
+        held = design_ref("docs/design/b.md", "origin/main", project)
+        draft = os.path.join(root, TICKET_DRAFTS, "b.md")
+        write_scratch(root, "# [E1] D\n\n- Design: `docs/design/b.md`\n\n<!-- design-rework: "
+                      f"S1 @ {blob_at(root, 'HEAD', 'docs/design/b.md')} -->\n",
+                      f"{TICKET_DRAFTS}/b.md")
+        lines = result_or_message(lambda: lifecycle("docs/design/b.md", held, project))
+        failures += report("design_ref", "the rework handoff of a branch-held design",
+                           lines[0].split()[0] if isinstance(lines, list) else lines,
+                           "tickets-stalled-needs-design-rework")
+        os.remove(draft)
+        run_git(root, "switch", "--quiet", "-c", "design/b-rev7", "feature/own")
+        write_scratch(root, front.format(3, "").replace("accepted", "proposed"),
+                      "docs/design/b.md")
+        failures += report("design_ref", "a branch-held design's reopen moves accepted -> "
+                           "proposed at its hash", result_or_message(lambda: design_transition(
+                               "docs/design/b.md", held, project)), "ok accepted -> proposed")
+        run_git(root, "commit", "--quiet", "-am", "Reopen b")
+        run_git(root, "config", "branch.design/b-rev7.gh-merge-base", "feature/own")
+        failures += report("design_ref", "a revision branch reads at its gh-merge-base branch",
+                           design_ref("docs/design/b.md", "origin/main", project), held)
+        lines = result_or_message(lambda: lifecycle("docs/design/b.md", held, project))
+        run_git(root, "config", "branch.design/b-rev7.gh-merge-base", "main")
+        failures += report("design_ref", "a gh-merge-base naming the parent reads REF",
+                           design_ref("docs/design/b.md", "origin/main", project),
+                           "origin/main")
+        run_git(root, "config", "branch.design/b-rev7.gh-merge-base", "feature/own")
+        failures += report("design_ref", "a revision of a branch-held design is its open draft",
+                           lines[0] if isinstance(lines, list) else lines,
+                           "design-draft docs/design/b.md on design/b-rev7")
         run_git(root, "switch", "--quiet", "--detach", "feature/own")
         failures += check("a branch-only design on a detached HEAD", "docs/design/b.md",
                           "HEAD")

@@ -72,7 +72,8 @@ Every skill except `readme-docs` runs only when invoked by name.
     and commits them once the tech lead decides. Runs from any branch, dirty or not: it
     reads code from a temporary worktree of `origin/<parent>` under `.git/`, and commits on
     `design/<slug>` in a worktree, leaving your checkout alone. Reopening an accepted design
-    switches to its revision branch instead. Agent:
+    switches to its revision branch instead; one held only on your branch is revised on a
+    branch cut from yours, which merges back into it. Agent:
     `feature-design-adversary`. Gate: `design-exit.md`.
   - `write-tickets` — turns a request, or an approved design's work plan, into Jira tickets
     that `plan-work` can plan as written. Agent: `ticket-adversary`.
